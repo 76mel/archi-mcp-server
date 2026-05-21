@@ -3,7 +3,9 @@ package net.vheerden.archi.mcp.model.routing;
 import static org.junit.Assert.*;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -776,6 +778,435 @@ public class CoincidentSegmentDetectorTest {
         assertTrue("Should contain index 1", result.violatorConnectionIndices().contains(1));
         assertFalse("Should NOT contain index 2 (non-coincident)",
                 result.violatorConnectionIndices().contains(2));
+    }
+
+    // ---- Story CoincidentRegression.SurgicalFix (AC-9a / AC-9b): perimeter-anchored
+    //      coincident segments — applyOffsets rollback + Approach-3 reconciliation pin.
+
+    /**
+     * AC-9b: existing B71 rollback safety pin via applyOffsets round-trip.
+     * Two connections both terminate on a hub LEFT face at distinct slots
+     * (y=80 and y=60), sharing a vertical corridor at x=199 just outside
+     * the LEFT face. applyOffsets's perpendicular delta-shift would move
+     * each path's terminal BP off the face line — the rollback must fire,
+     * leaving paths unchanged. Pins the safety net 0db3d91 introduced.
+     */
+    @Test
+    public void applyOffsets_terminalAnchored_collapseAttempt_rollsBack() {
+        Fixture f = buildPerimeterAnchoredCoincidenceFixture();
+
+        List<CoincidentSegmentDetector.CoincidentPair> pairs =
+                detector.detect(f.connectionIds, f.paths, f.sourceCenters, f.targetCenters);
+        assertTrue("Fixture must produce at least one coincident pair pre-call",
+                pairs.size() >= 1);
+
+        int offsetCount = detector.applyOffsets(
+                pairs, f.paths, f.obstacles, f.anchoringContexts);
+
+        assertEquals("applyOffsets must roll back perimeter-anchored shifts (B71 safety)",
+                0, offsetCount);
+        assertEquals("conn A path size unchanged", 3, f.paths.get(0).size());
+        assertEquals("conn A bp[2].x stays on target LEFT face line",
+                199, f.paths.get(0).get(2).x());
+        assertEquals("conn B path size unchanged", 3, f.paths.get(1).size());
+        assertEquals("conn B bp[2].x stays on target LEFT face line",
+                199, f.paths.get(1).get(2).x());
+
+        CoincidentSegmentDetector.AnchoringContext ctxA = f.anchoringContexts.get(0);
+        CoincidentSegmentDetector.AnchoringContext ctxB = f.anchoringContexts.get(1);
+        assertTrue("preservesEndpoints holds for conn A post-rollback",
+                TerminalAnchoring.preservesEndpoints(
+                        ctxA.sourceAnchoring(), ctxA.connection().source(), ctxA.sourceCenter(),
+                        ctxA.targetAnchoring(), ctxA.connection().target(), ctxA.targetCenter(),
+                        f.paths.get(0)));
+        assertTrue("preservesEndpoints holds for conn B post-rollback",
+                TerminalAnchoring.preservesEndpoints(
+                        ctxB.sourceAnchoring(), ctxB.connection().source(), ctxB.sourceCenter(),
+                        ctxB.targetAnchoring(), ctxB.connection().target(), ctxB.targetCenter(),
+                        f.paths.get(1)));
+    }
+
+    /**
+     * AC-9a: Approach-3 reconciliation resolves the rollback-prone coincidence
+     * by INSERTING two BPs around the still-anchored terminal — the corridor
+     * shifts perpendicular while the terminal BP itself stays on the face line.
+     */
+    @Test
+    public void applyTerminalAnchoredReconciliation_resolvesPerimeterCoincidence() {
+        Fixture f = buildPerimeterAnchoredCoincidenceFixture();
+
+        // First, exhaust applyOffsets — confirms the rollback fires (paths intact).
+        List<CoincidentSegmentDetector.CoincidentPair> prePairs =
+                detector.detect(f.connectionIds, f.paths, f.sourceCenters, f.targetCenters);
+        int offsetCount = detector.applyOffsets(
+                prePairs, f.paths, f.obstacles, f.anchoringContexts);
+        assertEquals("applyOffsets rolled back (B71 pin)", 0, offsetCount);
+
+        // Then run Approach-3 reconciliation on the rolled-back state.
+        int reconciled = detector.applyTerminalAnchoredReconciliation(
+                f.connectionIds, f.paths, f.sourceCenters, f.targetCenters,
+                f.obstacles, f.anchoringContexts);
+
+        assertTrue("Reconciliation must resolve at least one coincident pair",
+                reconciled >= 1);
+
+        // Exactly one of conn A / conn B was the corridor anchor (i=0,
+        // unchanged); the other was reconciled (path grew by 1 via BP
+        // insertion). Which conn wins the anchor slot is determined by
+        // detect()'s pair iteration order — assert the SHAPE rather than
+        // identity to stay robust against future detection-ordering changes
+        // (code-review L3 follow-up 2026-04-28).
+        int sizeA = f.paths.get(0).size();
+        int sizeB = f.paths.get(1).size();
+        assertTrue("Exactly one path grew by 1 (insertion); the other unchanged. "
+                + "sizeA=" + sizeA + " sizeB=" + sizeB,
+                (sizeA == 3 && sizeB == 4) || (sizeA == 4 && sizeB == 3));
+
+        // Both connections' terminal BPs (path[last]) must remain on the
+        // target LEFT face line at x=199, with y unchanged at the original
+        // slot allocation (y=80 for conn A; y=60 for conn B).
+        AbsoluteBendpointDto connATerminal = f.paths.get(0).get(sizeA - 1);
+        AbsoluteBendpointDto connBTerminal = f.paths.get(1).get(sizeB - 1);
+        assertEquals("conn A terminal BP still on target LEFT face line",
+                199, connATerminal.x());
+        assertEquals("conn A terminal BP y unchanged (slot y=80)",
+                80, connATerminal.y());
+        assertEquals("conn B terminal BP still on target LEFT face line",
+                199, connBTerminal.x());
+        assertEquals("conn B terminal BP y unchanged (slot y=60)",
+                60, connBTerminal.y());
+
+        // Both connections' anchoring contracts hold post-reconciliation.
+        CoincidentSegmentDetector.AnchoringContext ctxA = f.anchoringContexts.get(0);
+        CoincidentSegmentDetector.AnchoringContext ctxB = f.anchoringContexts.get(1);
+        assertTrue("preservesEndpoints holds for conn A post-reconciliation",
+                TerminalAnchoring.preservesEndpoints(
+                        ctxA.sourceAnchoring(), ctxA.connection().source(), ctxA.sourceCenter(),
+                        ctxA.targetAnchoring(), ctxA.connection().target(), ctxA.targetCenter(),
+                        f.paths.get(0)));
+        assertTrue("preservesEndpoints holds for conn B post-reconciliation",
+                TerminalAnchoring.preservesEndpoints(
+                        ctxB.sourceAnchoring(), ctxB.connection().source(), ctxB.sourceCenter(),
+                        ctxB.targetAnchoring(), ctxB.connection().target(), ctxB.targetCenter(),
+                        f.paths.get(1)));
+
+        // Coincidence resolved: re-detection returns no pairs.
+        List<CoincidentSegmentDetector.CoincidentPair> postPairs = detector.detect(
+                f.connectionIds, f.paths, f.sourceCenters, f.targetCenters);
+        assertEquals("Post-reconciliation should have zero coincident pairs",
+                0, postPairs.size());
+    }
+
+    /**
+     * Code-review M3 (2026-04-29): three TA-coincident connections in a single
+     * corridor must be staggered so all pairs separate without two segments
+     * landing within MIN_SEPARATION of each other. AC-9a only covers the
+     * 2-segment case; the V4 oracle's largest TA-cluster is 4 segments
+     * (C1 y=345 corridor → hub BOTTOM face) so 3+ clusters are in scope.
+     */
+    @Test
+    public void applyTerminalAnchoredReconciliation_threeSegmentCorridor_staggerSeparates() {
+        Fixture f = buildThreeSegmentCorridorFixture();
+
+        int reconciled = detector.applyTerminalAnchoredReconciliation(
+                f.connectionIds, f.paths, f.sourceCenters, f.targetCenters,
+                f.obstacles, f.anchoringContexts);
+
+        assertTrue("Reconciliation must resolve at least 2 of 3 segments",
+                reconciled >= 2);
+
+        // Exactly one anchor (size 3, unchanged) plus two reconciled (size 4).
+        int unchangedCount = 0;
+        int grownCount = 0;
+        for (List<AbsoluteBendpointDto> path : f.paths) {
+            if (path.size() == 3) unchangedCount++;
+            else if (path.size() == 4) grownCount++;
+        }
+        assertEquals("exactly one anchor (size 3)", 1, unchangedCount);
+        assertEquals("exactly two reconciled (size 4)", 2, grownCount);
+
+        // All three terminal BPs preserved on target LEFT face line at x=199.
+        for (int i = 0; i < f.paths.size(); i++) {
+            List<AbsoluteBendpointDto> path = f.paths.get(i);
+            AbsoluteBendpointDto terminal = path.get(path.size() - 1);
+            assertEquals("conn[" + i + "] terminal x preserved",
+                    199, terminal.x());
+        }
+
+        // Re-detect: the corridor must be fully separated.
+        List<CoincidentSegmentDetector.CoincidentPair> postPairs = detector.detect(
+                f.connectionIds, f.paths, f.sourceCenters, f.targetCenters);
+        assertEquals("post-reconciliation: zero coincident pairs",
+                0, postPairs.size());
+    }
+
+    /**
+     * Code-review M2 (2026-04-29): a connection with TWO terminal-anchored
+     * coincident segments in two different corridor groups must not have its
+     * path corrupted when corridor 1's reconciliation grows the path,
+     * invalidating the stored seg.segmentIndex() for corridor 2. The defensive
+     * guard at tryReconcileWithInsertion (the {@code !bp1IsTerminal &&
+     * !bp2IsTerminal} early return) catches the stale index and skips
+     * corridor 2's mutation. Without the guard, X's path would grow to size 6
+     * with a diagonal segment introduced (corruption).
+     */
+    @Test
+    public void applyTerminalAnchoredReconciliation_staleSegmentIndex_isSkipped() {
+        Fixture f = buildBridgeWithTwoCorridorsFixture();
+
+        int reconciled = detector.applyTerminalAnchoredReconciliation(
+                f.connectionIds, f.paths, f.sourceCenters, f.targetCenters,
+                f.obstacles, f.anchoringContexts);
+
+        // Bridge X is at index 2 (last) so it is segB in both pairs and i=1
+        // in both corridors. Corridor H:30 reconciles X first (X grows from
+        // size 4 → 5). Corridor H:90's processing of X then hits the stale-
+        // segmentIndex guard and returns false. Total reconciled = 1.
+        assertEquals("only one reconciliation succeeds (guard skips the second)",
+                1, reconciled);
+
+        // Bridge X (index 2): exactly one insertion. Guard prevents the
+        // second mutation that would have grown the path to size 6.
+        List<AbsoluteBendpointDto> pathX = f.paths.get(2);
+        assertEquals("X path size is 5 (one insertion, not corrupted to 6)",
+                5, pathX.size());
+
+        // Both terminals of X preserved on hub LEFT face line at x=199.
+        assertEquals("X bp[0] x preserved (hub LEFT slot y=30)",
+                199, pathX.get(0).x());
+        assertEquals("X bp[0] y preserved (slot y=30)",
+                30, pathX.get(0).y());
+        AbsoluteBendpointDto xTerminalLast = pathX.get(pathX.size() - 1);
+        assertEquals("X bp[last] x preserved (hub LEFT slot y=90)",
+                199, xTerminalLast.x());
+        assertEquals("X bp[last] y preserved (slot y=90)",
+                90, xTerminalLast.y());
+
+        // Anchoring contract holds for X (both ends on hub LEFT face line).
+        CoincidentSegmentDetector.AnchoringContext ctxX = f.anchoringContexts.get(2);
+        assertTrue("preservesEndpoints holds for X (both terminals untouched)",
+                TerminalAnchoring.preservesEndpoints(
+                        ctxX.sourceAnchoring(), ctxX.connection().source(), ctxX.sourceCenter(),
+                        ctxX.targetAnchoring(), ctxX.connection().target(), ctxX.targetCenter(),
+                        pathX));
+    }
+
+    // ---- Fixture helper for AC-9a / AC-9b ----
+
+    private static class Fixture {
+        List<String> connectionIds;
+        List<List<AbsoluteBendpointDto>> paths;
+        List<int[]> sourceCenters;
+        List<int[]> targetCenters;
+        List<RoutingRect> obstacles;
+        Map<Integer, CoincidentSegmentDetector.AnchoringContext> anchoringContexts;
+    }
+
+    /**
+     * Builds the canonical AC-9 fixture: two connections terminating at distinct
+     * slots on the same LEFT face of a target hub element, sharing a vertical
+     * corridor at x=199 (the target's LEFT face line). Both connections also
+     * source-anchored on RIGHT face of their respective producer rects.
+     */
+    private static Fixture buildPerimeterAnchoredCoincidenceFixture() {
+        Fixture f = new Fixture();
+        // Hub target on RIGHT side of the canvas; LEFT face line at x=199.
+        RoutingRect target = new RoutingRect(200, 0, 100, 100, "target-hub");
+        int[] targetCenter = {target.centerX(), target.centerY()};
+        // Source A: RIGHT face line at x=49 (50-1 tolerance), y∈[25, 75].
+        RoutingRect sourceA = new RoutingRect(0, 25, 49, 50, "source-A");
+        int[] sourceACenter = {sourceA.centerX(), sourceA.centerY()};
+        // Source B: visually disjoint from sourceA, placed below at y∈[100, 120].
+        // (Both rects have RIGHT face line at x=49; pathA/pathB bp[0].x=50
+        // tracks the same +1 tolerance the V4 oracle exhibits.)
+        RoutingRect sourceB = new RoutingRect(0, 100, 49, 20, "source-B");
+        int[] sourceBCenter = {sourceB.centerX(), sourceB.centerY()};
+
+        // Conn A: source A → target LEFT face slot y=80.
+        List<AbsoluteBendpointDto> pathA = mutableList(
+                new AbsoluteBendpointDto(50, 50),    // bp[0] on source A RIGHT face
+                new AbsoluteBendpointDto(199, 50),   // bp[1] interior
+                new AbsoluteBendpointDto(199, 80));  // bp[2] on target LEFT face slot y=80
+        // Conn B: source B → target LEFT face slot y=60. Vertical corridor at
+        // x=199 overlaps conn A's vertical (x=199, y∈[50, 80]) in y∈[60, 80].
+        List<AbsoluteBendpointDto> pathB = mutableList(
+                new AbsoluteBendpointDto(50, 110),   // bp[0] on source B RIGHT face
+                new AbsoluteBendpointDto(199, 110),  // bp[1] interior
+                new AbsoluteBendpointDto(199, 60));  // bp[2] on target LEFT face slot y=60
+
+        f.paths = new ArrayList<>();
+        f.paths.add(pathA);
+        f.paths.add(pathB);
+        f.sourceCenters = List.of(sourceACenter, sourceBCenter);
+        f.targetCenters = List.of(targetCenter, targetCenter);
+        f.connectionIds = List.of("conn-A", "conn-B");
+        f.obstacles = List.of(sourceA, sourceB, target);
+
+        RoutingPipeline.ConnectionEndpoints connA = new RoutingPipeline.ConnectionEndpoints(
+                "conn-A", sourceA, target, List.of(), null, 0);
+        RoutingPipeline.ConnectionEndpoints connB = new RoutingPipeline.ConnectionEndpoints(
+                "conn-B", sourceB, target, List.of(), null, 0);
+        TerminalAnchoring sourceFace = new TerminalAnchoring(EdgeAttachmentCalculator.Face.RIGHT);
+        TerminalAnchoring targetFace = new TerminalAnchoring(EdgeAttachmentCalculator.Face.LEFT);
+
+        f.anchoringContexts = new HashMap<>();
+        f.anchoringContexts.put(0, new CoincidentSegmentDetector.AnchoringContext(
+                connA, sourceACenter, targetCenter, sourceFace, targetFace));
+        f.anchoringContexts.put(1, new CoincidentSegmentDetector.AnchoringContext(
+                connB, sourceBCenter, targetCenter, sourceFace, targetFace));
+        return f;
+    }
+
+    /**
+     * Code-review M3 fixture: 3 connections, all terminating on the same hub
+     * LEFT face at distinct slots y=80 / y=60 / y=40 (terminal BP y-values for
+     * conn A / conn B / conn C respectively), sharing the vertical corridor
+     * at x=199. The vertical corridor segments span y ranges [80,120] (A),
+     * [60,160] (B), [40,200] (C) — all three pairs overlap by ≥40px (well
+     * above MIN_OVERLAP_LENGTH=5), so {@code detect()} returns 3 pairs.
+     * After reconciliation: i=0 anchor (conn A) unchanged at x=199, i=1
+     * (conn B) staggered to x=191 (MIN_SEPARATION=8), i=2 (conn C) staggered
+     * to x=183 (16px); all in the same direction (preferredSign=-1 since hub
+     * center x=250 > terminal x=199, drop returns toward target). Sonnet 4.6
+     * code-review H1 fix 2026-04-29 — original fixture had non-overlapping
+     * y ranges (20px gaps) so {@code detect()} returned 0 pairs and the test
+     * was effectively a no-op.
+     */
+    private static Fixture buildThreeSegmentCorridorFixture() {
+        Fixture f = new Fixture();
+        RoutingRect target = new RoutingRect(200, 0, 100, 200, "target-hub");
+        int[] targetCenter = {target.centerX(), target.centerY()};
+
+        // Sources stacked vertically (tangent edges) below the hub. Each
+        // source's RIGHT face line is at x=49 (rect.x + width); pathX bp[0].x=50
+        // tracks the +1 face-line tolerance the V4 oracle exhibits.
+        // sourceA y∈[100,140] center (24,120); sourceB y∈[140,180] center (24,160);
+        // sourceC y∈[180,220] center (24,200).
+        RoutingRect sourceA = new RoutingRect(0, 100, 49, 40, "source-A");
+        RoutingRect sourceB = new RoutingRect(0, 140, 49, 40, "source-B");
+        RoutingRect sourceC = new RoutingRect(0, 180, 49, 40, "source-C");
+        int[] sourceACenter = {sourceA.centerX(), sourceA.centerY()};
+        int[] sourceBCenter = {sourceB.centerX(), sourceB.centerY()};
+        int[] sourceCCenter = {sourceC.centerX(), sourceC.centerY()};
+
+        // Conn A: source A center (24,120) → target LEFT slot y=80. Vertical
+        // corridor x=199 spans y∈[80,120].
+        List<AbsoluteBendpointDto> pathA = mutableList(
+                new AbsoluteBendpointDto(50, 120),
+                new AbsoluteBendpointDto(199, 120),
+                new AbsoluteBendpointDto(199, 80));
+        // Conn B: source B center (24,160) → target LEFT slot y=60. Vertical
+        // corridor x=199 spans y∈[60,160] (overlaps A and C pairwise).
+        List<AbsoluteBendpointDto> pathB = mutableList(
+                new AbsoluteBendpointDto(50, 160),
+                new AbsoluteBendpointDto(199, 160),
+                new AbsoluteBendpointDto(199, 60));
+        // Conn C: source C center (24,200) → target LEFT slot y=40. Vertical
+        // corridor x=199 spans y∈[40,200] (envelops both A and B).
+        List<AbsoluteBendpointDto> pathC = mutableList(
+                new AbsoluteBendpointDto(50, 200),
+                new AbsoluteBendpointDto(199, 200),
+                new AbsoluteBendpointDto(199, 40));
+
+        f.paths = new ArrayList<>();
+        f.paths.add(pathA);
+        f.paths.add(pathB);
+        f.paths.add(pathC);
+        f.sourceCenters = List.of(sourceACenter, sourceBCenter, sourceCCenter);
+        f.targetCenters = List.of(targetCenter, targetCenter, targetCenter);
+        f.connectionIds = List.of("conn-A", "conn-B", "conn-C");
+        f.obstacles = List.of(sourceA, sourceB, sourceC, target);
+
+        TerminalAnchoring sourceFace = new TerminalAnchoring(EdgeAttachmentCalculator.Face.RIGHT);
+        TerminalAnchoring targetFace = new TerminalAnchoring(EdgeAttachmentCalculator.Face.LEFT);
+        RoutingPipeline.ConnectionEndpoints connA = new RoutingPipeline.ConnectionEndpoints(
+                "conn-A", sourceA, target, List.of(), null, 0);
+        RoutingPipeline.ConnectionEndpoints connB = new RoutingPipeline.ConnectionEndpoints(
+                "conn-B", sourceB, target, List.of(), null, 0);
+        RoutingPipeline.ConnectionEndpoints connC = new RoutingPipeline.ConnectionEndpoints(
+                "conn-C", sourceC, target, List.of(), null, 0);
+        f.anchoringContexts = new HashMap<>();
+        f.anchoringContexts.put(0, new CoincidentSegmentDetector.AnchoringContext(
+                connA, sourceACenter, targetCenter, sourceFace, targetFace));
+        f.anchoringContexts.put(1, new CoincidentSegmentDetector.AnchoringContext(
+                connB, sourceBCenter, targetCenter, sourceFace, targetFace));
+        f.anchoringContexts.put(2, new CoincidentSegmentDetector.AnchoringContext(
+                connC, sourceCCenter, targetCenter, sourceFace, targetFace));
+        return f;
+    }
+
+    /**
+     * Code-review M2 fixture: bridge connection X with both ends terminal-
+     * anchored on the same hub's LEFT face (U-turn), plus 2 helper
+     * connections each coinciding with one of X's two TA segments. X is
+     * placed at index 2 (last) so it is segB in both detected pairs, hence
+     * i=1 (reconcile candidate) in both corridor groups. Corridor H:30
+     * reconciles X first (path grows 4→5); corridor H:90's reconciliation
+     * then encounters X's stale segmentIndex=2 and must be guarded out.
+     */
+    private static Fixture buildBridgeWithTwoCorridorsFixture() {
+        Fixture f = new Fixture();
+        RoutingRect hub = new RoutingRect(200, 0, 100, 200, "hub-target");
+        int[] hubCenter = {hub.centerX(), hub.centerY()};
+
+        // Width 49 → RIGHT face line at x=50 (same convention as the canonical
+        // AC-9 fixture: TerminalAnchoring.lineCoordinate = rect.x + width + 1).
+        RoutingRect prodA = new RoutingRect(0, 0, 49, 40, "prod-A");
+        RoutingRect prodB = new RoutingRect(0, 80, 49, 40, "prod-B");
+        int[] prodACenter = {prodA.centerX(), prodA.centerY()};
+        int[] prodBCenter = {prodB.centerX(), prodB.centerY()};
+
+        // Conn Y: prod-A RIGHT (face line x=50) → hub LEFT slot y=30. L-shape
+        // with seg 2 (TA) horizontal at y=30 from (100, 30) → (199, 30).
+        List<AbsoluteBendpointDto> pathY = mutableList(
+                new AbsoluteBendpointDto(50, 20),
+                new AbsoluteBendpointDto(100, 20),
+                new AbsoluteBendpointDto(100, 30),
+                new AbsoluteBendpointDto(199, 30));
+        // Conn Z: prod-B RIGHT (face line x=50) → hub LEFT slot y=90. L-shape
+        // with seg 2 (TA) horizontal at y=90 from (100, 90) → (199, 90).
+        List<AbsoluteBendpointDto> pathZ = mutableList(
+                new AbsoluteBendpointDto(50, 100),
+                new AbsoluteBendpointDto(100, 100),
+                new AbsoluteBendpointDto(100, 90),
+                new AbsoluteBendpointDto(199, 90));
+        // Conn X (bridge): U-turn between hub LEFT slot y=30 and slot y=90.
+        // seg 0 horizontal y=30, seg 1 vertical x=50, seg 2 horizontal y=90.
+        // Both seg 0 and seg 2 are terminal-anchored.
+        List<AbsoluteBendpointDto> pathX = mutableList(
+                new AbsoluteBendpointDto(199, 30),
+                new AbsoluteBendpointDto(50, 30),
+                new AbsoluteBendpointDto(50, 90),
+                new AbsoluteBendpointDto(199, 90));
+
+        f.paths = new ArrayList<>();
+        f.paths.add(pathY);
+        f.paths.add(pathZ);
+        f.paths.add(pathX);
+        f.sourceCenters = List.of(prodACenter, prodBCenter, hubCenter);
+        f.targetCenters = List.of(hubCenter, hubCenter, hubCenter);
+        f.connectionIds = List.of("conn-Y", "conn-Z", "conn-X-bridge");
+        f.obstacles = List.of(prodA, prodB, hub);
+
+        TerminalAnchoring rightFace = new TerminalAnchoring(EdgeAttachmentCalculator.Face.RIGHT);
+        TerminalAnchoring leftFace = new TerminalAnchoring(EdgeAttachmentCalculator.Face.LEFT);
+        RoutingPipeline.ConnectionEndpoints connY = new RoutingPipeline.ConnectionEndpoints(
+                "conn-Y", prodA, hub, List.of(), null, 0);
+        RoutingPipeline.ConnectionEndpoints connZ = new RoutingPipeline.ConnectionEndpoints(
+                "conn-Z", prodB, hub, List.of(), null, 0);
+        // Bridge X: source = hub, target = hub (both ends on the same hub's
+        // LEFT face). Both anchorings are LEFT.
+        RoutingPipeline.ConnectionEndpoints connX = new RoutingPipeline.ConnectionEndpoints(
+                "conn-X-bridge", hub, hub, List.of(), null, 0);
+
+        f.anchoringContexts = new HashMap<>();
+        f.anchoringContexts.put(0, new CoincidentSegmentDetector.AnchoringContext(
+                connY, prodACenter, hubCenter, rightFace, leftFace));
+        f.anchoringContexts.put(1, new CoincidentSegmentDetector.AnchoringContext(
+                connZ, prodBCenter, hubCenter, rightFace, leftFace));
+        f.anchoringContexts.put(2, new CoincidentSegmentDetector.AnchoringContext(
+                connX, hubCenter, hubCenter, leftFace, leftFace));
+        return f;
     }
 
     // ---- Helpers ----

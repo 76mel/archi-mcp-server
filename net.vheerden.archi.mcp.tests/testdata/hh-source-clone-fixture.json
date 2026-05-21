@@ -1,0 +1,76 @@
+{
+  "viewId": "id-a53740b929ac47b0ac16b360647f2838",
+  "viewName": "HH source clone — m4 floor spike 2026-05-13",
+  "elementCount": 26,
+  "connectionCount": 30,
+  "_captureProvenance": "Captured via mcp__archi__get-view-contents on 2026-05-14 (H5 story Task 14.2). Child x/y converted from relative (offset within parent group) to absolute canvas coords. Group viewObjectIds promoted to fixture element IDs (isChild=false). Mirrors V4 oracle fixture schema for substrate parity with V4OracleQualityRegressionTest pure-JUnit path. Geometry is structurally identical to v4-integration-architecture-oracle-fixture.json (same positions + same connection topology); element IDs differ because HH source clone uses the current ArchiMate model's element IDs whereas the V4 fixture predates a model edit.",
+  "elements": [
+    {"id": "id-ffdf1abf7dbc42fa93147e52a9385277", "name": "Producers (Channels)",            "x": 20,   "y": 20,   "w": 322, "h": 1422, "isChild": false},
+    {"id": "id-641fed9a3c0245909e7e377a08c168fe", "name": "Integration & Middleware Layer",  "x": 592,  "y": 20,   "w": 400, "h": 1589, "isChild": false},
+    {"id": "id-40ede36b87ef401c8d7db12cdb70bedb", "name": "Consumers (Backend Systems)",     "x": 1242, "y": 20,   "w": 338, "h": 2089, "isChild": false},
+
+    {"id": "id-eeae362cf0b94c489ab3589162ba9b27", "name": "Internet Banking Portal",         "x": 70,   "y": 94,   "w": 214, "h": 55,  "isChild": true,  "parentId": "id-ffdf1abf7dbc42fa93147e52a9385277"},
+    {"id": "id-b7786b9719774138a9bb10b2bb308aec", "name": "Mobile Banking App",              "x": 70,   "y": 299,  "w": 174, "h": 55,  "isChild": true,  "parentId": "id-ffdf1abf7dbc42fa93147e52a9385277"},
+    {"id": "id-7e40d14d23fc45ff830695c4270e6297", "name": "ATM System",                      "x": 70,   "y": 504,  "w": 110, "h": 55,  "isChild": true,  "parentId": "id-ffdf1abf7dbc42fa93147e52a9385277"},
+    {"id": "id-b9b7830db41f4aba94f2b470fa8a9fc3", "name": "Branch Teller System",            "x": 70,   "y": 709,  "w": 190, "h": 55,  "isChild": true,  "parentId": "id-ffdf1abf7dbc42fa93147e52a9385277"},
+    {"id": "id-9d63414d08e7427e9160ea8159808d36", "name": "Contact Centre Platform",         "x": 70,   "y": 914,  "w": 214, "h": 68,  "isChild": true,  "parentId": "id-ffdf1abf7dbc42fa93147e52a9385277"},
+    {"id": "id-cd413971662a424ca53fe3475a8b983b", "name": "Corporate Banking Portal",        "x": 70,   "y": 1132, "w": 222, "h": 55,  "isChild": true,  "parentId": "id-ffdf1abf7dbc42fa93147e52a9385277"},
+    {"id": "id-ce4933bdb6c643cfa1772fa21f050818", "name": "Open Banking Gateway",            "x": 70,   "y": 1337, "w": 190, "h": 55,  "isChild": true,  "parentId": "id-ffdf1abf7dbc42fa93147e52a9385277"},
+
+    {"id": "id-de35ef1251fb405cac050de10d6a3a11", "name": "API Management Platform",         "x": 642,  "y": 94,   "w": 300, "h": 250, "isChild": true,  "parentId": "id-641fed9a3c0245909e7e377a08c168fe"},
+    {"id": "id-a0a275cc0b6640af8df6f60bf6f82c44", "name": "Enterprise Service Bus",          "x": 642,  "y": 494,  "w": 280, "h": 75,  "isChild": true,  "parentId": "id-641fed9a3c0245909e7e377a08c168fe"},
+    {"id": "id-d088fe19976b40a08422eb708daa56bd", "name": "Event Streaming Platform",        "x": 642,  "y": 719,  "w": 300, "h": 130, "isChild": true,  "parentId": "id-641fed9a3c0245909e7e377a08c168fe"},
+    {"id": "id-7080b7cf74964dd0bf0c8a15978224b5", "name": "Identity & Access Management",    "x": 642,  "y": 999,  "w": 300, "h": 75,  "isChild": true,  "parentId": "id-641fed9a3c0245909e7e377a08c168fe"},
+    {"id": "id-7cb4c824e949474ca443d1a420b3376b", "name": "Integration Orchestrator",        "x": 642,  "y": 1224, "w": 280, "h": 75,  "isChild": true,  "parentId": "id-641fed9a3c0245909e7e377a08c168fe"},
+    {"id": "id-5ba1c7dc41154d3db30827d1adf2fd32", "name": "Data Integration Hub",            "x": 642,  "y": 1449, "w": 280, "h": 110, "isChild": true,  "parentId": "id-641fed9a3c0245909e7e377a08c168fe"},
+
+    {"id": "id-668a8f5f4d6b49d2b3cef3b0f1e1849e", "name": "Core Banking System",             "x": 1292, "y": 94,   "w": 182, "h": 55,  "isChild": true,  "parentId": "id-40ede36b87ef401c8d7db12cdb70bedb"},
+    {"id": "id-57638f313d9c487b9beff60e7f097537", "name": "Loan Management System",          "x": 1292, "y": 299,  "w": 206, "h": 68,  "isChild": true,  "parentId": "id-40ede36b87ef401c8d7db12cdb70bedb"},
+    {"id": "id-3d58cdea27b24d758990fc321479cab6", "name": "Payment Processing Engine",       "x": 1292, "y": 517,  "w": 230, "h": 68,  "isChild": true,  "parentId": "id-40ede36b87ef401c8d7db12cdb70bedb"},
+    {"id": "id-a8365c545e264b018d7e58537c5c3304", "name": "Customer Information File",       "x": 1292, "y": 735,  "w": 230, "h": 68,  "isChild": true,  "parentId": "id-40ede36b87ef401c8d7db12cdb70bedb"},
+    {"id": "id-4befde0803ed48b2a6e7241c71a66007", "name": "Risk Engine",                     "x": 1292, "y": 953,  "w": 118, "h": 55,  "isChild": true,  "parentId": "id-40ede36b87ef401c8d7db12cdb70bedb"},
+    {"id": "id-da64515f53e14664932e0544dd088dc7", "name": "AML & Fraud Detection",           "x": 1292, "y": 1158, "w": 198, "h": 55,  "isChild": true,  "parentId": "id-40ede36b87ef401c8d7db12cdb70bedb"},
+    {"id": "id-1e5f0dbd03a7454f8fc2307e738c6829", "name": "General Ledger System",           "x": 1292, "y": 1363, "w": 198, "h": 55,  "isChild": true,  "parentId": "id-40ede36b87ef401c8d7db12cdb70bedb"},
+    {"id": "id-00e7938d3da94c56b423e2ba1129e309", "name": "Notification Service",            "x": 1292, "y": 1568, "w": 190, "h": 55,  "isChild": true,  "parentId": "id-40ede36b87ef401c8d7db12cdb70bedb"},
+    {"id": "id-a09cbd6591c94eada9240d67826a2fce", "name": "Data Warehouse & Analytics",      "x": 1292, "y": 1773, "w": 238, "h": 68,  "isChild": true,  "parentId": "id-40ede36b87ef401c8d7db12cdb70bedb"},
+    {"id": "id-649462330b0d40d6a52373e81db29e5b", "name": "Card Management System",          "x": 1292, "y": 1991, "w": 206, "h": 68,  "isChild": true,  "parentId": "id-40ede36b87ef401c8d7db12cdb70bedb"}
+  ],
+  "connections": [
+    {"id": "id-c3c931d1741a4a9d86672f83742028ca", "sourceId": "id-de35ef1251fb405cac050de10d6a3a11", "targetId": "id-eeae362cf0b94c489ab3589162ba9b27", "label": ""},
+    {"id": "id-8ea045449bff457aa7560e419a27a7fa", "sourceId": "id-de35ef1251fb405cac050de10d6a3a11", "targetId": "id-b7786b9719774138a9bb10b2bb308aec", "label": ""},
+    {"id": "id-3231b490a50a49b8983eb46312bcde9a", "sourceId": "id-de35ef1251fb405cac050de10d6a3a11", "targetId": "id-7e40d14d23fc45ff830695c4270e6297", "label": ""},
+    {"id": "id-a606d39b1e964a07bfc5c80f2863a40b", "sourceId": "id-de35ef1251fb405cac050de10d6a3a11", "targetId": "id-b9b7830db41f4aba94f2b470fa8a9fc3", "label": ""},
+    {"id": "id-0d1f32662ec74d5dbc443b5751844826", "sourceId": "id-de35ef1251fb405cac050de10d6a3a11", "targetId": "id-9d63414d08e7427e9160ea8159808d36", "label": ""},
+    {"id": "id-d6283f83a8a84d68b9b2853a6d1072c3", "sourceId": "id-de35ef1251fb405cac050de10d6a3a11", "targetId": "id-cd413971662a424ca53fe3475a8b983b", "label": ""},
+    {"id": "id-45769cebddc541469096111c02048cd3", "sourceId": "id-de35ef1251fb405cac050de10d6a3a11", "targetId": "id-ce4933bdb6c643cfa1772fa21f050818", "label": ""},
+
+    {"id": "id-a65887a0587249d3b2a9386e7b21f4aa", "sourceId": "id-d088fe19976b40a08422eb708daa56bd", "targetId": "id-da64515f53e14664932e0544dd088dc7", "label": "AML Events"},
+    {"id": "id-356824bbfaf344b78b39ed60cad0c6e1", "sourceId": "id-d088fe19976b40a08422eb708daa56bd", "targetId": "id-00e7938d3da94c56b423e2ba1129e309", "label": "Notifications"},
+    {"id": "id-9e2627031a19429383c15db3634d65b9", "sourceId": "id-d088fe19976b40a08422eb708daa56bd", "targetId": "id-a09cbd6591c94eada9240d67826a2fce", "label": "Analytics Data"},
+    {"id": "id-fd82fd19ec6e4390bc462daddc346434", "sourceId": "id-d088fe19976b40a08422eb708daa56bd", "targetId": "id-1e5f0dbd03a7454f8fc2307e738c6829", "label": "GL Postings"},
+    {"id": "id-123d02ef39184fcbad4ee915e4df90fc", "sourceId": "id-d088fe19976b40a08422eb708daa56bd", "targetId": "id-4befde0803ed48b2a6e7241c71a66007", "label": "Risk Events"},
+
+    {"id": "id-c67664d903a64ac7b5d6afb0fcb0699b", "sourceId": "id-7cb4c824e949474ca443d1a420b3376b", "targetId": "id-de35ef1251fb405cac050de10d6a3a11", "label": ""},
+    {"id": "id-4880011003f748578c3566835b815786", "sourceId": "id-5ba1c7dc41154d3db30827d1adf2fd32", "targetId": "id-a8365c545e264b018d7e58537c5c3304", "label": "Customer Data Sync"},
+    {"id": "id-2c79c6bf85d34e48aefe5d47d997bfd1", "sourceId": "id-668a8f5f4d6b49d2b3cef3b0f1e1849e", "targetId": "id-d088fe19976b40a08422eb708daa56bd", "label": "Account Events"},
+    {"id": "id-0b0f58ac21644ea1895a344de73a1a21", "sourceId": "id-668a8f5f4d6b49d2b3cef3b0f1e1849e", "targetId": "id-5ba1c7dc41154d3db30827d1adf2fd32", "label": "Batch Extract"},
+    {"id": "id-ac3af9994938480a94fe757bba5c292e", "sourceId": "id-668a8f5f4d6b49d2b3cef3b0f1e1849e", "targetId": "id-de35ef1251fb405cac050de10d6a3a11", "label": ""},
+
+    {"id": "id-cc0e07ed95b44ddba2b2dd31bd156435", "sourceId": "id-57638f313d9c487b9beff60e7f097537", "targetId": "id-d088fe19976b40a08422eb708daa56bd", "label": "Loan Events"},
+    {"id": "id-edc1122985bf4b84b15dcfa1b4be5616", "sourceId": "id-57638f313d9c487b9beff60e7f097537", "targetId": "id-5ba1c7dc41154d3db30827d1adf2fd32", "label": "Batch Extract"},
+    {"id": "id-8d7b1b18177b4f0ea2cb17e0ddde678e", "sourceId": "id-57638f313d9c487b9beff60e7f097537", "targetId": "id-de35ef1251fb405cac050de10d6a3a11", "label": ""},
+
+    {"id": "id-24c145b4045f493182dc80f7d5017e75", "sourceId": "id-3d58cdea27b24d758990fc321479cab6", "targetId": "id-d088fe19976b40a08422eb708daa56bd", "label": "Payment Events"},
+    {"id": "id-9bacf6518e1b4887bbe31fbc572102b7", "sourceId": "id-3d58cdea27b24d758990fc321479cab6", "targetId": "id-5ba1c7dc41154d3db30827d1adf2fd32", "label": "Batch Extract"},
+    {"id": "id-3c425b89fcd54abd9406c57a1f0f7e0f", "sourceId": "id-3d58cdea27b24d758990fc321479cab6", "targetId": "id-de35ef1251fb405cac050de10d6a3a11", "label": ""},
+
+    {"id": "id-5d03acfa7f6840aa85ee3f967a64edf6", "sourceId": "id-a8365c545e264b018d7e58537c5c3304", "targetId": "id-de35ef1251fb405cac050de10d6a3a11", "label": ""},
+    {"id": "id-b250a38f40ff40dd941d11d1b573ed59", "sourceId": "id-4befde0803ed48b2a6e7241c71a66007", "targetId": "id-de35ef1251fb405cac050de10d6a3a11", "label": ""},
+    {"id": "id-9026599b32044295b7b0783bffb9a269", "sourceId": "id-da64515f53e14664932e0544dd088dc7", "targetId": "id-de35ef1251fb405cac050de10d6a3a11", "label": ""},
+    {"id": "id-585dde45e9a5464c8e093e5a42549778", "sourceId": "id-1e5f0dbd03a7454f8fc2307e738c6829", "targetId": "id-de35ef1251fb405cac050de10d6a3a11", "label": ""},
+    {"id": "id-6a03003f03c94675acb50766cf7c1ead", "sourceId": "id-a09cbd6591c94eada9240d67826a2fce", "targetId": "id-de35ef1251fb405cac050de10d6a3a11", "label": ""},
+
+    {"id": "id-33afd5961e4e4be685900e28170f8ae0", "sourceId": "id-649462330b0d40d6a52373e81db29e5b", "targetId": "id-d088fe19976b40a08422eb708daa56bd", "label": "Card Events"},
+    {"id": "id-e12299b66f3942d2a746d0a319ea7966", "sourceId": "id-649462330b0d40d6a52373e81db29e5b", "targetId": "id-de35ef1251fb405cac050de10d6a3a11", "label": ""}
+  ]
+}

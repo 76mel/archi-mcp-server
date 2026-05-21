@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -147,8 +148,9 @@ public class EdgeAttachmentCalculatorTest {
         assertTrue("Points should be ordered left-to-right", p0[0] < p1[0]);
         assertTrue("Points should be ordered left-to-right", p1[0] < p2[0]);
 
-        // Middle point should be at/near center
-        assertEquals("Middle point should be near center", 160, p1[0]);
+        // B72-c: middle slot of odd-N distribution nudged +1 off centerX to
+        // break ChopboxAnchor ray collinearity (160 is element centerX)
+        assertEquals("Middle point should be 1px past center (B72-c nudge)", 161, p1[0]);
 
         // Near-symmetry: first and last roughly equidistant from center (±1 from rounding)
         assertTrue("First and last should be nearly equidistant from center",
@@ -197,19 +199,22 @@ public class EdgeAttachmentCalculatorTest {
     }
 
     @Test
-    public void shouldEnforceMinSpacing_whenFaceIsWideEnough() {
-        // Element width 120, 5 connections
-        // Corner margin spacing = 110 / 6 ≈ 18.3 → above minSpacing 8, uses normal distribution
-        // Now test with 15 connections: 110/16 ≈ 6.9 < minSpacing 8
-        // neededWidth = 8 * 14 = 112 ≤ 120 → enforce minSpacing, centered
-        // center = 100 + 60 = 160, groupStart = 160 - 56 = 104
+    public void shouldReducePorts_whenMinSpacingPathBelowThreshold() {
+        // Element width 120, 15 connections on BOTTOM face
+        // usableLength = 110, spacing = 110/16 = 6.875 < threshold 12 → B73 reduce
+        // maxPorts = max(1, floor(110/12 - 1)) = max(1, floor(8.17-1)) = 8 ports
         RoutingRect element = new RoutingRect(100, 100, 120, 80, "e1");
 
-        int[] p0 = calculator.computeAttachmentPoint(element, Face.BOTTOM, 0, 15);
-        int[] p1 = calculator.computeAttachmentPoint(element, Face.BOTTOM, 1, 15);
-
-        int spacing = p1[0] - p0[0];
-        assertEquals("Spacing should be minSpacing (8px)", 8, spacing);
+        Set<Integer> distinctXs = new java.util.TreeSet<>();
+        for (int i = 0; i < 15; i++) {
+            int[] point = calculator.computeAttachmentPoint(element, Face.BOTTOM, i, 15);
+            distinctXs.add(point[0]);
+        }
+        // 15 connections should be reduced to fewer ports (8)
+        assertTrue("B73: should produce fewer ports than connections",
+                distinctXs.size() < 15);
+        assertTrue("B73: should produce more than 1 port",
+                distinctXs.size() > 1);
     }
 
     @Test
@@ -223,6 +228,214 @@ public class EdgeAttachmentCalculatorTest {
         // Should still produce valid points
         assertTrue("First point should be >= element left", p0[0] >= 100);
         assertTrue("Second point should be <= element right", p1[0] <= 106);
+    }
+
+    // =============================================
+    // B72-c: slot-at-center nudge tests
+    // =============================================
+
+    @Test
+    public void shouldNudgeSlotOffCenterY_whenOddGroupOnLeftFace() {
+        // API Gateway geometry from V4: (472, 67, 107, 200), centerY=167
+        // 7 connections on LEFT face, slot 3/7 algebraically lands at y=167
+        RoutingRect hub = new RoutingRect(472, 67, 107, 200, "api-gw");
+        int centerY = hub.y() + hub.height() / 2; // 167
+
+        int[] slot3 = calculator.computeAttachmentPoint(hub, Face.LEFT, 3, 7);
+        assertEquals("LEFT perimeter x", 471, slot3[0]);
+        assertNotEquals("B72-c: slot at centerY must be nudged off center",
+                centerY, slot3[1]);
+        assertEquals("B72-c: nudge should be +1", centerY + 1, slot3[1]);
+    }
+
+    @Test
+    public void shouldNudgeSlotOffCenterX_whenOddGroupOnTopFace() {
+        // Symmetric case for TOP face: element (100, 100, 120, 80), centerX=160
+        // 3 connections, slot 1/3 lands at x=160
+        RoutingRect element = new RoutingRect(100, 100, 120, 80, "e1");
+        int centerX = element.x() + element.width() / 2; // 160
+
+        int[] slot1 = calculator.computeAttachmentPoint(element, Face.TOP, 1, 3);
+        assertEquals("TOP perimeter y", 99, slot1[1]);
+        assertNotEquals("B72-c: slot at centerX must be nudged off center",
+                centerX, slot1[0]);
+        assertEquals("B72-c: nudge should be +1", centerX + 1, slot1[0]);
+    }
+
+    @Test
+    public void shouldNudgeSlotOffCenterY_whenOddGroupOnRightFace() {
+        RoutingRect hub = new RoutingRect(472, 67, 107, 200, "api-gw");
+        int centerY = hub.y() + hub.height() / 2; // 167
+
+        int[] slot3 = calculator.computeAttachmentPoint(hub, Face.RIGHT, 3, 7);
+        assertEquals("RIGHT perimeter x", 580, slot3[0]); // 472 + 107 + 1
+        assertNotEquals("B72-c: slot at centerY must be nudged off center",
+                centerY, slot3[1]);
+        assertEquals("B72-c: nudge should be +1", centerY + 1, slot3[1]);
+    }
+
+    @Test
+    public void shouldNotNudge_whenSingleConnectionOnFace() {
+        // Single connection always goes to face midpoint — no nudge
+        RoutingRect element = new RoutingRect(100, 100, 120, 80, "e1");
+        int centerY = element.y() + element.height() / 2; // 140
+
+        int[] point = calculator.computeAttachmentPoint(element, Face.LEFT, 0, 1);
+        assertEquals("Single connection should be at centerY (no nudge)",
+                centerY, point[1]);
+    }
+
+    @Test
+    public void shouldNotNudge_whenEvenGroupHasNoSlotAtCenter() {
+        // Even group: 4 connections on LEFT face of hub (472, 67, 107, 200)
+        // centerY=167. Slots: usable [72..262], spacing=190/5=38
+        // slot 0=110, slot 1=148, slot 2=186, slot 3=224 — none equals 167
+        RoutingRect hub = new RoutingRect(472, 67, 107, 200, "api-gw");
+
+        for (int i = 0; i < 4; i++) {
+            int[] slot = calculator.computeAttachmentPoint(hub, Face.LEFT, i, 4);
+            assertEquals("LEFT perimeter x", 471, slot[0]);
+            // None of these should be exactly at centerY=167, so no nudge fires
+        }
+    }
+
+    // =============================================
+    // B73: capacity-aware port distribution tests
+    // =============================================
+
+    @Test
+    public void shouldReducePorts_whenUndersizedHub17Connections68pxFace() {
+        // API Mgmt Platform geometry: 68px tall face, 17 connections
+        // usableLength = 58, spacing = 58/18 = 3.22 < 12 → reduce ports
+        // maxPorts = max(1, floor(58/12 - 1)) = 3 ports at 14.5px spacing
+        // 17 connections mapped to 3 ports: groups of ~6
+        RoutingRect hub = new RoutingRect(100, 67, 120, 68, "api-mgmt");
+
+        int[] positions = new int[17];
+        for (int i = 0; i < 17; i++) {
+            int[] point = calculator.computeAttachmentPoint(hub, Face.LEFT, i, 17);
+            assertEquals("LEFT perimeter x", 99, point[0]);
+            positions[i] = point[1];
+        }
+
+        // Should produce exactly 3 distinct y positions
+        Set<Integer> distinctYs = new java.util.TreeSet<>();
+        for (int y : positions) {
+            distinctYs.add(y);
+        }
+        assertEquals("B73: 17 connections on 68px face should produce 3 reduced ports",
+                3, distinctYs.size());
+
+        // Adjacent reduced ports should be >= 12px apart
+        Integer[] sorted = distinctYs.toArray(new Integer[0]);
+        for (int i = 1; i < sorted.length; i++) {
+            int gap = sorted[i] - sorted[i - 1];
+            assertTrue("B73: reduced port spacing should be >= 12px, was " + gap,
+                    gap >= 12);
+        }
+    }
+
+    @Test
+    public void shouldReducePorts_whenUndersizedHub9Connections68pxFace() {
+        // ESB geometry: 68px tall face, 9 connections
+        // usableLength = 58, spacing = 58/10 = 5.8 < 12 → reduce ports
+        // maxPorts = 3 ports
+        RoutingRect hub = new RoutingRect(100, 67, 120, 68, "esb");
+
+        Set<Integer> distinctYs = new java.util.TreeSet<>();
+        for (int i = 0; i < 9; i++) {
+            int[] point = calculator.computeAttachmentPoint(hub, Face.LEFT, i, 9);
+            distinctYs.add(point[1]);
+        }
+        assertEquals("B73: 9 connections on 68px face should produce 3 reduced ports",
+                3, distinctYs.size());
+    }
+
+    @Test
+    public void shouldSharePorts_whenMultipleConnectionsMappedToSameReducedPort() {
+        // 17 connections → 3 ports. Connections 0-5 should all share port 0.
+        RoutingRect hub = new RoutingRect(100, 67, 120, 68, "api-mgmt");
+
+        int[] slot0 = calculator.computeAttachmentPoint(hub, Face.LEFT, 0, 17);
+        int[] slot5 = calculator.computeAttachmentPoint(hub, Face.LEFT, 5, 17);
+        assertEquals("B73: connections 0 and 5 should share the same reduced port",
+                slot0[1], slot5[1]);
+
+        // But connection 6 should be on the next port
+        int[] slot6 = calculator.computeAttachmentPoint(hub, Face.LEFT, 6, 17);
+        assertNotEquals("B73: connection 6 should be on a different port than 0",
+                slot0[1], slot6[1]);
+    }
+
+    @Test
+    public void shouldRetainDistribution_whenProperlySizedHub233pxFace() {
+        // API Mgmt Platform properly sized: 233px tall, 17 connections
+        // usableLength = 223, spacing = 223/18 = 12.39 >= 12 → full distribution
+        RoutingRect hub = new RoutingRect(100, 0, 120, 233, "api-mgmt-sized");
+        int[] positions = new int[17];
+        for (int i = 0; i < 17; i++) {
+            int[] point = calculator.computeAttachmentPoint(hub, Face.LEFT, i, 17);
+            positions[i] = point[1];
+        }
+
+        // All slots should have distinct y positions
+        for (int i = 1; i < 17; i++) {
+            assertNotEquals("B73: adjacent slots must be distinct when properly sized",
+                    positions[i - 1], positions[i]);
+            int gap = positions[i] - positions[i - 1];
+            assertTrue("B73: spacing should be >= 12px, was " + gap, gap >= 12);
+        }
+    }
+
+    @Test
+    public void shouldRetainDistribution_whenSpacingExactlyAtThreshold() {
+        // Boundary: usableLength / (total+1) = exactly 12.0
+        // 5 connections: usableLength = 12*6 = 72, edgeLength = 72+10 = 82
+        RoutingRect element = new RoutingRect(100, 0, 120, 82, "boundary");
+        int[] positions = new int[5];
+        for (int i = 0; i < 5; i++) {
+            int[] point = calculator.computeAttachmentPoint(element, Face.LEFT, i, 5);
+            positions[i] = point[1];
+        }
+        // At exactly 12px spacing, ports should be fully distributed (>= threshold)
+        for (int i = 1; i < 5; i++) {
+            assertNotEquals("B73: at-threshold slots must be distinct",
+                    positions[i - 1], positions[i]);
+        }
+    }
+
+    @Test
+    public void shouldReducePorts_whenSpacingJustBelowThreshold() {
+        // Just below threshold: 5 connections, edgeLength = 81
+        // usableLength = 71, spacing = 71/6 = 11.83 < 12 → reduce
+        // maxPorts = max(1, floor(71/12 - 1)) = max(1, floor(4.92)) = 4
+        RoutingRect element = new RoutingRect(100, 0, 120, 81, "below-threshold");
+
+        Set<Integer> distinctYs = new java.util.TreeSet<>();
+        for (int i = 0; i < 5; i++) {
+            int[] point = calculator.computeAttachmentPoint(element, Face.LEFT, i, 5);
+            distinctYs.add(point[1]);
+        }
+        // 5 connections reduced to 4 ports (one port shared by 2 connections)
+        assertTrue("B73: below-threshold should produce fewer ports than connections",
+                distinctYs.size() < 5);
+        assertTrue("B73: should produce more than 1 port",
+                distinctYs.size() > 1);
+    }
+
+    @Test
+    public void shouldProduceSinglePort_whenFaceExtremelyCramped() {
+        // Tiny face: 20px, 10 connections
+        // usableLength = 10, maxPorts = max(1, floor(10/12 - 1)) = max(1, -1) = 1
+        RoutingRect tiny = new RoutingRect(100, 100, 120, 20, "tiny");
+
+        Set<Integer> distinctYs = new java.util.TreeSet<>();
+        for (int i = 0; i < 10; i++) {
+            int[] point = calculator.computeAttachmentPoint(tiny, Face.LEFT, i, 10);
+            distinctYs.add(point[1]);
+        }
+        assertEquals("B73: extremely cramped face produces single port",
+                1, distinctYs.size());
     }
 
     // =============================================
@@ -1424,21 +1637,21 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldIntegrateWithApplyEdgeAttachments_whenEdgeHuggingPath() {
-        // B32 AC-3: Full integration test — edge-hugging path corrected to natural direction
-        // Source nearly above target, A* path approaches from the side
+        // B32 AC-3 originally expected face correction RIGHT→TOP for nearly-vertical alignment.
+        // B35 Phase 1.3 validateFacesForSelfPassThrough reverts B32's correction via false-positive
+        // pass-through trial-path detection (known tech debt at Phase 1.4 comment). Phase 1.4
+        // re-corrects only hub connections; this single-connection fixture is not a hub, so target
+        // face stays RIGHT. B72-e: re-blessed to match B35+ pipeline behaviour.
         RoutingRect source = new RoutingRect(100, 0, 120, 80, "src");   // center (160, 40)
         RoutingRect target = new RoutingRect(16, 200, 120, 80, "tgt");  // center (76, 240)
         // dx=84, dy=200 → nearly vertical
 
-        // A* path that approaches target from the right side (edge-hugging)
         List<String> ids = List.of("c1");
         List<List<AbsoluteBendpointDto>> bendpointLists = new ArrayList<>();
         bendpointLists.add(new ArrayList<>(List.of(
                 new AbsoluteBendpointDto(160, 120),  // below source, directly beneath
                 new AbsoluteBendpointDto(200, 240)   // to the RIGHT of target center (76,240)
         )));
-        // Without B32, determineFace(target, 200, 240) → dx=124, dy=0 → RIGHT face (edge-hugging)
-        // With B32, should be corrected to TOP face (natural vertical alignment)
 
         List<RoutingPipeline.ConnectionEndpoints> connections = List.of(
                 new RoutingPipeline.ConnectionEndpoints("c1", source, target, List.of(), "", 1));
@@ -1447,13 +1660,12 @@ public class EdgeAttachmentCalculatorTest {
 
         List<AbsoluteBendpointDto> result = bendpointLists.get(0);
 
-        // Target terminal should be on TOP face (y = target.y - 1 = 199)
+        // Target terminal on RIGHT face (B35 Phase 1.3 reverts B32's TOP correction)
         AbsoluteBendpointDto targetTerminal = result.get(result.size() - 1);
-        assertEquals("Target terminal should be on TOP face (y = target.y - 1)",
-                199, targetTerminal.y());
-        // Target terminal X should be within target's horizontal bounds
-        assertTrue("Target terminal X should be within target bounds",
-                targetTerminal.x() >= target.x() && targetTerminal.x() <= target.x() + target.width());
+        assertEquals("Target terminal X on RIGHT face (target.x + w + 1)",
+                137, targetTerminal.x());
+        assertEquals("Target terminal Y at target center on RIGHT face",
+                240, targetTerminal.y());
     }
 
     @Test
@@ -1498,14 +1710,13 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldProduceCenterAlignedTerminal_afterFaceCorrection_forChopboxAnchorCompatibility() {
-        // B32 AC-7 / Task 3.6: Verify B29 ChopboxAnchor alignment compatibility.
-        // After B32 corrects face from RIGHT to TOP, the terminal BP must be center-aligned
-        // on the corrected face — this is the precondition for alignTerminalsWithCenter() (B29).
+        // B32 AC-7 / Task 3.6: Originally verified B29 ChopboxAnchor alignment on TOP face.
+        // B35 Phase 1.3 reverts B32's correction (same root cause as sibling test above).
+        // Face stays RIGHT → terminal center-aligned on RIGHT face for ChopboxAnchor compat.
+        // B72-e: re-blessed to match B35+ pipeline behaviour.
         RoutingRect source = new RoutingRect(100, 0, 120, 80, "src");   // center (160, 40)
         RoutingRect target = new RoutingRect(16, 200, 120, 80, "tgt");  // center (76, 240)
-        // dx=84, dy=200 → nearly vertical, B32 will correct target to TOP face
 
-        // A* path approaching from the side (triggers B32 correction)
         List<String> ids = List.of("c1");
         List<List<AbsoluteBendpointDto>> bendpointLists = new ArrayList<>();
         bendpointLists.add(new ArrayList<>(List.of(
@@ -1521,12 +1732,12 @@ public class EdgeAttachmentCalculatorTest {
         List<AbsoluteBendpointDto> result = bendpointLists.get(0);
         AbsoluteBendpointDto targetTerminal = result.get(result.size() - 1);
 
-        // Terminal must be on TOP face (y = target.y - 1 = 199)
-        assertEquals("Target terminal on TOP face", 199, targetTerminal.y());
-        // Terminal X must be at target center (76) for ChopboxAnchor compatibility.
-        // With a single connection on the face, computeAttachmentPoint places it at center.
-        assertEquals("Target terminal X at center for ChopboxAnchor alignment",
-                target.centerX(), targetTerminal.x());
+        // Terminal on RIGHT face (B35 Phase 1.3 reverts B32's TOP correction)
+        assertEquals("Target terminal X on RIGHT face",
+                target.x() + target.width() + 1, targetTerminal.x());
+        // Center-aligned on RIGHT face for ChopboxAnchor compatibility
+        assertEquals("Target terminal Y at center for ChopboxAnchor alignment",
+                target.centerY(), targetTerminal.y());
     }
 
     // =============================================

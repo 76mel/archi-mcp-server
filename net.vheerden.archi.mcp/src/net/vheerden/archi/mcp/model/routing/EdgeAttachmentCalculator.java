@@ -34,8 +34,28 @@ public class EdgeAttachmentCalculator {
     static final int DEFAULT_CORNER_MARGIN = 5;
     static final int DEFAULT_MIN_SPACING = 8;
 
-    /** Hub threshold: elements with this many or more connections participate in face redistribution. */
-    static final int DEFAULT_HUB_THRESHOLD = 6;
+    /**
+     * Internal threshold for Phase 1.1 hub face redistribution — at or above this
+     * connection count the algorithm redistributes connections across element faces.
+     * Distinct from {@code LayoutQualityAssessor.HUB_DETECTION_THRESHOLD} (public, 5)
+     * and {@code LayoutQualityAssessor.M5_FACE_GUARD_MIN_CONNECTIONS} (4).
+     * Renamed from {@code DEFAULT_HUB_THRESHOLD} in Story routing-preconditions, 2026-05-04.
+     */
+    static final int HUB_FACE_REDISTRIBUTION_THRESHOLD = 6;
+
+    /**
+     * B73: below this spacing (in pixels), connections on a face are mapped to a
+     * reduced number of evenly-spaced ports instead of being fully distributed.
+     * On undersized hubs, distributed ports at sub-12px spacing are visually
+     * indistinguishable through ChopboxAnchor rendering but each locks out the
+     * coincident segment resolver's terminal-anchoring predicate. Reducing to
+     * fewer shared ports preserves directional diversity (paths start from
+     * different positions) while allowing the resolver to freely offset
+     * overlapping routes. Calibrated to preserve full distribution for hubs
+     * sized per detect-hub-elements suggestions (233px / 17 connections =
+     * 12.39px spacing).
+     */
+    static final int VISUAL_DISTINGUISHABILITY_THRESHOLD = 12;
 
     /** Trigger redistribution when a single face has more than this ratio of an element's connections. */
     static final double MAX_FACE_LOAD_RATIO = 0.60;
@@ -48,11 +68,11 @@ public class EdgeAttachmentCalculator {
     private final int hubThreshold;
 
     public EdgeAttachmentCalculator() {
-        this(DEFAULT_CORNER_MARGIN, DEFAULT_MIN_SPACING, DEFAULT_HUB_THRESHOLD);
+        this(DEFAULT_CORNER_MARGIN, DEFAULT_MIN_SPACING, HUB_FACE_REDISTRIBUTION_THRESHOLD);
     }
 
     EdgeAttachmentCalculator(int cornerMargin, int minSpacing) {
-        this(cornerMargin, minSpacing, DEFAULT_HUB_THRESHOLD);
+        this(cornerMargin, minSpacing, HUB_FACE_REDISTRIBUTION_THRESHOLD);
     }
 
     EdgeAttachmentCalculator(int cornerMargin, int minSpacing, int hubThreshold) {
@@ -105,21 +125,35 @@ public class EdgeAttachmentCalculator {
             case TOP: {
                 int attachY = y - 1;
                 int attachX = computeDistributedPosition(x, w, index, totalOnFace);
+                // B72-c: nudge slot off centerX to break ChopboxAnchor ray collinearity
+                if (totalOnFace > 1 && attachX == x + w / 2) {
+                    attachX += 1;
+                }
                 return new int[]{attachX, attachY};
             }
             case BOTTOM: {
                 int attachY = y + h + 1;
                 int attachX = computeDistributedPosition(x, w, index, totalOnFace);
+                if (totalOnFace > 1 && attachX == x + w / 2) {
+                    attachX += 1;
+                }
                 return new int[]{attachX, attachY};
             }
             case LEFT: {
                 int attachX = x - 1;
                 int attachY = computeDistributedPosition(y, h, index, totalOnFace);
+                // B72-c: nudge slot off centerY to break ChopboxAnchor ray collinearity
+                if (totalOnFace > 1 && attachY == y + h / 2) {
+                    attachY += 1;
+                }
                 return new int[]{attachX, attachY};
             }
             case RIGHT: {
                 int attachX = x + w + 1;
                 int attachY = computeDistributedPosition(y, h, index, totalOnFace);
+                if (totalOnFace > 1 && attachY == y + h / 2) {
+                    attachY += 1;
+                }
                 return new int[]{attachX, attachY};
             }
             default:
@@ -144,6 +178,19 @@ public class EdgeAttachmentCalculator {
             usableLength = edgeLength;
         }
         double spacing = (double) usableLength / (total + 1);
+        // B73: when spacing is below the visual distinguishability threshold,
+        // reduce the number of ports to what the face can visually accommodate.
+        // Multiple connections share each reduced port. This preserves
+        // directional diversity (paths start from different y/x positions)
+        // while allowing the coincident resolver to offset shared-port segments.
+        if (spacing < VISUAL_DISTINGUISHABILITY_THRESHOLD) {
+            int maxPorts = Math.max(1, (int) Math.floor(
+                    (double) usableLength / VISUAL_DISTINGUISHABILITY_THRESHOLD - 1));
+            int reducedIndex = (maxPorts >= total) ? index
+                    : (int) ((long) index * maxPorts / total);
+            double reducedSpacing = (double) usableLength / (maxPorts + 1);
+            return (int) Math.round(usableStart + reducedSpacing * (reducedIndex + 1));
+        }
         if (spacing < minSpacing) {
             // Enforce minimum spacing: center the group with minSpacing gaps
             double neededWidth = (double) minSpacing * (total - 1);
@@ -166,6 +213,10 @@ public class EdgeAttachmentCalculator {
      * a target-face terminal bendpoint. When multiple connections share a face,
      * attachment points are distributed across the face.</p>
      *
+     * <p>Legacy 3-arg overload — delegates to the B71 5-arg variant with
+     * throwaway output anchoring lists. Used by pre-B71 tests that have no
+     * use for the per-connection {@link TerminalAnchoring} record.</p>
+     *
      * @param connectionIds  connection identifiers
      * @param bendpointLists mutable bendpoint lists per connection (modified in place)
      * @param connections    connection endpoint data for source/target rectangles
@@ -174,6 +225,28 @@ public class EdgeAttachmentCalculator {
             List<String> connectionIds,
             List<List<AbsoluteBendpointDto>> bendpointLists,
             List<RoutingPipeline.ConnectionEndpoints> connections) {
+        applyEdgeAttachments(connectionIds, bendpointLists, connections, null, null);
+    }
+
+    /**
+     * B71 producer overload: applies edge attachment terminal bendpoints AND
+     * exposes the per-connection {@link TerminalAnchoring} pairs to the caller.
+     *
+     * <p>When {@code outSourceAnchorings} / {@code outTargetAnchorings} are
+     * non-null, each list is cleared and populated in connection-index order
+     * with the {@link TerminalAnchoring} record built from the resolved face
+     * for that connection's source / target. Per Dev Notes §5.3 the pipeline
+     * stashes these on parallel arrays alongside {@code sourceCenters} /
+     * {@code targetCenters}; downstream wrap sites in {@link PathStraightener}
+     * and {@link CoincidentSegmentDetector#applyOffsets} consume them via
+     * the {@link TerminalAnchoring#preservesEndpoints} predicate.</p>
+     */
+    public void applyEdgeAttachments(
+            List<String> connectionIds,
+            List<List<AbsoluteBendpointDto>> bendpointLists,
+            List<RoutingPipeline.ConnectionEndpoints> connections,
+            List<TerminalAnchoring> outSourceAnchorings,
+            List<TerminalAnchoring> outTargetAnchorings) {
 
         logger.info("Applying edge attachments to {} connections", connectionIds.size());
 
@@ -228,6 +301,22 @@ public class EdgeAttachmentCalculator {
         // re-corrects only strong-alignment hub connections that B35 falsely reverted.
         // Only strong alignments (2:1+) are re-corrected — weaker B46 corrections stay reverted.
         correctApproachDirection(connectionIds, connections, sourceFaces, targetFaces, true);
+
+        // B71: Faces are now final — populate the output anchoring lists
+        // (per Dev Notes §5.3 / AC-1). Skipped when caller passes nulls
+        // (legacy 3-arg overload, used by pre-B71 unit tests).
+        if (outSourceAnchorings != null) {
+            outSourceAnchorings.clear();
+            for (int i = 0; i < connectionIds.size(); i++) {
+                outSourceAnchorings.add(new TerminalAnchoring(sourceFaces[i]));
+            }
+        }
+        if (outTargetAnchorings != null) {
+            outTargetAnchorings.clear();
+            for (int i = 0; i < connectionIds.size(); i++) {
+                outTargetAnchorings.add(new TerminalAnchoring(targetFaces[i]));
+            }
+        }
 
         // Phase 1.5: Build unified face groups (Story 10-28)
         // Key: elementId + "|" + face → list of connection indices (both inbound and outbound)

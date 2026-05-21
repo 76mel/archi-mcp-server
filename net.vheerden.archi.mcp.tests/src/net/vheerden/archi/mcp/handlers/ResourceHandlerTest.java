@@ -35,7 +35,8 @@ public class ResourceHandlerTest {
 		TestableResourceHandler handler = new TestableResourceHandler(true);
 		handler.registerResources(registry);
 
-		assertEquals(7, registry.getResourceCount());
+		// 8 prompts/reference resources + the 6-file viewpoint recipe library (recipes/index + 5 family pages); count bumped.
+		assertEquals(14, registry.getResourceCount());
 	}
 
 	@Test
@@ -51,7 +52,8 @@ public class ResourceHandlerTest {
 		TestableResourceHandler handler = new TestableResourceHandler(true);
 		handler.registerResources(registry);
 
-		assertEquals(7, handler.getCachedResourceCount());
+		// 8 prompts/reference + 6 recipe-library resources; see shouldRegisterAllResources_whenFilesExist.
+		assertEquals(14, handler.getCachedResourceCount());
 	}
 
 	@Test
@@ -266,8 +268,9 @@ public class ResourceHandlerTest {
 		Assume.assumeTrue("Resource files only available in PDE environment",
 				handler.getCachedResourceCount() > 0);
 
-		assertEquals("All 7 resource files should load in PDE", 7, handler.getCachedResourceCount());
-		assertEquals(7, registry.getResourceCount());
+		// 8 prompts/reference + 6 recipe-library resources (recipes/index + 5 family pages); count bumped.
+		assertEquals("All 14 resource files should load in PDE", 14, handler.getCachedResourceCount());
+		assertEquals(14, registry.getResourceCount());
 
 		// Verify model-exploration-guide content
 		McpSchema.ReadResourceRequest request = new McpSchema.ReadResourceRequest(
@@ -298,6 +301,21 @@ public class ResourceHandlerTest {
 				viewPatternsContent.text().contains("Group Composition"));
 		assertTrue("Should contain algorithm reference section",
 				viewPatternsContent.text().contains("Algorithm Reference"));
+
+		// Regression pins: stop-at-fair stop-signal phrase in Pre-Layout Planning §2 Spacing Heuristics.
+		assertTrue("Should contain stop-at-fair stop signal sentinel",
+				viewPatternsContent.text().contains("Stop signal"));
+		assertEquals("Stop signal sentinel must appear exactly once",
+				1, viewPatternsContent.text().split("Stop signal", -1).length - 1);
+		assertTrue("Should pair narrow-numeric three-tool count with fair rating floor",
+				viewPatternsContent.text().contains("more than three")
+						&& viewPatternsContent.text().contains("fair"));
+		assertTrue("Should redirect to composed apply-spacing-recommendations(scope=both)",
+				viewPatternsContent.text().contains("apply-spacing-recommendations(scope=both)"));
+		assertTrue("Should name +80px element knee-clamp constant",
+				viewPatternsContent.text().contains("+80px"));
+		assertTrue("Should name +100px inter-group knee-clamp constant",
+				viewPatternsContent.text().contains("+100px"));
 	}
 
 	// ---- Helper ----

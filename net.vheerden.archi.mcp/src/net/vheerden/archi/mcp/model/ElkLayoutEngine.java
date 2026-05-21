@@ -210,7 +210,7 @@ class ElkLayoutEngine {
 
 		// Extract connection bendpoints
 		Map<String, List<AbsoluteBendpointDto>> connectionBendpoints = new LinkedHashMap<>();
-		extractBendpoints(rootGraph, connectionBendpoints);
+		extractBendpoints(rootGraph, connectionBendpoints, new HashSet<>());
 
 		int connectionsRouted = connectionBendpoints.size();
 
@@ -292,8 +292,10 @@ class ElkLayoutEngine {
 	 * Recursively extracts bendpoints from all edges in the graph hierarchy.
 	 */
 	private void extractBendpoints(ElkNode container,
-			Map<String, List<AbsoluteBendpointDto>> result) {
+			Map<String, List<AbsoluteBendpointDto>> result, Set<String> visited) {
 		for (ElkEdge edge : container.getContainedEdges()) {
+			// Skip edges already processed at a higher hierarchy level (B56 dedup)
+			if (!visited.add(edge.getIdentifier())) continue;
 			List<AbsoluteBendpointDto> bps = new ArrayList<>();
 			for (ElkEdgeSection section : edge.getSections()) {
 				// Only include INTERMEDIATE bendpoints — not start/end points.
@@ -315,7 +317,7 @@ class ElkLayoutEngine {
 
 		// Recurse into child nodes for hierarchical graphs
 		for (ElkNode child : container.getChildren()) {
-			extractBendpoints(child, result);
+			extractBendpoints(child, result, visited);
 		}
 	}
 

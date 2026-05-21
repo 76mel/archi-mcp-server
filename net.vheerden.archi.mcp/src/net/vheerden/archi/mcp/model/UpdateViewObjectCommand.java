@@ -6,9 +6,12 @@ import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelGroup;
 import com.archimatetool.model.IDiagramModelObject;
 import com.archimatetool.model.IFontAttribute;
+import com.archimatetool.model.IGrouping;
 import com.archimatetool.model.IIconic;
 import com.archimatetool.model.ILineObject;
+import com.archimatetool.model.ITextAlignment;
 import com.archimatetool.model.ITextContent;
+import com.archimatetool.model.ITextPosition;
 
 /**
  * GEF Command that updates the visual bounds (position and size) of a
@@ -27,6 +30,15 @@ import com.archimatetool.model.ITextContent;
  * <p><strong>Story 11-2:</strong> Added optional styling support
  * (fillColor, lineColor, fontColor, opacity, lineWidth). Uses sentinel
  * value {@code null} in StylingParams fields to indicate "no change".</p>
+ *
+ * <p><strong>Story {@code backlog-group-element-styling-surface}:</strong> Added
+ * optional {@code figureType} (mapped to {@code IBorderType.setBorderType(int)}
+ * for native groups or {@code IDiagramModelArchimateObject.setType(int)} for
+ * ArchiMate elements), {@code textAlignment} (mapped to
+ * {@code ITextAlignment.setTextAlignment(int)}), and {@code verticalTextAlignment}
+ * (mapped to {@code ITextPosition.setTextPosition(int)}) to the styling rail.
+ * All three ride the existing {@link StylingParams} parameter — same single-
+ * undo-unit guarantee as the colour/opacity/lineWidth fields.</p>
  *
  * <p><strong>CRITICAL:</strong> This command MUST be executed via
  * {@code CommandStack.execute()} through {@link MutationDispatcher}.
@@ -61,6 +73,17 @@ public class UpdateViewObjectCommand extends Command {
     private final int oldLineWidth;
     private final int newLineWidth;
     private final boolean hasStylingChange;
+
+    // Figure type + horizontal + vertical text alignment (story backlog-group-element-styling-surface).
+    // Integer rather than int: null means "not applicable for this target type" (figureType is null
+    // for objects that are neither group nor archimateObject; the two alignment fields can in principle
+    // be captured for any IDiagramModelObject but we follow the same null-when-unapplicable shape).
+    private final Integer oldFigureType;
+    private final Integer newFigureType;
+    private final Integer oldTextAlignment;
+    private final Integer newTextAlignment;
+    private final Integer oldVerticalTextAlignment;
+    private final Integer newVerticalTextAlignment;
 
     // Image update support (Story C4)
     private final String oldImagePath;
@@ -171,6 +194,9 @@ public class UpdateViewObjectCommand extends Command {
             this.oldFontColor = (diagramObject instanceof IFontAttribute fa) ? fa.getFontColor() : null;
             this.oldAlpha = diagramObject.getAlpha();
             this.oldLineWidth = (diagramObject instanceof ILineObject lo) ? lo.getLineWidth() : 0;
+            this.oldFigureType = readFigureTypeInt(diagramObject);
+            this.oldTextAlignment = (diagramObject instanceof ITextAlignment ta) ? ta.getTextAlignment() : null;
+            this.oldVerticalTextAlignment = (diagramObject instanceof ITextPosition tp) ? tp.getTextPosition() : null;
 
             // Compute new values — null in StylingParams means "no change", keep old value
             this.newFillColor = (styling.fillColor() != null) ? emptyToNull(styling.fillColor()) : oldFillColor;
@@ -184,6 +210,17 @@ public class UpdateViewObjectCommand extends Command {
             this.newLineWidth = (styling.lineWidth() != null)
                 ? ((diagramObject instanceof ILineObject) ? styling.lineWidth() : oldLineWidth)
                 : oldLineWidth;
+            // Integer.valueOf wrapping avoids JLS §15.25 ternary type-unification unboxing the
+            // (potentially-null) old* Integer when the int-returning branch is the other arm.
+            this.newFigureType = (styling.figureType() != null && !styling.figureType().isEmpty() && oldFigureType != null)
+                ? Integer.valueOf(StylingHelper.mapFigureTypeToInt(styling.figureType()))
+                : oldFigureType;
+            this.newTextAlignment = (styling.textAlignment() != null && !styling.textAlignment().isEmpty() && oldTextAlignment != null)
+                ? Integer.valueOf(StylingHelper.mapTextAlignmentToInt(styling.textAlignment()))
+                : oldTextAlignment;
+            this.newVerticalTextAlignment = (styling.verticalTextAlignment() != null && !styling.verticalTextAlignment().isEmpty() && oldVerticalTextAlignment != null)
+                ? Integer.valueOf(StylingHelper.mapVerticalTextAlignmentToInt(styling.verticalTextAlignment()))
+                : oldVerticalTextAlignment;
         } else {
             this.oldFillColor = null;
             this.newFillColor = null;
@@ -195,6 +232,12 @@ public class UpdateViewObjectCommand extends Command {
             this.newAlpha = 0;
             this.oldLineWidth = 0;
             this.newLineWidth = 0;
+            this.oldFigureType = null;
+            this.newFigureType = null;
+            this.oldTextAlignment = null;
+            this.newTextAlignment = null;
+            this.oldVerticalTextAlignment = null;
+            this.newVerticalTextAlignment = null;
         }
 
         // Image support (Story C4)
@@ -247,7 +290,8 @@ public class UpdateViewObjectCommand extends Command {
         diagramObject.setBounds(newX, newY, newWidth, newHeight);
         applyText(newText);
         if (hasStylingChange) {
-            applyStyling(newFillColor, newLineColor, newFontColor, newAlpha, newLineWidth);
+            applyStyling(newFillColor, newLineColor, newFontColor, newAlpha, newLineWidth,
+                    newFigureType, newTextAlignment, newVerticalTextAlignment);
         }
         if (hasImageChange) {
             applyImage(newImagePath, newImagePosition, newImageSource, newShowIcon);
@@ -259,7 +303,8 @@ public class UpdateViewObjectCommand extends Command {
         diagramObject.setBounds(oldX, oldY, oldWidth, oldHeight);
         applyText(oldText);
         if (hasStylingChange) {
-            applyStyling(oldFillColor, oldLineColor, oldFontColor, oldAlpha, oldLineWidth);
+            applyStyling(oldFillColor, oldLineColor, oldFontColor, oldAlpha, oldLineWidth,
+                    oldFigureType, oldTextAlignment, oldVerticalTextAlignment);
         }
         if (hasImageChange) {
             applyImage(oldImagePath, oldImagePosition, oldImageSource, oldShowIcon);
@@ -276,7 +321,8 @@ public class UpdateViewObjectCommand extends Command {
     }
 
     private void applyStyling(String fillColor, String lineColor, String fontColor,
-                               int alpha, int lineWidth) {
+                               int alpha, int lineWidth,
+                               Integer figureType, Integer textAlignment, Integer verticalTextAlignment) {
         diagramObject.setFillColor(fillColor);
         diagramObject.setAlpha(alpha);
         if (diagramObject instanceof ILineObject lo) {
@@ -286,6 +332,29 @@ public class UpdateViewObjectCommand extends Command {
         if (diagramObject instanceof IFontAttribute fa) {
             fa.setFontColor(fontColor);
         }
+        if (figureType != null) {
+            if (diagramObject instanceof IDiagramModelGroup g) {
+                g.setBorderType(figureType);
+            } else if (diagramObject instanceof IDiagramModelArchimateObject a
+                    && a.getArchimateElement() instanceof IGrouping) {
+                a.setType(figureType);
+            }
+        }
+        if (textAlignment != null && diagramObject instanceof ITextAlignment ta) {
+            ta.setTextAlignment(textAlignment);
+        }
+        if (verticalTextAlignment != null && diagramObject instanceof ITextPosition tp) {
+            tp.setTextPosition(verticalTextAlignment);
+        }
+    }
+
+    private static Integer readFigureTypeInt(IDiagramModelObject obj) {
+        if (obj instanceof IDiagramModelGroup g) return g.getBorderType();
+        if (obj instanceof IDiagramModelArchimateObject a
+                && a.getArchimateElement() instanceof IGrouping) {
+            return a.getType();
+        }
+        return null;
     }
 
     private void applyImage(String imagePath, int imagePosition, int imageSource, int showIcon) {
@@ -372,6 +441,24 @@ public class UpdateViewObjectCommand extends Command {
 
     /** Package-visible for testing. */
     int getNewLineWidth() { return newLineWidth; }
+
+    /** Package-visible for testing. */
+    Integer getOldFigureType() { return oldFigureType; }
+
+    /** Package-visible for testing. */
+    Integer getNewFigureType() { return newFigureType; }
+
+    /** Package-visible for testing. */
+    Integer getOldTextAlignment() { return oldTextAlignment; }
+
+    /** Package-visible for testing. */
+    Integer getNewTextAlignment() { return newTextAlignment; }
+
+    /** Package-visible for testing. */
+    Integer getOldVerticalTextAlignment() { return oldVerticalTextAlignment; }
+
+    /** Package-visible for testing. */
+    Integer getNewVerticalTextAlignment() { return newVerticalTextAlignment; }
 
     /** Package-visible for testing. */
     boolean hasImageChange() { return hasImageChange; }

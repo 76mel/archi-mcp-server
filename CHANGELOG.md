@@ -1,5 +1,84 @@
 # Changelog
 
+## v1.4.0 (2026-05-21)
+
+Routing-perception cycle. v1.4 reworks how layout quality is *measured* so the rating reflects what an architect actually perceives, and lifts the LLM-facing precondition surface so an agent can set a view's geometry up correctly *before* routing. Tool count grows from 65 to 69; resource count grows from 7 to 14. The metric acronyms used below — M1–M6, R8, `parallelConnectionGap_V_p10`, HPQ — are defined in the [glossary](docs/glossary.md).
+
+v1.4 delivers improved layout and routing compared to v1.3, validated end-to-end by an LLM agent driving the tools to build a comprehensive multi-view reference model.
+
+### New Tools
+
+- **adjust-view-spacing** — Inflate inter-element and inter-group spacing on an existing view, then re-route, in a single atomic operation. Use it when a view is laid out correctly but looks cramped, without re-running layout from scratch and losing manual placement.
+- **apply-element-spacing-recommendations** — Widen within-group element spacing until the view reaches good quality, is honestly flagged as needing a structural reflow, or the iteration budget runs out. Runs an internal control loop — take a small step, re-assess, then continue, escalate, or stop — and reverts any step that makes things worse. Returns before/after `assess-layout` snapshots plus `terminationReason`, `iterationCount`, and `appliedDeltas`. Set `dryRun: true` to preview. One call is one undo step.
+- **apply-group-spacing-recommendations** — The same control loop applied to inter-group corridors only, preserving group order and topology.
+- **apply-spacing-recommendations** — Runs both arms (element, then inter-group) in one transactional call. The `scope` parameter (`both` / `element` / `group`) selects which arm(s) run. Per-iteration step caps prevent over-inflation; per-arm termination reasons, iteration counts, and applied deltas are reported.
+
+### Routing Preconditions (LLM-Facing Surface)
+
+A precondition is a property of the view's geometry that must hold *before* routing — the pipeline can refine routes but cannot create hub sizing, spacing, or group arrangement. v1.4 makes the three load-bearing preconditions first-class.
+
+- **Control loop with density-aware termination** — The three spacing tools no longer apply one delta and return; each iterates internally and stops honestly. A step that degrades the view is always reverted, so the tool never returns a silently-worse view.
+- **Sound infeasibility certificate** — When a view is provably too dense for spacing to fix, the tool stops, reports the reason, and offers a user-consentable structural reflow instead of churning. It never reflows on its own — a reflow moves user-placed elements, so it is the user's decision.
+- **`archimate://prompts/routing-preconditions-checklist` (new resource)** — The single checklist an agent fetches before `auto-route-connections` or `auto-layout-and-route` on a non-trivial view: three preconditions, one verification each, plus a matrix mapping view shape to precondition order.
+- **Density-aware defaults** — `arrange-groups` and `adjust-view-spacing` derive a connection-count-aware spacing default when none is supplied, instead of a static value. Pass an explicit value to suppress.
+- **`assess-layout` names the fix** — When the assessment finds a violation that maps to a precondition (low hub-port quality, edge-coincident segments on a grouped view, children outside a parent's bounds), the `nextSteps` envelope names the right tool and attaches the violator IDs.
+- **Structured warnings on `auto-route-connections`** — The response carries a machine-readable `structuredWarnings` list (`code`, `message`, `remediationTool`, `remediationViolatorIds`) alongside the free-text warnings, so an agent can act deterministically.
+
+### Assessment (Perception-Aligned)
+
+`assess-layout` gains metrics for defect classes the old assessor could not see. See the [glossary](docs/glossary.md) for each metric and the [Layout Engine](docs/layout-engine.md) doc for thresholds.
+
+- **New metrics** — M2 interior terminations, M3 zigzag/reversal, M4 connection-vs-edge coincidence, M5 hub-port quality (HPQ), and R8 corridor utilisation. M1 (non-orthogonal terminals) is corrected to count only the visible portion of a diagonal, ending an over-report.
+- **Two-dimensional rating (M6)** — The overall rating now reports `(layoutTier, routingTier)` and takes the worse of the two, so a routing fix on a well-laid-out view no longer drags its layout tier down.
+- **Re-anchored cut-points** — Any sibling overlap now caps the layout tier at `poor`, and a parent label obscured by a child is promoted into the rating — both align the score with the perception that a single visible defect reads as a broken view.
+- **Informational narrow-corridor signal** — `parallelConnectionGap_V_p10` surfaces when a view is in the narrow-corridor regime, so an agent can recognise that spacing tools cannot help and the remedy is structural. It does not affect the rating.
+- **Classification precedence** — A connection already flagged as a pass-through is no longer also double-counted as a zigzag.
+- **Density-aware non-orthogonal scoring** — Non-orthogonal terminals are scored by ratio rather than raw count (so connection-heavy views are not over-penalised) and treated as cosmetic, reflecting that diagonal terminals rarely affect comprehension.
+
+### Tool Surface Additions
+
+- **Group and element styling** — `add-to-view`, `add-group-to-view`, `add-note-to-view`, and `update-view-object` accept `figureType` (`rectangular` / `tabbed`), `textAlignment`, and `verticalTextAlignment`. These close v1.3 feedback that groups were always tabbed and labels always centred. Additive and non-breaking; existing calls are unchanged, and the new fields read back on `get-view-contents`.
+- **Hub 2D-resize suggestion** — For elements with more than 12 connections, `detect-hub-elements` also suggests a two-dimensional resize so ports can spread across all four edges, not just one.
+- **Hub-aware spacing** — The spacing tools select a wider spacing tier when a view contains hub elements, since formula-sized hubs consume corridor space.
+
+### Layout Fixes (vs v1.3)
+
+- **Text boxes reserve room for their text** — `add-note-to-view` and `add-group-to-view` size the box to fit wrapped content when the caller does not pin a height, so descriptive titles and long group labels no longer clip. Explicit sizes are unchanged; heights clamp to documented maxima.
+- **Containers reserve their icon corner** — A container that carries a corner-anchored icon grows enough to keep the icon clear of nested children, preventing the icon-on-child overlap. Containers without an icon are unchanged.
+- **`arrange-groups` reserves a lane for standalone hubs** — Topology row/column arrangement now centres a top-level element that connects across multiple groups in an inter-group lane between its neighbours, delivering the "place it between the zones" layout the viewpoint recipes describe.
+- **Parent groups resize to contain their children** — A child moved outside its parent group's bounds now triggers a parent resize, across all three paths that can move a child (auto-nudge, the spacing tools, and direct object update). Closes a long-standing defect where a group was left too small for its contents.
+
+### Routing Fixes (vs v1.3)
+
+- **Self-element pass-throughs resolved** — A connection whose route looped back through its own source or target is now corrected algorithmically. This closes a user-visible issue present since v1.0.
+- **Terminals-only routing mode** — `auto-route-connections` accepts `mode: "terminals-only"`, which rectifies only the diagonal terminal segments of automatic-layout output without re-routing whole connections — avoiding the crossing inflation a full re-route causes on that input.
+
+### Routing Pipeline Improvements (vs v1.3)
+
+These pipeline improvements deliver better routing than v1.3 across the reference views, and are protected by regression tests:
+
+- Seeded multi-start routing — picks the best of several candidate routes, and is never worse than the single-shot route by construction.
+- Hub-perimeter and terminal-segment corridor handling for multi-bendpoint routes.
+- Channel-global ordered nudging that spreads parallel segments across whole channels, including inter-group corridors.
+- An invariant that locks a connection's perimeter-terminal face through the whole pipeline, preserving hub-port distribution end-to-end.
+
+### Viewpoint Recipes
+
+- **Recipe library (six new resources)** — A progressive-disclosure library under `archimate://recipes/*`. Fetch `archimate://recipes/index` first; it states the build sequence once, routes conventional viewpoints to the existing view-patterns principles, and points non-conventional viewpoints (application integration, behaviour/process flow, motivation, technology deployment, roadmap/migration) to a single recipe page with a topology block to match.
+- **Element-type and nesting guidance** — The view-patterns and layers references are sharpened so an agent picks the right element type (Component vs Service, Process vs Function, Node vs Component, Actor vs Role) and nests structural parts instead of drawing a redundant Composition or Aggregation connector. These target recurring v1.3 reports of wrong element type and drawn-instead-of-nested composition.
+
+### Quality Protection
+
+Every quality threshold introduced in v1.4 ships with a regression test that pins it against the manual-routed reference, so a future change that regresses a metric fails a test instead of silently shipping. See [Layout Engine — JUnit-Protected Release-Gate Metrics](docs/layout-engine.md).
+
+### Documentation
+
+- **New: [glossary](docs/glossary.md)** — Defines every metric acronym, routing term, and rating tier in one place.
+- **New: bibliography** — A numbered research bibliography for the layout engine and routing pipeline, with a per-stage citation map and a separate modelling/visual-design reference subsection backing the LLM-facing guidance.
+- **Updated** — The routing-pipeline and layout-engine docs cover the assessor redesign, the control loop and infeasibility certificate, and the pipeline groundwork. The README catalogs all 69 tools, the new metrics, and the new resources. Tool descriptions are swept so an agent gets the full spacing and routing contract from the tool surface alone, with external guidance pointing to the MCP resources.
+
+---
+
 ## v1.3.0 (2026-04-10)
 
 Expressiveness cycle. Adds first-class support for ArchiMate **specializations** (IS-A subtypes of element and relationship types) across the read, write, search, and resource surfaces. Tool count grew from 60 to 65. Also bundles quality enhancements (B50–B55) discovered during E2E validation runs.
@@ -99,7 +178,7 @@ Quality, completeness, and routing diversity cycle. Tool count grew from 57 to 6
 
 ## v1.1.0 (2026-04-03)
 
-Post-release enhancement cycle: 84 commits, 12 Epic 13 stories, 41+ backlog items. Tool count grew from 51 to 56. Routing pipeline refined through 19 quality iterations (B31-B46) achieving clearance-weighted pathfinding with corridor directionality, group-wall awareness, path straightening, terminal orthogonality enforcement, and severity-tiered quality assessment.
+Post-release enhancement cycle (84 commits). Tool count grew from 51 to 56. Routing pipeline refined through 19 quality iterations (B31-B46) achieving clearance-weighted pathfinding with corridor directionality, group-wall awareness, path straightening, terminal orthogonality enforcement, and severity-tiered quality assessment.
 
 ### New Tools
 

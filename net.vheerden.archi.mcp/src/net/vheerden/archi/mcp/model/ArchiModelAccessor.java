@@ -11,6 +11,10 @@ import net.vheerden.archi.mcp.response.dto.ArrangeGroupsResultDto;
 import net.vheerden.archi.mcp.response.dto.ApplyViewLayoutResultDto;
 import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoConnectResultDto;
+import net.vheerden.archi.mcp.response.dto.AdjustViewSpacingResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplyElementSpacingRecommendationsResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplyGroupSpacingRecommendationsResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplySpacingRecommendationsResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoLayoutAndRouteResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoRouteResultDto;
 import net.vheerden.archi.mcp.response.dto.BendpointDto;
@@ -778,14 +782,34 @@ public interface ArchiModelAccessor {
      *                      in a single atomic operation (Story 13-7). Ignored when force is true.
      * @param perimeterMargin exterior perimeter extension in pixels beyond outermost obstacles (B36).
      *                        Larger values give A* more space for exterior routing around dense element clusters.
+     * @param mode            scope of path the call may touch (B61): "full" (default) re-routes
+     *                        whole connections via the visibility-graph A* router; "terminals-only"
+     *                        leaves all intermediate bendpoints unchanged and only modifies the
+     *                        first and/or last bendpoint to ensure terminal segments are orthogonal.
+     *                        terminals-only is mutually exclusive with strategy="clear" and
+     *                        autoNudge=true. null or blank treated as "full".
      * @return MutationResult containing AutoRouteResultDto with routing counts
      * @throws NoModelLoadedException if no model is loaded
-     * @throws ModelAccessException if view not found, connection not found, or invalid strategy
+     * @throws ModelAccessException if view not found, connection not found, or invalid strategy/mode
      */
     MutationResult<AutoRouteResultDto> autoRouteConnections(
             String sessionId, String viewId,
             List<String> connectionIds, String strategy, boolean force,
-            boolean autoNudge, int snapThreshold, int perimeterMargin);
+            boolean autoNudge, int snapThreshold, int perimeterMargin, String mode);
+
+    /**
+     * Overload with the B69-B channel-global ordered nudging gate (AC-11).
+     *
+     * <p>When {@code enableChannelNudging} is true (default), routes are post-processed by
+     * a channel-global ordered nudging pass that centres single-occupant routes in their
+     * corridors and fans out parallel runs sharing a corridor. Set false to A/B compare or
+     * to opt out.</p>
+     */
+    MutationResult<AutoRouteResultDto> autoRouteConnections(
+            String sessionId, String viewId,
+            List<String> connectionIds, String strategy, boolean force,
+            boolean autoNudge, int snapThreshold, int perimeterMargin, String mode,
+            boolean enableChannelNudging);
 
     // ---- Auto-layout-and-route (Story 10-29) ----
 
@@ -813,6 +837,339 @@ public interface ArchiModelAccessor {
     MutationResult<AutoLayoutAndRouteResultDto> autoLayoutAndRoute(
             String sessionId, String viewId, String mode,
             String direction, int spacing, String targetRating);
+
+    // ---- Adjust view spacing (B68) ----
+
+    /**
+     * Inflates inter-element, parent-padding, and inter-group spacing by user-specified
+     * deltas, preserving relative positions, then auto-re-routes connections and returns
+     * combined routing + assessment results in a single call.
+     *
+     * <p>Only works on grouped views. For each top-level group, detects the current
+     * arrangement and spacing, then re-runs layoutWithinGroup with inflated values.
+     * When {@code recursive} is true (default), nested subgroups are inflated bottom-up.
+     * After intra-group inflation, groups are pushed apart by {@code interGroupDelta}.
+     * The entire operation (inflate + re-route) is a single undo step.</p>
+     *
+     * @param sessionId         the session identifier for mode detection
+     * @param viewId            the view's unique identifier (required)
+     * @param interElementDelta pixels to add between elements within groups (null = 0)
+     * @param paddingDelta      pixels to add to group edge padding (null = 0)
+     * @param interGroupDelta   pixels to add between adjacent groups (null = 0)
+     * @param recursive         if true, inflate nested subgroups too (default true)
+     * @return MutationResult containing AdjustViewSpacingResultDto
+     * @throws NoModelLoadedException if no model is loaded
+     * @throws ModelAccessException if view not found, no groups, or invalid parameters
+     */
+    MutationResult<AdjustViewSpacingResultDto> adjustViewSpacing(
+            String sessionId, String viewId,
+            Integer interElementDelta, Integer paddingDelta,
+            Integer interGroupDelta, boolean recursive);
+
+    // ---- Apply element spacing recommendations (RoutingPreconditions.InterElement) ----
+
+    /**
+     * Convenience tool: reads the view's current connection count and per-group
+     * element spacing, consults the inter-element heuristics table (≤15 → 60px,
+     * 16–30 → 80px, &gt;30 → 100px), computes {@code interElementDelta =
+     * max(0, target - current)}, and (when not dryRun and delta &gt; 0) calls
+     * {@link #adjustViewSpacing(String, String, Integer, Integer, Integer, boolean)}.
+     * Returns a single envelope containing the before snapshot, the after
+     * snapshot, the delegate adjust-view-spacing result, and the heuristic
+     * computation transparency fields.
+     *
+     * <p>Uses the same connection-count source as {@link #assessLayout(String)}
+     * (single source of truth — both call
+     * {@code AssessmentCollector.collectAssessmentConnections(...)} via the
+     * same `assessLayout` invocation). Uses the same spacing-detection utility
+     * as {@link #adjustViewSpacing(String, String, Integer, Integer, Integer, boolean)}
+     * — both call {@code GroupLayoutCalculator.detectSpacingFromPositions(...)}.</p>
+     *
+     * <p>{@code currentSpacingPx} is computed as the MIN per-group element
+     * spacing across all top-level groups that have at least 2 non-note
+     * children (most-tight group wins; aligns with visual-severity hierarchy
+     * where coincident segments form where spacing is tightest). When the
+     * view has no top-level groups OR has groups but none with 2+ non-note
+     * children, the call **gracefully short-circuits** with a populated
+     * {@code noChangeReason} — it does NOT throw the
+     * "requires a view with groups" exception that {@code adjustViewSpacing}
+     * raises (the convenience tool's role is to be safely callable from any
+     * view; an exception would be a footgun, and a dry-run user wants
+     * informational feedback rather than an error). Likewise when
+     * {@code connectionCount == 0}, the tool short-circuits with a
+     * {@code noChangeReason} explaining that the heuristic does not apply
+     * to a view with no connections.</p>
+     *
+     * <p>{@code dryRun=true} short-circuits before calling
+     * {@code adjustViewSpacing} — no mutation occurs and no speculative-mutate-
+     * and-undo. The response carries the {@code before} snapshot and the
+     * recommendation only.</p>
+     *
+     * @param sessionId             the session identifier for mode detection
+     * @param viewId                the view's unique identifier (required)
+     * @param dryRun                when true, compute the recommendation
+     *                              without mutating; when false (default),
+     *                              apply the inflation
+     * @param targetSpacingOverride optional explicit target spacing in pixels;
+     *                              when non-null, overrides the heuristic
+     *                              tier lookup. The response still reports
+     *                              {@code heuristicRecommendation} for
+     *                              transparency.
+     * @return MutationResult containing ApplyElementSpacingRecommendationsResultDto
+     * @throws NoModelLoadedException if no model is loaded
+     * @throws ModelAccessException if view not found or invalid parameters
+     */
+    MutationResult<ApplyElementSpacingRecommendationsResultDto>
+            applyElementSpacingRecommendations(
+                    String sessionId, String viewId,
+                    boolean dryRun, Integer targetSpacingOverride);
+
+    /**
+     * Control-loop entry point for the apply-element-spacing-recommendations
+     * convenience tool (Story
+     * {@code backlog-convenience-tool-control-loop-architectural-redesign}
+     * AC-1 + AC-4 + AC-5 + AC-6, 2026-05-15). Sibling-symmetric with the
+     * existing 4-arg signature; adds an explicit {@code iterationBudget}
+     * parameter so callers can cap the observe → decide → back-off control
+     * loop's iteration count.
+     *
+     * <p>The default interface implementation delegates to the existing
+     * 4-arg signature, IGNORING {@code iterationBudget} — preserves
+     * backwards-compat for the 30+ test stubs that implement only the 4-arg
+     * via {@code BaseTestAccessor} extends pattern (per architecture-spec
+     * § 1.10 O6). The canonical {@link ArchiModelAccessorImpl} overrides
+     * BOTH signatures: the 4-arg delegates to this 5-arg with the default
+     * budget (5); the 5-arg embeds the {@code SpacingControlLoop} iterate
+     * body.</p>
+     *
+     * @param iterationBudget caller-tunable iteration budget; null →
+     *                        default 5 per AC-4; out-of-range [1, 20] →
+     *                        {@code INVALID_PARAMETER}
+     */
+    default MutationResult<ApplyElementSpacingRecommendationsResultDto>
+            applyElementSpacingRecommendations(
+                    String sessionId, String viewId,
+                    boolean dryRun, Integer targetSpacingOverride,
+                    Integer iterationBudget) {
+        return applyElementSpacingRecommendations(
+                sessionId, viewId, dryRun, targetSpacingOverride);
+    }
+
+    // ---- Apply group spacing recommendations (RoutingPreconditions.InterGroup) ----
+
+    /**
+     * Convenience tool: reads the view's current connection count + inter-
+     * group connection count + current minimum inter-group spacing, consults
+     * the inter-group heuristics table (≤15 → 80px connected / 40px
+     * unconnected, 16–30 → 100/40px, &gt;30 → 120/60px), computes
+     * {@code interGroupDelta = max(0, target - current)}, and (when not
+     * dryRun and delta &gt; 0) calls
+     * {@link #adjustViewSpacing(String, String, Integer, Integer, Integer, boolean)}
+     * with that {@code interGroupDelta}. Returns a single envelope containing
+     * the before snapshot, the after snapshot, the delegate adjust-view-
+     * spacing result, and the heuristic computation transparency fields.
+     *
+     * <p>Uses the same connection-count source as {@link #assessLayout(String)}
+     * (single source of truth — both call
+     * {@code AssessmentCollector.collectAllConnections(...)} via the same
+     * {@code assessLayout} invocation). Uses
+     * {@code GroupLayoutCalculator.detectInterGroupSpacing(groupRects)} for
+     * current-spacing detection (sibling utility to
+     * {@code detectSpacingFromPositions} used by the inter-element tool).</p>
+     *
+     * <p>The {@code isConnected} column-selection determination is computed
+     * by walking the same connection enumeration and counting connections
+     * whose source and target resolve to DIFFERENT top-level groups (where
+     * "top-level group" means an {@code IDiagramModelGroup} whose immediate
+     * container is the {@code IArchimateDiagramModel} itself, not a nested
+     * group). One-side-grouped pairings (one endpoint in a group, the other
+     * ungrouped) are NOT counted as inter-group — the heuristic's
+     * connected/unconnected distinction is about <em>between-group</em>
+     * routing-corridor demand, which requires two groups.</p>
+     *
+     * <p><strong>Composition strategy:</strong> this tool composes
+     * {@link #adjustViewSpacing(String, String, Integer, Integer, Integer, boolean)}
+     * with {@code interGroupDelta} non-null and the other deltas null —
+     * inflate-only / preserves manual placement / single undo step. It does
+     * NOT call {@code optimizeGroupOrder} or {@code arrangeGroups}; for
+     * topology-driven re-layout call those primitives directly.</p>
+     *
+     * <p>{@code currentSpacingPx} is the MIN gap between adjacent top-level
+     * groups along the dominant axis (most-tight pair wins; aligns with
+     * visual-severity hierarchy where edge-coincident routing forms in the
+     * tightest inter-group corridor). When the view has fewer than 2 top-
+     * level groups OR has 2+ groups but the current spacing already meets/
+     * exceeds the heuristic target, the call <strong>gracefully short-
+     * circuits</strong> with a populated {@code noChangeReason} — it does
+     * NOT throw an exception (the convenience tool's role is to be safely
+     * callable from any view; an exception would be a footgun).</p>
+     *
+     * <p>{@code dryRun=true} short-circuits before calling
+     * {@code adjustViewSpacing} — no mutation occurs and no speculative-
+     * mutate-and-undo. The response carries the {@code before} snapshot and
+     * the recommendation only.</p>
+     *
+     * @param sessionId             the session identifier for mode detection
+     * @param viewId                the view's unique identifier (required)
+     * @param dryRun                when true, compute the recommendation
+     *                              without mutating; when false (default),
+     *                              apply the inflation
+     * @param targetSpacingOverride optional explicit target spacing in
+     *                              pixels; when non-null, overrides the
+     *                              heuristic tier+column lookup. The
+     *                              response still reports
+     *                              {@code heuristicRecommendation} for
+     *                              transparency.
+     * @return MutationResult containing ApplyGroupSpacingRecommendationsResultDto
+     * @throws NoModelLoadedException if no model is loaded
+     * @throws ModelAccessException if view not found or invalid parameters
+     */
+    MutationResult<ApplyGroupSpacingRecommendationsResultDto>
+            applyGroupSpacingRecommendations(
+                    String sessionId, String viewId,
+                    boolean dryRun, Integer targetSpacingOverride);
+
+    /**
+     * Control-loop entry point for the apply-group-spacing-recommendations
+     * convenience tool. Sibling-symmetric with
+     * {@link #applyElementSpacingRecommendations(String, String, boolean, Integer, Integer)}.
+     *
+     * @param iterationBudget caller-tunable iteration budget; null →
+     *                        default 5 per AC-4
+     */
+    default MutationResult<ApplyGroupSpacingRecommendationsResultDto>
+            applyGroupSpacingRecommendations(
+                    String sessionId, String viewId,
+                    boolean dryRun, Integer targetSpacingOverride,
+                    Integer iterationBudget) {
+        return applyGroupSpacingRecommendations(
+                sessionId, viewId, dryRun, targetSpacingOverride);
+    }
+
+    // ---- Apply spacing recommendations (composed; RoutingPreconditions.Composed) ----
+
+    /**
+     * Composed convenience tool: reads the view's current spacing baselines
+     * AND connection counts (total + inter-group) in a single pass, consults
+     * BOTH the inter-element heuristic
+     * ({@link ElementSpacingHeuristic#targetSpacingForConnectionCount}) AND
+     * the inter-group heuristic
+     * ({@link GroupSpacingHeuristic#targetSpacingForConnectionCount}),
+     * clamps each proposed delta to the inflation-knee guard
+     * ({@value ApplySpacingDecision#ELEMENT_KNEE_LIMIT_PX}px element /
+     * {@value ApplySpacingDecision#GROUP_KNEE_LIMIT_PX}px inter-group), and
+     * (when not {@code dryRun} and at least one clamped delta &gt; 0) calls
+     * {@link #adjustViewSpacing(String, String, Integer, Integer, Integer, boolean)}
+     * ONCE with the scope-appropriate non-null deltas. Returns a single
+     * envelope with both deltas + clamp metadata + before/after snapshots.
+     *
+     * <p><strong>Distinctive value-prop versus the two sibling tools
+     * ({@link #applyElementSpacingRecommendations} +
+     * {@link #applyGroupSpacingRecommendations})</strong> is THREE structural
+     * disciplines they cannot offer when called separately:
+     * (1) single transactional call + single undo step + single re-route
+     * pass; (2) inflation-knee guard enforced INSIDE the tool (per-call
+     * clamp; not session-tracked); (3) bundled scope dispatch via the
+     * {@code scope} enum.</p>
+     *
+     * <p><strong>{@code scope} dispatch</strong> per AC-2:
+     * <ul>
+     *   <li>{@code "both"} (default) — compute BOTH element + group deltas
+     *       and pass both to a single {@code adjustViewSpacing} call.</li>
+     *   <li>{@code "element"} — compute element delta only; pass
+     *       {@code interGroupDelta=null} to {@code adjustViewSpacing}.
+     *       Equivalent to {@link #applyElementSpacingRecommendations} PLUS
+     *       the knee-clamp guard.</li>
+     *   <li>{@code "group"} — compute group delta only; pass
+     *       {@code interElementDelta=null} to {@code adjustViewSpacing}.
+     *       Equivalent to {@link #applyGroupSpacingRecommendations} PLUS
+     *       the knee-clamp guard.</li>
+     *   <li>Any other value — {@link IllegalArgumentException} raised by
+     *       {@link ApplySpacingDecision#decide}, translated to the
+     *       {@code error.code = "invalid_argument"} envelope by the
+     *       handler.</li>
+     * </ul></p>
+     *
+     * <p><strong>Knee-guard rule.</strong> Each proposed delta is clamped
+     * to NO MORE than +{@value ApplySpacingDecision#ELEMENT_KNEE_LIMIT_PX}px
+     * (element) / +{@value ApplySpacingDecision#GROUP_KNEE_LIMIT_PX}px
+     * (inter-group) from the view's current spacing baselines. Beyond
+     * this cumulative-from-current point, the H1 spacing diagnostic
+     * 2026-05-06 showed passThroughs / nonOrthogonalTerminals /
+     * xings-per-connection regress. The clamp fires per-call (not session-
+     * tracked); successive calls each re-detect current spacing.</p>
+     *
+     * <p><strong>Short-circuit behaviour.</strong> When BOTH clamped deltas
+     * are 0 (whether from structural impossibility — no groups, fewer than
+     * 2 top-level groups, no connections, no children-with-multiple-siblings
+     * — OR from deltas computing to zero against current spacing), the call
+     * gracefully short-circuits with a populated {@code noChangeReason} —
+     * NO {@code adjustViewSpacing} invocation. When ONE arm produces a
+     * non-zero clamped delta and the other is 0, {@code adjustViewSpacing}
+     * is invoked ONCE with the non-zero arm + {@code null} for the
+     * zero-delta arm.</p>
+     *
+     * <p>{@code dryRun=true} short-circuits before calling
+     * {@code adjustViewSpacing} — no mutation occurs and no speculative-
+     * mutate-and-undo. The response carries the {@code before} snapshot,
+     * both deltas, both clamp flags, and both proposedXxxDelta values; the
+     * {@code after} snapshot and {@code adjustResult} are null.</p>
+     *
+     * <p>Pinned by {@code ApplySpacingRecommendationsToolTest}
+     * AC-7.1 through AC-7.11.</p>
+     *
+     * @param sessionId                  the session identifier for mode
+     *                                   detection
+     * @param viewId                     the view's unique identifier
+     *                                   (required)
+     * @param scope                      one of {@code "both"} (default
+     *                                   when null),
+     *                                   {@code "element"}, {@code "group"}
+     * @param dryRun                     when true, compute the recommendation
+     *                                   without mutating; when false
+     *                                   (default), apply the inflation
+     * @param elementTargetSpacingOverride optional explicit target element
+     *                                   spacing; non-null overrides the
+     *                                   heuristic. The knee-clamp still
+     *                                   applies on top of the override
+     *                                   (AC-7.10).
+     * @param groupTargetSpacingOverride optional explicit target inter-group
+     *                                   spacing; non-null overrides the
+     *                                   heuristic. The knee-clamp still
+     *                                   applies on top of the override
+     *                                   (AC-7.10).
+     * @return MutationResult containing ApplySpacingRecommendationsResultDto
+     * @throws NoModelLoadedException if no model is loaded
+     * @throws ModelAccessException if view not found or invalid parameters
+     */
+    MutationResult<ApplySpacingRecommendationsResultDto>
+            applySpacingRecommendations(
+                    String sessionId, String viewId,
+                    String scope, boolean dryRun,
+                    Integer elementTargetSpacingOverride,
+                    Integer groupTargetSpacingOverride);
+
+    /**
+     * Control-loop entry point for the apply-spacing-recommendations composer.
+     * Sibling-symmetric with the apply-element + apply-group control-loop
+     * entry points; composer fires TWO coordinated control loops per
+     * architecture-spec § 1.7 Option A (element-arm first, then group-arm).
+     *
+     * @param iterationBudget caller-tunable iteration budget; null →
+     *                        default 8 per AC-4 (composer covers both arms);
+     *                        out-of-range [1, 20] → {@code INVALID_PARAMETER}
+     */
+    default MutationResult<ApplySpacingRecommendationsResultDto>
+            applySpacingRecommendations(
+                    String sessionId, String viewId,
+                    String scope, boolean dryRun,
+                    Integer elementTargetSpacingOverride,
+                    Integer groupTargetSpacingOverride,
+                    Integer iterationBudget) {
+        return applySpacingRecommendations(
+                sessionId, viewId, scope, dryRun,
+                elementTargetSpacingOverride, groupTargetSpacingOverride);
+    }
 
     /**
      * Retroactively creates visual connections on a view for all existing model

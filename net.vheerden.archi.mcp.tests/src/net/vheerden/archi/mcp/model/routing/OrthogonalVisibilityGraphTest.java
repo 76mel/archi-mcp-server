@@ -649,26 +649,21 @@ public class OrthogonalVisibilityGraphTest {
 
     @Test
     public void shouldRouteAroundDenseWall_withLargerPerimeterMargin() {
-        // Dense horizontal wall of elements — mimics Business Architecture View
+        // B69-C re-bless: original test called findPath(widePorts[0], widePorts[1])
+        // which uses the default `graph` field, but ports were added to local `gWide`.
+        // Fixed: use findPath(gWide, ...) to search the correct graph instance.
         List<RoutingRect> obstacles = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
             obstacles.add(new RoutingRect(50 + i * 100, 100, 80, 60, "obs" + i));
         }
-        // Source below wall, target above wall
         int srcX = 90, srcY = 250;
         int tgtX = 450, tgtY = 50;
-
-        // Narrow perimeter (margin=10) — may fail to find exterior path
-        OrthogonalVisibilityGraph gNarrow = new OrthogonalVisibilityGraph(10);
-        gNarrow.build(obstacles);
-        VisNode[] narrowPorts = gNarrow.addPortNodes(srcX, srcY, tgtX, tgtY);
-        List<VisNode> narrowPath = findPath(narrowPorts[0], narrowPorts[1]);
 
         // Wide perimeter (perimeterMargin=50) — should find exterior path
         OrthogonalVisibilityGraph gWide = new OrthogonalVisibilityGraph(10, 50);
         gWide.build(obstacles);
         VisNode[] widePorts = gWide.addPortNodes(srcX, srcY, tgtX, tgtY);
-        List<VisNode> widePath = findPath(widePorts[0], widePorts[1]);
+        List<VisNode> widePath = findPath(gWide, widePorts[0], widePorts[1]);
 
         assertNotNull("Wide perimeter should find a path around dense wall", widePath);
         assertTrue("Wide perimeter path should have intermediate nodes",

@@ -73,6 +73,7 @@ import com.archimatetool.model.ILineObject;
 import com.archimatetool.model.IDiagramModelNote;
 import com.archimatetool.model.IDiagramModelObject;
 import com.archimatetool.model.IFolder;
+import com.archimatetool.model.IIconic;
 import com.archimatetool.model.IImplementationMigrationElement;
 import com.archimatetool.model.IMotivationElement;
 import com.archimatetool.model.ITextContent;
@@ -84,11 +85,13 @@ import com.archimatetool.model.ITechnologyElement;
 import com.archimatetool.model.util.ArchimateModelUtils;
 
 import net.vheerden.archi.mcp.model.exceptions.MutationException;
+import net.vheerden.archi.mcp.model.routing.BestOfKRoutingStrategy;
 import net.vheerden.archi.mcp.model.routing.FailedConnection;
 import net.vheerden.archi.mcp.model.routing.LabelPositionOptimizer;
 import net.vheerden.archi.mcp.model.routing.MoveRecommendation;
 import net.vheerden.archi.mcp.model.routing.RoutingPipeline;
 import net.vheerden.archi.mcp.model.routing.RoutingResult;
+import net.vheerden.archi.mcp.model.routing.VisibilityGraphRouter;
 import net.vheerden.archi.mcp.response.ErrorCode;
 import net.vheerden.archi.mcp.response.StringSimilarity;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
@@ -99,6 +102,10 @@ import net.vheerden.archi.mcp.response.dto.ApplyViewLayoutResultDto;
 import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoConnectResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoLayoutAssessmentSummaryDto;
+import net.vheerden.archi.mcp.response.dto.AdjustViewSpacingResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplyElementSpacingRecommendationsResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplyGroupSpacingRecommendationsResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplySpacingRecommendationsResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoLayoutAndRouteResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoRouteResultDto;
 import net.vheerden.archi.mcp.response.dto.AnchorPointDto;
@@ -131,6 +138,8 @@ import net.vheerden.archi.mcp.response.dto.OptimizeGroupOrderResultDto;
 import net.vheerden.archi.mcp.response.dto.ResizedGroupDto;
 import net.vheerden.archi.mcp.response.dto.RelationshipDto;
 import net.vheerden.archi.mcp.response.dto.RemoveFromViewResultDto;
+import net.vheerden.archi.mcp.response.dto.StructuredWarningCodes;
+import net.vheerden.archi.mcp.response.dto.StructuredWarningDto;
 import net.vheerden.archi.mcp.response.dto.UndoRedoResultDto;
 import net.vheerden.archi.mcp.response.dto.ViewConnectionDto;
 import net.vheerden.archi.mcp.response.dto.ViewContentsDto;
@@ -2598,7 +2607,12 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                     orphanResult.count(), emptyToNull(orphanResult.descriptions()),
                     0, null, false, 0, 0, null,
                     0, null, 0, null, 0, null, null,
-                    List.of("View has no elements — layout assessment is not applicable."));
+                    List.of("View has no elements — layout assessment is not applicable."),
+                    // Assessor.Redesign M2-M6 (appended; AC-9 backwards-compat)
+                    0, null, 0, null, 0, null, 1.0, null,
+                    "not-applicable", "not-applicable",
+                    // R8 (appended)
+                    1.0, null);
         }
         if (nodes.size() == 1) {
             return new AssessLayoutResultDto(
@@ -2608,7 +2622,12 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                     orphanResult.count(), emptyToNull(orphanResult.descriptions()),
                     0, null, false, 0, 0, null,
                     0, null, 0, null, 0, null, null,
-                    List.of("View has only one element — layout assessment is not applicable."));
+                    List.of("View has only one element — layout assessment is not applicable."),
+                    // Assessor.Redesign M2-M6 (appended; AC-9 backwards-compat)
+                    0, null, 0, null, 0, null, 1.0, null,
+                    "not-applicable", "not-applicable",
+                    // R8 (appended)
+                    1.0, null);
         }
 
         // 3. Collect connections with reconstructed visual paths
@@ -2652,7 +2671,73 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 result.imageSiblingOverlapCount(),
                 emptyToNull(result.imageSiblingOverlapDescriptions()),
                 mapViolatorIds(result.violatorIds()),
-                result.suggestions());
+                result.suggestions(),
+                // Assessor.Redesign M2-M6 (appended; AC-9 backwards-compat)
+                result.interiorTerminationCount(),
+                emptyToNull(result.interiorTerminationDescriptions()),
+                result.zigzagCount(),
+                emptyToNull(result.zigzagDescriptions()),
+                result.connectionEdgeCoincidenceCount(),
+                emptyToNull(result.edgeCoincidenceDescriptions()),
+                Math.round(result.hubPortQualityScore() * 100.0) / 100.0,
+                mapHubFaceDetails(result.hubPortQualityFaces()),
+                result.layoutRating(),
+                result.routingRating(),
+                // R8 (appended)
+                Math.round(result.corridorUtilisationScore() * 100.0) / 100.0,
+                mapCorridorUtilisationChannels(result.corridorUtilisationChannels()),
+                // Successor D parallelConnectionGap (appended; AC-18 mapping)
+                result.vAxisParallelGapP10() != null
+                        ? Math.round(result.vAxisParallelGapP10() * 100.0) / 100.0 : null,
+                result.vAxisParallelGapNarrow25Count(),
+                mapParallelGapDetail(result.parallelConnectionGapDetail()));
+    }
+
+    /** Maps internal ParallelConnectionGapDetail to DTO format (Successor D). */
+    private AssessLayoutResultDto.ParallelConnectionGapDetailDto mapParallelGapDetail(
+            LayoutAssessmentResult.ParallelConnectionGapDetail detail) {
+        if (detail == null) return null;
+        return new AssessLayoutResultDto.ParallelConnectionGapDetailDto(
+                mapParallelGapAxisDetail(detail.vAxis()),
+                mapParallelGapAxisDetail(detail.hAxis()));
+    }
+
+    private AssessLayoutResultDto.ParallelConnectionGapAxisDetailDto mapParallelGapAxisDetail(
+            LayoutAssessmentResult.ParallelConnectionGapAxisDetail a) {
+        if (a == null) return null;
+        return new AssessLayoutResultDto.ParallelConnectionGapAxisDetailDto(
+                a.qualifyingSegmentCount(), a.mean(), a.min(), a.p10(),
+                a.narrowGapCount15(), a.narrowGapCount25(), a.narrowGapCount40());
+    }
+
+    /**
+     * Maps internal HubFaceDetail records to DTO format (Assessor.Redesign M5).
+     * Returns null if input is null or empty (NON_NULL JSON inclusion suppresses field).
+     */
+    private List<AssessLayoutResultDto.HubFaceDetailDto> mapHubFaceDetails(
+            List<LayoutAssessmentResult.HubFaceDetail> faces) {
+        if (faces == null || faces.isEmpty()) return null;
+        List<AssessLayoutResultDto.HubFaceDetailDto> result = new ArrayList<>();
+        for (LayoutAssessmentResult.HubFaceDetail f : faces) {
+            result.add(new AssessLayoutResultDto.HubFaceDetailDto(
+                    f.elementId(), f.face(), f.connectionsOnFace(),
+                    f.distinctSlots(), Math.round(f.quality() * 100.0) / 100.0));
+        }
+        return result;
+    }
+
+    /** Maps internal CorridorUtilisationDetail records to DTO format (R8). */
+    private List<AssessLayoutResultDto.CorridorUtilisationDetailDto> mapCorridorUtilisationChannels(
+            List<LayoutAssessmentResult.CorridorUtilisationDetail> channels) {
+        if (channels == null || channels.isEmpty()) return null;
+        List<AssessLayoutResultDto.CorridorUtilisationDetailDto> result = new ArrayList<>();
+        for (LayoutAssessmentResult.CorridorUtilisationDetail c : channels) {
+            result.add(new AssessLayoutResultDto.CorridorUtilisationDetailDto(
+                    c.axis(), c.sharedCoord(), c.wallLowId(), c.wallHighId(),
+                    c.occupantCount(), c.span(), c.available(),
+                    Math.round(c.spreadRatio() * 100.0) / 100.0));
+        }
+        return result;
     }
 
     /** Maps internal violatorIds (Set) to DTO format (List). Returns null if input is null (B55). */
@@ -3076,7 +3161,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         avgConnectionCount = Math.round(avgConnectionCount * 10.0) / 10.0;
 
         // Generate sizing suggestions for hub elements (>6 connections)
-        List<String> suggestions = buildHubSuggestions(entries);
+        List<String> suggestions = HubSizingSuggestionBuilder.buildSuggestions(entries);
 
         return new DetectHubElementsResultDto(
                 viewId, totalElements, totalConnections, avgConnectionCount,
@@ -3132,35 +3217,6 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         return totalConnections;
     }
 
-    private List<String> buildHubSuggestions(List<HubElementEntryDto> entries) {
-        List<String> suggestions = new ArrayList<>();
-        for (HubElementEntryDto entry : entries) {
-            if (entry.connectionCount() > 6) {
-                int excess = entry.connectionCount() - 6;
-                int connectionBasedWidth = entry.width() + 15 * excess;
-                int suggestedHeight = entry.height() + 15 * excess;
-                int labelAwareWidth = entry.maxLabelWidth() > 0
-                        ? entry.maxLabelWidth() + entry.width() : 0;
-                int suggestedWidth = Math.max(connectionBasedWidth, labelAwareWidth);
-
-                String suggestion = String.format(
-                        "Element '%s' has %d connections (hub threshold: 6). "
-                        + "Consider increasing height to %dpx (%d + 15 \u00d7 %d) for horizontal layouts, "
-                        + "or width to %dpx (%d + 15 \u00d7 %d) for vertical layouts.",
-                        entry.elementName(), entry.connectionCount(),
-                        suggestedHeight, entry.height(), excess,
-                        suggestedWidth, entry.width(), excess);
-                if (labelAwareWidth > connectionBasedWidth) {
-                    suggestion += String.format(
-                            " Label-adjusted width: %dpx (longest label: %dpx).",
-                            labelAwareWidth, entry.maxLabelWidth());
-                }
-                suggestions.add(suggestion);
-            }
-        }
-        return suggestions;
-    }
-
     // ---- Auto-route connections (Story 9-5) ----
 
     /** Maximum nudge iterations for autoNudge mode (Story 13-7). */
@@ -3170,9 +3226,20 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
     public MutationResult<AutoRouteResultDto> autoRouteConnections(
             String sessionId, String viewId,
             List<String> connectionIds, String strategy, boolean force,
-            boolean autoNudge, int snapThreshold, int perimeterMargin) {
-        logger.info("Auto-route connections: viewId={}, strategy={}, connectionIds={}, force={}, autoNudge={}, snapThreshold={}, perimeterMargin={}",
-                viewId, strategy, connectionIds != null ? connectionIds.size() : "all", force, autoNudge, snapThreshold, perimeterMargin);
+            boolean autoNudge, int snapThreshold, int perimeterMargin, String mode) {
+        return autoRouteConnections(sessionId, viewId, connectionIds, strategy, force,
+                autoNudge, snapThreshold, perimeterMargin, mode,
+                RoutingPipeline.DEFAULT_ENABLE_CHANNEL_NUDGING);
+    }
+
+    @Override
+    public MutationResult<AutoRouteResultDto> autoRouteConnections(
+            String sessionId, String viewId,
+            List<String> connectionIds, String strategy, boolean force,
+            boolean autoNudge, int snapThreshold, int perimeterMargin, String mode,
+            boolean enableChannelNudging) {
+        logger.info("Auto-route connections: viewId={}, strategy={}, mode={}, connectionIds={}, force={}, autoNudge={}, snapThreshold={}, perimeterMargin={}, enableChannelNudging={}",
+                viewId, strategy, mode, connectionIds != null ? connectionIds.size() : "all", force, autoNudge, snapThreshold, perimeterMargin, enableChannelNudging);
         IArchimateModel model = requireAndCaptureModel();
 
         try {
@@ -3193,6 +3260,27 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         ErrorCode.INVALID_PARAMETER);
             }
 
+            // 2b. Validate mode (B61 — terminals-only routing)
+            String effectiveMode = (mode == null || mode.isBlank()) ? "full" : mode;
+            if (!"full".equals(effectiveMode) && !"terminals-only".equals(effectiveMode)) {
+                throw new ModelAccessException(
+                        "Invalid mode: '" + effectiveMode + "'. Valid: full, terminals-only",
+                        ErrorCode.INVALID_PARAMETER);
+            }
+            boolean terminalsOnly = "terminals-only".equals(effectiveMode);
+            if (terminalsOnly && "clear".equals(effectiveStrategy)) {
+                throw new ModelAccessException(
+                        "strategy 'clear' cannot be combined with mode 'terminals-only'"
+                                + " — they are mutually exclusive",
+                        ErrorCode.INVALID_PARAMETER);
+            }
+            if (terminalsOnly && autoNudge) {
+                throw new ModelAccessException(
+                        "autoNudge cannot be combined with mode 'terminals-only'"
+                                + " — terminals-only never moves elements",
+                        ErrorCode.INVALID_PARAMETER);
+            }
+
             // 3. Collect connections
             List<IDiagramModelConnection> allConnections =
                     AssessmentCollector.collectAllConnections(diagramModel);
@@ -3200,6 +3288,10 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
             // 4. Filter by connectionIds if provided
             List<IDiagramModelConnection> targetConnections;
             List<String> warnings = new ArrayList<>();
+            // Story RoutingPreconditions.AutoRouteStructuredWarning (Row E):
+            // structured-warning emissions accumulate alongside the legacy
+            // free-text `warnings` list; both surfaces ship in parallel for back-compat.
+            List<StructuredWarningDto> structuredWarnings = new ArrayList<>();
             if (connectionIds != null && !connectionIds.isEmpty()) {
                 Map<String, IDiagramModelConnection> connMap = new LinkedHashMap<>();
                 for (IDiagramModelConnection conn : allConnections) {
@@ -3228,6 +3320,17 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 AutoRouteResultDto dto = new AutoRouteResultDto(
                         viewId, 0, effectiveStrategy, false);
                 return new MutationResult<>(dto, null);
+            }
+
+            // 5b. B61 — terminals-only mode: dispatch to a focused branch that only
+            // adjusts the first/last bendpoint of each connection. No A* router, no
+            // obstacle building, no autoNudge, no label optimizer, no router-type
+            // switch (terminals-only never adds new bendpoints to a manhattan-routed
+            // view; if the view is in manhattan mode, the existing bendpoints are
+            // ignored anyway and the operation is a no-op).
+            if (terminalsOnly) {
+                return runTerminalsOnly(sessionId, viewId, diagramModel,
+                        targetConnections, effectiveStrategy, force, warnings);
             }
 
             // 6. Build commands
@@ -3304,7 +3407,8 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 OrthogonalRoutingResult routeResult;
                 try {
                     routeResult = buildOrthogonalRoutingCommands(
-                            diagramModel, targetConnections, nodes, force, snapThreshold, perimeterMargin);
+                            diagramModel, targetConnections, nodes, force, snapThreshold, perimeterMargin,
+                            VisibilityGraphRouter.DEFAULT_OCCUPANCY_WEIGHT, enableChannelNudging);
                 } catch (RuntimeException e) {
                     logger.warn("Routing pipeline failed for view {} due to degenerate geometry: {}",
                             viewId, e.getMessage());
@@ -3335,16 +3439,31 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                     logger.warn("Auto-nudge skipped: overlapping sibling elements detected on view {}. "
                             + "Resolve overlaps first (e.g., layout-flat-view or layout-within-group), "
                             + "then re-route.", viewId);
-                    warnings.add("autoNudge skipped because sibling elements have overlapping bounding boxes. "
-                            + "Use layout-flat-view or layout-within-group to separate elements first.");
+                    String autoNudgeSkipMessage =
+                            "autoNudge skipped because sibling elements have overlapping bounding boxes. "
+                                    + "Use layout-flat-view or layout-within-group to separate elements first.";
+                    warnings.add(autoNudgeSkipMessage);
+                    structuredWarnings.add(new StructuredWarningDto(
+                            StructuredWarningCodes.AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP,
+                            autoNudgeSkipMessage,
+                            "layout-within-group",
+                            OverlapResolver.findOverlappingElementIds(nodes)));
                 }
+
+                // Backlog-b15 + Successor E: Hoist shared maps OUT of the autoNudge
+                // gate so the Successor-E post-routing overflow pass (below) can share
+                // the same virtualGroupBounds + groupResizeCommands consolidation. When
+                // the gate at line 3463 does NOT enter (e.g., routing succeeded without
+                // failed connections so autoNudge has nothing to do), the maps stay
+                // empty here and the post-pass starts fresh from EMF bounds.
+                Map<String, IDiagramModelObject> allViewObjects = new LinkedHashMap<>();
+                collectAllViewObjectMap(diagramModel, allViewObjects);
+                Map<String, int[]> cumulativeDeltas = new LinkedHashMap<>();
+                Map<String, int[]> virtualGroupBounds = new LinkedHashMap<>();
+                Map<String, Command> groupResizeCommands = new LinkedHashMap<>();
 
                 if (effectiveAutoNudge && !failedConnections.isEmpty()
                         && !moveRecommendations.isEmpty()) {
-                    // Build view object map for nudge operations
-                    Map<String, IDiagramModelObject> allViewObjects = new LinkedHashMap<>();
-                    collectAllViewObjectMap(diagramModel, allViewObjects);
-
                     // Build connection lookup for re-routing specific failed connections
                     Map<String, IDiagramModelConnection> connLookup = new LinkedHashMap<>();
                     for (IDiagramModelConnection conn : targetConnections) {
@@ -3352,14 +3471,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                     }
 
                     // Track cumulative deltas per element for consolidation (M-1)
-                    Map<String, int[]> cumulativeDeltas = new LinkedHashMap<>();
                     Map<String, String> elementNames = new LinkedHashMap<>();
-
-                    // Backlog-b15: Track group resize state across iterations
-                    // virtualGroupBounds: accumulated [x, y, w, h] per group (prevents stale EMF reads)
-                    // groupResizeCommands: ONE consolidated resize command per group
-                    Map<String, int[]> virtualGroupBounds = new LinkedHashMap<>();
-                    Map<String, Command> groupResizeCommands = new LinkedHashMap<>();
 
                     for (int iteration = 0; iteration < MAX_NUDGE_ITERATIONS; iteration++) {
                         if (failedConnections.isEmpty() || moveRecommendations.isEmpty()) {
@@ -3452,7 +3564,8 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         // Fall back to pre-nudge results instead of INTERNAL_ERROR.
                         try {
                             OrthogonalRoutingResult reRouteResult = buildOrthogonalRoutingCommands(
-                                    diagramModel, failedConns, nodes, false, snapThreshold, perimeterMargin);
+                                    diagramModel, failedConns, nodes, false, snapThreshold, perimeterMargin,
+                                    VisibilityGraphRouter.DEFAULT_OCCUPANCY_WEIGHT, enableChannelNudging);
                             commands.addAll(reRouteResult.commands);
                             routedCount += reRouteResult.routedCount;
                             labelsOptimized += reRouteResult.labelsOptimized;
@@ -3475,9 +3588,11 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         }
                     }
 
-                    // Backlog-b15: Add consolidated group resize commands AFTER all iterations
-                    // (one command per group — the latest resize wins via Map.put)
-                    commands.addAll(groupResizeCommands.values());
+                    // Backlog-b15 + Successor E: Resize commands accumulated in
+                    // groupResizeCommands are committed AFTER the Successor-E post-routing
+                    // overflow pass below, so both autoNudge nudge-driven resizes AND
+                    // post-pass overflow-detection resizes share one consolidation map
+                    // (one command per group — the latest resize wins via Map.put).
 
                     // B29 fix: Re-align terminals and re-encode relative BPs using final
                     // post-nudge centers. Connections routed in iteration N use element
@@ -3588,17 +3703,74 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                                 deltas[0], deltas[1]));
                     }
 
-                    // Backlog-b15 AC-6: Build resizedGroups list from virtual bounds
-                    for (Map.Entry<String, int[]> entry : virtualGroupBounds.entrySet()) {
-                        String groupId = entry.getKey();
-                        int[] bounds = entry.getValue();
-                        IDiagramModelObject groupObj = allViewObjects.get(groupId);
-                        String groupName = groupObj != null && groupObj.getName() != null
-                                ? groupObj.getName() : groupId;
-                        resizedGroups.add(new ResizedGroupDto(
-                                groupId, groupName,
-                                bounds[0], bounds[1], bounds[2], bounds[3]));
+                }
+
+                // Successor E (RoutingAutoNudge.GroupBoundsFollowup, 2026-05-13).
+                // Post-routing overflow detection pass — closes the residual gap in
+                // the B15 fix when the autoNudge gate at line 3451 does NOT enter
+                // (e.g., routing succeeded without failed connections so autoNudge has
+                // nothing to nudge, OR the OverlapResolver early-skip at line 3435
+                // bypassed autoNudge due to pre-existing sibling overlap). In those
+                // cases, any pre-existing element/group overflow from prior workflow
+                // steps (e.g., apply-element-spacing-recommendations inflated geometry
+                // in a non-autoNudge code path) would persist because
+                // resizeParentGroupIfNeeded never fires.
+                //
+                // Gated by effectiveAutoNudge so the pass ONLY fires when the caller
+                // opted in to autoNudge — preserving the caller's intent when they
+                // explicitly disabled it (force=true OR autoNudge=false).
+                //
+                // The pass reuses the hoisted virtualGroupBounds + groupResizeCommands
+                // maps so any resizes the autoNudge block already emitted are not
+                // duplicated — Map.put consolidates by groupId (latest resize wins,
+                // and since we apply cumulativeDeltas before measuring, the latest
+                // resize accounts for nudge-shifted positions too).
+                //
+                // Scope: this pass is autoNudge-path-only. The Row B / composed-tool
+                // spacing path (apply-element-spacing-recommendations etc.) routes via
+                // computeAutoRoutePass(force=true) and BYPASSES autoNudge entirely;
+                // that gap is sibling scope (Successor E.b backlog row).
+                if (effectiveAutoNudge) {
+                    for (Map.Entry<String, IDiagramModelObject> entry
+                            : allViewObjects.entrySet()) {
+                        IDiagramModelObject dmo = entry.getValue();
+                        EObject container = dmo.eContainer();
+                        if (!(container instanceof IDiagramModelGroup parentGroup)) {
+                            continue;
+                        }
+                        IBounds bounds = dmo.getBounds();
+                        int[] delta = cumulativeDeltas.getOrDefault(
+                                entry.getKey(), new int[]{0, 0});
+                        int childNewX = bounds.getX() + delta[0];
+                        int childNewY = bounds.getY() + delta[1];
+                        // resizeParentGroupIfNeeded internally checks virtualGroupBounds
+                        // first and falls back to parent EMF bounds; same shared-map
+                        // consolidation pattern as the autoNudge loop above.
+                        resizeParentGroupIfNeeded(parentGroup, dmo,
+                                childNewX, childNewY,
+                                bounds.getWidth(), bounds.getHeight(),
+                                virtualGroupBounds, groupResizeCommands);
                     }
+                }
+
+                // Backlog-b15 + Successor E: Commit consolidated group resize commands
+                // (one per group — autoNudge + post-pass share the same map; latest
+                // resize wins via Map.put). When effectiveAutoNudge=false the maps are
+                // empty and this is a no-op.
+                commands.addAll(groupResizeCommands.values());
+
+                // Backlog-b15 AC-6 + Successor E: Build resizedGroups DTO list from
+                // virtual bounds (covers both autoNudge nudge-driven resizes AND
+                // Successor-E post-pass overflow-detection resizes — single source).
+                for (Map.Entry<String, int[]> entry : virtualGroupBounds.entrySet()) {
+                    String groupId = entry.getKey();
+                    int[] bounds = entry.getValue();
+                    IDiagramModelObject groupObj = allViewObjects.get(groupId);
+                    String groupName = groupObj != null && groupObj.getName() != null
+                            ? groupObj.getName() : groupId;
+                    resizedGroups.add(new ResizedGroupDto(
+                            groupId, groupName,
+                            bounds[0], bounds[1], bounds[2], bounds[3]));
                 }
 
                 // 6c. Compute crossings after routing (backlog-b14)
@@ -3717,7 +3889,8 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         routerTypeSwitched, labelsOptimized,
                         crossingsBefore, crossingsAfter, straightLineCrossings,
                         warnings, List.of(), List.of(),
-                        violationDtos, nudgedElements, resizedGroups);
+                        violationDtos, nudgedElements, resizedGroups,
+                        structuredWarnings);
             } else {
                 // Default mode: failed connections excluded, report failures + recommendations
                 List<FailedConnectionDto> failedDtos = new ArrayList<>();
@@ -3742,7 +3915,8 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         routerTypeSwitched, labelsOptimized,
                         crossingsBefore, crossingsAfter, straightLineCrossings,
                         warnings, failedDtos,
-                        recommendationDtos, List.of(), nudgedElements, resizedGroups);
+                        recommendationDtos, List.of(), nudgedElements, resizedGroups,
+                        structuredWarnings);
             }
 
             // 10. Approval gate
@@ -3921,16 +4095,19 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
             parentW = parentBounds.getWidth(); parentH = parentBounds.getHeight();
         }
 
-        // Check if child's new position exceeds parent's current dimensions
-        // Handle both right/bottom overflow and left/top overflow (M-2)
-        int requiredWidth = childNewX + childW + padding;
-        int requiredHeight = childNewY + childH + padding;
-
-        boolean needsResize = requiredWidth > parentW
-                || requiredHeight > parentH
-                || childNewX < 0 || childNewY < 0;
+        // Check if child's new position exceeds parent's current dimensions.
+        // Handle both right/bottom overflow and left/top overflow (M-2).
+        // Successor E (2026-05-13): extracted predicate as static method so the
+        // post-routing overflow pass + JUnit pin (`AutoNudgeGroupBoundsFollowupTest`)
+        // can share the same overflow definition — single source of truth per
+        // story `feedback_inherited_primitive_spike.md` shared-helper guidance.
+        boolean needsResize = childExceedsParentBounds(
+                childNewX, childNewY, childW, childH, parentW, parentH, padding);
 
         if (needsResize) {
+            // Formula mirrors childExceedsParentBounds — must stay in sync if padding logic changes.
+            int requiredWidth = childNewX + childW + padding;
+            int requiredHeight = childNewY + childH + padding;
             int newWidth = Math.max(parentW, requiredWidth);
             int newHeight = Math.max(parentH, requiredHeight);
             int newX = parentX;
@@ -3962,6 +4139,171 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         virtualGroupBounds, groupResizeCommands);
             }
         }
+    }
+
+    /**
+     * Returns true iff the given child rectangle exceeds the parent group's
+     * dimensions in ANY of the four overflow directions (right / bottom /
+     * left / top) after the padding allowance.
+     *
+     * <p>Successor E (2026-05-13, story
+     * `backlog-routing-autonudge-group-bounds-followup`): extracted from the
+     * inlined predicate inside {@link #resizeParentGroupIfNeeded} so the
+     * post-routing overflow detection pass (inside
+     * {@code autoRouteConnections} after the autoNudge block) and the new
+     * dedicated JUnit pin class
+     * {@code AutoNudgeGroupBoundsFollowupTest} share the same overflow
+     * definition. Single source of truth per
+     * {@code feedback_inherited_primitive_spike.md} shared-helper guidance.</p>
+     *
+     * <p>Coordinate convention: {@code childNewX} / {@code childNewY} are
+     * relative-to-parent, matching Archi's nested-object storage convention
+     * (per {@code feedback_visual_severity.md} Tier-1 R1 overflow
+     * specification).</p>
+     *
+     * @param childNewX child's prospective relative-to-parent X (post-nudge or post-resize)
+     * @param childNewY child's prospective relative-to-parent Y
+     * @param childW    child width (unchanged across moves; per
+     *                  backlog-b15 commit at line 3515)
+     * @param childH    child height
+     * @param parentW   parent group's current width
+     * @param parentH   parent group's current height
+     * @param padding   padding allowance (typically
+     *                  {@link #DEFAULT_GROUP_PADDING})
+     * @return true if any of the four overflow conditions hold
+     */
+    static boolean childExceedsParentBounds(
+            int childNewX, int childNewY, int childW, int childH,
+            int parentW, int parentH, int padding) {
+        int requiredWidth = childNewX + childW + padding;
+        int requiredHeight = childNewY + childH + padding;
+        return requiredWidth > parentW
+                || requiredHeight > parentH
+                || childNewX < 0 || childNewY < 0;
+    }
+
+    // ---- Backlog W2 (story `backlog-cloud-icon-container-node-collision`):
+    // icon-band parent-resize lever ----
+
+    /**
+     * Icon px size of Archi's cloud-icon family (16×16 — see
+     * {@code archimate-view-patterns.md:420-429} cloud-icon mandate).
+     */
+    private static final int W2_ICON_SIZE = 16;
+    /** Safety margin between icon and adjacent child (px). */
+    private static final int W2_ICON_MARGIN = 8;
+
+    /**
+     * Computes an optional parent-resize command for W2 (icon-band reservation
+     * at the CREATION moment, per story
+     * {@code backlog-cloud-icon-container-node-collision} Task-1.2).
+     *
+     * <p>Fires when a new child is being added to a container parent that
+     * already has a non-default corner-anchored icon AND the new child or any
+     * existing sibling occupies that corner. Returns the parent-resize command
+     * (possibly compounded with grandparent-group cascade commands) to wrap
+     * with the {@code AddToViewCommand} so they execute atomically; returns
+     * null when no resize is needed (AC-14 Case A short-circuit when the
+     * parent has no image position, AND Case B short-circuit when the corner
+     * is empty).</p>
+     *
+     * <p>MVP scope (per story Task-0.7 outcome): fires for bottom corners
+     * (6 = bottom-left, 8 = bottom-right) only. Top-left (0) is recognised by
+     * the pure-geometry predicate but no resize command is issued because the
+     * accessor-layer fix would require shifting all existing siblings down by
+     * {@code ICON_BAND_HEIGHT} — a much larger blast radius than the W2
+     * retail-bank bug warrants. Top-right (2) is excluded as the Archi
+     * default sentinel (AC-2 / AC-6 byte-identical back-compat).</p>
+     *
+     * <p><strong>Grandparent-group cascade (AC-3):</strong> when the
+     * icon-bearing parent itself sits inside an {@link IDiagramModelGroup}
+     * grandparent and the parent's new height would exceed the grandparent's
+     * bounds, the cascade flows through the shared
+     * {@link #resizeParentGroupIfNeeded} so the grandparent grows in lock-step
+     * — single source of truth per {@code feedback_inherited_primitive_spike.md}
+     * (sibling-symmetric with the H6 logic at {@code prepareUpdateViewObject}).</p>
+     *
+     * <p><strong>Growth amount (design choice):</strong> the lever always
+     * grows by exactly {@link ImageHelper#ICON_BAND_HEIGHT} when it fires —
+     * NOT the precise child-intrusion shortfall. The over-grow is bounded
+     * (max 24 px), one-shot (the predicate becomes false after growth so
+     * subsequent children don't re-trigger), and avoids a second traversal
+     * of the child list to compute precise depth. Sibling-symmetric with
+     * {@code GROUP_LABEL_HEIGHT = 24}: groups always reserve 24 px for the
+     * label band regardless of how tall the label actually is.</p>
+     *
+     * @param parentContainer the resolved parent container (may be the view itself)
+     * @param newChildX       new child's bounds (relative-to-parent)
+     * @param newChildY       …
+     * @param newChildW       …
+     * @param newChildH       …
+     * @return parent-resize command (possibly compounded with grandparent
+     *         cascade), or null when no resize is needed
+     */
+    private Command computeIconBandParentResizeCommand(
+            IDiagramModelContainer parentContainer,
+            int newChildX, int newChildY, int newChildW, int newChildH) {
+        if (!(parentContainer instanceof IDiagramModelObject parentObj)) {
+            return null; // parent is the view itself — no icon-band reservation
+        }
+        if (!(parentObj instanceof IIconic)) {
+            return null; // parent doesn't carry an image — nothing to reserve
+        }
+        int parentImgPos = ImageHelper.readImagePositionInt(parentObj);
+        // Restrict to non-default corners (skip 2 = top-right Archi default;
+        // skip 0 = top-left because the fix requires child-shift, deferred).
+        if (parentImgPos != 6 && parentImgPos != 8) {
+            return null;
+        }
+        IBounds pb = parentObj.getBounds();
+        int parentX = pb.getX();
+        int parentY = pb.getY();
+        int parentW = pb.getWidth();
+        int parentH = pb.getHeight();
+
+        List<int[]> rects = new ArrayList<>();
+        for (IDiagramModelObject sib : parentContainer.getChildren()) {
+            IBounds sb = sib.getBounds();
+            rects.add(new int[] {sb.getX(), sb.getY(), sb.getWidth(), sb.getHeight()});
+        }
+        // Include the prospective new child (parent-relative coords — matches
+        // Archi's nested-object storage convention, see `childExceedsParentBounds`
+        // javadoc at line 4158-4161).
+        rects.add(new int[] {newChildX, newChildY, newChildW, newChildH});
+
+        if (!ImageHelper.anyChildOccupiesIconBand(parentW, parentH, parentImgPos,
+                W2_ICON_SIZE, W2_ICON_MARGIN, rects)) {
+            return null; // AC-14 Case B short-circuit — corner empty, byte-identical
+        }
+
+        int newParentH = parentH + ImageHelper.ICON_BAND_HEIGHT;
+        Command parentResize = new UpdateViewObjectCommand(parentObj, parentX, parentY, parentW, newParentH);
+
+        // AC-3 grandparent-group cascade (review finding M-1, applied in-session
+        // 2026-05-20). When the icon-bearing parent itself lives inside an
+        // IDiagramModelGroup grandparent, flow through the shared
+        // resizeParentGroupIfNeeded helper so the grandparent grows when the
+        // now-taller parent would exceed grandparent bounds. Sibling-symmetric
+        // with the H6 MUTATION-moment cascade at prepareUpdateViewObject :12595.
+        EObject grandparent = parentObj.eContainer();
+        if (grandparent instanceof IDiagramModelGroup grandparentGroup) {
+            Map<String, int[]> virtualGroupBounds = new LinkedHashMap<>();
+            Map<String, Command> groupResizeCommands = new LinkedHashMap<>();
+            resizeParentGroupIfNeeded(grandparentGroup, parentObj,
+                    parentX, parentY, parentW, newParentH,
+                    virtualGroupBounds, groupResizeCommands);
+            if (!groupResizeCommands.isEmpty()) {
+                NonNotifyingCompoundCommand cascade = new NonNotifyingCompoundCommand(
+                        "Icon-band parent-resize with grandparent-group cascade (W2 + AC-3)");
+                cascade.add(parentResize);
+                for (Command resize : groupResizeCommands.values()) {
+                    cascade.add(resize);
+                }
+                return cascade;
+            }
+        }
+
+        return parentResize;
     }
 
     /** Maps a constraint violation type to a severity string (Story 10-32). */
@@ -3998,6 +4340,8 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
     private static final int MAX_TARGET_RATING_ITERATIONS = 5;
     /** Spacing increment per iteration for targetRating quality loop (Story 11-16). */
     private static final int TARGET_RATING_SPACING_INCREMENT = 20;
+    /** Maximum occupancy weight to prevent extreme detour pathologies (B62-2). 4x default. */
+    private static final double MAX_OCCUPANCY_WEIGHT = 3.0;
 
     @Override
     public MutationResult<AutoLayoutAndRouteResultDto> autoLayoutAndRoute(
@@ -4119,7 +4463,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         // Track best result across iterations
         NonNotifyingCompoundCommand bestCompound = null;
         String bestRating = "not-applicable";
-        int bestScore = Integer.MAX_VALUE; // overlaps + crossings (lower is better)
+        int bestScore = Integer.MAX_VALUE; // tier-weighted score (lower is better) — see tierWeightedScore()
         int bestPositionCount = 0;
         int bestRoutedCount = 0;
         int bestLabelsOptimized = 0;
@@ -4128,16 +4472,41 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         AssessLayoutResultDto bestAssessment = null;
 
         String previousRating = null;
-        int previousScore = -1;
-        double previousAvgSpacing = 0;
+        String previousLimitingFactor = null;
+        int previousFactorCount = 0;
         int iterationsPerformed = 0;
+        String currentLimitingFactor = null;
+        int spacingStep = 0;
 
         for (int i = 0; i < MAX_TARGET_RATING_ITERATIONS; i++) {
-            int currentSpacing = effectiveBaseSpacing + (i * TARGET_RATING_SPACING_INCREMENT);
+            int currentSpacing = effectiveBaseSpacing
+                    + (spacingStep * TARGET_RATING_SPACING_INCREMENT);
+
+            // Factor-aware dispatch: determine remediation type for this iteration
+            // ELK mode: no separate crossing remediation — ELK handles its own crossing reduction
+            String remediationType;
+            if (i == 0 || currentLimitingFactor == null) {
+                remediationType = "full-pipeline";
+            } else {
+                remediationType = switch (currentLimitingFactor) {
+                    case "overlaps", "edgeCrossings", "spacing", "alignment"
+                            -> "elk-spacing-increase";
+                    case "passThroughs", "coincidentSegments" -> "reroute-only";
+                    case "labelOverlaps" -> "early-exit-label";
+                    case "nonOrthogonalTerminals" -> "early-exit-nonorth";
+                    default -> "elk-spacing-increase";
+                };
+            }
+
+            // Early exit for non-remediable factors (best already tracked from prior iteration)
+            if ("early-exit-label".equals(remediationType)
+                    || "early-exit-nonorth".equals(remediationType)) {
+                logger.info("Quality target iteration {}: limitingFactor={}, remediation={}",
+                        i + 1, currentLimitingFactor, remediationType);
+                break;
+            }
+
             iterationsPerformed = i + 1;
-            logger.info("Quality target iteration {}/{}: spacing={}, target={}",
-                    iterationsPerformed, MAX_TARGET_RATING_ITERATIONS,
-                    currentSpacing, targetRating);
 
             // Re-collect nodes/edges for each iteration (EMF state changes after undo)
             List<LayoutNode> iterNodes = (i == 0) ? nodes
@@ -4145,35 +4514,60 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
             List<LayoutEdge> iterEdges = (i == 0) ? edges
                     : collectLayoutEdgesRecursive(diagramModel, iterNodes);
 
-            // Compute and apply layout temporarily for assessment
-            ElkLayoutPassResult pass = computeElkLayoutPass(
-                    viewId, direction, currentSpacing, model,
-                    diagramModel, iterNodes, iterEdges);
-
-            // Execute temporarily so assess-layout can read updated positions
-            mutationDispatcher.dispatchImmediate(pass.compound);
-            int undoCount = 1;
-
-            // Story 11-27: optimize-group-order pass (grouped views only)
-            OptimizeGroupOrderPassResult optimizeResult =
-                    computeOptimizeGroupOrderPass(diagramModel, model, direction);
+            ElkLayoutPassResult pass = null;
+            OptimizeGroupOrderPassResult optimizeResult = null;
             AutoRoutePassResult routeResult = null;
-            if (optimizeResult != null) {
-                mutationDispatcher.dispatchImmediate(optimizeResult.compound);
-                undoCount++;
+            int undoCount = 0;
 
-                // Re-route connections after element reordering
-                routeResult = computeAutoRoutePass(viewId, diagramModel, model);
+            if ("reroute-only".equals(remediationType)) {
+                // Routing-only remediation: skip ELK layout, re-route with boosted
+                // corridor diversity (B62-2) to force exploration of alternative paths
+                double boostedWeight = Math.min(
+                        VisibilityGraphRouter.DEFAULT_OCCUPANCY_WEIGHT * (1.0 + i * 0.5),
+                        MAX_OCCUPANCY_WEIGHT);
+                logger.info("Quality target iteration {}: limitingFactor={}, remediation=reroute-only(occupancy={})",
+                        iterationsPerformed, currentLimitingFactor,
+                        String.format("%.2f", boostedWeight));
+                routeResult = computeAutoRoutePass(viewId, diagramModel, model, boostedWeight);
                 if (routeResult != null) {
                     mutationDispatcher.dispatchImmediate(routeResult.compound);
                     undoCount++;
                 }
+            } else {
+                // Full pipeline / ELK spacing increase: ELK layout + optimize (if groups) + route
+                logger.info("Quality target iteration {}: limitingFactor={}, remediation={}",
+                        iterationsPerformed, currentLimitingFactor, remediationType);
+                pass = computeElkLayoutPass(
+                        viewId, direction, currentSpacing, model,
+                        diagramModel, iterNodes, iterEdges);
+                mutationDispatcher.dispatchImmediate(pass.compound);
+                undoCount++;
+
+                // optimize-group-order pass (grouped views only)
+                optimizeResult = computeOptimizeGroupOrderPass(diagramModel, model, direction);
+                if (optimizeResult != null) {
+                    mutationDispatcher.dispatchImmediate(optimizeResult.compound);
+                    undoCount++;
+
+                    // Re-route connections after element reordering
+                    routeResult = computeAutoRoutePass(viewId, diagramModel, model);
+                    if (routeResult != null) {
+                        mutationDispatcher.dispatchImmediate(routeResult.compound);
+                        undoCount++;
+                    }
+                }
+
+                // Spacing used — advance for next layout iteration
+                spacingStep++;
             }
 
             // Assess layout quality
             AssessLayoutResultDto assessment = assessLayout(viewId);
             String rating = assessment.overallRating();
-            int score = assessment.overlapCount() + assessment.edgeCrossingCount();
+            int score = tierWeightedScore(assessment);
+
+            // Update limiting factor for next iteration
+            currentLimitingFactor = findLimitingFactor(assessment);
 
             logger.info("Quality target iteration {}: spacing={}, rating={}, avgSpacing={}, overlaps={}, crossings={}{}",
                     iterationsPerformed, currentSpacing, rating,
@@ -4181,15 +4575,19 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                     assessment.overlapCount(), assessment.edgeCrossingCount(),
                     optimizeResult != null ? " [+optimize-group-order]" : "");
 
-            // Track best result — merge all compounds into one for atomic undo
-            if (LayoutQualityAssessor.ratingOrdinal(rating) > LayoutQualityAssessor.ratingOrdinal(bestRating)
-                    || (LayoutQualityAssessor.ratingOrdinal(rating) == LayoutQualityAssessor.ratingOrdinal(bestRating)
-                        && score < bestScore)) {
-                // Merge ELK + optimize + route into single compound for final dispatch
+            // Track best result — merge all compounds into one for atomic undo (B62-4: tier-weighted + veto)
+            if (!hasTier1Regression(assessment, bestAssessment)
+                    && (LayoutQualityAssessor.ratingOrdinal(rating) > LayoutQualityAssessor.ratingOrdinal(bestRating)
+                        || (LayoutQualityAssessor.ratingOrdinal(rating) == LayoutQualityAssessor.ratingOrdinal(bestRating)
+                            && score < bestScore))) {
                 NonNotifyingCompoundCommand mergedCompound =
-                        new NonNotifyingCompoundCommand(pass.compound.getLabel());
-                for (Object cmd : pass.compound.getCommands()) {
-                    mergedCompound.add((Command) cmd);
+                        new NonNotifyingCompoundCommand(
+                                "ELK layout iter " + iterationsPerformed
+                                        + " (" + remediationType + ")");
+                if (pass != null) {
+                    for (Object cmd : pass.compound.getCommands()) {
+                        mergedCompound.add((Command) cmd);
+                    }
                 }
                 if (optimizeResult != null) {
                     for (Object cmd : optimizeResult.compound.getCommands()) {
@@ -4204,18 +4602,20 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 bestCompound = mergedCompound;
                 bestRating = rating;
                 bestScore = score;
-                bestPositionCount = pass.positionCount
+                bestPositionCount = (pass != null ? pass.positionCount : 0)
                         + (optimizeResult != null ? optimizeResult.positionCount : 0);
-                bestRoutedCount = pass.routedCount
+                bestRoutedCount = (pass != null ? pass.routedCount : 0)
                         + (routeResult != null ? routeResult.routedCount : 0);
                 bestLabelsOptimized = (routeResult != null ? routeResult.labelsOptimized : 0);
-                bestRouterTypeSwitched = pass.routerTypeSwitched;
+                bestRouterTypeSwitched = (pass != null && pass.routerTypeSwitched);
                 bestSpacing = currentSpacing;
                 bestAssessment = assessment;
             }
 
             // Undo ALL dispatched commands — finalization re-applies best via proper channels
-            mutationDispatcher.undo(undoCount);
+            if (undoCount > 0) {
+                mutationDispatcher.undo(undoCount);
+            }
 
             // Target met — break to finalization
             if (LayoutQualityAssessor.meetsTarget(rating, targetRating)) {
@@ -4224,19 +4624,29 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 break;
             }
 
-            // Plateau detection: same rating AND same score AND no spacing improvement
-            double avgSpacing = assessment.averageSpacing();
-
-            if (i > 0 && isPlateauReached(rating, previousRating, score,
-                    previousScore, avgSpacing, previousAvgSpacing)) {
-                logger.info("Quality target plateau detected at iteration {} — stopping early",
+            // Null limiting factor means all metrics pass — target should be met
+            if (currentLimitingFactor == null) {
+                logger.info("Quality target: no limiting factor — all metrics pass on iteration {}",
                         iterationsPerformed);
                 break;
             }
 
+            // Factor-aware plateau detection (B62-5)
+            int currentFactorCount = getMetricCount(currentLimitingFactor, assessment);
+
+            if (i > 0 && isFactorAwarePlateauReached(
+                    currentLimitingFactor, previousLimitingFactor,
+                    currentFactorCount, previousFactorCount,
+                    rating, previousRating)) {
+                logger.info("Quality target plateau detected at iteration {} — "
+                    + "factor={}, count={}, stopping early", iterationsPerformed,
+                    currentLimitingFactor, currentFactorCount);
+                break;
+            }
+
             previousRating = rating;
-            previousScore = score;
-            previousAvgSpacing = avgSpacing;
+            previousLimitingFactor = currentLimitingFactor;
+            previousFactorCount = currentFactorCount;
         }
 
         // Finalize: nothing is currently applied — dispatch best via approval/batch
@@ -4491,6 +4901,16 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 if (g != null) orderedGroups.add(g);
             }
 
+            // Story backlog-arrange-groups-standalone-element-lane: classify qualifying
+            // standalone top-level elements + assign each to an inter-group gap. AC-6
+            // mode='grouped' parity with the user-facing arrangeGroups path.
+            List<ArrangeGroupsStandaloneLane.QualifyingStandaloneElement> qualifyingElements =
+                    ArrangeGroupsStandaloneLane.classify(
+                            diagramModel.getChildren(), orderedGroups, elementToGroup);
+            Map<Integer, List<ArrangeGroupsStandaloneLane.QualifyingStandaloneElement>>
+                    gapAssignments = ArrangeGroupsStandaloneLane.assignToGaps(
+                            qualifyingElements, orderedGroups);
+
             // Arrange-groups with gap enforcement retry loop.
             // Currently defensive: linear row/column arrangement with positive spacing
             // cannot produce overlaps. Retry becomes load-bearing if arrangement
@@ -4512,27 +4932,50 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 int arrangeStartY = ARRANGE_GROUPS_ORIGIN;
                 List<int[]> positions;
 
-                if ("row".equals(arrangement)) {
+                // Lane sizes per retry (depend on currentInterGroupSpacing).
+                boolean rowLane = "row".equals(arrangement);
+                List<Integer> laneSizes;
+                if (!gapAssignments.isEmpty()) {
+                    laneSizes = ArrangeGroupsStandaloneLane.computeLaneSizes(
+                            gapAssignments, orderedGroups.size(),
+                            currentInterGroupSpacing, rowLane);
+                } else {
+                    laneSizes = java.util.Collections.emptyList();
+                }
+
+                int nOrdered = orderedGroups.size();
+                if (rowLane) {
                     positions = new ArrayList<>();
                     int curX = arrangeStartX;
-                    for (IDiagramModelGroup g : orderedGroups) {
+                    for (int i = 0; i < nOrdered; i++) {
+                        IDiagramModelGroup g = orderedGroups.get(i);
                         int[] vb = virtualGroupBounds.get(g.getId());
                         int w = (vb != null) ? vb[0] : g.getBounds().getWidth();
                         positions.add(new int[]{curX, arrangeStartY});
-                        curX += w + currentInterGroupSpacing;
+                        curX += w;
+                        if (i < nOrdered - 1) {
+                            int laneSize = (i < laneSizes.size()) ? laneSizes.get(i) : 0;
+                            curX += (laneSize > 0) ? laneSize : currentInterGroupSpacing;
+                        }
                     }
                 } else {
                     positions = new ArrayList<>();
                     int curY = arrangeStartY;
-                    for (IDiagramModelGroup g : orderedGroups) {
+                    for (int i = 0; i < nOrdered; i++) {
+                        IDiagramModelGroup g = orderedGroups.get(i);
                         int[] vb = virtualGroupBounds.get(g.getId());
                         int h = (vb != null) ? vb[1] : g.getBounds().getHeight();
                         positions.add(new int[]{arrangeStartX, curY});
-                        curY += h + currentInterGroupSpacing;
+                        curY += h;
+                        if (i < nOrdered - 1) {
+                            int laneSize = (i < laneSizes.size()) ? laneSizes.get(i) : 0;
+                            curY += (laneSize > 0) ? laneSize : currentInterGroupSpacing;
+                        }
                     }
                 }
 
                 // Build arrange commands using virtual bounds for dimensions
+                List<int[]> groupDimsList = new ArrayList<>();
                 for (int i = 0; i < orderedGroups.size(); i++) {
                     IDiagramModelGroup g = orderedGroups.get(i);
                     int[] vb = virtualGroupBounds.get(g.getId());
@@ -4541,8 +4984,23 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                     int[] pos = positions.get(i);
                     compound.add(new UpdateViewObjectCommand(g,
                             pos[0], pos[1], w, h));
+                    groupDimsList.add(new int[]{w, h});
                 }
                 groupsArranged = orderedGroups.size();
+
+                // Story backlog-arrange-groups-standalone-element-lane: emit qualifier
+                // placement commands (parallels primary site at arrangeGroups :10785+).
+                if (!gapAssignments.isEmpty()) {
+                    List<ArrangeGroupsStandaloneLane.QualifierPlacement> placements =
+                            ArrangeGroupsStandaloneLane.placeQualifiers(
+                                    gapAssignments, orderedGroups.size(),
+                                    positions, groupDimsList,
+                                    currentInterGroupSpacing, rowLane);
+                    for (ArrangeGroupsStandaloneLane.QualifierPlacement p : placements) {
+                        compound.add(new UpdateViewObjectCommand(p.element(),
+                                p.x(), p.y(), p.width(), p.height()));
+                    }
+                }
 
                 // Step 3: Validate group gaps (no overlaps)
                 List<int[]> groupRects = new ArrayList<>();
@@ -4688,19 +5146,42 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         AssessLayoutResultDto bestAssessment = null;
 
         String previousRating = null;
-        int previousScore = -1;
-        double previousAvgSpacing = 0;
+        String previousLimitingFactor = null;
+        int previousFactorCount = 0;
         int iterationsPerformed = 0;
+        String currentLimitingFactor = null;
+        int spacingStep = 0;
 
         for (int i = 0; i < MAX_TARGET_RATING_ITERATIONS; i++) {
-            int currentIntraSpacing = baseSpacing + (i * TARGET_RATING_SPACING_INCREMENT);
+            int currentIntraSpacing = baseSpacing
+                    + (spacingStep * TARGET_RATING_SPACING_INCREMENT);
             int currentInterSpacing = (int) (currentIntraSpacing * 1.5)
-                    + (i * TARGET_RATING_SPACING_INCREMENT);
+                    + (spacingStep * TARGET_RATING_SPACING_INCREMENT);
+
+            // Factor-aware dispatch: determine remediation type for this iteration
+            String remediationType;
+            if (i == 0 || currentLimitingFactor == null) {
+                remediationType = "full-pipeline";
+            } else {
+                remediationType = switch (currentLimitingFactor) {
+                    case "overlaps", "spacing", "alignment" -> "spacing-increase";
+                    case "edgeCrossings" -> "reorder-and-reroute";
+                    case "passThroughs", "coincidentSegments" -> "reroute-only";
+                    case "labelOverlaps" -> "early-exit-label";
+                    case "nonOrthogonalTerminals" -> "early-exit-nonorth";
+                    default -> "spacing-increase";
+                };
+            }
+
+            // Early exit for non-remediable factors (best already tracked from prior iteration)
+            if ("early-exit-label".equals(remediationType)
+                    || "early-exit-nonorth".equals(remediationType)) {
+                logger.info("Quality target iteration {}: limitingFactor={}, remediation={}",
+                        i + 1, currentLimitingFactor, remediationType);
+                break;
+            }
+
             iterationsPerformed = i + 1;
-            logger.info("Grouped quality target iteration {}/{}: intraSpacing={}, "
-                    + "interSpacing={}, target={}",
-                    iterationsPerformed, MAX_TARGET_RATING_ITERATIONS,
-                    currentIntraSpacing, currentInterSpacing, targetRating);
 
             // Re-discover top-level groups each iteration (EMF state changes after undo)
             List<IDiagramModelGroup> iterGroups;
@@ -4716,52 +5197,98 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 }
             }
 
-            // Compute grouped layout pass
-            GroupedLayoutPassResult layoutPass = computeGroupedLayoutPass(
-                    viewId, direction, currentIntraSpacing, currentInterSpacing,
-                    model, diagramModel, iterGroups);
+            GroupedLayoutPassResult layoutPass = null;
+            OptimizeGroupOrderPassResult optimizeResult = null;
+            AutoRoutePassResult routeResult = null;
+            int undoCount = 0;
 
-            // Apply temporarily for optimize + route + assessment
-            mutationDispatcher.dispatchImmediate(layoutPass.compound);
-            int undoCount = 1;
+            if ("reroute-only".equals(remediationType)) {
+                // Routing-only remediation: skip layout and group order, re-route with boosted
+                // corridor diversity (B62-2) to force exploration of alternative paths
+                double boostedWeight = Math.min(
+                        VisibilityGraphRouter.DEFAULT_OCCUPANCY_WEIGHT * (1.0 + i * 0.5),
+                        MAX_OCCUPANCY_WEIGHT);
+                logger.info("Quality target iteration {}: limitingFactor={}, remediation=reroute-only(occupancy={})",
+                        iterationsPerformed, currentLimitingFactor,
+                        String.format("%.2f", boostedWeight));
+                routeResult = computeAutoRoutePass(viewId, diagramModel, model, boostedWeight);
+                if (routeResult != null) {
+                    mutationDispatcher.dispatchImmediate(routeResult.compound);
+                    undoCount++;
+                }
+            } else if ("reorder-and-reroute".equals(remediationType)) {
+                // Crossing remediation: reorder groups with reverse sweep + re-route (B62-3)
+                logger.info("Quality target iteration {}: limitingFactor={}, remediation={}",
+                        iterationsPerformed, currentLimitingFactor, remediationType);
+                optimizeResult = computeOptimizeGroupOrderPass(
+                        diagramModel, model, direction, /* reverseSweep= */ true);
+                if (optimizeResult != null) {
+                    mutationDispatcher.dispatchImmediate(optimizeResult.compound);
+                    undoCount++;
 
-            // Optimize group order
-            OptimizeGroupOrderPassResult optimizeResult =
-                    computeOptimizeGroupOrderPass(diagramModel, model, direction);
-            if (optimizeResult != null) {
-                mutationDispatcher.dispatchImmediate(optimizeResult.compound);
+                    // Re-route only when group order actually changed
+                    routeResult = computeAutoRoutePass(viewId, diagramModel, model);
+                    if (routeResult != null) {
+                        mutationDispatcher.dispatchImmediate(routeResult.compound);
+                        undoCount++;
+                    }
+                }
+            } else {
+                // Full pipeline: layout + optimize + route (iteration 0, overlaps, spacing, alignment)
+                logger.info("Quality target iteration {}: limitingFactor={}, remediation={}",
+                        iterationsPerformed, currentLimitingFactor, remediationType);
+                layoutPass = computeGroupedLayoutPass(
+                        viewId, direction, currentIntraSpacing, currentInterSpacing,
+                        model, diagramModel, iterGroups);
+                mutationDispatcher.dispatchImmediate(layoutPass.compound);
                 undoCount++;
-            }
 
-            // Auto-route connections
-            AutoRoutePassResult routeResult = computeAutoRoutePass(viewId, diagramModel, model);
-            if (routeResult != null) {
-                mutationDispatcher.dispatchImmediate(routeResult.compound);
-                undoCount++;
+                optimizeResult = computeOptimizeGroupOrderPass(diagramModel, model, direction);
+                if (optimizeResult != null) {
+                    mutationDispatcher.dispatchImmediate(optimizeResult.compound);
+                    undoCount++;
+                }
+
+                routeResult = computeAutoRoutePass(viewId, diagramModel, model);
+                if (routeResult != null) {
+                    mutationDispatcher.dispatchImmediate(routeResult.compound);
+                    undoCount++;
+                }
+
+                // Spacing used — advance for next layout iteration
+                spacingStep++;
             }
 
             // Assess layout quality
             AssessLayoutResultDto assessment = assessLayout(viewId);
             String rating = assessment.overallRating();
-            int score = assessment.overlapCount() + assessment.edgeCrossingCount();
+            int score = tierWeightedScore(assessment);
+
+            // Update limiting factor for next iteration
+            currentLimitingFactor = findLimitingFactor(assessment);
 
             logger.info("Grouped quality target iteration {}: intraSpacing={}, "
                     + "interSpacing={}, rating={}, overlaps={}, crossings={}, groups={}",
                     iterationsPerformed, currentIntraSpacing, currentInterSpacing,
                     rating, assessment.overlapCount(), assessment.edgeCrossingCount(),
-                    layoutPass.groupsArranged);
+                    layoutPass != null ? layoutPass.groupsArranged : 0);
 
-            // Track best result — merge all compounds into one
-            if (LayoutQualityAssessor.ratingOrdinal(rating)
-                        > LayoutQualityAssessor.ratingOrdinal(bestRating)
-                    || (LayoutQualityAssessor.ratingOrdinal(rating)
-                            == LayoutQualityAssessor.ratingOrdinal(bestRating)
-                        && score < bestScore)) {
+            // Track best result — merge all compounds into one (B62-4: tier-weighted + veto)
+            if (!hasTier1Regression(assessment, bestAssessment)
+                    && (LayoutQualityAssessor.ratingOrdinal(rating)
+                            > LayoutQualityAssessor.ratingOrdinal(bestRating)
+                        || (LayoutQualityAssessor.ratingOrdinal(rating)
+                                == LayoutQualityAssessor.ratingOrdinal(bestRating)
+                            && score < bestScore))) {
 
                 NonNotifyingCompoundCommand mergedCompound =
-                        new NonNotifyingCompoundCommand(layoutPass.compound.getLabel());
-                for (Object cmd : layoutPass.compound.getCommands()) {
-                    mergedCompound.add((Command) cmd);
+                        new NonNotifyingCompoundCommand(
+                                "Grouped layout iter " + iterationsPerformed
+                                        + " (" + remediationType + ")");
+                if (layoutPass != null) {
+                    for (Object cmd : layoutPass.compound.getCommands()) {
+                        mergedCompound.add((Command) cmd);
+                    }
                 }
                 if (optimizeResult != null) {
                     for (Object cmd : optimizeResult.compound.getCommands()) {
@@ -4776,18 +5303,20 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 bestCompound = mergedCompound;
                 bestRating = rating;
                 bestScore = score;
-                bestPositionCount = layoutPass.elementsRepositioned
+                bestPositionCount = (layoutPass != null ? layoutPass.elementsRepositioned : 0)
                         + (optimizeResult != null ? optimizeResult.positionCount : 0);
                 bestRoutedCount = (routeResult != null ? routeResult.routedCount : 0);
                 bestLabelsOptimized = (routeResult != null ? routeResult.labelsOptimized : 0);
                 bestRouterTypeSwitched = (routeResult != null && routeResult.routerTypeSwitched);
-                bestGroupsArranged = layoutPass.groupsArranged;
+                bestGroupsArranged = (layoutPass != null ? layoutPass.groupsArranged : 0);
                 bestSpacing = currentIntraSpacing;
                 bestAssessment = assessment;
             }
 
             // Undo ALL dispatched commands
-            mutationDispatcher.undo(undoCount);
+            if (undoCount > 0) {
+                mutationDispatcher.undo(undoCount);
+            }
 
             // Target met — break
             if (LayoutQualityAssessor.meetsTarget(rating, targetRating)) {
@@ -4796,18 +5325,29 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 break;
             }
 
-            // Plateau detection
-            double avgSpacing = assessment.averageSpacing();
-            if (i > 0 && isPlateauReached(rating, previousRating, score,
-                    previousScore, avgSpacing, previousAvgSpacing)) {
-                logger.info("Grouped quality target plateau detected at iteration {} — stopping early",
+            // Null limiting factor means all metrics pass — target should be met
+            if (currentLimitingFactor == null) {
+                logger.info("Grouped quality target: no limiting factor — all metrics pass on iteration {}",
                         iterationsPerformed);
                 break;
             }
 
+            // Factor-aware plateau detection (B62-5)
+            int currentFactorCount = getMetricCount(currentLimitingFactor, assessment);
+
+            if (i > 0 && isFactorAwarePlateauReached(
+                    currentLimitingFactor, previousLimitingFactor,
+                    currentFactorCount, previousFactorCount,
+                    rating, previousRating)) {
+                logger.info("Grouped quality target plateau detected at iteration {} — "
+                    + "factor={}, count={}, stopping early", iterationsPerformed,
+                    currentLimitingFactor, currentFactorCount);
+                break;
+            }
+
             previousRating = rating;
-            previousScore = score;
-            previousAvgSpacing = avgSpacing;
+            previousLimitingFactor = currentLimitingFactor;
+            previousFactorCount = currentFactorCount;
         }
 
         if (bestCompound == null) {
@@ -4914,15 +5454,15 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         mutationDispatcher.dispatchImmediate(labelResult.compound);
         AssessLayoutResultDto fallbackAssessment = assessLayout(viewId);
         String fallbackRating = fallbackAssessment.overallRating();
-        int fallbackScore = fallbackAssessment.overlapCount()
-                + fallbackAssessment.edgeCrossingCount();
+        int fallbackScore = tierWeightedScore(fallbackAssessment);
 
-        boolean improved =
-                LayoutQualityAssessor.ratingOrdinal(fallbackRating)
+        // B62-4: tier-weighted + veto comparison
+        boolean improved = !hasTier1Regression(fallbackAssessment, bestAssessment)
+                && (LayoutQualityAssessor.ratingOrdinal(fallbackRating)
                         > LayoutQualityAssessor.ratingOrdinal(bestRating)
-                || (LayoutQualityAssessor.ratingOrdinal(fallbackRating)
-                        == LayoutQualityAssessor.ratingOrdinal(bestRating)
-                    && fallbackScore < bestScore);
+                    || (LayoutQualityAssessor.ratingOrdinal(fallbackRating)
+                            == LayoutQualityAssessor.ratingOrdinal(bestRating)
+                        && fallbackScore < bestScore));
 
         logger.info("Label fallback: {} trials, rating {} -> {}, labelOverlaps {} -> {}",
                 labelResult.trials, bestRating, fallbackRating,
@@ -5030,7 +5570,72 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
     }
 
     /**
-     * Returns the count associated with a breakdown metric for tie-breaking (backlog-b13).
+     * Computes a tier-weighted quality score reflecting the M6 two-dimensional severity
+     * hierarchy (layout-tier × routing-tier — see {@code LayoutQualityAssessor.computeLayoutTier}
+     * + {@code computeRoutingTier} and {@code feedback_visual_severity.md} v2). Lower is better.
+     * <p>Layout tier 1L: overlaps ×10, boundaryViolations ×10, parentLabelObscured ×6.
+     * Routing tier 1R: passThroughs ×8, interiorTerminations ×8, zigzags ×8, coincidentSegments ×6.
+     * Routing tier 2R: nonOrthogonalTerminals ×3, connectionEdgeCoincidence ×3,
+     * hubPortQuality (binary &lt; FAIR threshold) ×2, labelOverlaps ×2, labelTruncations ×2.
+     * Routing tier 3R: edgeCrossings ×1.
+     * <p>Layout tier 2L (offCanvas, averageSpacing) and 3L (alignmentScore) do not contribute —
+     * informational/cosmetic metrics covered by the rating ordinal at the iteration callsite.
+     */
+    static int tierWeightedScore(AssessLayoutResultDto a) {
+        int ptCount = a.connectionPassThroughs() != null ? a.connectionPassThroughs().size() : 0;
+        int boundaryCount = a.boundaryViolations() != null ? a.boundaryViolations().size() : 0;
+        int hubPortLowQuality = a.hubPortQualityScore() < LayoutQualityAssessor.HUB_PORT_QUALITY_FAIR_THRESHOLD ? 1 : 0;
+        return (a.overlapCount() * 10)
+             + (boundaryCount * 10)
+             + (a.parentLabelObscuredCount() * 6)
+             + (ptCount * 8)
+             + (a.interiorTerminationCount() * 8)
+             + (a.zigzagCount() * 8)
+             + (a.coincidentSegmentCount() * 6)
+             + (a.nonOrthogonalTerminalCount() * 3)
+             + (a.connectionEdgeCoincidenceCount() * 3)
+             + (hubPortLowQuality * 2)
+             + (a.labelOverlapCount() * 2)
+             + (a.labelTruncationCount() * 2)
+             + (a.edgeCrossingCount() * 1);
+    }
+
+    /**
+     * Returns true if the current assessment has regressed on any Tier-1 metric
+     * compared to the best assessment. Any Tier-1 regression vetoes the iteration
+     * regardless of improvements in lower tiers.
+     * <p>Tier-1L (layout): overlaps, boundaryViolations, parentLabelObscured.
+     * Tier-1R (routing): passThroughs, interiorTerminations, zigzags, coincidentSegments.
+     * Mirrors {@code feedback_visual_severity.md} v2 + {@code LayoutQualityAssessor.computeLayoutTier}
+     * /{@code computeRoutingTier} Tier-1 classification.
+     */
+    static boolean hasTier1Regression(AssessLayoutResultDto current, AssessLayoutResultDto best) {
+        if (best == null) {
+            return false; // No baseline to regress against (first iteration)
+        }
+        int currentPt = current.connectionPassThroughs() != null ? current.connectionPassThroughs().size() : 0;
+        int bestPt = best.connectionPassThroughs() != null ? best.connectionPassThroughs().size() : 0;
+        int currentBoundary = current.boundaryViolations() != null ? current.boundaryViolations().size() : 0;
+        int bestBoundary = best.boundaryViolations() != null ? best.boundaryViolations().size() : 0;
+        return current.overlapCount() > best.overlapCount()
+            || currentBoundary > bestBoundary
+            || current.parentLabelObscuredCount() > best.parentLabelObscuredCount()
+            || currentPt > bestPt
+            || current.interiorTerminationCount() > best.interiorTerminationCount()
+            || current.zigzagCount() > best.zigzagCount()
+            || current.coincidentSegmentCount() > best.coincidentSegmentCount();
+    }
+
+    /**
+     * Returns the count associated with a breakdown metric for tie-breaking in
+     * {@code findLimitingFactor}. Maps each key emitted by
+     * {@code LayoutQualityAssessor.computeRatingWithBreakdown} ({@code LayoutQualityAssessor.java:739-879})
+     * to its assessment field accessor.
+     * <p>Mapped keys (14): overlaps, edgeCrossings, labelOverlaps, passThroughs,
+     * coincidentSegments, nonOrthogonalTerminals, boundaryViolations, parentLabelObscured,
+     * offCanvas, labelTruncations, interiorTerminations, zigzags,
+     * connectionEdgeCoincidence, hubPortQuality (binary low-quality flag).
+     * <p>Default branch: {@code spacing} + {@code alignment} (informational with no integer count).
      */
     static int getMetricCount(String metric, AssessLayoutResultDto assessment) {
         return switch (metric) {
@@ -5039,12 +5644,26 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
             case "labelOverlaps" -> assessment.labelOverlapCount();
             case "passThroughs" -> assessment.connectionPassThroughs() != null
                     ? assessment.connectionPassThroughs().size() : 0;
+            case "coincidentSegments" -> assessment.coincidentSegmentCount();
+            case "nonOrthogonalTerminals" -> assessment.nonOrthogonalTerminalCount();
+            case "boundaryViolations" -> assessment.boundaryViolations() != null
+                    ? assessment.boundaryViolations().size() : 0;
+            case "parentLabelObscured" -> assessment.parentLabelObscuredCount();
+            case "offCanvas" -> assessment.offCanvasWarnings() != null
+                    ? assessment.offCanvasWarnings().size() : 0;
+            case "labelTruncations" -> assessment.labelTruncationCount();
+            case "interiorTerminations" -> assessment.interiorTerminationCount();
+            case "zigzags" -> assessment.zigzagCount();
+            case "connectionEdgeCoincidence" -> assessment.connectionEdgeCoincidenceCount();
+            case "hubPortQuality" -> assessment.hubPortQualityScore() < LayoutQualityAssessor.HUB_PORT_QUALITY_FAIR_THRESHOLD ? 1 : 0;
             default -> 0; // spacing, alignment — no direct count
         };
     }
 
     /**
-     * Maps a limiting factor to an actionable remediation string (backlog-b13).
+     * Maps a limiting factor to an actionable remediation string. Covers every key
+     * mapped in {@code getMetricCount} except the count-less {@code spacing} +
+     * {@code alignment} (which have their own remediation strings).
      */
     static String getRemediation(String limitingFactor) {
         return switch (limitingFactor) {
@@ -5061,6 +5680,31 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                     + "(current spacing may be too tight for element count)";
             case "alignment" -> "Use layout-within-group with consistent arrangement "
                     + "to improve alignment within groups";
+            case "boundaryViolations" -> "Move children outside parent group bounds back inside, "
+                    + "or grow the parent group via auto-size";
+            case "parentLabelObscured" -> "Move overlapping children away from the parent group's "
+                    + "name area, or grow the parent group via auto-size";
+            case "offCanvas" -> "Reposition off-canvas elements onto the visible canvas via "
+                    + "update-element-position, or run clean-canvas to recompute view bounds";
+            case "labelTruncations" -> "Use update-view-connection to set labelPosition "
+                    + "(source/middle/target) on truncated labels, or shorten the label text";
+            case "interiorTerminations" -> "Re-run auto-route-connections after element repositioning — "
+                    + "interior terminations indicate stored bendpoints inside element bounds, "
+                    + "requiring face-aware re-routing";
+            case "zigzags" -> "Re-run auto-route-connections with a higher iteration target — "
+                    + "zigzag patterns indicate PathStraightener.eliminateReversals did not converge "
+                    + "for this connection";
+            case "connectionEdgeCoincidence" -> "Reposition the coincident-aligned element via "
+                    + "update-element-position to break the parallel alignment, or re-run "
+                    + "auto-route-connections to choose a different corridor";
+            case "hubPortQuality" -> "Run auto-route-connections with port-distribution enabled — "
+                    + "multiple connections share a single port slot on a hub face";
+            case "coincidentSegments" -> "Re-route the affected connections via auto-route-connections "
+                    + "to choose distinct corridors, or reposition source/target elements to break "
+                    + "the parallel alignment";
+            case "nonOrthogonalTerminals" -> "Re-run auto-route-connections after element repositioning, "
+                    + "or use update-element-position to adjust source/target positions so terminal "
+                    + "segments approach element edges orthogonally";
             default -> "Review the assess-layout ratingBreakdown for details";
         };
     }
@@ -5283,6 +5927,380 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         return new ElkLayoutPassResult(compound, positionCount, routedCount, routerTypeSwitched);
     }
 
+    // ---- B61: terminals-only routing mode ----
+
+    /**
+     * Result from {@link #buildTerminalsOnlyCommands} (B61). {@code skippedCount}
+     * is the total across three disjoint categories, broken out so callers can
+     * tell "nothing to do here" from "nothing I could do here safely":
+     * <ul>
+     *   <li>{@code alreadyOrthogonalCount}: terminal segments already within 5°
+     *       of a cardinal axis — no rectification needed</li>
+     *   <li>{@code vetoedByObstacleCount}: rectification proposed but rejected
+     *       because the new L-bend would cross an unrelated element</li>
+     *   <li>{@code vetoedByCrossingCount}: rectification proposed but rejected
+     *       because the new path would add more edge crossings with other
+     *       connections than the old path</li>
+     * </ul>
+     * {@code skippedCount == alreadyOrthogonalCount + vetoedByObstacleCount + vetoedByCrossingCount}.
+     */
+    private static final class TerminalsOnlyResult {
+        final List<Command> commands;
+        final int routedCount;
+        final int skippedCount;
+        final int alreadyOrthogonalCount;
+        final int vetoedByObstacleCount;
+        final int vetoedByCrossingCount;
+
+        TerminalsOnlyResult(List<Command> commands, int routedCount,
+                int alreadyOrthogonalCount, int vetoedByObstacleCount,
+                int vetoedByCrossingCount) {
+            this.commands = commands;
+            this.routedCount = routedCount;
+            this.alreadyOrthogonalCount = alreadyOrthogonalCount;
+            this.vetoedByObstacleCount = vetoedByObstacleCount;
+            this.vetoedByCrossingCount = vetoedByCrossingCount;
+            this.skippedCount = alreadyOrthogonalCount
+                    + vetoedByObstacleCount + vetoedByCrossingCount;
+        }
+    }
+
+    /**
+     * Dispatcher for the terminals-only branch of {@link #autoRouteConnections} (B61).
+     * Re-routes only the first/last segment of each target connection so terminal
+     * segments become orthogonal, leaving all intermediate bendpoints unchanged.
+     * Never moves elements; never invokes the visibility-graph A* router.
+     */
+    private MutationResult<AutoRouteResultDto> runTerminalsOnly(
+            String sessionId, String viewId, IArchimateDiagramModel diagramModel,
+            List<IDiagramModelConnection> targetConnections, String effectiveStrategy,
+            boolean force, List<String> warnings) {
+
+        TerminalsOnlyResult result =
+                buildTerminalsOnlyCommands(diagramModel, targetConnections, force);
+
+        List<Command> commands = new ArrayList<>(result.commands);
+
+        // Switch view to bendpoint mode if needed — terminals-only writes stored
+        // bendpoints, which manhattan router ignores. Mirrors the orthogonal branch.
+        boolean routerTypeSwitched = false;
+        int currentRouterType = diagramModel.getConnectionRouterType();
+        if (!commands.isEmpty()
+                && currentRouterType != IDiagramModel.CONNECTION_ROUTER_BENDPOINT) {
+            commands.add(new UpdateViewCommand(diagramModel,
+                    null, null, false, null, null,
+                    IDiagramModel.CONNECTION_ROUTER_BENDPOINT));
+            routerTypeSwitched = true;
+            logger.info("B61: Switching view {} from router type {} to bendpoint mode "
+                    + "so terminals-only L-bends render correctly",
+                    viewId, currentRouterType);
+        }
+
+        if (commands.size() > MAX_LAYOUT_OPERATIONS) {
+            throw new ModelAccessException(
+                    "Auto-route operation count (" + commands.size()
+                            + ") exceeds maximum (" + MAX_LAYOUT_OPERATIONS + ")",
+                    ErrorCode.INVALID_PARAMETER);
+        }
+
+        String label = "Auto-route connections (terminals-only, "
+                + result.routedCount + " modified, " + result.skippedCount + " skipped)";
+        NonNotifyingCompoundCommand compound = new NonNotifyingCompoundCommand(label);
+        commands.forEach(compound::add);
+
+        AutoRouteResultDto dto = new AutoRouteResultDto(
+                viewId,
+                result.routedCount,
+                0,                              // connectionsFailed
+                effectiveStrategy,
+                routerTypeSwitched,
+                0,                              // labelsOptimized
+                0,                              // crossingsBefore
+                0,                              // crossingsAfter
+                0,                              // straightLineCrossings
+                result.skippedCount,            // connectionsSkipped (B61)
+                result.vetoedByObstacleCount,   // vetoedByObstacle (B61)
+                result.vetoedByCrossingCount,   // vetoedByCrossing (B61)
+                warnings,
+                List.of(),                      // failed
+                List.of(),                      // recommendations
+                List.of(),                      // violations
+                List.of(),                      // nudgedElements
+                List.of(),                      // resizedGroups
+                List.of());                     // structuredWarnings (Row E — terminals-only is autoNudge-mutex, never populated here)
+
+        if (mutationDispatcher.isApprovalRequired(sessionId)) {
+            Map<String, Object> proposedChanges = new LinkedHashMap<>();
+            proposedChanges.put("strategy", effectiveStrategy);
+            proposedChanges.put("mode", "terminals-only");
+            proposedChanges.put("connectionsRouted", result.routedCount);
+            proposedChanges.put("connectionsSkipped", result.skippedCount);
+            if (routerTypeSwitched) {
+                proposedChanges.put("routerTypeSwitched",
+                        "manhattan -> manual (bendpoint mode)");
+            }
+            ProposalContext ctx = storeAsProposal(sessionId,
+                    "auto-route-connections", compound, dto, label,
+                    null, proposedChanges,
+                    "Terminal-segment rectification computed and ready for application.");
+            return new MutationResult<>(dto, null, ctx);
+        }
+
+        Integer batchSeq = dispatchOrQueue(sessionId, compound, label);
+        if (batchSeq == null) {
+            versionCounter.incrementAndGet();
+        }
+        return new MutationResult<>(dto, batchSeq);
+    }
+
+    /**
+     * EMF-aware orchestrator for B61 terminals-only routing. Iterates over the target
+     * connections, decodes stored bendpoints to absolute coordinates, delegates geometry
+     * to {@link RoutingPipeline#terminalsOnlyRectify}, and — per B61 live validation
+     * on View 3 (retail bank, 2026-04-12) — applies two vetoes before emitting a
+     * command:
+     *
+     * <ol>
+     *   <li><b>Obstacle veto</b>: if any segment of the rectified path crosses an
+     *       unrelated element (excluding source, target, their ancestors, and their
+     *       visual children), revert that connection. This catches the pass-throughs
+     *       that the naive approach introduced on the dense App Collaboration view.</li>
+     *   <li><b>Crossing veto</b>: for each rectified connection, compute the segment
+     *       crossings of the new path vs. all other connection paths on the view and
+     *       compare to the old path's crossings. If the new path crosses <em>more</em>
+     *       other paths, revert that connection. This enforces the user's severity
+     *       hierarchy (non-orthogonal terminals are Tier 3 cosmetic; edge crossings
+     *       are Tier 2 moderate — trading one for the other is a rating regression).</li>
+     * </ol>
+     *
+     * <p>Both vetoes count as "skipped" in the response, alongside genuine no-ops.
+     * Pure-geometry logic (the rectification itself) stays in {@link RoutingPipeline}
+     * for plain-JUnit testability (CLAUDE.md "Pure-geometry rule"); the vetoes live
+     * here because they need view-wide obstacle + other-path context.</p>
+     */
+    private TerminalsOnlyResult buildTerminalsOnlyCommands(
+            IArchimateDiagramModel diagramModel,
+            List<IDiagramModelConnection> targetConnections,
+            boolean force) {
+
+        // Pre-collect view-wide context once
+        List<AssessmentNode> nodes = AssessmentCollector.collectAssessmentNodes(diagramModel);
+        Map<String, AssessmentNode> nodeMap = new LinkedHashMap<>();
+        for (AssessmentNode node : nodes) {
+            nodeMap.put(node.id(), node);
+        }
+        List<AssessmentConnection> allAssessment =
+                AssessmentCollector.collectAssessmentConnections(diagramModel, nodes);
+        Map<String, List<double[]>> pathById = new LinkedHashMap<>();
+        for (AssessmentConnection ac : allAssessment) {
+            pathById.put(ac.id(), ac.pathPoints());
+        }
+
+        List<Command> commands = new ArrayList<>();
+        int routed = 0;
+        int alreadyOrthogonal = 0;
+        int vetoedObstacle = 0;
+        int vetoedCrossing = 0;
+
+        for (IDiagramModelConnection conn : targetConnections) {
+            if (!(conn instanceof IDiagramModelArchimateConnection archConn)) {
+                continue;
+            }
+            IConnectable srcConnectable = conn.getSource();
+            IConnectable tgtConnectable = conn.getTarget();
+            if (!(srcConnectable instanceof IDiagramModelArchimateObject srcObj)
+                    || !(tgtConnectable instanceof IDiagramModelArchimateObject tgtObj)) {
+                continue;
+            }
+
+            int[] srcCenter = ConnectionResponseBuilder.computeAbsoluteCenter(srcObj);
+            int[] tgtCenter = ConnectionResponseBuilder.computeAbsoluteCenter(tgtObj);
+            int srcCX = srcCenter[0], srcCY = srcCenter[1];
+            int tgtCX = tgtCenter[0], tgtCY = tgtCenter[1];
+
+            List<BendpointDto> existingRel =
+                    ConnectionResponseBuilder.collectBendpoints(archConn);
+            List<AbsoluteBendpointDto> existingAbs =
+                    ConnectionResponseBuilder.convertRelativeToAbsolute(
+                            existingRel, srcCX, srcCY, tgtCX, tgtCY);
+
+            IBounds srcBounds = srcObj.getBounds();
+            IBounds tgtBounds = tgtObj.getBounds();
+            RoutingRect srcRect = new RoutingRect(
+                    srcCX - srcBounds.getWidth() / 2,
+                    srcCY - srcBounds.getHeight() / 2,
+                    srcBounds.getWidth(), srcBounds.getHeight(), srcObj.getId());
+            RoutingRect tgtRect = new RoutingRect(
+                    tgtCX - tgtBounds.getWidth() / 2,
+                    tgtCY - tgtBounds.getHeight() / 2,
+                    tgtBounds.getWidth(), tgtBounds.getHeight(), tgtObj.getId());
+
+            List<AbsoluteBendpointDto> newAbs =
+                    RoutingPipeline.terminalsOnlyRectify(srcRect, tgtRect, existingAbs);
+            if (newAbs == null) {
+                alreadyOrthogonal++;
+                continue;
+            }
+
+            // Build new full path as List<double[]> for obstacle + crossing checks
+            List<double[]> newFullPath = new ArrayList<>(newAbs.size() + 2);
+            newFullPath.add(new double[]{srcCX, srcCY});
+            for (AbsoluteBendpointDto bp : newAbs) {
+                newFullPath.add(new double[]{bp.x(), bp.y()});
+            }
+            newFullPath.add(new double[]{tgtCX, tgtCY});
+
+            // AC-8: force=true bypasses the obstacle + crossing vetoes — the caller
+            // has accepted that an inserted L-bend may cross an unrelated element
+            // (this matches the existing force semantics on the orthogonal strategy).
+            if (!force) {
+                // Build obstacle list (exclude source, target, ancestors, descendants,
+                // groups, notes — mirrors buildOrthogonalRoutingCommands exclusion logic)
+                Set<String> excludeIds = new HashSet<>();
+                excludeIds.add(srcObj.getId());
+                excludeIds.add(tgtObj.getId());
+                excludeIds.addAll(getAncestorIds(srcObj.getId(), nodeMap, nodes));
+                excludeIds.addAll(getAncestorIds(tgtObj.getId(), nodeMap, nodes));
+                excludeIds.addAll(getChildIds(srcObj.getId(), nodes));
+                excludeIds.addAll(getChildIds(tgtObj.getId(), nodes));
+                List<RoutingRect> obstacles = new ArrayList<>();
+                for (AssessmentNode node : nodes) {
+                    if (excludeIds.contains(node.id())) continue;
+                    if (node.isGroup() || node.isNote()) continue;
+                    obstacles.add(new RoutingRect(
+                            (int) node.x(), (int) node.y(),
+                            (int) node.width(), (int) node.height(), node.id()));
+                }
+
+                // Obstacle veto: reject if any segment of the new path crosses an obstacle
+                if (pathCrossesObstacles(newFullPath, obstacles)) {
+                    vetoedObstacle++;
+                    logger.debug("B61: obstacle veto for connection {} — new path crosses "
+                            + "an unrelated element", archConn.getId());
+                    continue;
+                }
+
+                // Crossing veto: reject if new path crosses more other-connection paths
+                // than the old path did. Comparison is against the pre-modification state
+                // of all other connections (first-order check — second-order interaction
+                // between multiple modifications in the same call is accepted as bounded
+                // drift).
+                List<double[]> oldFullPath = pathById.get(archConn.getId());
+                int oldCross = 0;
+                int newCross = 0;
+                for (Map.Entry<String, List<double[]>> entry : pathById.entrySet()) {
+                    if (entry.getKey().equals(archConn.getId())) continue;
+                    List<double[]> otherPath = entry.getValue();
+                    if (oldFullPath != null) {
+                        oldCross += LayoutQualityAssessor.countSegmentCrossings(oldFullPath, otherPath);
+                    }
+                    newCross += LayoutQualityAssessor.countSegmentCrossings(newFullPath, otherPath);
+                }
+                if (newCross > oldCross) {
+                    vetoedCrossing++;
+                    logger.debug("B61: crossing veto for connection {} — new path would add {} "
+                            + "edge crossing(s) (old={}, new={})",
+                            archConn.getId(), newCross - oldCross, oldCross, newCross);
+                    continue;
+                }
+            }
+
+            List<BendpointDto> newRel = ConnectionResponseBuilder.convertAbsoluteToRelative(
+                    newAbs, srcCX, srcCY, tgtCX, tgtCY);
+            PreparedMutation<ViewConnectionDto> prepared =
+                    prepareUpdateViewConnectionDirect(archConn, newRel, null, null, null, null);
+            commands.add(prepared.command());
+            routed++;
+        }
+
+        if (vetoedObstacle > 0 || vetoedCrossing > 0) {
+            logger.info("B61: terminals-only skipped {} connection(s) by vetoes "
+                    + "(obstacle={}, crossing={}) to preserve view quality",
+                    vetoedObstacle + vetoedCrossing, vetoedObstacle, vetoedCrossing);
+        }
+
+        return new TerminalsOnlyResult(commands, routed,
+                alreadyOrthogonal, vetoedObstacle, vetoedCrossing);
+    }
+
+    /**
+     * B61 obstacle veto helper — returns true if any segment of the given full path
+     * (srcCenter → bendpoints → tgtCenter) intersects any obstacle rectangle. Uses
+     * {@link RoutingPipeline#segmentIntersectsAnyObstacle} which performs proper
+     * segment-vs-rectangle intersection (the same test used by the orthogonal router
+     * and PathStraightener).
+     */
+    private static boolean pathCrossesObstacles(
+            List<double[]> fullPath, List<RoutingRect> obstacles) {
+        if (obstacles.isEmpty() || fullPath.size() < 2) return false;
+        for (int i = 0; i < fullPath.size() - 1; i++) {
+            double[] a = fullPath.get(i);
+            double[] b = fullPath.get(i + 1);
+            if (RoutingPipeline.segmentIntersectsAnyObstacle(
+                    (int) a[0], (int) a[1], (int) b[0], (int) b[1], obstacles)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * best-of-K (row 762, Task-0 spike D3) candidate objective — the SAME
+     * aggregate the agent-in-loop ship-gate measures, NOT a per-metric proxy
+     * ({@code feedback_discipline_rules_aggregate_not_per_metric}). Builds
+     * candidate {@link AssessmentConnection}s from the candidate's routed
+     * bendpoints overlaid on the (unchanged) assessment {@code nodes} — no EMF
+     * mutation; the live {@link LayoutQualityAssessor} is run read-only (AC-5,
+     * it is the selection oracle). Returns a single total order: the assessor
+     * {@code overallRating} ordinal dominates (it already subsumes the Tier-1
+     * severity tiering per B38); a bounded sub-metric composite (HPQ&uarr; /
+     * M4&darr; / coincSeg&darr;) is a deterministic tie-break WITHIN equal
+     * rating that can never flip the rating order. Higher = better. Run on the
+     * single model-layer composition point so the wrapper stays in
+     * {@code model.routing} and assessor-agnostic.
+     */
+    private double scoreRoutingCandidate(RoutingResult candidate,
+            List<AssessmentNode> nodes,
+            List<RoutingPipeline.ConnectionEndpoints> batchInput) {
+        // AC-11 SCORER-1: score the SAME bendpoint representation the downstream
+        // apply path commits and the AC-4 fixture-test scorer measures — merge
+        // violatedRoutes over routed (mirrors routesToApply at the apply site +
+        // BestOfKRoutingStrategyV4FixtureTest). Symmetric across candidates so
+        // never-worse is unaffected; this closes the selection-objective vs
+        // ship-gate-aggregate fidelity gap (AC-2 item 3).
+        Map<String, List<AbsoluteBendpointDto>> candidateBendpoints =
+                new LinkedHashMap<>(candidate.routed());
+        candidateBendpoints.putAll(candidate.violatedRoutes());
+        List<AssessmentConnection> candidateConnections = new ArrayList<>();
+        for (RoutingPipeline.ConnectionEndpoints ep : batchInput) {
+            double srcX = ep.source().centerX();
+            double srcY = ep.source().centerY();
+            double tgtX = ep.target().centerX();
+            double tgtY = ep.target().centerY();
+            List<double[]> pathPoints = new ArrayList<>();
+            pathPoints.add(new double[]{srcX, srcY});
+            List<AbsoluteBendpointDto> bps = candidateBendpoints.get(ep.connectionId());
+            if (bps != null) {
+                for (AbsoluteBendpointDto bp : bps) {
+                    pathPoints.add(new double[]{bp.x(), bp.y()});
+                }
+            }
+            pathPoints.add(new double[]{tgtX, tgtY});
+            candidateConnections.add(new AssessmentConnection(
+                    ep.connectionId(), ep.source().id(), ep.target().id(),
+                    pathPoints, ep.labelText(), ep.textPosition()));
+        }
+        LayoutAssessmentResult r =
+                layoutQualityAssessor.assess(nodes, candidateConnections, false);
+        // Dominant key: the ship-gate aggregate rating (poor<fair<good<excellent).
+        double ratingTerm = 1000.0 * LayoutQualityAssessor.ratingOrdinal(r.overallRating());
+        // Bounded tie-break composite (|composite| < 3 ≪ 1000 ⇒ never flips rating).
+        double hpqTerm = Math.max(0.0, Math.min(1.0, r.hubPortQualityScore()));
+        double m4Term = Math.min(r.connectionEdgeCoincidenceCount(), 30) / 30.0;
+        double coincTerm = Math.min(r.coincidentSegmentCount(), 30) / 30.0;
+        return ratingTerm + hpqTerm - m4Term - coincTerm;
+    }
+
     /**
      * Shared orthogonal routing logic used by both autoRouteConnections and
      * computeAutoRoutePass (Story 11-27 refactor). Builds batch routing inputs,
@@ -5298,6 +6316,35 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
             List<IDiagramModelConnection> targetConnections,
             List<AssessmentNode> nodes,
             boolean force, int snapThreshold, int perimeterMargin) {
+        return buildOrthogonalRoutingCommands(diagramModel, targetConnections, nodes,
+                force, snapThreshold, perimeterMargin,
+                VisibilityGraphRouter.DEFAULT_OCCUPANCY_WEIGHT,
+                RoutingPipeline.DEFAULT_ENABLE_CHANNEL_NUDGING);
+    }
+
+    /**
+     * Overload with configurable occupancy weight for corridor diversity boost (B62-2).
+     */
+    private OrthogonalRoutingResult buildOrthogonalRoutingCommands(
+            IArchimateDiagramModel diagramModel,
+            List<IDiagramModelConnection> targetConnections,
+            List<AssessmentNode> nodes,
+            boolean force, int snapThreshold, int perimeterMargin,
+            double occupancyWeight) {
+        return buildOrthogonalRoutingCommands(diagramModel, targetConnections, nodes,
+                force, snapThreshold, perimeterMargin, occupancyWeight,
+                RoutingPipeline.DEFAULT_ENABLE_CHANNEL_NUDGING);
+    }
+
+    /**
+     * Overload with the B69-B channel nudging gate (AC-11).
+     */
+    private OrthogonalRoutingResult buildOrthogonalRoutingCommands(
+            IArchimateDiagramModel diagramModel,
+            List<IDiagramModelConnection> targetConnections,
+            List<AssessmentNode> nodes,
+            boolean force, int snapThreshold, int perimeterMargin,
+            double occupancyWeight, boolean enableChannelNudging) {
 
         Map<String, AssessmentNode> nodeMap = new LinkedHashMap<>();
         for (AssessmentNode node : nodes) {
@@ -5307,7 +6354,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         // Build batch routing input with per-connection obstacle exclusion
         RoutingPipeline pipeline = new RoutingPipeline(
                 RoutingPipeline.DEFAULT_BEND_PENALTY, RoutingPipeline.DEFAULT_MARGIN,
-                RoutingPipeline.DEFAULT_CONGESTION_WEIGHT, perimeterMargin);
+                RoutingPipeline.DEFAULT_CONGESTION_WEIGHT, perimeterMargin, occupancyWeight);
         List<RoutingPipeline.ConnectionEndpoints> batchInput = new ArrayList<>();
         List<IDiagramModelArchimateConnection> batchConnections = new ArrayList<>();
 
@@ -5427,9 +6474,22 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
             labelExcludeSets.put(conn.connectionId(), excludeIds);
         }
 
-        // Route all connections with path ordering and edge nudging
+        // Route all connections with path ordering and edge nudging.
+        // best-of-K multi-start (row 762): the unchanged pipeline is invoked K
+        // times over seeded-shuffled processing orderings; the best complete
+        // result by the ship-gate aggregate is selected. Run 0 uses the null
+        // override (≡ current main) and wins all ties ⇒ never-worse by
+        // construction. The wrapper is assessor-agnostic; the genuine
+        // LayoutQualityAssessor aggregate is wired here — the single model-layer
+        // composition point (Task-0 spike D1/D3).
+        BestOfKRoutingStrategy.RouteRunner bestOfKRunner = order ->
+                pipeline.routeAllConnections(batchInput, allObstacles, labelExcludeSets,
+                        snapThreshold, enableChannelNudging, order);
+        BestOfKRoutingStrategy.CandidateScorer bestOfKScorer = candidate ->
+                scoreRoutingCandidate(candidate, nodes, batchInput);
         RoutingResult routingResult =
-                pipeline.routeAllConnections(batchInput, allObstacles, labelExcludeSets, snapThreshold);
+                new BestOfKRoutingStrategy(bestOfKRunner, bestOfKScorer)
+                        .selectBest(batchInput);
 
         // Build routes to apply based on force mode
         Map<String, List<AbsoluteBendpointDto>> routesToApply;
@@ -5489,7 +6549,17 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
     }
 
     /**
-     * Computes an optimize-group-order pass for a grouped view (Story 11-27).
+     * Computes an optimize-group-order pass using forward sweep (standard order).
+     * Delegates to the 4-param overload with {@code reverseSweep = false}.
+     */
+    OptimizeGroupOrderPassResult computeOptimizeGroupOrderPass(
+            IArchimateDiagramModel diagramModel, IArchimateModel model,
+            String direction) {
+        return computeOptimizeGroupOrderPass(diagramModel, model, direction, false);
+    }
+
+    /**
+     * Computes an optimize-group-order pass for a grouped view (Story 11-27, B62-3).
      * Returns result with compound command and position count,
      * or null if the view has no groups, no inter-group connections, or reordering
      * doesn't improve crossing count.
@@ -5497,10 +6567,13 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
      * <p>Reads the CURRENT EMF state (should be called after ELK dispatch so positions
      * reflect the latest layout). Uses "column" arrangement for vertical flow directions
      * (DOWN/UP) and "row" for horizontal (RIGHT/LEFT).</p>
+     *
+     * @param reverseSweep if true, processes groups in reversed order during the
+     *                     barycentric phase to escape forward-sweep local minima
      */
     OptimizeGroupOrderPassResult computeOptimizeGroupOrderPass(
             IArchimateDiagramModel diagramModel, IArchimateModel model,
-            String direction) {
+            String direction, boolean reverseSweep) {
 
         // 1. Collect top-level groups
         List<IDiagramModelGroup> topLevelGroups = new ArrayList<>();
@@ -5571,7 +6644,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         // 4. Run optimization
         CrossingMinimizer minimizer = new CrossingMinimizer();
         CrossingMinimizer.OptimizationResult optResult =
-                minimizer.optimize(groupInfos, edges);
+                minimizer.optimize(groupInfos, edges, reverseSweep);
 
         // 5. Check if improvement was found
         if (optResult.crossingsAfter() >= optResult.crossingsBefore()) {
@@ -5686,6 +6759,16 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
     AutoRoutePassResult computeAutoRoutePass(
             String viewId, IArchimateDiagramModel diagramModel,
             IArchimateModel model) {
+        return computeAutoRoutePass(viewId, diagramModel, model,
+                VisibilityGraphRouter.DEFAULT_OCCUPANCY_WEIGHT);
+    }
+
+    /**
+     * Overload with configurable occupancy weight for corridor diversity boost (B62-2).
+     */
+    AutoRoutePassResult computeAutoRoutePass(
+            String viewId, IArchimateDiagramModel diagramModel,
+            IArchimateModel model, double occupancyWeight) {
 
         List<AssessmentNode> nodes = AssessmentCollector.collectAssessmentNodes(diagramModel);
         List<IDiagramModelConnection> allConnections = AssessmentCollector.collectAllConnections(diagramModel);
@@ -5696,7 +6779,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         // Route via shared helper (force=true for best quality during iteration)
         OrthogonalRoutingResult routeResult = buildOrthogonalRoutingCommands(
                 diagramModel, allConnections, nodes, true, RoutingPipeline.DEFAULT_SNAP_THRESHOLD,
-                RoutingPipeline.DEFAULT_PERIMETER_MARGIN);
+                RoutingPipeline.DEFAULT_PERIMETER_MARGIN, occupancyWeight);
         if (routeResult.commands.isEmpty()) {
             return null;
         }
@@ -6268,6 +7351,1771 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
             }
         }
         return children;
+    }
+
+    // ---- Adjust view spacing (B68) ----
+
+    @Override
+    public MutationResult<AdjustViewSpacingResultDto> adjustViewSpacing(
+            String sessionId, String viewId,
+            Integer interElementDelta, Integer paddingDelta,
+            Integer interGroupDelta, boolean recursive) {
+        logger.info("Adjust view spacing: viewId={}, interElementDelta={}, paddingDelta={}, "
+                + "interGroupDelta={}, recursive={}",
+                viewId, interElementDelta, paddingDelta, interGroupDelta, recursive);
+        IArchimateModel model = requireAndCaptureModel();
+
+        try {
+            // Delegate steps 1-11 (validate, density-aware default,
+            // build+temp-dispatch+route+observe+overflow+undo+merge) to the
+            // private helper computeAdjustViewSpacing(...). The helper returns
+            // a result record with either a populated mergedCompound (mutation
+            // ready to dispatch) or null (zero-delta short-circuit).
+            //
+            // Refactored 2026-05-15 under Story
+            // backlog-convenience-tool-control-loop-architectural-redesign
+            // Task 3.5a per architecture-spec § 1.10 O1 — extraction makes
+            // the same merged-compound-building logic reusable inside the
+            // new SpacingControlLoop callbacks without duplicating ~200 LOC
+            // of intricate routing/overflow orchestration. Existing public
+            // contract preserved verbatim (single dispatchOrQueue at step 12,
+            // same DTO shape).
+            ComputeAdjustViewSpacingResult helper = computeAdjustViewSpacing(
+                    viewId, model, interElementDelta, paddingDelta,
+                    interGroupDelta, recursive);
+
+            if (helper.mergedCompound() == null) {
+                // 3b. Zero-delta short-circuit: return DTO with no mutation.
+                AssessLayoutResultDto assessment = helper.assessment();
+                AdjustViewSpacingResultDto dto = new AdjustViewSpacingResultDto(
+                        viewId, 0, 0, 0, 0,
+                        assessment.edgeCrossingCount(),
+                        assessment.edgeCrossingCount(),
+                        assessment.overallRating(),
+                        assessment.ratingBreakdown(),
+                        assessment.coincidentSegmentCount(),
+                        assessment.nonOrthogonalTerminalCount(),
+                        assessment.averageSpacing(),
+                        assessment.suggestions(),
+                        helper.resolvedInterElementDelta(),
+                        helper.defaultResolutionReason());
+                return new MutationResult<>(dto, null);
+            }
+
+            // 12. Final dispatch as single undo step
+            Integer batchSeq = dispatchOrQueue(sessionId, helper.mergedCompound(),
+                    helper.mergedCompound().getLabel());
+            if (batchSeq == null) {
+                versionCounter.incrementAndGet();
+            }
+
+            // 13. Build result DTO from helper's per-iteration metadata +
+            //     post-state assessment captured before step 10 undo.
+            AssessLayoutResultDto assessment = helper.assessment();
+            AdjustViewSpacingResultDto dto = new AdjustViewSpacingResultDto(
+                    viewId,
+                    helper.groupsAdjusted(),
+                    helper.elementsRepositioned(),
+                    helper.connectionsRouted(),
+                    helper.connectionsFailed(),
+                    helper.crossingsBefore(),
+                    assessment.edgeCrossingCount(),
+                    assessment.overallRating(),
+                    assessment.ratingBreakdown(),
+                    assessment.coincidentSegmentCount(),
+                    assessment.nonOrthogonalTerminalCount(),
+                    assessment.averageSpacing(),
+                    assessment.suggestions(),
+                    helper.resolvedInterElementDelta(),
+                    helper.defaultResolutionReason());
+
+            return new MutationResult<>(dto, batchSeq);
+
+        } catch (NoModelLoadedException | ModelAccessException | MutationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ModelAccessException(
+                    "Error adjusting view spacing for view '"
+                    + (viewId != null ? viewId : "<null>") + "'",
+                    e, ErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    /**
+     * Result record returned by {@link #computeAdjustViewSpacing} — captures
+     * the merged compound + intermediate metadata so callers can either
+     * dispatch immediately (existing single-shot path) or wrap the compound
+     * in a {@link SpacingMutationCommand} for the control loop's
+     * speculative-execute-and-undo discipline.
+     *
+     * <p>{@code mergedCompound} is null when all resolved deltas are zero —
+     * the helper short-circuited at step 3b. In that case the caller should
+     * return a no-mutation DTO with the helper's pre-mutation
+     * {@code assessment}.</p>
+     *
+     * <p>Refactored out of {@link #adjustViewSpacing} 2026-05-15 under Story
+     * {@code backlog-convenience-tool-control-loop-architectural-redesign}
+     * Task 3.5a per architecture-spec § 1.10 O1.</p>
+     */
+    private record ComputeAdjustViewSpacingResult(
+            NonNotifyingCompoundCommand mergedCompound,
+            AssessLayoutResultDto assessment,
+            int crossingsBefore,
+            int groupsAdjusted,
+            int elementsRepositioned,
+            int connectionsRouted,
+            int connectionsFailed,
+            int resolvedInterElementDelta,
+            String defaultResolutionReason) {
+    }
+
+    /**
+     * Builds the {@link NonNotifyingCompoundCommand} representing one
+     * spacing-and-route mutation as a function of (interElementDelta,
+     * paddingDelta, interGroupDelta) WITHOUT dispatching it through the
+     * public command stack. Performs steps 1-11 of the original
+     * {@code adjustViewSpacing} flow: validate, density-aware default
+     * resolution, build intra-group inflation commands, build inter-group
+     * shift commands, temporarily dispatch + auto-route + overflow detect
+     * + undo, merge into a single compound.
+     *
+     * <p>On return, the model is restored to its pre-call state (the
+     * temporary dispatches at step 7 + 8 are undone at step 10). The
+     * returned {@code mergedCompound} is ready to be executed by the
+     * caller — either via {@code dispatchOrQueue(...)} (single-shot path)
+     * OR via {@link SpacingMutationCommand#execute()} inside the control
+     * loop.</p>
+     *
+     * <p>Refactored out of {@link #adjustViewSpacing} 2026-05-15 under Story
+     * {@code backlog-convenience-tool-control-loop-architectural-redesign}
+     * Task 3.5a per architecture-spec § 1.10 O1.</p>
+     */
+    private ComputeAdjustViewSpacingResult computeAdjustViewSpacing(
+            String viewId, IArchimateModel model,
+            Integer interElementDelta, Integer paddingDelta,
+            Integer interGroupDelta, boolean recursive)
+            throws MutationException {
+
+        // 1. Validate view
+        EObject viewObj = ArchimateModelUtils.getObjectByID(model, viewId);
+        if (!(viewObj instanceof IArchimateDiagramModel diagramModel)) {
+            throw new ModelAccessException(
+                    "View not found: " + viewId, ErrorCode.VIEW_NOT_FOUND);
+        }
+
+        // 2. Flat-view guard: require groups
+        List<IDiagramModelGroup> topLevelGroups = new ArrayList<>();
+        for (IDiagramModelObject child : diagramModel.getChildren()) {
+            if (child instanceof IDiagramModelGroup group
+                    && !group.getChildren().isEmpty()) {
+                topLevelGroups.add(group);
+            }
+        }
+        if (topLevelGroups.isEmpty()) {
+            throw new ModelAccessException(
+                    "adjust-view-spacing requires a view with groups. "
+                    + "This view has no groups with children.",
+                    ErrorCode.INVALID_PARAMETER);
+        }
+
+        // 2b. Density-aware default resolution (Story
+        //     RoutingPreconditions.InterElement.DensityAwareDefault).
+        Integer resolvedInterElementDelta;
+        String defaultResolutionReason;
+        if (interElementDelta == null) {
+            AssessLayoutResultDto triggerAssessment = assessLayout(viewId);
+            PerGroupSpacingScan triggerScan =
+                    scanPerGroupSpacing(topLevelGroups);
+            DetectHubElementsResultDto triggerHubResult =
+                    detectHubElements(viewId);
+            boolean triggerHasLargeHubs = triggerHubResult.elements().stream()
+                    .anyMatch(e -> e.connectionCount() > 6);
+            AdjustViewSpacingDefaultResolutionDecision decision =
+                    AdjustViewSpacingDefaultResolutionDecision.decide(
+                            /*callerProvidedDelta=*/ null,
+                            triggerAssessment.coincidentSegmentCount(),
+                            triggerAssessment.connectionEdgeCoincidenceCount(),
+                            triggerAssessment.connectionCount(),
+                            triggerScan.minSpacing(),
+                            /*hasGroups=*/ true,
+                            triggerScan.anyGroupHasMultipleChildren(),
+                            triggerHasLargeHubs);
+            resolvedInterElementDelta = decision.resolvedDelta();
+            defaultResolutionReason = decision.reason();
+        } else {
+            resolvedInterElementDelta = interElementDelta;
+            defaultResolutionReason = null;
+        }
+
+        // 3. Resolve deltas (null → 0)
+        int elementDelta = resolvedInterElementDelta;
+        int padDelta = (paddingDelta != null) ? paddingDelta : 0;
+        int groupDelta = (interGroupDelta != null) ? interGroupDelta : 0;
+
+        // 3b. Short-circuit when all deltas are zero (F5 fix). Return a
+        //     result with null mergedCompound; caller builds no-mutation DTO.
+        if (elementDelta == 0 && padDelta == 0 && groupDelta == 0) {
+            AssessLayoutResultDto assessment = assessLayout(viewId);
+            return new ComputeAdjustViewSpacingResult(
+                    /*mergedCompound=*/ null,
+                    assessment,
+                    /*crossingsBefore=*/ assessment.edgeCrossingCount(),
+                    /*groupsAdjusted=*/ 0,
+                    /*elementsRepositioned=*/ 0,
+                    /*connectionsRouted=*/ 0,
+                    /*connectionsFailed=*/ 0,
+                    resolvedInterElementDelta,
+                    defaultResolutionReason);
+        }
+
+        // 3c. Capture crossings before inflation (F3 fix)
+        AssessLayoutResultDto beforeAssessment = assessLayout(viewId);
+        int crossingsBefore = beforeAssessment.edgeCrossingCount();
+
+        // 4. Build compound command for all spacing changes
+        NonNotifyingCompoundCommand spacingCompound =
+                new NonNotifyingCompoundCommand("Adjust view spacing (B68)");
+        int elementsRepositioned = 0;
+        int groupsAdjusted = 0;
+
+        // 5. For each top-level group: detect arrangement, inflate spacing/padding
+        for (IDiagramModelGroup group : topLevelGroups) {
+            int repositioned = inflateGroupSpacing(group, elementDelta, padDelta,
+                    recursive, spacingCompound, 0);
+            if (repositioned > 0) {
+                elementsRepositioned += repositioned;
+                groupsAdjusted++;
+            }
+        }
+
+        // 6. Inter-group shifts
+        if (groupDelta != 0 && topLevelGroups.size() > 1) {
+            List<Command> pendingCommands = new ArrayList<>();
+            for (Object cmd : spacingCompound.getCommands()) {
+                pendingCommands.add((Command) cmd);
+            }
+
+            List<int[]> groupPositions = new ArrayList<>();
+            for (IDiagramModelGroup group : topLevelGroups) {
+                IBounds b = group.getBounds();
+                int[] pendingDims = findPendingDimensions(pendingCommands, group);
+                int w = (pendingDims != null) ? pendingDims[0] : b.getWidth();
+                int h = (pendingDims != null) ? pendingDims[1] : b.getHeight();
+                groupPositions.add(new int[]{b.getX(), b.getY(), w, h});
+            }
+
+            List<int[]> shifted = GroupLayoutCalculator.computeInterGroupShifts(
+                    groupPositions, groupDelta);
+
+            for (int i = 0; i < topLevelGroups.size(); i++) {
+                IDiagramModelGroup group = topLevelGroups.get(i);
+                int[] newPos = shifted.get(i);
+                IBounds b = group.getBounds();
+                if (newPos[0] != b.getX() || newPos[1] != b.getY()) {
+                    int[] pendingDims = findPendingDimensions(pendingCommands, group);
+                    int w = (pendingDims != null) ? pendingDims[0] : b.getWidth();
+                    int h = (pendingDims != null) ? pendingDims[1] : b.getHeight();
+                    spacingCompound.add(new UpdateViewObjectCommand(group,
+                            newPos[0], newPos[1], w, h));
+                }
+            }
+        }
+
+        // 7. Dispatch spacing temporarily so routing sees updated positions
+        //
+        // SAFETY (Decision-A.1 / Session 7, root-cause fix for AC-8.7
+        // disposition B INTERNAL_ERROR + partial-commit regression observed
+        // 2026-05-15 in `control-loop-redesign-empirical-2026-05-15/
+        // aggregate.md`): the temp-dispatch + assess + undo cycle MUST be
+        // bracketed by try-finally so that ANY exception in steps 8 / 9 / 9b
+        // (e.g., routing pipeline NPE on post-hub-resize state, assessor
+        // failure on degenerate geometry, overflow-detect failure) is
+        // recovered by guaranteed undo at step 10. Without this guard, an
+        // exception in 8-9b leaks a partially-applied state: spacing AND
+        // (optionally) route stay applied, modelVersion advances, and
+        // subsequent control-loop iterations + retries observe stale
+        // `currentSpacing` values that mis-classify the heuristic as
+        // already-met. Pinned by `SpacingControlLoopPartialCommitRegressionTest`.
+        mutationDispatcher.dispatchImmediate(spacingCompound);
+        int undoCount = 1;
+
+        AssessLayoutResultDto assessment;
+        int connectionsRouted = 0;
+        int connectionsFailed = 0;
+        AutoRoutePassResult routeResult = null;
+        Map<String, Command> groupResizeCommands = new LinkedHashMap<>();
+        try {
+            // 8. Compute routing pass (builds compound without dispatching)
+            routeResult = computeAutoRoutePass(viewId, diagramModel, model);
+            if (routeResult != null) {
+                mutationDispatcher.dispatchImmediate(routeResult.compound);
+                undoCount++;
+                connectionsRouted = routeResult.routedCount;
+            }
+
+            // 9. Assess layout (on the temporarily applied state)
+            assessment = assessLayout(viewId);
+
+            // 9b. Post-spacing/routing overflow-detection pass (Successor E.b).
+            Map<String, int[]> virtualGroupBounds = new LinkedHashMap<>();
+            Map<String, IDiagramModelObject> allViewObjects = new LinkedHashMap<>();
+            collectAllViewObjectMap(diagramModel, allViewObjects);
+            for (IDiagramModelObject dmo : allViewObjects.values()) {
+                EObject container = dmo.eContainer();
+                if (!(container instanceof IDiagramModelGroup parentGroup)) {
+                    continue;
+                }
+                IBounds bounds = dmo.getBounds();
+                resizeParentGroupIfNeeded(parentGroup, dmo,
+                        bounds.getX(), bounds.getY(),
+                        bounds.getWidth(), bounds.getHeight(),
+                        virtualGroupBounds, groupResizeCommands);
+            }
+        } finally {
+            // 10. Undo temporary dispatches — guaranteed even on exception.
+            mutationDispatcher.undo(undoCount);
+        }
+
+        // 11. Merge all commands into one compound for single undo
+        NonNotifyingCompoundCommand mergedCompound =
+                new NonNotifyingCompoundCommand("Adjust view spacing (B68)");
+        for (Object cmd : spacingCompound.getCommands()) {
+            mergedCompound.add((Command) cmd);
+        }
+        if (routeResult != null) {
+            for (Object cmd : routeResult.compound.getCommands()) {
+                mergedCompound.add((Command) cmd);
+            }
+        }
+        for (Command cmd : groupResizeCommands.values()) {
+            mergedCompound.add(cmd);
+        }
+
+        return new ComputeAdjustViewSpacingResult(
+                mergedCompound,
+                assessment,
+                crossingsBefore,
+                groupsAdjusted,
+                elementsRepositioned,
+                connectionsRouted,
+                connectionsFailed,
+                resolvedInterElementDelta,
+                defaultResolutionReason);
+    }
+
+    // ---- Apply element spacing recommendations (RoutingPreconditions.InterElement) ----
+
+    /**
+     * Default per-tool iteration budget for the element-spacing convenience
+     * tool's embedded control loop (AC-4 / architecture-spec § 1.4 / HALT 0.1
+     * Q2=A). Arm A manual agents converged in 5-8 tool calls per row 701
+     * 2026-05-15 trajectory data.
+     */
+    private static final int DEFAULT_ELEMENT_ITERATION_BUDGET = 5;
+
+    @Override
+    public MutationResult<ApplyElementSpacingRecommendationsResultDto>
+            applyElementSpacingRecommendations(
+                    String sessionId, String viewId,
+                    boolean dryRun, Integer targetSpacingOverride) {
+        // Backwards-compat: delegate to the 5-arg control-loop entry point
+        // with the per-tool default iteration budget. Single source of truth
+        // for the control-loop body — existing callers (4-arg) get the
+        // redesigned behaviour automatically. Refactored 2026-05-15 under
+        // Story backlog-convenience-tool-control-loop-architectural-redesign
+        // Task 3.5 per architecture-spec § 1.10 O6 (default-interface-method
+        // + canonical-impl-override strategy).
+        return applyElementSpacingRecommendations(
+                sessionId, viewId, dryRun, targetSpacingOverride,
+                /*iterationBudget=*/ null);
+    }
+
+    @Override
+    public MutationResult<ApplyElementSpacingRecommendationsResultDto>
+            applyElementSpacingRecommendations(
+                    String sessionId, String viewId,
+                    boolean dryRun, Integer targetSpacingOverride,
+                    Integer iterationBudget) {
+        final int budget = resolveIterationBudget(
+                iterationBudget, DEFAULT_ELEMENT_ITERATION_BUDGET);
+        logger.info("Apply element spacing recommendations (control loop): "
+                + "viewId={}, dryRun={}, targetSpacingOverride={}, "
+                + "iterationBudget={}",
+                viewId, dryRun, targetSpacingOverride, budget);
+        IArchimateModel model = requireAndCaptureModel();
+
+        try {
+            // 1-5. Entry-guard prelude — IDENTICAL to the prior single-shot
+            //      path. The decision record continues to serve as the
+            //      entry guard for the loop (per Task 0 SIBLING-REPLACE
+            //      decision + architecture-spec § 1.7).
+            EObject viewObj = ArchimateModelUtils.getObjectByID(model, viewId);
+            if (!(viewObj instanceof IArchimateDiagramModel diagramModel)) {
+                throw new ModelAccessException(
+                        "View not found: " + viewId, ErrorCode.VIEW_NOT_FOUND);
+            }
+
+            AssessLayoutResultDto before = assessLayout(viewId);
+            int connectionCount = before.connectionCount();
+
+            List<IDiagramModelGroup> topLevelGroups = new ArrayList<>();
+            for (IDiagramModelObject child : diagramModel.getChildren()) {
+                if (child instanceof IDiagramModelGroup group
+                        && !group.getChildren().isEmpty()) {
+                    topLevelGroups.add(group);
+                }
+            }
+            PerGroupSpacingScan scan = scanPerGroupSpacing(topLevelGroups);
+
+            DetectHubElementsResultDto hubResult = detectHubElements(viewId);
+            boolean hasLargeHubs = hubResult.elements().stream()
+                    .anyMatch(e -> e.connectionCount() > 6);
+
+            int heuristicTarget = ElementSpacingHeuristic
+                    .targetSpacingForConnectionCount(
+                            connectionCount, hasLargeHubs);
+            int targetSpacingPx = (targetSpacingOverride != null)
+                    ? targetSpacingOverride : heuristicTarget;
+            Integer heuristicRecommendation = (targetSpacingOverride != null)
+                    ? heuristicTarget : null;
+
+            ApplyElementSpacingDecision decision =
+                    ApplyElementSpacingDecision.decide(
+                            connectionCount, scan.minSpacing(),
+                            targetSpacingPx, dryRun,
+                            !topLevelGroups.isEmpty(),
+                            scan.anyGroupHasMultipleChildren(),
+                            targetSpacingOverride != null);
+
+            // 6. Short-circuit / dryRun branches — AC-5 (d)+(e). Build
+            //    envelope with terminationReason taxonomy + return without
+            //    entering the loop.
+            if (!decision.shouldCallAdjustViewSpacing()) {
+                String terminationReason = mapEntryGuardToTerminationReason(
+                        dryRun, decision.noChangeReason());
+                ApplyElementSpacingRecommendationsResultDto dto =
+                        new ApplyElementSpacingRecommendationsResultDto(
+                                viewId, dryRun, connectionCount,
+                                scan.minSpacing(), targetSpacingPx,
+                                decision.interElementDelta(),
+                                decision.noChangeReason(),
+                                heuristicRecommendation, before,
+                                /*after=*/ null, /*adjustResult=*/ null,
+                                terminationReason,
+                                /*iterationCount=*/ 0,
+                                /*appliedDeltas=*/ List.of());
+                return new MutationResult<>(dto, null);
+            }
+
+            // 7. Control-loop entry. The loop iterates with small-step
+            //    deltas (30/40/50/60/70/...) up to the heuristic target
+            //    via SpacingIterationDecision.decideNextStep, observing
+            //    layout state between iterations and backing off on
+            //    aggregate thresholdsMet regression (AC-3).
+            int initialSpacingPx = scan.minSpacing();
+            int targetSpacing = initialSpacingPx + decision.interElementDelta();
+
+            // Fix-1 (RC-1) — route-normalize the baseline so it is measured
+            // on the same routing basis as every per-step postState
+            // (Decision-A.1.3 = α''', Session 11, Task 10.5). Winston's
+            // guarded form: bare input returned untouched when the reroute
+            // pass materially degraded it.
+            RouteNormalizedBaseline rnb =
+                    routeNormalizedBaseline(viewId, model, before);
+            if (rnb.degraded()) {
+                ApplyElementSpacingRecommendationsResultDto dto =
+                        new ApplyElementSpacingRecommendationsResultDto(
+                                viewId, dryRun, connectionCount,
+                                scan.minSpacing(), targetSpacingPx,
+                                decision.interElementDelta(),
+                                decision.noChangeReason(),
+                                heuristicRecommendation, before,
+                                /*after=*/ null, /*adjustResult=*/ null,
+                                SpacingControlLoop
+                                        .REASON_REROUTE_DEGRADED_INPUT_BASELINE,
+                                /*iterationCount=*/ 0,
+                                /*appliedDeltas=*/ List.of());
+                return new MutationResult<>(dto, null);
+            }
+            LayoutMetrics initialMetrics = rnb.metrics();
+
+            // Story `backlog-st-spacing-precondition-structural-reflow`
+            // (row 777) — SOUND one-sided pre-routing infeasibility
+            // certificate (owner-ratified Lever B; gate-decided).
+            // Sibling-symmetric with the rnb.degraded() short-circuit
+            // above: a pure pre-loop test ⇒ DTO-return WITHOUT entering the
+            // loop. Zero false-positives by construction ⇒ cannot
+            // reflow-claim-while-below-regime (AC-4 DISSOLVED, not crossed);
+            // SpacingControlLoop is byte-UNTOUCHED. Element-arm site of the
+            // ONE shared arm-agnostic precheck (group + composer siblings).
+            SpacingPreconditionInfeasibilityCertificate.Decision precert =
+                    evaluateSpacingPrecondition(
+                            model, viewId, initialMetrics);
+            if (precert.shortCircuit()) {
+                ApplyElementSpacingRecommendationsResultDto dto =
+                        new ApplyElementSpacingRecommendationsResultDto(
+                                viewId, dryRun, connectionCount,
+                                scan.minSpacing(), targetSpacingPx,
+                                decision.interElementDelta(),
+                                decision.noChangeReason(),
+                                heuristicRecommendation, before,
+                                /*after=*/ null, /*adjustResult=*/ null,
+                                precert.terminationReason(),
+                                /*iterationCount=*/ 0,
+                                /*appliedDeltas=*/ List.of(),
+                                /*densityFloorDiagnosis=*/
+                                precert.reflowOffer());
+                return new MutationResult<>(dto, null);
+            }
+
+            SpacingControlLoop.Request request = new SpacingControlLoop.Request(
+                    initialSpacingPx, targetSpacing, budget,
+                    /*perIterationStepCapPx=*/ Integer.MAX_VALUE,
+                    initialMetrics, "element",
+                    /*hubExtent=*/ captureHubExtent(viewId));
+
+            // Closure-state: track the most-recent built command so
+            // observeLayout() can return its cached postMetrics (avoids
+            // an extra assessLayout call per iteration — the helper has
+            // already captured it during its temp-apply + assess + undo
+            // dance per architecture-spec § 1.6).
+            final GefSpacingMutationCommand[] lastBuilt =
+                    new GefSpacingMutationCommand[1];
+            SpacingControlLoop.Callbacks callbacks =
+                    new SpacingControlLoop.Callbacks() {
+                @Override
+                public SpacingMutationCommand buildMutationCommand(
+                        int proposedDeltaPx) {
+                    try {
+                        ComputeAdjustViewSpacingResult helper =
+                                computeAdjustViewSpacing(viewId, model,
+                                        /*interElementDelta=*/ proposedDeltaPx,
+                                        /*paddingDelta=*/ null,
+                                        /*interGroupDelta=*/ null,
+                                        /*recursive=*/ true);
+                        if (helper.mergedCompound() == null) {
+                            // No-op delta (ladder reached zero-headroom).
+                            lastBuilt[0] = null;
+                            return null;
+                        }
+                        LayoutMetrics post = toLayoutMetrics(helper.assessment());
+                        lastBuilt[0] = new GefSpacingMutationCommand(
+                                helper.mergedCompound(), post);
+                        return lastBuilt[0];
+                    } catch (MutationException e) {
+                        throw new RuntimeException(
+                                "Control-loop iteration failed during "
+                                + "mutation-command construction", e);
+                    } catch (RuntimeException e) {
+                        // GRACEFUL DEGRADATION (Decision-A.1 / Session 7,
+                        // sibling-symmetric with `applyGroupSpacingRecommendations`
+                        // + composer): if the helper throws an unexpected
+                        // RuntimeException (e.g., NPE from the routing
+                        // pipeline on a degenerate post-hub-resize state, or
+                        // an IllegalStateException from the assessor), do
+                        // NOT propagate as INTERNAL_ERROR. The helper's
+                        // try-finally (this method, lines 7381+) has
+                        // already restored the model to its pre-iteration
+                        // state, so returning null signals the
+                        // SpacingControlLoop to terminate with
+                        // budget-exhausted-after-N preserving any earlier
+                        // accepted iterations. Logged at WARN so the
+                        // underlying issue is still observable, but the
+                        // tool returns a usable response instead of
+                        // INTERNAL_ERROR. Pinned by
+                        // `SpacingControlLoopPartialCommitRegressionTest`
+                        // graceful-degradation assertion.
+                        logger.warn("Control-loop element-spacing iteration "
+                                + "failed during mutation-command construction "
+                                + "(delta={}, viewId={}); terminating loop "
+                                + "with budget-exhausted to preserve prior "
+                                + "accepted iterations",
+                                proposedDeltaPx, viewId, e);
+                        lastBuilt[0] = null;
+                        return null;
+                    }
+                }
+
+                @Override
+                public LayoutMetrics observeLayout() {
+                    return lastBuilt[0].postMetrics();
+                }
+
+                @Override
+                public SpacingMutationCommand buildHubResizeCommand() {
+                    // AC-4 one-shot escalate hub-resize (Scoped Option B).
+                    return buildDensityHubResizeCommand(viewId, model);
+                }
+            };
+
+            SpacingControlLoop.Result loopResult =
+                    SpacingControlLoop.iterate(request, callbacks);
+
+            // 8. Build outer compound from ACCEPTED iteration commands +
+            //    push via dispatchOrQueue for ONE undo entry per AC-6.
+            //    Empty list → no mutation occurred (e.g., first-iteration
+            //    regression). DTO surfaces terminationReason; null
+            //    adjustResult.
+            List<Integer> appliedDeltas = loopResult.iterations().stream()
+                    .filter(s -> !s.backedOff())
+                    .map(SpacingIterationStep::deltaApplied)
+                    .toList();
+
+            Integer batchSeq = null;
+            AssessLayoutResultDto after = before;
+            AdjustViewSpacingResultDto adjustResult = null;
+            int finalElementDelta = 0;
+
+            if (!loopResult.acceptedCommands().isEmpty()) {
+                NonNotifyingCompoundCommand outerCompound =
+                        new NonNotifyingCompoundCommand(
+                                "Apply element spacing recommendations "
+                                + "(control loop, " + appliedDeltas.size()
+                                + " accepted iterations)");
+                for (SpacingMutationCommand cmd
+                        : loopResult.acceptedCommands()) {
+                    GefSpacingMutationCommand gef =
+                            (GefSpacingMutationCommand) cmd;
+                    outerCompound.add(gef.gefCommand());
+                }
+                batchSeq = dispatchOrQueue(sessionId, outerCompound,
+                        outerCompound.getLabel());
+                if (batchSeq == null) {
+                    versionCounter.incrementAndGet();
+                }
+                after = assessLayout(viewId);
+                finalElementDelta = loopResult.finalSpacingPx()
+                        - initialSpacingPx;
+                adjustResult = synthesizeAdjustResultForControlLoop(
+                        viewId, finalElementDelta, before, after,
+                        appliedDeltas.size());
+            }
+
+            ApplyElementSpacingRecommendationsResultDto dto =
+                    new ApplyElementSpacingRecommendationsResultDto(
+                            viewId, /*dryRun=*/ false, connectionCount,
+                            initialSpacingPx, targetSpacingPx,
+                            finalElementDelta,
+                            /*noChangeReason=*/ null,
+                            heuristicRecommendation, before, after,
+                            adjustResult,
+                            loopResult.terminationReason(),
+                            appliedDeltas.size(),
+                            appliedDeltas,
+                            loopResult.densityDiagnosis());
+            return new MutationResult<>(dto, batchSeq);
+
+        } catch (NoModelLoadedException | ModelAccessException | MutationException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof MutationException me) {
+                throw me;
+            }
+            throw new ModelAccessException(
+                    "Error applying element spacing recommendations for view '"
+                    + (viewId != null ? viewId : "<null>") + "'",
+                    e, ErrorCode.INTERNAL_ERROR);
+        } catch (Exception e) {
+            throw new ModelAccessException(
+                    "Error applying element spacing recommendations for view '"
+                    + (viewId != null ? viewId : "<null>") + "'",
+                    e, ErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    /**
+     * Synthesizes a representative {@link AdjustViewSpacingResultDto} for the
+     * control-loop happy path. The single-shot {@code adjustViewSpacing}
+     * primitive populates this DTO directly; for the control-loop variant
+     * we synthesize the aggregate from {@code before}/{@code after}
+     * snapshots since the loop ran N inner compounds rather than ONE call
+     * to {@code adjustViewSpacing}. Preserves DTO field-shape compatibility
+     * for downstream LLM agents that read {@code adjustResult} from the
+     * envelope.
+     */
+    private AdjustViewSpacingResultDto synthesizeAdjustResultForControlLoop(
+            String viewId, int finalDelta,
+            AssessLayoutResultDto before, AssessLayoutResultDto after,
+            int iterationCount) {
+        return new AdjustViewSpacingResultDto(
+                viewId,
+                /*groupsAdjusted=*/ 0,
+                /*elementsRepositioned=*/ 0,
+                /*connectionsRouted=*/ 0,
+                /*connectionsFailed=*/ 0,
+                before.edgeCrossingCount(),
+                after.edgeCrossingCount(),
+                after.overallRating(),
+                after.ratingBreakdown(),
+                after.coincidentSegmentCount(),
+                after.nonOrthogonalTerminalCount(),
+                after.averageSpacing(),
+                after.suggestions(),
+                /*resolvedInterElementDelta=*/ finalDelta,
+                /*defaultResolutionReason=*/ "control_loop_synthesized_after_"
+                        + iterationCount + "_iterations");
+    }
+
+    // ---- Apply group spacing recommendations (RoutingPreconditions.InterGroup) ----
+
+    /**
+     * Default per-tool iteration budget for the group-spacing convenience
+     * tool's embedded control loop (AC-4 / architecture-spec § 1.4 / HALT 0.1
+     * Q2=A). Sibling-symmetric with the element-spacing default.
+     */
+    private static final int DEFAULT_GROUP_ITERATION_BUDGET = 5;
+
+    @Override
+    public MutationResult<ApplyGroupSpacingRecommendationsResultDto>
+            applyGroupSpacingRecommendations(
+                    String sessionId, String viewId,
+                    boolean dryRun, Integer targetSpacingOverride) {
+        return applyGroupSpacingRecommendations(
+                sessionId, viewId, dryRun, targetSpacingOverride,
+                /*iterationBudget=*/ null);
+    }
+
+    @Override
+    public MutationResult<ApplyGroupSpacingRecommendationsResultDto>
+            applyGroupSpacingRecommendations(
+                    String sessionId, String viewId,
+                    boolean dryRun, Integer targetSpacingOverride,
+                    Integer iterationBudget) {
+        final int budget = resolveIterationBudget(
+                iterationBudget, DEFAULT_GROUP_ITERATION_BUDGET);
+        logger.info("Apply group spacing recommendations (control loop): "
+                + "viewId={}, dryRun={}, targetSpacingOverride={}, "
+                + "iterationBudget={}",
+                viewId, dryRun, targetSpacingOverride, budget);
+        IArchimateModel model = requireAndCaptureModel();
+
+        try {
+            // 1-5. Entry-guard prelude — IDENTICAL to the prior single-shot
+            //      path. Sibling-symmetric with applyElementSpacingRecommendations.
+            EObject viewObj = ArchimateModelUtils.getObjectByID(model, viewId);
+            if (!(viewObj instanceof IArchimateDiagramModel diagramModel)) {
+                throw new ModelAccessException(
+                        "View not found: " + viewId, ErrorCode.VIEW_NOT_FOUND);
+            }
+
+            AssessLayoutResultDto before = assessLayout(viewId);
+            int connectionCount = before.connectionCount();
+
+            List<IDiagramModelGroup> topLevelGroups = new ArrayList<>();
+            for (IDiagramModelObject child : diagramModel.getChildren()) {
+                if (child instanceof IDiagramModelGroup group) {
+                    topLevelGroups.add(group);
+                }
+            }
+            int interGroupConnectionCount = countInterGroupConnections(
+                    diagramModel);
+            boolean isConnected = interGroupConnectionCount > 0;
+            int currentSpacingPx = detectCurrentInterGroupSpacing(topLevelGroups);
+
+            DetectHubElementsResultDto hubResult = detectHubElements(viewId);
+            boolean hasLargeHubs = hubResult.elements().stream()
+                    .anyMatch(e -> e.connectionCount() > 6);
+
+            int heuristicTarget = GroupSpacingHeuristic
+                    .targetSpacingForConnectionCount(connectionCount,
+                            isConnected, hasLargeHubs);
+            int targetSpacingPx = (targetSpacingOverride != null)
+                    ? targetSpacingOverride : heuristicTarget;
+            Integer heuristicRecommendation = (targetSpacingOverride != null)
+                    ? heuristicTarget : null;
+
+            ApplyGroupSpacingDecision decision =
+                    ApplyGroupSpacingDecision.decide(
+                            connectionCount, interGroupConnectionCount,
+                            currentSpacingPx, targetSpacingPx, dryRun,
+                            topLevelGroups.size() >= 2,
+                            isConnected,
+                            targetSpacingOverride != null);
+
+            // 6. Short-circuit / dryRun branches — AC-5 (d)+(e).
+            if (!decision.shouldCallAdjustViewSpacing()) {
+                String terminationReason = mapEntryGuardToTerminationReason(
+                        dryRun, decision.noChangeReason());
+                ApplyGroupSpacingRecommendationsResultDto dto =
+                        new ApplyGroupSpacingRecommendationsResultDto(
+                                viewId, dryRun, connectionCount,
+                                interGroupConnectionCount, isConnected,
+                                currentSpacingPx, targetSpacingPx,
+                                decision.interGroupDelta(),
+                                decision.noChangeReason(),
+                                heuristicRecommendation, before,
+                                /*after=*/ null, /*adjustResult=*/ null,
+                                terminationReason,
+                                /*iterationCount=*/ 0,
+                                /*appliedDeltas=*/ List.of());
+                return new MutationResult<>(dto, null);
+            }
+
+            // 7. Control-loop entry. Sibling-symmetric with element-spacing
+            //    accessor — only difference: closure passes interGroupDelta
+            //    (not interElementDelta) to computeAdjustViewSpacing.
+            int initialSpacingPx = currentSpacingPx;
+            int targetSpacing = initialSpacingPx + decision.interGroupDelta();
+
+            // Fix-1 (RC-1) — sibling-symmetric with the element-spacing
+            // closure (Decision-A.1.3 = α''', Session 11, Task 10.5).
+            RouteNormalizedBaseline rnb =
+                    routeNormalizedBaseline(viewId, model, before);
+            if (rnb.degraded()) {
+                ApplyGroupSpacingRecommendationsResultDto dto =
+                        new ApplyGroupSpacingRecommendationsResultDto(
+                                viewId, dryRun, connectionCount,
+                                interGroupConnectionCount, isConnected,
+                                currentSpacingPx, targetSpacingPx,
+                                decision.interGroupDelta(),
+                                decision.noChangeReason(),
+                                heuristicRecommendation, before,
+                                /*after=*/ null, /*adjustResult=*/ null,
+                                SpacingControlLoop
+                                        .REASON_REROUTE_DEGRADED_INPUT_BASELINE,
+                                /*iterationCount=*/ 0,
+                                /*appliedDeltas=*/ List.of());
+                return new MutationResult<>(dto, null);
+            }
+            LayoutMetrics initialMetrics = rnb.metrics();
+
+            // Story `backlog-st-spacing-precondition-structural-reflow`
+            // (row 777) — group-arm site of the ONE shared arm-agnostic
+            // SOUND pre-routing infeasibility precheck (element + composer
+            // siblings). Sibling-symmetric with rnb.degraded() above;
+            // SpacingControlLoop byte-UNTOUCHED; AC-4 dissolved by soundness.
+            SpacingPreconditionInfeasibilityCertificate.Decision precert =
+                    evaluateSpacingPrecondition(
+                            model, viewId, initialMetrics);
+            if (precert.shortCircuit()) {
+                ApplyGroupSpacingRecommendationsResultDto dto =
+                        new ApplyGroupSpacingRecommendationsResultDto(
+                                viewId, dryRun, connectionCount,
+                                interGroupConnectionCount, isConnected,
+                                currentSpacingPx, targetSpacingPx,
+                                decision.interGroupDelta(),
+                                decision.noChangeReason(),
+                                heuristicRecommendation, before,
+                                /*after=*/ null, /*adjustResult=*/ null,
+                                precert.terminationReason(),
+                                /*iterationCount=*/ 0,
+                                /*appliedDeltas=*/ List.of(),
+                                /*densityFloorDiagnosis=*/
+                                precert.reflowOffer());
+                return new MutationResult<>(dto, null);
+            }
+
+            SpacingControlLoop.Request request = new SpacingControlLoop.Request(
+                    initialSpacingPx, targetSpacing, budget,
+                    /*perIterationStepCapPx=*/ Integer.MAX_VALUE,
+                    initialMetrics, "group",
+                    /*hubExtent=*/ captureHubExtent(viewId));
+
+            final GefSpacingMutationCommand[] lastBuilt =
+                    new GefSpacingMutationCommand[1];
+            SpacingControlLoop.Callbacks callbacks =
+                    new SpacingControlLoop.Callbacks() {
+                @Override
+                public SpacingMutationCommand buildMutationCommand(
+                        int proposedDeltaPx) {
+                    try {
+                        ComputeAdjustViewSpacingResult helper =
+                                computeAdjustViewSpacing(viewId, model,
+                                        /*interElementDelta=*/ null,
+                                        /*paddingDelta=*/ null,
+                                        /*interGroupDelta=*/ proposedDeltaPx,
+                                        /*recursive=*/ true);
+                        if (helper.mergedCompound() == null) {
+                            lastBuilt[0] = null;
+                            return null;
+                        }
+                        LayoutMetrics post = toLayoutMetrics(helper.assessment());
+                        lastBuilt[0] = new GefSpacingMutationCommand(
+                                helper.mergedCompound(), post);
+                        return lastBuilt[0];
+                    } catch (MutationException e) {
+                        throw new RuntimeException(
+                                "Control-loop iteration failed during "
+                                + "mutation-command construction", e);
+                    } catch (RuntimeException e) {
+                        // Sibling-symmetric graceful degradation with
+                        // applyElementSpacingRecommendations 5-arg closure
+                        // above (Decision-A.1 / Session 7).
+                        logger.warn("Control-loop group-spacing iteration "
+                                + "failed during mutation-command construction "
+                                + "(delta={}, viewId={}); terminating loop "
+                                + "with budget-exhausted to preserve prior "
+                                + "accepted iterations",
+                                proposedDeltaPx, viewId, e);
+                        lastBuilt[0] = null;
+                        return null;
+                    }
+                }
+
+                @Override
+                public LayoutMetrics observeLayout() {
+                    return lastBuilt[0].postMetrics();
+                }
+
+                @Override
+                public SpacingMutationCommand buildHubResizeCommand() {
+                    // AC-4 one-shot escalate hub-resize (Scoped Option B).
+                    return buildDensityHubResizeCommand(viewId, model);
+                }
+            };
+
+            SpacingControlLoop.Result loopResult =
+                    SpacingControlLoop.iterate(request, callbacks);
+
+            // 8. Build outer compound from ACCEPTED iterations.
+            List<Integer> appliedDeltas = loopResult.iterations().stream()
+                    .filter(s -> !s.backedOff())
+                    .map(SpacingIterationStep::deltaApplied)
+                    .toList();
+
+            Integer batchSeq = null;
+            AssessLayoutResultDto after = before;
+            AdjustViewSpacingResultDto adjustResult = null;
+            int finalGroupDelta = 0;
+
+            if (!loopResult.acceptedCommands().isEmpty()) {
+                NonNotifyingCompoundCommand outerCompound =
+                        new NonNotifyingCompoundCommand(
+                                "Apply group spacing recommendations "
+                                + "(control loop, " + appliedDeltas.size()
+                                + " accepted iterations)");
+                for (SpacingMutationCommand cmd
+                        : loopResult.acceptedCommands()) {
+                    GefSpacingMutationCommand gef =
+                            (GefSpacingMutationCommand) cmd;
+                    outerCompound.add(gef.gefCommand());
+                }
+                batchSeq = dispatchOrQueue(sessionId, outerCompound,
+                        outerCompound.getLabel());
+                if (batchSeq == null) {
+                    versionCounter.incrementAndGet();
+                }
+                after = assessLayout(viewId);
+                finalGroupDelta = loopResult.finalSpacingPx()
+                        - initialSpacingPx;
+                adjustResult = synthesizeAdjustResultForControlLoop(
+                        viewId, finalGroupDelta, before, after,
+                        appliedDeltas.size());
+            }
+
+            ApplyGroupSpacingRecommendationsResultDto dto =
+                    new ApplyGroupSpacingRecommendationsResultDto(
+                            viewId, /*dryRun=*/ false, connectionCount,
+                            interGroupConnectionCount, isConnected,
+                            initialSpacingPx, targetSpacingPx,
+                            finalGroupDelta,
+                            /*noChangeReason=*/ null,
+                            heuristicRecommendation, before, after,
+                            adjustResult,
+                            loopResult.terminationReason(),
+                            appliedDeltas.size(),
+                            appliedDeltas,
+                            loopResult.densityDiagnosis());
+            return new MutationResult<>(dto, batchSeq);
+
+        } catch (NoModelLoadedException | ModelAccessException | MutationException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof MutationException me) {
+                throw me;
+            }
+            throw new ModelAccessException(
+                    "Error applying group spacing recommendations for view '"
+                    + (viewId != null ? viewId : "<null>") + "'",
+                    e, ErrorCode.INTERNAL_ERROR);
+        } catch (Exception e) {
+            throw new ModelAccessException(
+                    "Error applying group spacing recommendations for view '"
+                    + (viewId != null ? viewId : "<null>") + "'",
+                    e, ErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    // ---- Apply spacing recommendations (composed; RoutingPreconditions.Composed) ----
+
+    /**
+     * Default per-tool iteration budget for the apply-spacing-recommendations
+     * composer's embedded control loops (AC-4 / architecture-spec § 1.4 /
+     * HALT 0.1 Q2=A). Composer iterates BOTH element + group arms, so the
+     * default is 8 (4+4 redistribution per arch-spec § 1.7 Option A).
+     */
+    private static final int DEFAULT_COMPOSER_ITERATION_BUDGET = 8;
+
+    @Override
+    public MutationResult<ApplySpacingRecommendationsResultDto>
+            applySpacingRecommendations(
+                    String sessionId, String viewId,
+                    String scope, boolean dryRun,
+                    Integer elementTargetSpacingOverride,
+                    Integer groupTargetSpacingOverride) {
+        return applySpacingRecommendations(
+                sessionId, viewId, scope, dryRun,
+                elementTargetSpacingOverride, groupTargetSpacingOverride,
+                /*iterationBudget=*/ null);
+    }
+
+    @Override
+    public MutationResult<ApplySpacingRecommendationsResultDto>
+            applySpacingRecommendations(
+                    String sessionId, String viewId,
+                    String scope, boolean dryRun,
+                    Integer elementTargetSpacingOverride,
+                    Integer groupTargetSpacingOverride,
+                    Integer iterationBudget) {
+        final int budget = resolveIterationBudget(
+                iterationBudget, DEFAULT_COMPOSER_ITERATION_BUDGET);
+        // Element-arm budget = floor(budget/2); group-arm budget = ceil(budget/2)
+        // per architecture-spec § 1.7 Option A (default 4+4 for budget=8).
+        final int elementBudget = budget / 2;
+        final int groupBudget = budget - elementBudget;
+        String resolvedScope = scope;
+        // Story `backlog-control-loop-density-aware-fixes` Fix-1 / AC-2 —
+        // verify-patch-loaded sentinel (Session-7 lesson: a 0/N empirical
+        // with "zero improvement" is otherwise indistinguishable from
+        // "plugin not reloaded"; grep this line in the live Archi log
+        // post-restart before trusting any reproduction result). NOT a
+        // patch — instrumentation only; no behaviour change.
+        logger.info("density-fixes PATCH-0 (Fix-1 instrumentation) loaded — "
+                + "applySpacingRecommendations entry: viewId={}, scope={}, "
+                + "dryRun={}, elementTargetOverride={}, groupTargetOverride={}, "
+                + "iterationBudget={} (element={}, group={})",
+                viewId, resolvedScope, dryRun, elementTargetSpacingOverride,
+                groupTargetSpacingOverride, budget, elementBudget, groupBudget);
+        IArchimateModel model = requireAndCaptureModel();
+
+        try {
+            // 1-5. Entry-guard prelude — IDENTICAL to the prior single-shot
+            //      composer path.
+            EObject viewObj = ArchimateModelUtils.getObjectByID(model, viewId);
+            if (!(viewObj instanceof IArchimateDiagramModel diagramModel)) {
+                throw new ModelAccessException(
+                        "View not found: " + viewId, ErrorCode.VIEW_NOT_FOUND);
+            }
+
+            AssessLayoutResultDto before = assessLayout(viewId);
+            int connectionCount = before.connectionCount();
+
+            List<IDiagramModelGroup> nonEmptyTopLevelGroups = new ArrayList<>();
+            List<IDiagramModelGroup> allTopLevelGroups = new ArrayList<>();
+            for (IDiagramModelObject child : diagramModel.getChildren()) {
+                if (child instanceof IDiagramModelGroup group) {
+                    allTopLevelGroups.add(group);
+                    if (!group.getChildren().isEmpty()) {
+                        nonEmptyTopLevelGroups.add(group);
+                    }
+                }
+            }
+            PerGroupSpacingScan elementScan =
+                    scanPerGroupSpacing(nonEmptyTopLevelGroups);
+            int interGroupConnectionCount =
+                    countInterGroupConnections(diagramModel);
+            boolean isConnected = interGroupConnectionCount > 0;
+            int currentGroupSpacingPx =
+                    detectCurrentInterGroupSpacing(allTopLevelGroups);
+
+            DetectHubElementsResultDto hubResult = detectHubElements(viewId);
+            boolean hasLargeHubs = !hubResult.elements().isEmpty();
+
+            int elementHeuristicTarget = ElementSpacingHeuristic
+                    .targetSpacingForConnectionCount(
+                            connectionCount, hasLargeHubs);
+            int groupHeuristicTarget = GroupSpacingHeuristic
+                    .targetSpacingForConnectionCount(
+                            connectionCount, isConnected, hasLargeHubs);
+            int elementTargetSpacingPx =
+                    (elementTargetSpacingOverride != null)
+                            ? elementTargetSpacingOverride
+                            : elementHeuristicTarget;
+            int groupTargetSpacingPx =
+                    (groupTargetSpacingOverride != null)
+                            ? groupTargetSpacingOverride
+                            : groupHeuristicTarget;
+
+            ApplySpacingDecision decision = ApplySpacingDecision.decide(
+                    resolvedScope, connectionCount, interGroupConnectionCount,
+                    elementScan.minSpacing(), currentGroupSpacingPx,
+                    elementTargetSpacingPx, groupTargetSpacingPx, dryRun,
+                    !nonEmptyTopLevelGroups.isEmpty(),
+                    elementScan.anyGroupHasMultipleChildren(),
+                    allTopLevelGroups.size() >= 2,
+                    isConnected,
+                    elementTargetSpacingOverride != null,
+                    groupTargetSpacingOverride != null);
+
+            // 6. Short-circuit / dryRun branches — AC-5 (d)+(e). Composer-level
+            //    short-circuit surfaces per-arm null fields (both arms idle).
+            if (!decision.shouldCallAdjustViewSpacing()) {
+                String terminationReason = mapEntryGuardToTerminationReason(
+                        dryRun, decision.noChangeReason());
+                ApplySpacingRecommendationsResultDto dto =
+                        new ApplySpacingRecommendationsResultDto(
+                                viewId, resolvedScope, dryRun,
+                                connectionCount, interGroupConnectionCount,
+                                isConnected, hasLargeHubs,
+                                elementScan.minSpacing(),
+                                currentGroupSpacingPx,
+                                elementTargetSpacingPx, groupTargetSpacingPx,
+                                decision.proposedElementDelta(),
+                                decision.proposedGroupDelta(),
+                                decision.interElementDelta(),
+                                decision.interGroupDelta(),
+                                decision.elementKneeClampApplied(),
+                                decision.groupKneeClampApplied(),
+                                decision.noChangeReason(),
+                                elementTargetSpacingOverride,
+                                groupTargetSpacingOverride,
+                                before,
+                                /*after=*/ null, /*adjustResult=*/ null,
+                                /*elementTerminationReason=*/ terminationReason,
+                                /*elementIterationCount=*/ 0,
+                                /*elementAppliedDeltas=*/ List.of(),
+                                /*groupTerminationReason=*/ terminationReason,
+                                /*groupIterationCount=*/ 0,
+                                /*groupAppliedDeltas=*/ List.of());
+                return new MutationResult<>(dto, null);
+            }
+
+            // 7. CONTROL LOOPS — Option A per architecture-spec § 1.7:
+            //    element-arm loop first, then group-arm loop. Per-arm
+            //    iteration step caps are re-purposed from the existing
+            //    composer knee-clamp constants
+            //    (ELEMENT_KNEE_LIMIT_PX = 80, GROUP_KNEE_LIMIT_PX = 100)
+            //    per Task 0 Option α.
+            ComposerArmResult elementArm = ComposerArmResult.idle();
+            ComposerArmResult groupArm = ComposerArmResult.idle();
+
+            // Element arm — fires only when delta > 0 (scope-included AND
+            // current spacing < target after clamp).
+            if (decision.interElementDelta() > 0) {
+                elementArm = runComposerArm(
+                        viewId, model,
+                        elementScan.minSpacing(),
+                        elementScan.minSpacing() + decision.interElementDelta(),
+                        elementBudget,
+                        ApplySpacingDecision.ELEMENT_KNEE_LIMIT_PX,
+                        before,
+                        /*arm=*/ "composer.element",
+                        /*isElementArm=*/ true);
+            }
+
+            // Group arm — fires only when delta > 0; observes the state AFTER
+            // the element arm's accepted iterations are applied (so the group-
+            // arm initial metrics reflect the element arm's effect).
+            if (decision.interGroupDelta() > 0) {
+                // Speculatively apply the element arm's accepted commands to
+                // capture the group arm's initial state. Story
+                // `backlog-control-loop-density-aware-fixes` Fix-1: this
+                // replay MUST be SWT-marshalled — the accepted commands are
+                // raw NonNotifyingCompoundCommands whose execute() fires
+                // firePropertyChange → TreeModelView.doRefreshFromNotifications
+                // → Display.getCurrent().asyncExec(); off the reactor worker
+                // thread Display.getCurrent() is null → NPE → INTERNAL_ERROR
+                // + partial-commit (captured stack trace 2026-05-17; the one
+                // composer path the Session-9 SwtUiThreadDispatcher
+                // marshalling did not cover). Extends Session-9, not a
+                // re-architecture (row-774 AC-1/AC-4).
+                ComposerSpeculativeReplay.replayForward(
+                        elementArm.acceptedCommands);
+                AssessLayoutResultDto groupArmInitial = assessLayout(viewId);
+                try {
+                    groupArm = runComposerArm(
+                            viewId, model,
+                            currentGroupSpacingPx,
+                            currentGroupSpacingPx + decision.interGroupDelta(),
+                            groupBudget,
+                            ApplySpacingDecision.GROUP_KNEE_LIMIT_PX,
+                            groupArmInitial,
+                            /*arm=*/ "composer.group",
+                            /*isElementArm=*/ false);
+                } finally {
+                    // Reset the model: undo the element arm's commands in
+                    // reverse so the composer can dispatch a single combined
+                    // compound for ONE undo entry per AC-6. Fix-1: same
+                    // SWT-marshalling as the forward replay above (the
+                    // finally-undo has the identical off-UI-thread
+                    // NonNotifyingCompoundCommand.undo() → firePropertyChange
+                    // → TreeModelView NPE exposure).
+                    ComposerSpeculativeReplay.undoReverse(
+                            elementArm.acceptedCommands);
+                }
+            }
+
+            // 8. Build outer compound — both arms' accepted commands.
+            List<Integer> elementDeltas = elementArm.appliedDeltas;
+            List<Integer> groupDeltas = groupArm.appliedDeltas;
+            int totalAcceptedCount = elementArm.acceptedCommands.size()
+                    + groupArm.acceptedCommands.size();
+
+            Integer batchSeq = null;
+            AssessLayoutResultDto after = before;
+            AdjustViewSpacingResultDto adjustResult = null;
+            int finalElementDelta = 0;
+            int finalGroupDelta = 0;
+
+            if (totalAcceptedCount > 0) {
+                NonNotifyingCompoundCommand outerCompound =
+                        new NonNotifyingCompoundCommand(
+                                "Apply spacing recommendations (composer "
+                                + "control loop, " + elementDeltas.size()
+                                + " element + " + groupDeltas.size()
+                                + " group accepted iterations)");
+                for (Command c : elementArm.acceptedCommands) {
+                    outerCompound.add(c);
+                }
+                for (Command c : groupArm.acceptedCommands) {
+                    outerCompound.add(c);
+                }
+                batchSeq = dispatchOrQueue(sessionId, outerCompound,
+                        outerCompound.getLabel());
+                if (batchSeq == null) {
+                    versionCounter.incrementAndGet();
+                }
+                after = assessLayout(viewId);
+                finalElementDelta = elementArm.finalSpacingPx
+                        - elementScan.minSpacing();
+                finalGroupDelta = groupArm.finalSpacingPx
+                        - currentGroupSpacingPx;
+                if (finalElementDelta < 0) finalElementDelta = 0;
+                if (finalGroupDelta < 0) finalGroupDelta = 0;
+                adjustResult = synthesizeAdjustResultForControlLoop(
+                        viewId, finalElementDelta + finalGroupDelta,
+                        before, after,
+                        elementDeltas.size() + groupDeltas.size());
+            }
+
+            ApplySpacingRecommendationsResultDto dto =
+                    new ApplySpacingRecommendationsResultDto(
+                            viewId, resolvedScope, /*dryRun=*/ false,
+                            connectionCount, interGroupConnectionCount,
+                            isConnected, hasLargeHubs,
+                            elementScan.minSpacing(),
+                            currentGroupSpacingPx,
+                            elementTargetSpacingPx, groupTargetSpacingPx,
+                            decision.proposedElementDelta(),
+                            decision.proposedGroupDelta(),
+                            finalElementDelta,
+                            finalGroupDelta,
+                            decision.elementKneeClampApplied(),
+                            decision.groupKneeClampApplied(),
+                            /*noChangeReason=*/ null,
+                            elementTargetSpacingOverride,
+                            groupTargetSpacingOverride,
+                            before, after,
+                            adjustResult,
+                            elementArm.terminationReason,
+                            elementDeltas.size(),
+                            elementDeltas,
+                            groupArm.terminationReason,
+                            groupDeltas.size(),
+                            groupDeltas,
+                            elementArm.densityDiagnosis,
+                            groupArm.densityDiagnosis);
+            return new MutationResult<>(dto, batchSeq);
+
+        } catch (IllegalArgumentException e) {
+            throw new ModelAccessException(
+                    "Invalid argument for apply-spacing-recommendations: "
+                    + e.getMessage(),
+                    e, ErrorCode.INVALID_PARAMETER);
+        } catch (NoModelLoadedException | ModelAccessException | MutationException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof MutationException me) {
+                throw me;
+            }
+            // Story `backlog-control-loop-density-aware-fixes` Fix-1 / AC-2 —
+            // capture the ACTUAL throw-site stack trace BEFORE wrapping to
+            // INTERNAL_ERROR. This is the envelope-catch that produced the
+            // "INFO-only / zero error-severity archi.mcp" preliminary log
+            // datapoint (Session-8 signature): the composer two-arm
+            // orchestration (element→group hand-off speculative execute /
+            // assessLayout / dispatchOrQueue / DTO build, ~L8249–8375) and
+            // the new escalate+one-shot-hub-resize path surface here with no
+            // error line. Logging the throwable here is the AC-2
+            // stack-trace-before-patch gate (instrumentation, NOT a fix —
+            // the same ModelAccessException is still thrown unchanged).
+            logger.error("apply-spacing-recommendations composer two-arm "
+                    + "boundary threw (Fix-1 capture): viewId={}, scope={} — "
+                    + "actual throw site follows",
+                    (viewId != null ? viewId : "<null>"), resolvedScope, e);
+            throw new ModelAccessException(
+                    "Error applying spacing recommendations for view '"
+                    + (viewId != null ? viewId : "<null>") + "'",
+                    e, ErrorCode.INTERNAL_ERROR);
+        } catch (Exception e) {
+            logger.error("apply-spacing-recommendations composer two-arm "
+                    + "boundary threw (Fix-1 capture, checked): viewId={}, "
+                    + "scope={} — actual throw site follows",
+                    (viewId != null ? viewId : "<null>"), resolvedScope, e);
+            throw new ModelAccessException(
+                    "Error applying spacing recommendations for view '"
+                    + (viewId != null ? viewId : "<null>") + "'",
+                    e, ErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    /**
+     * Per-arm result captured by the composer's two-arm control loop
+     * (architecture-spec § 1.7 Option A). Holds the accepted GEF commands
+     * (extracted from the loop's {@link GefSpacingMutationCommand} wrappers
+     * via downcast), the per-iteration applied deltas, the final cumulative
+     * spacing, and the {@code terminationReason} string the loop returned.
+     */
+    private static final class ComposerArmResult {
+        final List<Command> acceptedCommands;
+        final List<Integer> appliedDeltas;
+        final String terminationReason;
+        final int finalSpacingPx;
+        /** Story `backlog-control-loop-density-aware-termination` AC-6 —
+         *  per-arm actionable PASS-honest reflow diagnosis; null otherwise. */
+        final String densityDiagnosis;
+
+        ComposerArmResult(List<Command> acceptedCommands,
+                List<Integer> appliedDeltas,
+                String terminationReason,
+                int finalSpacingPx,
+                String densityDiagnosis) {
+            this.acceptedCommands = acceptedCommands;
+            this.appliedDeltas = appliedDeltas;
+            this.terminationReason = terminationReason;
+            this.finalSpacingPx = finalSpacingPx;
+            this.densityDiagnosis = densityDiagnosis;
+        }
+
+        static ComposerArmResult idle() {
+            return new ComposerArmResult(List.of(), List.of(),
+                    /*terminationReason=*/ null, /*finalSpacingPx=*/ 0,
+                    /*densityDiagnosis=*/ null);
+        }
+
+        /**
+         * Fix-1 (RC-1) Winston guarded-form result — the arm's reroute pass
+         * materially degraded the input baseline; the arm contributes no
+         * commands and surfaces
+         * {@link SpacingControlLoop#REASON_REROUTE_DEGRADED_INPUT_BASELINE}
+         * in its per-arm {@code terminationReason}.
+         */
+        static ComposerArmResult rerouteDegraded() {
+            return new ComposerArmResult(List.of(), List.of(),
+                    SpacingControlLoop.REASON_REROUTE_DEGRADED_INPUT_BASELINE,
+                    /*finalSpacingPx=*/ 0, /*densityDiagnosis=*/ null);
+        }
+
+        /**
+         * Story `backlog-st-spacing-precondition-structural-reflow`
+         * (row 777) — the SOUND one-sided pre-routing certificate proved
+         * this arm's input geometry provably-infeasible BEFORE the loop;
+         * the arm contributes NO commands and surfaces the NEW precondition
+         * termination reason + the actionable, consent-gated reflow OFFER
+         * (carried in the EXISTING per-arm {@code densityDiagnosis}
+         * surface). Sibling-symmetric with {@link #rerouteDegraded()};
+         * {@link SpacingControlLoop} byte-UNTOUCHED (the loop is never
+         * entered). With both arms short-circuited, the composer builds the
+         * final DTO with {@code totalAcceptedCount=0} ⇒ {@code after==before}
+         * ⇒ the view is preserved unchanged (no degraded layout).
+         */
+        static ComposerArmResult preconditionInfeasible(
+                String terminationReason, String reflowOffer) {
+            return new ComposerArmResult(List.of(), List.of(),
+                    terminationReason, /*finalSpacingPx=*/ 0,
+                    /*densityDiagnosis=*/ reflowOffer);
+        }
+    }
+
+    /**
+     * Runs ONE arm of the composer's two-arm control loop (architecture-
+     * spec § 1.7 Option A). The {@code isElementArm} flag picks which
+     * delta parameter to pass to {@link #computeAdjustViewSpacing} (the
+     * other arm's delta is null).
+     *
+     * <p>On return, the model is at the pre-arm state (the loop's
+     * {@code finalizeWithReset} has undone all accepted commands).
+     * Returns the accepted GEF commands so the composer can splice them
+     * into a single outer compound dispatched ONCE for AC-6 single-undo.
+     */
+    private ComposerArmResult runComposerArm(
+            String viewId, IArchimateModel model,
+            int initialSpacingPx, int targetSpacingPx,
+            int iterationBudget, int perIterationStepCapPx,
+            AssessLayoutResultDto initialAssessment,
+            String arm, boolean isElementArm) {
+
+        // Fix-1 (RC-1) — sibling-symmetric with the element + group 5-arg
+        // closures (Decision-A.1.3 = α''', Session 11, Task 10.5). Route-
+        // normalize this arm's baseline so it shares the per-step routing
+        // basis; Winston's guarded form surfaces a per-arm degraded reason.
+        RouteNormalizedBaseline rnb =
+                routeNormalizedBaseline(viewId, model, initialAssessment);
+        if (rnb.degraded()) {
+            return ComposerArmResult.rerouteDegraded();
+        }
+
+        // Story `backlog-st-spacing-precondition-structural-reflow` (row
+        // 777) — composer-per-arm site of the ONE shared arm-agnostic SOUND
+        // pre-routing infeasibility precheck (element + group standalone
+        // siblings). runComposerArm is invoked once per arm (element +
+        // group) ⇒ both composer arms see the SAME per-view geometry ⇒ the
+        // SAME decision ⇒ both short-circuit identically; the composer then
+        // builds the final DTO from the per-arm reason + OFFER with
+        // totalAcceptedCount=0 (after==before — view preserved unchanged,
+        // NO degraded layout). Sibling-symmetric with rnb.degraded() above;
+        // SpacingControlLoop byte-UNTOUCHED; AC-4 dissolved by soundness.
+        SpacingPreconditionInfeasibilityCertificate.Decision precert =
+                evaluateSpacingPrecondition(model, viewId, rnb.metrics());
+        if (precert.shortCircuit()) {
+            return ComposerArmResult.preconditionInfeasible(
+                    precert.terminationReason(), precert.reflowOffer());
+        }
+
+        SpacingControlLoop.Request request = new SpacingControlLoop.Request(
+                initialSpacingPx, targetSpacingPx, iterationBudget,
+                perIterationStepCapPx,
+                rnb.metrics(), arm,
+                /*hubExtent=*/ captureHubExtent(viewId));
+
+        final GefSpacingMutationCommand[] lastBuilt =
+                new GefSpacingMutationCommand[1];
+        SpacingControlLoop.Callbacks callbacks =
+                new SpacingControlLoop.Callbacks() {
+            @Override
+            public SpacingMutationCommand buildMutationCommand(
+                    int proposedDeltaPx) {
+                try {
+                    ComputeAdjustViewSpacingResult helper =
+                            computeAdjustViewSpacing(viewId, model,
+                                    /*interElementDelta=*/
+                                    isElementArm ? proposedDeltaPx : null,
+                                    /*paddingDelta=*/ null,
+                                    /*interGroupDelta=*/
+                                    isElementArm ? null : proposedDeltaPx,
+                                    /*recursive=*/ true);
+                    if (helper.mergedCompound() == null) {
+                        lastBuilt[0] = null;
+                        return null;
+                    }
+                    LayoutMetrics post = toLayoutMetrics(helper.assessment());
+                    lastBuilt[0] = new GefSpacingMutationCommand(
+                            helper.mergedCompound(), post);
+                    return lastBuilt[0];
+                } catch (MutationException e) {
+                    throw new RuntimeException(
+                            "Composer arm " + arm + " failed during "
+                            + "mutation-command construction", e);
+                } catch (RuntimeException e) {
+                    // Sibling-symmetric graceful degradation with element +
+                    // group 5-arg closures (Decision-A.1 / Session 7).
+                    logger.warn("Composer arm {} iteration failed during "
+                            + "mutation-command construction (delta={}, "
+                            + "viewId={}); terminating arm with budget-"
+                            + "exhausted to preserve prior accepted iterations",
+                            arm, proposedDeltaPx, viewId, e);
+                    lastBuilt[0] = null;
+                    return null;
+                }
+            }
+
+            @Override
+            public LayoutMetrics observeLayout() {
+                return lastBuilt[0].postMetrics();
+            }
+
+            @Override
+            public SpacingMutationCommand buildHubResizeCommand() {
+                // AC-4 one-shot escalate hub-resize (Scoped Option B) —
+                // sibling-symmetric with the element + group closures.
+                return buildDensityHubResizeCommand(viewId, model);
+            }
+        };
+
+        SpacingControlLoop.Result result =
+                SpacingControlLoop.iterate(request, callbacks);
+
+        List<Command> acceptedCommands = result.acceptedCommands().stream()
+                .map(c -> ((GefSpacingMutationCommand) c).gefCommand())
+                .toList();
+        List<Integer> appliedDeltas = result.iterations().stream()
+                .filter(s -> !s.backedOff())
+                .map(SpacingIterationStep::deltaApplied)
+                .toList();
+        return new ComposerArmResult(acceptedCommands, appliedDeltas,
+                result.terminationReason(), result.finalSpacingPx(),
+                result.densityDiagnosis());
+    }
+
+    /**
+     * Counts connections on the view whose source and target visual elements
+     * resolve to DIFFERENT top-level groups. One-side-grouped pairings (one
+     * endpoint in a group, the other ungrouped) are NOT counted — the
+     * heuristic's connected/unconnected distinction is about between-group
+     * routing-corridor demand, which requires two groups. Reuses the same
+     * connection enumeration as {@link AssessmentCollector#collectAllConnections}
+     * for source-of-truth symmetry with {@code assessLayout}'s
+     * {@code connectionCount}.
+     *
+     * <p>Pinned by {@code ApplyGroupSpacingRecommendationsToolTest} AC-7.3
+     * + {@code ApplySpacingRecommendationsToolTest} AC-3 (single-source-
+     * of-truth reuse).</p>
+     */
+    private static int countInterGroupConnections(
+            IArchimateDiagramModel diagramModel) {
+        int count = 0;
+        for (IDiagramModelConnection conn :
+                AssessmentCollector.collectAllConnections(diagramModel)) {
+            IDiagramModelObject source =
+                    (conn.getSource() instanceof IDiagramModelObject src)
+                            ? src : null;
+            IDiagramModelObject target =
+                    (conn.getTarget() instanceof IDiagramModelObject tgt)
+                            ? tgt : null;
+            if (source == null || target == null) continue;
+            IDiagramModelGroup sourceGroup = topLevelGroupOf(source);
+            IDiagramModelGroup targetGroup = topLevelGroupOf(target);
+            if (sourceGroup == null || targetGroup == null) continue;
+            if (sourceGroup != targetGroup) count++;
+        }
+        return count;
+    }
+
+    /**
+     * Resolves the top-level diagram-model group ancestor of the given visual
+     * object, or null if the object is not contained in any top-level group.
+     * "Top-level group" = an {@link IDiagramModelGroup} whose immediate
+     * {@code eContainer()} is the {@link IArchimateDiagramModel} itself
+     * (not a nested group). Walks the {@code eContainer()} chain upward.
+     */
+    private static IDiagramModelGroup topLevelGroupOf(IDiagramModelObject obj) {
+        // Walk eContainer() chain from obj outward (inner → outer). The LAST
+        // (outermost) IDiagramModelGroup seen before we reach the diagram
+        // model is the top-level group by definition (its immediate container
+        // is the diagram model). Track the most-recent group as we walk; when
+        // we hit the diagram model, return that group — the walk's last-
+        // observed group is the outermost ancestor.
+        EObject current = obj.eContainer();
+        IDiagramModelGroup outermostAncestorGroup = null;
+        while (current != null) {
+            if (current instanceof IDiagramModelGroup group) {
+                outermostAncestorGroup = group;
+            }
+            if (current instanceof IArchimateDiagramModel) {
+                // The outermost group seen along the walk is the top-level
+                // group; if no group was encountered, the object is ungrouped.
+                return outermostAncestorGroup;
+            }
+            current = current.eContainer();
+        }
+        return null;
+    }
+
+    /**
+     * Detects the current minimum inter-group spacing across the given top-
+     * level groups, delegating to
+     * {@link GroupLayoutCalculator#detectInterGroupSpacing(List)} for the
+     * geometric measurement (single source of truth — same utility any
+     * future caller of inter-group-spacing detection should use).
+     *
+     * <p>Returns {@link GroupLayoutCalculator#DEFAULT_DETECTED_SPACING} when
+     * fewer than 2 groups (degenerate input — no inter-group concept exists);
+     * the convenience tool's
+     * {@link ApplyGroupSpacingDecision#decide} short-circuits this case
+     * separately via the {@code hasAtLeast2TopLevelGroups} guard, so this
+     * default value is never consumed in delta computation on the no-groups
+     * path.</p>
+     */
+    private static int detectCurrentInterGroupSpacing(
+            List<IDiagramModelGroup> topLevelGroups) {
+        if (topLevelGroups.size() < 2) {
+            return GroupLayoutCalculator.DEFAULT_DETECTED_SPACING;
+        }
+        List<int[]> groupRects = new ArrayList<>();
+        for (IDiagramModelGroup group : topLevelGroups) {
+            IBounds b = group.getBounds();
+            groupRects.add(new int[]{
+                    b.getX(), b.getY(), b.getWidth(), b.getHeight()});
+        }
+        return GroupLayoutCalculator.detectInterGroupSpacing(groupRects);
+    }
+
+    /**
+     * Result of a per-group spacing scan. {@code minSpacing} is the minimum
+     * detected spacing across all groups that had at least 2 non-note
+     * children (most-tight wins, aligns with visual-severity hierarchy).
+     * {@code anyGroupHasMultipleChildren} is true when at least one group
+     * had at least 2 non-note children — without that, "current spacing"
+     * is undefined and the convenience tool short-circuits with a
+     * "no groups with 2+ elements" reason instead of falsely computing a
+     * delta against a 0-pseudo-spacing.
+     *
+     * <p>Returning these as a single record (instead of a sentinel-zero
+     * spacing) addresses Sonnet 4.6 cross-model code review action item
+     * [MEDIUM] 2026-05-04.</p>
+     */
+    private record PerGroupSpacingScan(
+            int minSpacing,
+            boolean anyGroupHasMultipleChildren) {}
+
+    /**
+     * Scans the given top-level groups and computes the minimum per-group
+     * element spacing across those that have at least 2 non-note children,
+     * reusing {@link GroupLayoutCalculator#detectSpacingFromPositions}
+     * (single source of truth — same utility {@code adjustViewSpacing} uses
+     * inside {@code inflateGroupSpacing}).
+     *
+     * <p>Returns {@link PerGroupSpacingScan#anyGroupHasMultipleChildren()}
+     * = false when no group qualifies; in that case the
+     * {@link PerGroupSpacingScan#minSpacing()} is 0 but should NOT be used
+     * to compute a delta — the convenience tool short-circuits explicitly
+     * via {@link ApplyElementSpacingDecision}.</p>
+     */
+    private PerGroupSpacingScan scanPerGroupSpacing(
+            List<IDiagramModelGroup> topLevelGroups) {
+        int min = Integer.MAX_VALUE;
+        boolean anyMultiChild = false;
+        for (IDiagramModelGroup group : topLevelGroups) {
+            List<int[]> childPositions = new ArrayList<>();
+            for (IDiagramModelObject child : group.getChildren()) {
+                if (child instanceof IDiagramModelNote) continue;
+                IBounds b = child.getBounds();
+                childPositions.add(new int[]{
+                        b.getX(), b.getY(), b.getWidth(), b.getHeight()});
+            }
+            if (childPositions.size() < 2) continue;
+            anyMultiChild = true;
+            ArrangementDetector.DetectedArrangement detected =
+                    ArrangementDetector.detect(childPositions);
+            int spacing = GroupLayoutCalculator.detectSpacingFromPositions(
+                    childPositions, detected.type());
+            if (spacing < min) min = spacing;
+        }
+        int resolvedMin = (min == Integer.MAX_VALUE) ? 0 : min;
+        return new PerGroupSpacingScan(resolvedMin, anyMultiChild);
+    }
+
+    /**
+     * Inflates spacing and padding for a single group and optionally recurses
+     * into nested subgroups (bottom-up). Returns count of elements repositioned.
+     */
+    private int inflateGroupSpacing(IDiagramModelGroup group,
+            int elementDelta, int padDelta, boolean recursive,
+            NonNotifyingCompoundCommand compound, int depth) {
+        if (depth > MAX_RECURSIVE_RESIZE_DEPTH) return 0;
+
+        // Collect direct children (skip notes)
+        List<IDiagramModelObject> children = new ArrayList<>();
+        List<IDiagramModelGroup> nestedGroups = new ArrayList<>();
+        for (IDiagramModelObject child : group.getChildren()) {
+            if (child instanceof IDiagramModelNote) continue;
+            children.add(child);
+            if (child instanceof IDiagramModelGroup nestedGroup
+                    && !nestedGroup.getChildren().isEmpty()) {
+                nestedGroups.add(nestedGroup);
+            }
+        }
+        if (children.isEmpty()) return 0;
+
+        int repositioned = 0;
+
+        // Recurse into nested subgroups first (bottom-up) so parent resize
+        // reflects children's inflated bounds
+        if (recursive) {
+            for (IDiagramModelGroup nested : nestedGroups) {
+                repositioned += inflateGroupSpacing(nested, elementDelta, padDelta,
+                        true, compound, depth + 1);
+            }
+        }
+
+        // Detect current arrangement from child positions.
+        // After recursion, nested groups may have been resized in the compound
+        // (F2 fix) — use pending dimensions instead of stale getBounds().
+        List<Command> pendingCmds = new ArrayList<>();
+        for (Object cmd : compound.getCommands()) {
+            pendingCmds.add((Command) cmd);
+        }
+        List<int[]> childPositions = new ArrayList<>();
+        for (IDiagramModelObject child : children) {
+            IBounds b = child.getBounds();
+            int[] pendingDims = findPendingDimensions(pendingCmds, child);
+            int w = (pendingDims != null) ? pendingDims[0] : b.getWidth();
+            int h = (pendingDims != null) ? pendingDims[1] : b.getHeight();
+            childPositions.add(new int[]{b.getX(), b.getY(), w, h});
+        }
+        ArrangementDetector.DetectedArrangement detected =
+                ArrangementDetector.detect(childPositions);
+
+        // Detect current spacing and padding
+        int currentSpacing = GroupLayoutCalculator.detectSpacingFromPositions(
+                childPositions, detected.type());
+        IBounds groupBounds = group.getBounds();
+        int currentPadding = GroupLayoutCalculator.detectPaddingFromPositions(
+                childPositions, groupBounds.getWidth(), groupBounds.getHeight());
+
+        // Compute inflated values
+        int newSpacing = Math.max(0, currentSpacing + elementDelta);
+        int newPadding = Math.max(0, currentPadding + padDelta);
+        int startX = newPadding;
+        int startY = newPadding + GROUP_LABEL_HEIGHT;
+
+        // Re-compute positions with inflated spacing (preserve element dimensions)
+        List<int[]> newPositions;
+        switch (detected.type()) {
+        case "row":
+            newPositions = computeRowLayout(children, startX, startY,
+                    newSpacing, null, null, false);
+            break;
+        case "grid":
+            Integer gridCols = detected.gridColumns();
+            if (gridCols == null) {
+                gridCols = GroupLayoutCalculator.computeGridColumns(children.size());
+            }
+            GroupLayoutCalculator.GridLayoutResult gridResult = computeGridLayout(
+                    children, startX, startY,
+                    newSpacing, newPadding, groupBounds.getWidth(),
+                    null, null, false, gridCols);
+            newPositions = gridResult.positions();
+            break;
+        default: // "column"
+            newPositions = computeColumnLayout(children, startX, startY,
+                    newSpacing, null, null, false);
+            break;
+        }
+
+        // Build update commands for each child (position only, preserve dimensions)
+        for (int i = 0; i < children.size(); i++) {
+            IDiagramModelObject child = children.get(i);
+            int[] pos = newPositions.get(i);
+            compound.add(new UpdateViewObjectCommand(child,
+                    pos[0], pos[1], pos[2], pos[3]));
+            repositioned++;
+        }
+
+        // Auto-resize group to fit inflated children
+        int[] groupDims = computeAutoResizeDimensions(
+                newPositions, newPadding, GROUP_LABEL_HEIGHT);
+        compound.add(new UpdateViewObjectCommand(group,
+                groupBounds.getX(), groupBounds.getY(),
+                groupDims[0], groupDims[1]));
+
+        // Resize ancestor groups if this is a nested group (F1 fix:
+        // seed with compound's existing commands so resizeAncestorGroups
+        // can see the current group's resize via findPendingDimensions)
+        if (depth > 0) {
+            List<Command> allCommands = new ArrayList<>();
+            for (Object cmd : compound.getCommands()) {
+                allCommands.add((Command) cmd);
+            }
+            int beforeSize = allCommands.size();
+            resizeAncestorGroups(group, allCommands, newPadding);
+            // Add only the newly appended ancestor commands to compound
+            for (int i = beforeSize; i < allCommands.size(); i++) {
+                compound.add(allCommands.get(i));
+            }
+        }
+
+        return repositioned;
     }
 
     // ---- Layout within group (Story 9-9) ----
@@ -7669,7 +10517,10 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
 
     // ---- Arrange Groups (Story 11-20) ----
 
-    private static final int DEFAULT_ARRANGE_GROUPS_SPACING = 40;
+    // The static spacing fallback for the omitted-spacing path lives on
+    // {@link ArrangeGroupsDefaultResolutionDecision#DEFAULT_ARRANGE_GROUPS_SPACING}
+    // — the decision record is the single source of truth so JUnit pins +
+    // production code stay in lockstep.
     private static final int ARRANGE_GROUPS_ORIGIN = 20;
     private static final int ARRANGE_GROUPS_ESTIMATED_CANVAS_WIDTH = 1200;
 
@@ -7708,12 +10559,13 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         ErrorCode.INVALID_PARAMETER);
             }
 
-            // 3. Validate spacing
+            // 3. Validate spacing (defer resolvedSpacing computation to step
+            //    6c — density-aware default-resolution needs targetGroups +
+            //    inter-group-connection topology, which are computed below).
             if (spacing != null && spacing < 0) {
                 throw new ModelAccessException(
                         "spacing must be non-negative", ErrorCode.INVALID_PARAMETER);
             }
-            int resolvedSpacing = (spacing != null) ? spacing : DEFAULT_ARRANGE_GROUPS_SPACING;
 
             // 4. Validate columns
             if (columns != null && columns < 1) {
@@ -7772,7 +10624,15 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         null);
             }
 
-            // 6b. Topology reordering: reorder targetGroups based on connection density
+            // 6b. Topology reordering: reorder targetGroups based on connection density.
+            // Story backlog-arrange-groups-standalone-element-lane: also classify qualifying
+            // standalone top-level Node/Path/CommunicationNetwork elements connected to ≥ 2
+            // of the topology-ordered target groups, and assign each to an inter-group gap.
+            // Default empty so direct row/column/grid calls are byte-identical (Gate 2 / AC-3).
+            List<ArrangeGroupsStandaloneLane.QualifyingStandaloneElement> qualifyingElements =
+                    java.util.Collections.emptyList();
+            Map<Integer, List<ArrangeGroupsStandaloneLane.QualifyingStandaloneElement>> gapAssignments =
+                    java.util.Collections.emptyMap();
             if ("topology".equals(normalizedArrangement)) {
                 // Build adjacency weight matrix from view connections
                 Map<String, String> elementToGroup = new HashMap<>();
@@ -7820,10 +10680,94 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 } else {
                     normalizedArrangement = "column"; // default: vertical
                 }
-                logger.info("Topology arrangement: reordered {} groups, using {} layout",
-                        targetGroups.size(), normalizedArrangement);
+
+                // Standalone-element classification: recipe text already promises "between"
+                // (application-integration.md:37 + technology-deployment.md:35).
+                // Wired ONLY for the row/column axes — topology+columns produces a 2D grid
+                // where the "between" semantics are not well-defined, so qualifier
+                // classification is skipped (the standalone element keeps its source
+                // position; DTO standaloneElementsPlaced stays 0). This makes the silent-
+                // drop into a deliberate-skip with an explicit log line for observability.
+                if ("row".equals(normalizedArrangement) || "column".equals(normalizedArrangement)) {
+                    qualifyingElements = ArrangeGroupsStandaloneLane.classify(
+                            view.getChildren(), targetGroups, elementToGroup);
+                    gapAssignments = ArrangeGroupsStandaloneLane.assignToGaps(
+                            qualifyingElements, targetGroups);
+                } else {
+                    logger.info("Topology+columns → grid: standalone-element lane "
+                            + "classification skipped ('between' semantics undefined for 2D grid)");
+                }
+
+                logger.info("Topology arrangement: reordered {} groups, using {} layout"
+                        + " (standalone qualifiers classified: {})",
+                        targetGroups.size(), normalizedArrangement, qualifyingElements.size());
             }
             String reportedArrangement = arrangement.toLowerCase().trim();
+
+            // 6c. Density-aware default-resolution (Story
+            //     RoutingPreconditions.InterGroup.DensityAwareDefault).
+            //     When spacing is omitted (null) AND the view has at least 2
+            //     top-level groups AND the view has at least one inter-group
+            //     connection (Q4=(b) Model B trigger), derive a heuristic-
+            //     driven default from GroupSpacingHeuristic rather than the
+            //     static ArrangeGroupsDefaultResolutionDecision
+            //     .DEFAULT_ARRANGE_GROUPS_SPACING. The decision is delegated
+            //     to a pure-unit record so the JUnit pin runs without OSGi
+            //     context.
+            //
+            //     Null vs explicit-zero distinction is preserved by the
+            //     decision record's `callerProvidedSpacing != null` short-
+            //     circuit: explicit spacing (including 0) skips the
+            //     heuristic; omitted parameter enters the heuristic path.
+            //
+            //     Single-source-of-truth shared with the convenience-tool
+            //     sibling apply-group-spacing-recommendations (both call
+            //     GroupSpacingHeuristic.targetSpacingForConnectionCount with
+            //     the Row C hub-aware signature).
+            int resolvedSpacing;
+            String defaultResolutionReason;
+            if (spacing != null) {
+                resolvedSpacing = spacing;
+                defaultResolutionReason = null;
+            } else {
+                // Compute inter-group connection state via the same primitives
+                // the topology block uses (single source of truth).
+                Map<String, String> defaultResolutionElementToGroup =
+                        new HashMap<>();
+                for (IDiagramModelGroup g : targetGroups) {
+                    mapElementsToGroup(g, g.getId(),
+                            defaultResolutionElementToGroup);
+                }
+                Map<String, Map<String, Integer>> defaultResolutionWeights =
+                        new HashMap<>();
+                for (IDiagramModelObject child : view.getChildren()) {
+                    collectConnectionWeights(child,
+                            defaultResolutionElementToGroup,
+                            defaultResolutionWeights);
+                }
+                int interGroupConnectionCount =
+                        sumInterGroupConnections(defaultResolutionWeights);
+                boolean isConnected = interGroupConnectionCount > 0;
+                AssessLayoutResultDto triggerAssessment = assessLayout(viewId);
+                // Row C: derive hasLargeHubs upstream — reuses the canonical
+                // detect-hub-elements path. Sibling-symmetric with the
+                // adjustViewSpacing density-aware-default + the convenience
+                // tool accessors.
+                DetectHubElementsResultDto triggerHubResult =
+                        detectHubElements(viewId);
+                boolean triggerHasLargeHubs = triggerHubResult.elements().stream()
+                        .anyMatch(e -> e.connectionCount() > 6);
+                ArrangeGroupsDefaultResolutionDecision decision =
+                        ArrangeGroupsDefaultResolutionDecision.decide(
+                                /*callerProvidedSpacing=*/ null,
+                                triggerAssessment.connectionCount(),
+                                interGroupConnectionCount,
+                                isConnected,
+                                targetGroups.size() >= 2,
+                                triggerHasLargeHubs);
+                resolvedSpacing = decision.resolvedSpacing();
+                defaultResolutionReason = decision.reason();
+            }
 
             // 7. Compute positions based on arrangement
             int startX = ARRANGE_GROUPS_ORIGIN;
@@ -7833,18 +10777,38 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
             int layoutWidth = 0;
             int layoutHeight = 0;
 
+            // Story backlog-arrange-groups-standalone-element-lane: lane sizes per inter-group
+            // gap. Empty for grid + direct row/column calls (gapAssignments is empty in those
+            // paths because classifier only runs inside the topology block). Byte-identical
+            // back-compat when laneSizes is empty.
+            boolean rowLane = "row".equals(normalizedArrangement);
+            boolean colLane = "column".equals(normalizedArrangement);
+            List<Integer> laneSizes;
+            if ((rowLane || colLane) && !gapAssignments.isEmpty()) {
+                laneSizes = ArrangeGroupsStandaloneLane.computeLaneSizes(
+                        gapAssignments, targetGroups.size(), resolvedSpacing, rowLane);
+            } else {
+                laneSizes = java.util.Collections.emptyList();
+            }
+
             switch (normalizedArrangement) {
             case "row": {
                 positions = new ArrayList<>();
                 int curX = startX;
                 int maxH = 0;
-                for (IDiagramModelGroup g : targetGroups) {
+                int n = targetGroups.size();
+                for (int i = 0; i < n; i++) {
+                    IDiagramModelGroup g = targetGroups.get(i);
                     IBounds b = g.getBounds();
                     positions.add(new int[]{curX, startY});
-                    curX += b.getWidth() + resolvedSpacing;
+                    curX += b.getWidth();
+                    if (i < n - 1) {
+                        int laneSize = (i < laneSizes.size()) ? laneSizes.get(i) : 0;
+                        curX += (laneSize > 0) ? laneSize : resolvedSpacing;
+                    }
                     maxH = Math.max(maxH, b.getHeight());
                 }
-                layoutWidth = curX - resolvedSpacing; // last spacing not needed
+                layoutWidth = curX;
                 layoutHeight = startY + maxH;
                 break;
             }
@@ -7852,14 +10816,20 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 positions = new ArrayList<>();
                 int curY = startY;
                 int maxW = 0;
-                for (IDiagramModelGroup g : targetGroups) {
+                int n = targetGroups.size();
+                for (int i = 0; i < n; i++) {
+                    IDiagramModelGroup g = targetGroups.get(i);
                     IBounds b = g.getBounds();
                     positions.add(new int[]{startX, curY});
-                    curY += b.getHeight() + resolvedSpacing;
+                    curY += b.getHeight();
+                    if (i < n - 1) {
+                        int laneSize = (i < laneSizes.size()) ? laneSizes.get(i) : 0;
+                        curY += (laneSize > 0) ? laneSize : resolvedSpacing;
+                    }
                     maxW = Math.max(maxW, b.getWidth());
                 }
                 layoutWidth = startX + maxW;
-                layoutHeight = curY - resolvedSpacing;
+                layoutHeight = curY;
                 break;
             }
             case "grid": {
@@ -7922,17 +10892,44 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         pos[0], pos[1], b.getWidth(), b.getHeight()));
             }
 
+            // 8b. Story backlog-arrange-groups-standalone-element-lane:
+            // place each qualifier centred in its assigned inter-group lane.
+            // Shared with computeGroupedLayoutPass via ArrangeGroupsStandaloneLane.placeQualifiers
+            // (Task 1.1 — single source of truth, prevents drift).
+            int standaloneElementsPlaced = 0;
+            if ((rowLane || colLane) && !gapAssignments.isEmpty()) {
+                List<int[]> groupDims = new ArrayList<>();
+                for (IDiagramModelGroup g : targetGroups) {
+                    IBounds gb = g.getBounds();
+                    groupDims.add(new int[]{gb.getWidth(), gb.getHeight()});
+                }
+                List<ArrangeGroupsStandaloneLane.QualifierPlacement> placements =
+                        ArrangeGroupsStandaloneLane.placeQualifiers(
+                                gapAssignments, targetGroups.size(),
+                                positions, groupDims, resolvedSpacing, rowLane);
+                for (ArrangeGroupsStandaloneLane.QualifierPlacement p : placements) {
+                    commands.add(new UpdateViewObjectCommand(p.element(),
+                            p.x(), p.y(), p.width(), p.height()));
+                    standaloneElementsPlaced++;
+                }
+            }
+
             // 9. Build compound command
             String label = "Arrange groups ("
                     + reportedArrangement + ", "
-                    + targetGroups.size() + " groups)";
+                    + targetGroups.size() + " groups"
+                    + (standaloneElementsPlaced > 0
+                            ? ", " + standaloneElementsPlaced + " standalone" : "")
+                    + ")";
             NonNotifyingCompoundCommand compound =
                     new NonNotifyingCompoundCommand(label);
             commands.forEach(compound::add);
 
             ArrangeGroupsResultDto dto = new ArrangeGroupsResultDto(
                     viewId, targetGroups.size(), layoutWidth, layoutHeight,
-                    columnsUsed, reportedArrangement);
+                    columnsUsed, reportedArrangement,
+                    resolvedSpacing, defaultResolutionReason,
+                    standaloneElementsPlaced);
 
             // 10. Approval gate
             if (mutationDispatcher.isApprovalRequired(sessionId)) {
@@ -7942,6 +10939,9 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 if (columnsUsed != null) proposedChanges.put("columnsUsed", columnsUsed);
                 proposedChanges.put("layoutWidth", layoutWidth);
                 proposedChanges.put("layoutHeight", layoutHeight);
+                if (standaloneElementsPlaced > 0) {
+                    proposedChanges.put("standaloneElementsPlaced", standaloneElementsPlaced);
+                }
                 ProposalContext ctx = storeAsProposal(sessionId,
                         "arrange-groups", compound, dto, label,
                         null, proposedChanges,
@@ -7982,6 +10982,23 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 mapElementsToGroup(child, topLevelGroupId, elementToGroup);
             }
         }
+    }
+
+    /**
+     * Sums all inter-group connection weights from a pre-built weights map
+     * (the per-pair adjacency map produced by {@link #collectConnectionWeights}).
+     * Used by the density-aware default-resolution path inside
+     * {@code arrangeGroups} to derive {@code interGroupConnectionCount}.
+     */
+    private static int sumInterGroupConnections(
+            Map<String, Map<String, Integer>> weights) {
+        int total = 0;
+        for (Map<String, Integer> targetMap : weights.values()) {
+            for (int count : targetMap.values()) {
+                total += count;
+            }
+        }
+        return total;
     }
 
     /**
@@ -9189,7 +12206,8 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         // Story C4: Apply image at creation time
         ImageHelper.applyImageToNewObject(diagramObj, imageParams);
 
-        // Build view object DTO (Story 11-2: include styling; Story C4: include image fields)
+        // Build view object DTO (Story 11-2: include styling; Story C4: include image fields;
+        // story backlog-group-element-styling-surface: include figureType + textAlignment + verticalTextAlignment)
         ViewObjectDto viewObjectDto = new ViewObjectDto(
                 diagramObj.getId(), element.getId(), element.getName(),
                 element.eClass().getName(), resolvedX, resolvedY,
@@ -9198,7 +12216,10 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 StylingHelper.readFontColor(diagramObj), StylingHelper.readOpacity(diagramObj),
                 StylingHelper.readLineWidth(diagramObj),
                 ImageHelper.readImagePath(diagramObj), ImageHelper.readImagePosition(diagramObj),
-                ImageHelper.readShowIcon(diagramObj), null, null);
+                ImageHelper.readShowIcon(diagramObj), null, null,
+                StylingHelper.readFigureType(diagramObj),
+                StylingHelper.readTextAlignment(diagramObj),
+                StylingHelper.readVerticalTextAlignment(diagramObj));
 
         Command cmd;
         List<ViewConnectionDto> autoConnections = null;
@@ -9270,6 +12291,24 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
             cmd = compound;
         } else {
             cmd = new AddToViewCommand(diagramObj, parentContainer);
+        }
+
+        // Backlog W2 (story `backlog-cloud-icon-container-node-collision`):
+        // icon-band parent-resize at the CREATION moment (Task-0.6 (ii)).
+        // When the new child is added to a parent container that already has
+        // a non-default corner-anchored icon AND the new child + existing
+        // siblings occupy the corner, wrap the AddToViewCommand with a
+        // parent-resize so the corner is reserved atomically. AC-14 Case A
+        // (parent has no image properties) and Case B (corner empty) both
+        // short-circuit inside the helper (returns null).
+        Command w2ParentResize = computeIconBandParentResizeCommand(
+                parentContainer, resolvedX, resolvedY, resolvedWidth, resolvedHeight);
+        if (w2ParentResize != null) {
+            NonNotifyingCompoundCommand w2Wrap = new NonNotifyingCompoundCommand(
+                    "Add view object with icon-band parent-resize (W2)");
+            w2Wrap.add(w2ParentResize);
+            w2Wrap.add(cmd);
+            cmd = w2Wrap;
         }
 
         AddToViewResultDto resultDto = new AddToViewResultDto(
@@ -9350,9 +12389,32 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         validatePositiveDimension(width, "width");
         validatePositiveDimension(height, "height");
 
+        // Story 9-0b: Interpret escape sequences in group label BEFORE sizing so the
+        // helper measures the rendered string (with real newlines) rather than the
+        // pre-interpretation escape form. Moved up from after setBounds per review M1.
+        label = TextUtils.interpretEscapes(label);
+
         // Resolve dimensions
         int resolvedWidth = (width != null) ? width : DEFAULT_GROUP_WIDTH;
-        int resolvedHeight = (height != null) ? height : DEFAULT_GROUP_HEIGHT;
+        int resolvedHeight;
+        if (height != null) {
+            // Caller-pinned height wins (back-compat — backlog-view-title-note-autosize AC-7).
+            resolvedHeight = height;
+        } else {
+            // Fit label band to wrapped label so long descriptive labels don't clip
+            // (backlog-view-title-note-autosize, AC-7). Subtract horizontal text inset
+            // so the wrap simulation uses the actual content width (review L2).
+            int labelContentWidth = Math.max(1, resolvedWidth - ElementSizer.HORIZONTAL_TEXT_INSET);
+            int labelBandHeight = ElementSizer.fitTextBoxHeightToContent(
+                    label, labelContentWidth, ElementSizer.LABEL_VERTICAL_PADDING,
+                    DEFAULT_GROUP_HEIGHT, ElementSizer.MAX_GROUP_LABEL_BAND);
+            // AC-15 short-circuit: when the label fits in default-height, resolvedHeight
+            // is DEFAULT_GROUP_HEIGHT literally (byte-identical to today). Guards against
+            // any future helper change silently returning 200+ε for short labels.
+            resolvedHeight = (labelBandHeight <= DEFAULT_GROUP_HEIGHT)
+                    ? DEFAULT_GROUP_HEIGHT
+                    : labelBandHeight;
+        }
 
         // Resolve position
         int resolvedX;
@@ -9365,9 +12427,6 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
             resolvedX = pos[0];
             resolvedY = pos[1];
         }
-
-        // Story 9-0b: Interpret escape sequences in group label
-        label = TextUtils.interpretEscapes(label);
 
         // Create group
         IDiagramModelGroup group = IArchimateFactory.eINSTANCE.createDiagramModelGroup();
@@ -9383,7 +12442,8 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         // Build command
         Command cmd = new AddGroupToViewCommand(group, parentContainer);
 
-        // Build DTO (Story 11-2: include styling; Story C4: include image fields)
+        // Build DTO (Story 11-2: include styling; Story C4: include image fields;
+        // story backlog-group-element-styling-surface: include figureType + textAlignment + verticalTextAlignment)
         ViewGroupDto dto = new ViewGroupDto(
                 group.getId(), label, resolvedX, resolvedY,
                 resolvedWidth, resolvedHeight, null, List.of(),
@@ -9391,7 +12451,10 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 StylingHelper.readFontColor(group), StylingHelper.readOpacity(group),
                 StylingHelper.readLineWidth(group),
                 ImageHelper.readImagePath(group), ImageHelper.readImagePosition(group),
-                ImageHelper.readShowIcon(group));
+                ImageHelper.readShowIcon(group),
+                StylingHelper.readFigureType(group),
+                StylingHelper.readTextAlignment(group),
+                StylingHelper.readVerticalTextAlignment(group));
 
         return new PreparedMutation<>(cmd, dto, group.getId(), group);
     }
@@ -9484,9 +12547,22 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         validatePositiveDimension(width, "width");
         validatePositiveDimension(height, "height");
 
+        // Story 9-0b: Interpret escape sequences in note content BEFORE sizing so the
+        // helper measures the rendered string (with real newlines) rather than the
+        // pre-interpretation escape form. Moved up from after setBounds per review M1.
+        content = TextUtils.interpretEscapes(content);
+
         // Resolve dimensions
         int resolvedWidth = (width != null) ? width : DEFAULT_NOTE_WIDTH;
-        int resolvedHeight = (height != null) ? height : DEFAULT_NOTE_HEIGHT;
+        // When caller did not pin height, fit it to the wrapped content so descriptive
+        // title-style notes don't silently clip (backlog-view-title-note-autosize, AC-1/3/4).
+        // Subtract horizontal text inset so the wrap simulation uses the actual content
+        // width (review L2).
+        int noteContentWidth = Math.max(1, resolvedWidth - ElementSizer.HORIZONTAL_TEXT_INSET);
+        int resolvedHeight = (height != null) ? height
+                : ElementSizer.fitTextBoxHeightToContent(
+                        content, noteContentWidth, ElementSizer.LABEL_VERTICAL_PADDING,
+                        DEFAULT_NOTE_HEIGHT, ElementSizer.MAX_NOTE_HEIGHT);
 
         // Resolve position — Story B16: position-based placement
         int resolvedX;
@@ -9523,8 +12599,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
             resolvedY = pos[1];
         }
 
-        // Story 9-0b: Interpret escape sequences in note content
-        content = TextUtils.interpretEscapes(content);
+        // Note: content was escape-interpreted earlier (before sizing); see review M1.
 
         // Create note
         IDiagramModelNote note = IArchimateFactory.eINSTANCE.createDiagramModelNote();
@@ -9540,7 +12615,9 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         // Build command
         Command cmd = new AddNoteToViewCommand(note, parentContainer);
 
-        // Build DTO — include positionNote if set (Story B16), image fields (Story C4)
+        // Build DTO — include positionNote if set (Story B16), image fields (Story C4);
+        // story backlog-group-element-styling-surface: include textAlignment + verticalTextAlignment
+        // (notes are excluded from figureType per Task-2.3)
         String parentVoId = (parentViewObjectId != null) ? parentViewObjectId : null;
         ViewNoteDto dto = new ViewNoteDto(
                 note.getId(), content, resolvedX, resolvedY,
@@ -9549,7 +12626,9 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 StylingHelper.readFontColor(note), StylingHelper.readOpacity(note),
                 StylingHelper.readLineWidth(note), positionNote,
                 ImageHelper.readImagePath(note), ImageHelper.readImagePosition(note),
-                ImageHelper.readShowIcon(note));
+                ImageHelper.readShowIcon(note),
+                StylingHelper.readTextAlignment(note),
+                StylingHelper.readVerticalTextAlignment(note));
 
         return new PreparedMutation<>(cmd, dto, note.getId(), note);
     }
@@ -9778,15 +12857,94 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         int mergedWidth = (width != null) ? width : bounds.getWidth();
         int mergedHeight = (height != null) ? height : bounds.getHeight();
 
+        // Backlog W2 (story `backlog-cloud-icon-container-node-collision`):
+        // icon-band parent-resize at the MUTATION moment (Task-0.6 (iii) /
+        // AC-15). Fires when the LLM sets a bottom-corner `imagePosition` on
+        // a container whose existing children already occupy that corner —
+        // grows the container's height by ICON_BAND_HEIGHT (24 px) so the
+        // icon does not collide. Sibling-symmetric with the H6 cascade
+        // below, which then re-cascades the grown height up to any
+        // grandparent group.
+        //
+        // AC-14 Case A short-circuit (no imageParams) is the outer `if` —
+        // skip the block entirely when no image position is staged.
+        // AC-14 Case B short-circuit (corner empty) is the inner predicate
+        // — explicit `if/else`, NOT a `max(...)` expression, so a non-firing
+        // case is byte-identical to today.
+        boolean w2IconBandFired = false;
+        if (imageParams != null && imageParams.imagePosition() != null
+                && diagramObj instanceof IIconic
+                && diagramObj instanceof IDiagramModelContainer w2Container) {
+            int requestedPos = ImageParams.positionToInt(imageParams.imagePosition());
+            // Bottom corners only (top corners require child-shift — deferred;
+            // top-right is the Archi default sentinel — excluded by AC-2 / AC-6).
+            if (requestedPos == 6 || requestedPos == 8) {
+                List<int[]> childRects = new ArrayList<>();
+                for (IDiagramModelObject c : w2Container.getChildren()) {
+                    IBounds cb = c.getBounds();
+                    childRects.add(new int[] {cb.getX(), cb.getY(), cb.getWidth(), cb.getHeight()});
+                }
+                if (ImageHelper.anyChildOccupiesIconBand(mergedWidth, mergedHeight,
+                        requestedPos, W2_ICON_SIZE, W2_ICON_MARGIN, childRects)) {
+                    mergedHeight = mergedHeight + ImageHelper.ICON_BAND_HEIGHT;
+                    w2IconBandFired = true;
+                }
+            }
+        }
+
         // Build command (with optional text, styling, and image update)
         Command cmd = new UpdateViewObjectCommand(diagramObj, mergedX, mergedY, mergedWidth, mergedHeight, text, styling, imageParams);
 
-        // Build DTO — generic for all view object types (Story 11-2: include post-execution styling; Story C4: image)
+        // Successor H6 (2026-05-14, story
+        // `backlog-routing-update-view-object-parent-bounds-followup`):
+        // post-command-build parent-bounds check on the raw update-view-object
+        // path. Sibling-symmetric with Successor E's post-autoNudge pass (line
+        // 3706-3752) and Successor E.b's post-spacing-tool pass (line 7291-7340)
+        // — together they make resizeParentGroupIfNeeded the single source of
+        // truth across the three convenience-tool layers (autoNudge / spacing
+        // / update-view-object).
+        //
+        // Gate: only run when the caller explicitly modified bounds OR the
+        // W2 icon-band block above grew mergedHeight without the caller
+        // passing a bounds field (so the grandparent-group cascade still
+        // fires for that case). Skips no-op styling-only updates so
+        // pre-existing overflow from prior workflow steps is not silently
+        // "fixed" as a side effect.
+        //
+        // When overflow is detected, the user's UpdateViewObjectCommand and the
+        // helper's parent-resize commands are wrapped into a single
+        // NonNotifyingCompoundCommand so they execute as one undo step.
+        boolean boundsModified = (x != null) || (y != null) || (width != null) || (height != null) || w2IconBandFired;
+        if (boundsModified) {
+            EObject container = diagramObj.eContainer();
+            if (container instanceof IDiagramModelGroup parentGroup) {
+                Map<String, int[]> virtualGroupBounds = new LinkedHashMap<>();
+                Map<String, Command> groupResizeCommands = new LinkedHashMap<>();
+                resizeParentGroupIfNeeded(parentGroup, diagramObj,
+                        mergedX, mergedY, mergedWidth, mergedHeight,
+                        virtualGroupBounds, groupResizeCommands);
+                if (!groupResizeCommands.isEmpty()) {
+                    NonNotifyingCompoundCommand compound = new NonNotifyingCompoundCommand(
+                            "Update view object bounds with parent-group resize (Successor H6)");
+                    compound.add(cmd);
+                    for (Command resize : groupResizeCommands.values()) {
+                        compound.add(resize);
+                    }
+                    cmd = compound;
+                }
+            }
+        }
+
+        // Build DTO — generic for all view object types (Story 11-2: include post-execution styling; Story C4: image;
+        // story backlog-group-element-styling-surface: include post-execution figureType + textAlignment + verticalTextAlignment)
         String dtoFillColor = StylingHelper.computePostStylingColor(StylingHelper.readFillColor(diagramObj), styling != null ? styling.fillColor() : null);
         String dtoLineColor = StylingHelper.computePostStylingColor(StylingHelper.readLineColor(diagramObj), styling != null ? styling.lineColor() : null);
         String dtoFontColor = StylingHelper.computePostStylingColor(StylingHelper.readFontColor(diagramObj), styling != null ? styling.fontColor() : null);
         Integer dtoOpacity = StylingHelper.computePostStylingOpacity(StylingHelper.readOpacity(diagramObj), styling != null ? styling.opacity() : null);
         Integer dtoLineWidth = StylingHelper.computePostStylingLineWidth(StylingHelper.readLineWidth(diagramObj), styling != null ? styling.lineWidth() : null);
+        String dtoFigureType = StylingHelper.computePostStylingFigureType(StylingHelper.readFigureType(diagramObj), styling != null ? styling.figureType() : null);
+        String dtoTextAlignment = StylingHelper.computePostStylingTextAlignment(StylingHelper.readTextAlignment(diagramObj), styling != null ? styling.textAlignment() : null);
+        String dtoVerticalTextAlignment = StylingHelper.computePostStylingVerticalTextAlignment(StylingHelper.readVerticalTextAlignment(diagramObj), styling != null ? styling.verticalTextAlignment() : null);
 
         // Story C4: Compute post-execution image fields
         String dtoImagePath = computePostImagePath(diagramObj, imageParams);
@@ -9812,7 +12970,8 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                     mergedWidth, mergedHeight,
                     dtoFillColor, dtoLineColor, dtoFontColor, dtoOpacity, dtoLineWidth,
                     dtoImagePath, dtoImagePosition, dtoShowIcon,
-                    dtoCoveragePercent, dtoCoverageWarning);
+                    dtoCoveragePercent, dtoCoverageWarning,
+                    dtoFigureType, dtoTextAlignment, dtoVerticalTextAlignment);
         } else {
             // Group or note — no element association
             dto = new ViewObjectDto(
@@ -9821,7 +12980,8 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                     mergedWidth, mergedHeight,
                     dtoFillColor, dtoLineColor, dtoFontColor, dtoOpacity, dtoLineWidth,
                     dtoImagePath, dtoImagePosition, dtoShowIcon,
-                    dtoCoveragePercent, dtoCoverageWarning);
+                    dtoCoveragePercent, dtoCoverageWarning,
+                    dtoFigureType, dtoTextAlignment, dtoVerticalTextAlignment);
         }
 
         return new PreparedMutation<>(cmd, dto, viewObjectId);
@@ -9878,8 +13038,58 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         int mergedWidth = (width != null) ? width : bounds.getWidth();
         int mergedHeight = (height != null) ? height : bounds.getHeight();
 
+        // Backlog W2 sibling-symmetric with `prepareUpdateViewObject` (see
+        // matching block in the primary path): icon-band parent-resize at the
+        // MUTATION moment on the bulk-mutate back-reference path.
+        boolean w2IconBandFired = false;
+        if (imageParams != null && imageParams.imagePosition() != null
+                && diagramObj instanceof IDiagramModelContainer w2Container) {
+            int requestedPos = ImageParams.positionToInt(imageParams.imagePosition());
+            if (requestedPos == 6 || requestedPos == 8) {
+                List<int[]> childRects = new ArrayList<>();
+                for (IDiagramModelObject c : w2Container.getChildren()) {
+                    IBounds cb = c.getBounds();
+                    childRects.add(new int[] {cb.getX(), cb.getY(), cb.getWidth(), cb.getHeight()});
+                }
+                if (ImageHelper.anyChildOccupiesIconBand(mergedWidth, mergedHeight,
+                        requestedPos, W2_ICON_SIZE, W2_ICON_MARGIN, childRects)) {
+                    mergedHeight = mergedHeight + ImageHelper.ICON_BAND_HEIGHT;
+                    w2IconBandFired = true;
+                }
+            }
+        }
+
         // Build command (with optional styling and image update)
         Command cmd = new UpdateViewObjectCommand(diagramObj, mergedX, mergedY, mergedWidth, mergedHeight, null, styling, imageParams);
+
+        // Successor H6 (2026-05-14): post-command-build parent-bounds check on
+        // the bulk-mutate back-reference path — sibling-symmetric with the
+        // primary prepareUpdateViewObject insertion (see comment block at the
+        // matching site above) so the H6 invariant holds across BOTH MCP
+        // dispatcher branches in the case "update-view-object" handler.
+        // W2 (2026-05-20): the icon-band block above may have grown
+        // mergedHeight without the caller passing a bounds field; OR-in
+        // w2IconBandFired so the grandparent-group cascade fires for that case.
+        boolean boundsModified = (x != null) || (y != null) || (width != null) || (height != null) || w2IconBandFired;
+        if (boundsModified) {
+            EObject container = diagramObj.eContainer();
+            if (container instanceof IDiagramModelGroup parentGroup) {
+                Map<String, int[]> virtualGroupBounds = new LinkedHashMap<>();
+                Map<String, Command> groupResizeCommands = new LinkedHashMap<>();
+                resizeParentGroupIfNeeded(parentGroup, diagramObj,
+                        mergedX, mergedY, mergedWidth, mergedHeight,
+                        virtualGroupBounds, groupResizeCommands);
+                if (!groupResizeCommands.isEmpty()) {
+                    NonNotifyingCompoundCommand compound = new NonNotifyingCompoundCommand(
+                            "Update view object bounds with parent-group resize (Successor H6)");
+                    compound.add(cmd);
+                    for (Command resize : groupResizeCommands.values()) {
+                        compound.add(resize);
+                    }
+                    cmd = compound;
+                }
+            }
+        }
 
         // Build DTO with post-execution styling and image fields
         String dtoFillColor = StylingHelper.computePostStylingColor(StylingHelper.readFillColor(diagramObj), styling != null ? styling.fillColor() : null);
@@ -9907,7 +13117,10 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 mergedWidth, mergedHeight,
                 dtoFillColor, dtoLineColor, dtoFontColor, dtoOpacity, dtoLineWidth,
                 dtoImagePath, dtoImagePosition, dtoShowIcon,
-                dtoCoveragePercent, dtoCoverageWarning);
+                dtoCoveragePercent, dtoCoverageWarning,
+                StylingHelper.readFigureType(diagramObj),
+                StylingHelper.readTextAlignment(diagramObj),
+                StylingHelper.readVerticalTextAlignment(diagramObj));
 
         return new PreparedMutation<>(cmd, dto, diagramObj.getId());
     }
@@ -12310,6 +15523,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         ImageHelper.applyImageToNewObject(diagramObj, imageParams);
 
         // Build view object DTO with styling and image fields
+        // (story backlog-group-element-styling-surface: include figureType + textAlignment + verticalTextAlignment)
         ViewObjectDto viewObjectDto = new ViewObjectDto(
                 diagramObj.getId(), element.getId(), element.getName(),
                 element.eClass().getName(), resolvedX, resolvedY,
@@ -12318,13 +15532,30 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 StylingHelper.readFontColor(diagramObj), StylingHelper.readOpacity(diagramObj),
                 StylingHelper.readLineWidth(diagramObj),
                 ImageHelper.readImagePath(diagramObj), ImageHelper.readImagePosition(diagramObj),
-                ImageHelper.readShowIcon(diagramObj), null, null);
+                ImageHelper.readShowIcon(diagramObj), null, null,
+                StylingHelper.readFigureType(diagramObj),
+                StylingHelper.readTextAlignment(diagramObj),
+                StylingHelper.readVerticalTextAlignment(diagramObj));
 
         IDiagramModelContainer parentContainer = resolveParentContainer(
                 view, parentViewObjectId, batchParentContainer);
 
         // autoConnect forced false for bulk (no connection scanning)
         Command cmd = new AddToViewCommand(diagramObj, parentContainer);
+
+        // Backlog W2 sibling-symmetric with `prepareAddToView` (see post-wrap
+        // block at line ~12035): icon-band parent-resize on the bulk-mutate
+        // back-reference path so corner-anchored icons stay un-obscured
+        // whether the LLM uses the single-tool surface or the bulk one.
+        Command w2ParentResize = computeIconBandParentResizeCommand(
+                parentContainer, resolvedX, resolvedY, resolvedWidth, resolvedHeight);
+        if (w2ParentResize != null) {
+            NonNotifyingCompoundCommand w2Wrap = new NonNotifyingCompoundCommand(
+                    "Add view object with icon-band parent-resize (W2, bulk-mutate path)");
+            w2Wrap.add(w2ParentResize);
+            w2Wrap.add(cmd);
+            cmd = w2Wrap;
+        }
 
         AddToViewResultDto resultDto = new AddToViewResultDto(
                 viewObjectDto, null, null);
@@ -12620,6 +15851,12 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
     /**
      * Extracts optional styling parameters from bulk operation params.
      * Returns null if no styling params are present.
+     *
+     * <p>Story {@code backlog-group-element-styling-surface}: includes the three
+     * new fields {@code figureType}, {@code textAlignment}, {@code verticalTextAlignment}
+     * — read via {@link #optionalParam} (empty-string treated as null since these have
+     * no symmetric "clear" semantics, matching the handler's
+     * {@code extractStylingParams} convention).</p>
      */
     private StylingParams extractBulkStylingParams(Map<String, Object> params) {
         String fillColor = optionalColorParam(params, "fillColor");
@@ -12627,11 +15864,16 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         String fontColor = optionalColorParam(params, "fontColor");
         Integer opacity = optionalIntParam(params, "opacity");
         Integer lineWidth = optionalIntParam(params, "lineWidth");
+        String figureType = optionalParam(params, "figureType");
+        String textAlignment = optionalParam(params, "textAlignment");
+        String verticalTextAlignment = optionalParam(params, "verticalTextAlignment");
         if (fillColor == null && lineColor == null && fontColor == null
-                && opacity == null && lineWidth == null) {
+                && opacity == null && lineWidth == null
+                && figureType == null && textAlignment == null && verticalTextAlignment == null) {
             return null;
         }
-        return new StylingParams(fillColor, lineColor, fontColor, opacity, lineWidth);
+        return new StylingParams(fillColor, lineColor, fontColor, opacity, lineWidth,
+                figureType, textAlignment, verticalTextAlignment);
     }
 
     /**
@@ -12852,6 +16094,468 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
         }
         mutationDispatcher.dispatchImmediate(cmd);
         return null;
+    }
+
+    // ---- Control-loop adapters (Story
+    //      backlog-convenience-tool-control-loop-architectural-redesign
+    //      Task 3.5b, 2026-05-15) ----
+
+    /**
+     * Converts an {@link AssessLayoutResultDto} into the pure-EMF-free
+     * {@link LayoutMetrics} snapshot the {@link SpacingControlLoop} consumes.
+     *
+     * <p><strong>Decision-A.1.3 = α''' Fix-2 (RC-2), Session 11 (2026-05-16),
+     * Task 10.5.</strong> The {@code thresholdsMet} aggregate was the
+     * 4-condition binary-at-zero pseudo-aggregate resolved at architecture-spec
+     * § 1.10 Appendix Q1 (Session-3 party-mode): {@code (coincSeg==0) +
+     * (M4==0) + (boundaryViolations.isEmpty()) + (HPQ>=0.75)}, range [0,4]. RC-2
+     * (Task 10.2 root-cause diagnosis): on dense gate views the {@code M4==0} /
+     * {@code coincSeg==0} bits are dead weight (M4 stays 3–18), collapsing the
+     * signal to a hypersensitive 2-bit proxy → deterministic iteration-0 revert
+     * across Sessions 6–10. It is now the graded intrinsic
+     * {@link LayoutQualityScalar#qualityScalar} (range [0,
+     * {@value LayoutQualityScalar#MAX_QUALITY_SCALAR}]) per the Task 10.4
+     * party-mode-ratified design
+     * ({@code control-loop-redesign-empirical-2026-05-15-session10/task-10-4-party-mode-resolution.md}
+     * § 3.2). The back-off predicate
+     * {@link SpacingControlLoop#acceptStepDecision} is UNCHANGED — it still
+     * compares this value as a single opaque scalar; only the range widens
+     * [0,4] → [0,12], preserving AC-3 +
+     * {@code feedback_discipline_rules_aggregate_not_per_metric.md}.</p>
+     */
+    private static LayoutMetrics toLayoutMetrics(AssessLayoutResultDto a) {
+        int boundaryViolationsCount = (a.boundaryViolations() == null)
+                ? 0 : a.boundaryViolations().size();
+        int passThroughCount = (a.connectionPassThroughs() == null)
+                ? 0 : a.connectionPassThroughs().size();
+        int thresholdsMet = LayoutQualityScalar.qualityScalar(
+                boundaryViolationsCount,
+                passThroughCount,
+                a.overlapCount(),
+                a.connectionEdgeCoincidenceCount(),
+                a.coincidentSegmentCount(),
+                a.hubPortQualityScore());
+        double vp10 = (a.vAxisParallelGapP10() == null)
+                ? 0.0 : a.vAxisParallelGapP10();
+        return new LayoutMetrics(
+                thresholdsMet,
+                a.hubPortQualityScore(),
+                a.connectionEdgeCoincidenceCount(),
+                a.coincidentSegmentCount(),
+                boundaryViolationsCount,
+                vp10,
+                a.edgeCrossingCount(),
+                // Story `backlog-control-loop-density-aware-termination`
+                // AC-3: the AC-2 spacing-regime-position axis input, sourced
+                // from the EXISTING assess read (NOT a new
+                // LayoutQualityAssessor metric). Canonical 8-arg form — every
+                // OTHER `new LayoutMetrics(...)` site keeps the 7-arg
+                // delegating ctor (avgSpacingPx = NaN → density discriminator
+                // inert → row-703 pin baseline preserved, AC-1/AC-7/AC-12).
+                a.averageSpacing());
+    }
+
+    /**
+     * Story `backlog-control-loop-density-aware-termination` AC-2/AC-3 —
+     * captures the dominant-hub descriptor for the density-aware
+     * discriminator's hub sub-signal + the AC-6 PASS-honest diagnosis, from
+     * the EXISTING {@code detectHubElements} read ONLY (NOT a new
+     * {@code LayoutQualityAssessor} metric). The first element is the
+     * highest-fan-out hub ({@code detectHubElements} sorts by connection
+     * count descending). Returns {@code null} (hub sub-signal absent) on any
+     * failure or when the view has no hub element.
+     */
+    private HubExtent captureHubExtent(String viewId) {
+        try {
+            DetectHubElementsResultDto hubs = detectHubElements(viewId);
+            if (hubs == null || hubs.elements() == null
+                    || hubs.elements().isEmpty()) {
+                return null;
+            }
+            HubElementEntryDto top = hubs.elements().get(0);
+            return new HubExtent(top.connectionCount(),
+                    top.width(), top.height());
+        } catch (RuntimeException e) {
+            logger.warn("captureHubExtent failed (viewId={}); density-aware "
+                    + "hub sub-signal absent for this run", viewId, e);
+            return null;
+        }
+    }
+
+    /**
+     * Story `backlog-st-spacing-precondition-structural-reflow` (row 777) —
+     * the thin EMF read-site for the SOUND one-sided pre-routing
+     * infeasibility certificate (the owner-ratified Lever B; gate-decided).
+     * Sibling-symmetric with the shipped {@code rnb.degraded()} pre-loop
+     * short-circuit: a pure pre-loop test ⇒ DTO-return-without-loop-entry.
+     *
+     * <p>Computes the element-union canvas geometry over the view's
+     * <strong>ArchiMate elements ONLY</strong> (groups / notes excluded — the
+     * Task-0.3 calibration N) using the SAME absolute-coordinate convention
+     * {@link ConnectionResponseBuilder#computeAbsoluteCenter} uses (the
+     * parent-chain offset walk), reusing the EXISTING
+     * {@link #collectAllViewObjectMap} reader. NO new
+     * {@code LayoutQualityAssessor} metric (AC-9) — only reads already
+     * available at the Request-build site. The (pure, JUnitCore-pinned)
+     * decision is delegated to
+     * {@link SpacingPreconditionInfeasibilityCertificate}; this method never
+     * touches — and is byte-disjoint from — {@link SpacingControlLoop}
+     * (AC-4).
+     *
+     * <p>Any failure ⇒ {@link SpacingPreconditionInfeasibilityCertificate.Decision#proceed()}
+     * (Type-II safe — the loop runs exactly as today; zero regression).
+     */
+    private SpacingPreconditionInfeasibilityCertificate.Decision
+            evaluateSpacingPrecondition(IArchimateModel model,
+                    String viewId, LayoutMetrics initialMetrics) {
+        try {
+            EObject viewObj =
+                    ArchimateModelUtils.getObjectByID(model, viewId);
+            if (!(viewObj instanceof IArchimateDiagramModel diagramModel)) {
+                return SpacingPreconditionInfeasibilityCertificate.Decision
+                        .proceed();
+            }
+            Map<String, IDiagramModelObject> all = new LinkedHashMap<>();
+            collectAllViewObjectMap(diagramModel, all);
+            int n = 0;
+            long minX = Long.MAX_VALUE;
+            long minY = Long.MAX_VALUE;
+            long maxX = Long.MIN_VALUE;
+            long maxY = Long.MIN_VALUE;
+            double boxDimSum = 0.0;
+            for (IDiagramModelObject dmo : all.values()) {
+                if (!(dmo instanceof IDiagramModelArchimateObject)) {
+                    continue;   // ArchiMate elements ONLY (no groups/notes)
+                }
+                IBounds b = dmo.getBounds();
+                long ax = b.getX();
+                long ay = b.getY();
+                // Resolve to absolute canvas coords — SAME parent-chain walk
+                // as ConnectionResponseBuilder.computeAbsoluteCenter (groups
+                // ARE IDiagramModelObject so their offsets are summed).
+                Object parent = dmo.eContainer();
+                while (parent instanceof IDiagramModelObject p) {
+                    IBounds pb = p.getBounds();
+                    ax += pb.getX();
+                    ay += pb.getY();
+                    parent = p.eContainer();
+                }
+                int w = b.getWidth();
+                int h = b.getHeight();
+                minX = Math.min(minX, ax);
+                minY = Math.min(minY, ay);
+                maxX = Math.max(maxX, ax + w);
+                maxY = Math.max(maxY, ay + h);
+                boxDimSum += (w + h) / 2.0;
+                n++;
+            }
+            if (n <= 0) {
+                return SpacingPreconditionInfeasibilityCertificate.Decision
+                        .proceed();
+            }
+            double area = (double) (maxX - minX) * (double) (maxY - minY);
+            double avgBoxDim = boxDimSum / n;
+            HubExtent hub = captureHubExtent(viewId);
+            double measuredAvg = initialMetrics != null
+                    ? initialMetrics.avgSpacingPx() : Double.NaN;
+            Integer hubW = hub != null ? hub.hubWidthPx() : null;
+            Integer hubH = hub != null ? hub.hubHeightPx() : null;
+            Integer hubC = hub != null
+                    ? hub.maxHubConnectionCount() : null;
+            return SpacingPreconditionInfeasibilityCertificate.evaluate(
+                    n, area, avgBoxDim, measuredAvg, hubW, hubH, hubC);
+        } catch (RuntimeException e) {
+            logger.warn("Spacing-precondition certificate evaluation failed "
+                    + "(viewId={}); proceeding to the loop as today", viewId,
+                    e);
+            return SpacingPreconditionInfeasibilityCertificate.Decision
+                    .proceed();
+        }
+    }
+
+    /**
+     * Story `backlog-control-loop-density-aware-termination` AC-4
+     * (owner-ratified "Scoped Option B") — builds the ONE-SHOT escalate
+     * hub-resize. Resizes the dominant hub toward the HH-like fan-out regime
+     * (Story `backlog-control-loop-density-aware-fixes` Fix-2: the
+     * <strong>fan-out-scaled</strong> {@code ≥
+     * SpacingControlLoop.requiredHubMinWidthPx(conns) ×
+     * requiredHubMinHeightPx(conns)} — the SAME minimum the predicate
+     * {@code hubUnderSizedForFanOut} uses, NOT the flat 300×250 base; a
+     * flagged hub therefore ALWAYS resizes strictly larger) via
+     * the EXISTING {@link UpdateViewObjectCommand} (AC-13-clean — the
+     * convenience-tool mutation type {@code computeAdjustViewSpacing}
+     * already emits for group bounds; NOT a {@code RoutingPipeline} /
+     * sibling primitive), wrapped in the SWT-dispatch
+     * {@link GefSpacingMutationCommand} so it inherits the row-703 Session-9
+     * SWT-marshalling + partial-commit graceful-degradation guard and the
+     * single-undo finalize machinery (AC-6).
+     *
+     * <p>Returns {@code null} when there is no LARGE under-sized hub to
+     * resize (escalation then degrades to spacing-only — the loop is
+     * unaffected). The {@link SpacingControlLoop} guarantees this is invoked
+     * at most ONCE per loop (first escalate iteration).</p>
+     */
+    private SpacingMutationCommand buildDensityHubResizeCommand(
+            String viewId, IArchimateModel model) {
+        try {
+            HubExtent he = captureHubExtent(viewId);
+            if (!SpacingControlLoop.hubUnderSizedForFanOut(he)) {
+                return null;
+            }
+            DetectHubElementsResultDto hubs = detectHubElements(viewId);
+            HubElementEntryDto top = hubs.elements().get(0);
+            EObject obj = ArchimateModelUtils.getObjectByID(
+                    model, top.viewObjectId());
+            if (!(obj instanceof IDiagramModelObject dmo)) {
+                return null;
+            }
+            IBounds b = dmo.getBounds();
+            // Story `backlog-control-loop-density-aware-fixes` Fix-2 — the
+            // resize target reads the SAME fan-out-scaled minimum the
+            // predicate {@code hubUnderSizedForFanOut} just used (keyed off
+            // THIS hub's connection count), NOT the flat 300×250 base. This
+            // is the predicate↔resize-target consistency invariant: a hub the
+            // predicate flagged as under-sized for its fan-out ALWAYS resizes
+            // to a strictly-larger target (≥1 dimension grows), so escalate
+            // never degrades to a no-op loop on the very hub it diagnosed.
+            int conns = he.maxHubConnectionCount();
+            int newW = Math.max(b.getWidth(),
+                    SpacingControlLoop.requiredHubMinWidthPx(conns));
+            int newH = Math.max(b.getHeight(),
+                    SpacingControlLoop.requiredHubMinHeightPx(conns));
+            if (newW == b.getWidth() && newH == b.getHeight()) {
+                return null; // already adequate — nothing to resize
+            }
+            Command resize = new UpdateViewObjectCommand(
+                    dmo, b.getX(), b.getY(), newW, newH);
+            // postMetrics unused for the hub-resize adapter — the loop only
+            // drives execute()/undo() on it; observeLayout() reads the
+            // spacing command's cached metrics.
+            return new GefSpacingMutationCommand(resize, /*postMetrics=*/ null);
+        } catch (RuntimeException e) {
+            logger.warn("buildDensityHubResizeCommand failed (viewId={}); "
+                    + "escalation degrades to spacing-only", viewId, e);
+            return null;
+        }
+    }
+
+    /**
+     * Fix-1 (RC-1) carrier — Decision-A.1.3 = α''', Session 11 (2026-05-16),
+     * Task 10.5. Either the route-normalized baseline metrics ({@code degraded
+     * == false}) OR a signal that the tool's own reroute pass materially
+     * degraded the input baseline ({@code degraded == true}; {@code metrics}
+     * carries the bare input metrics, returned untouched per Winston's
+     * party-mode guarded-form safety net — see
+     * {@link SpacingControlLoop#REASON_REROUTE_DEGRADED_INPUT_BASELINE}).
+     */
+    private record RouteNormalizedBaseline(
+            LayoutMetrics metrics, boolean degraded) {
+        static RouteNormalizedBaseline ok(LayoutMetrics m) {
+            return new RouteNormalizedBaseline(m, false);
+        }
+        static RouteNormalizedBaseline degraded(LayoutMetrics bare) {
+            return new RouteNormalizedBaseline(bare, true);
+        }
+    }
+
+    /**
+     * Fix-1 (RC-1) — Decision-A.1.3 = α''', Session 11 (2026-05-16), Task
+     * 10.5. Route-normalizes the pre-loop baseline so it is measured on the
+     * SAME routing basis as every per-step {@code postState}.
+     *
+     * <p><strong>Root cause (Task 10.2
+     * {@code decision-a13-diagnosis.md} RC-1).</strong> The accessor closures
+     * seeded {@code SpacingControlLoop.iterate}'s {@code bestState =
+     * request.initialMetrics()} from {@code toLayoutMetrics(before)} where
+     * {@code before = assessLayout(viewId)} — a bare, <em>un-rerouted</em>
+     * post-hub-resize assessment. Every per-step {@code postState} is
+     * <em>freshly re-routed</em> ({@code computeAdjustViewSpacing} step 8).
+     * The AC-3 STOP predicate compared states on different routing bases, so
+     * the first rerouted step ≈ always strictly regressed vs the un-rerouted
+     * baseline → the deterministic
+     * {@code aggregate_threshold_regressed_at_iteration_0_reverted_to_initial_state}
+     * symptom (100% of Arm B convenience-tool calls, Sessions 6–10).</p>
+     *
+     * <p><strong>Fix.</strong> Capture the baseline via the SAME temp-route →
+     * assess → undo dance {@link #computeAdjustViewSpacing} performs (steps
+     * 8–10) with NO spacing delta (route-only). Lives in the accessor (EMF)
+     * layer — preserves AC-1 ({@link SpacingControlLoop} stays pure-EMF-free;
+     * route-normalization never enters {@code iterate}). The temp route
+     * dispatch is undone in a {@code finally} → ZERO net mutation leaked
+     * (AC-6; Task 10.6 T1 pins zero leak; the route compound is never added to
+     * any accepted-commands compound).</p>
+     *
+     * <p><strong>Winston's guarded form (party-mode § 2).</strong> If the
+     * route-normalized baseline scores a strictly lower
+     * {@link LayoutMetrics#thresholdsMet()} than the bare baseline, the
+     * tool's own reroute degraded the input — return
+     * {@link RouteNormalizedBaseline#degraded} so the caller returns the bare
+     * input untouched with
+     * {@link SpacingControlLoop#REASON_REROUTE_DEGRADED_INPUT_BASELINE},
+     * preserving the accidental safety net deliberately. If
+     * {@code computeAutoRoutePass} returns null (nothing to route) or throws,
+     * fall back to the bare baseline (route-only normalization was a no-op or
+     * unavailable; bare == normalized basis).</p>
+     *
+     * @param viewId     the view under control-loop optimization
+     * @param model      the owning model (for {@code getObjectByID})
+     * @param bareBefore the bare {@code assessLayout(viewId)} the caller
+     *                   already captured
+     * @return route-normalized baseline, or a degraded-input signal
+     */
+    private RouteNormalizedBaseline routeNormalizedBaseline(
+            String viewId, IArchimateModel model,
+            AssessLayoutResultDto bareBefore) {
+        LayoutMetrics bare = toLayoutMetrics(bareBefore);
+        EObject viewObj = ArchimateModelUtils.getObjectByID(model, viewId);
+        if (!(viewObj instanceof IArchimateDiagramModel diagramModel)) {
+            return RouteNormalizedBaseline.ok(bare);
+        }
+        AssessLayoutResultDto routeNormAssessment;
+        try {
+            AutoRoutePassResult routeResult =
+                    computeAutoRoutePass(viewId, diagramModel, model);
+            if (routeResult == null) {
+                // Nothing to route — bare basis == route-normalized basis.
+                return RouteNormalizedBaseline.ok(bare);
+            }
+            // AC-6 zero-leak: the temp route dispatch is undone iff it
+            // actually happened. The `dispatched` counter-guard (matching
+            // the established `undoCount` idiom in computeAdjustViewSpacing
+            // steps 7-10) makes the undo UNCONDITIONAL for every path where
+            // dispatchImmediate succeeded — and a no-op (correctly) when
+            // dispatchImmediate itself threw before mutating, so no phantom
+            // undo of a non-dispatch. Addresses AC-13 review Finding 1
+            // (Session 11 cross-model review).
+            boolean dispatched = false;
+            try {
+                mutationDispatcher.dispatchImmediate(routeResult.compound);
+                dispatched = true;
+                routeNormAssessment = assessLayout(viewId);
+            } finally {
+                if (dispatched) {
+                    mutationDispatcher.undo(1);
+                }
+            }
+        } catch (RuntimeException e) {
+            logger.warn("Route-normalized baseline pass failed "
+                    + "(viewId={}); falling back to bare baseline", viewId, e);
+            return RouteNormalizedBaseline.ok(bare);
+        }
+        LayoutMetrics routeNorm = toLayoutMetrics(routeNormAssessment);
+        if (routeNorm.thresholdsMet() < bare.thresholdsMet()) {
+            // Winston's guarded form — the tool's reroute degraded the
+            // input. Preserve the safety net deliberately.
+            return RouteNormalizedBaseline.degraded(bare);
+        }
+        return RouteNormalizedBaseline.ok(routeNorm);
+    }
+
+    /**
+     * Validates and resolves the optional caller-supplied iteration budget
+     * against the per-tool default (5 element / 5 group / 8 composer per
+     * Story AC-4). Null → default. Out-of-range [1, 20] → throw
+     * {@link ModelAccessException} INVALID_PARAMETER per architecture-spec
+     * § 1.4 handler-level validation contract.
+     */
+    private static int resolveIterationBudget(
+            Integer caller, int defaultBudget) throws ModelAccessException {
+        int budget = (caller != null) ? caller : defaultBudget;
+        if (budget < 1 || budget > 20) {
+            throw new ModelAccessException(
+                    "iterationBudget must be in [1, 20]; got: " + budget,
+                    ErrorCode.INVALID_PARAMETER);
+        }
+        return budget;
+    }
+
+    /**
+     * Maps an entry-guard short-circuit (from {@code ApplyXxxDecision.decide}
+     * or {@code ApplySpacingDecision.decide}) to the AC-5 (d)/(e)
+     * {@code terminationReason} taxonomy string per architecture-spec § 1.5.
+     *
+     * <p>Inputs:
+     * <ul>
+     *   <li>{@code dryRun} — true → {@code "dry_run_recommendation_not_applied"} (AC-5 (e) sub-string).</li>
+     *   <li>{@code noChangeReason} — the decision record's reason string;
+     *       mapped verbatim or prefixed with {@code structural_no_change_}.</li>
+     * </ul></p>
+     *
+     * <p>The decision-record's {@code noChangeReason} strings are
+     * human-meaningful (e.g., "Current spacing already meets/exceeds heuristic")
+     * and surface verbatim to the LLM agent via the
+     * {@code structural_no_change_<reason>} prefix. Dry-run + heuristic-already-
+     * met fall under the AC-5 (e) sub-string family.</p>
+     */
+    private static String mapEntryGuardToTerminationReason(
+            boolean dryRun, String noChangeReason) {
+        if (dryRun) {
+            return "dry_run_recommendation_not_applied";
+        }
+        if (noChangeReason == null) {
+            return "structural_no_change_unknown";
+        }
+        String lower = noChangeReason.toLowerCase();
+        if (lower.contains("already meets") || lower.contains("already at")
+                || lower.contains("already exceeds")) {
+            return SpacingControlLoop.REASON_HEURISTIC_ALREADY_MET;
+        }
+        return "structural_no_change_"
+                + noChangeReason
+                        .replaceAll("[^A-Za-z0-9]+", "_")
+                        .toLowerCase()
+                        .replaceAll("^_+|_+$", "");
+    }
+
+    /**
+     * Adapter wrapping a GEF {@link Command} as a
+     * {@link SpacingMutationCommand} so the {@link SpacingControlLoop} can
+     * drive {@link Command#execute()} + {@link Command#undo()} via the
+     * pure-EMF-free callback interface. Carries the iteration's post-state
+     * {@link LayoutMetrics} captured by the
+     * {@link #computeAdjustViewSpacing} helper during its temp-apply +
+     * assess + undo dance (architecture-spec § 1.6).
+     */
+    private static final class GefSpacingMutationCommand
+            implements SpacingMutationCommand {
+        private final Command gefCommand;
+        private final LayoutMetrics postMetrics;
+
+        GefSpacingMutationCommand(Command gefCommand, LayoutMetrics postMetrics) {
+            this.gefCommand = gefCommand;
+            this.postMetrics = postMetrics;
+        }
+
+        Command gefCommand() {
+            return gefCommand;
+        }
+
+        LayoutMetrics postMetrics() {
+            return postMetrics;
+        }
+
+        /**
+         * Marshals execute to the SWT UI thread via
+         * {@link SwtUiThreadDispatcher#runOnUiThread} — Decision-A.1.2 = α''
+         * targeted fix (Session 9, 2026-05-15) for the Sessions 6-8
+         * {@code iteration_apply_failed_at_iteration_0} deterministic failure.
+         * Root cause + diagnosis in
+         * {@code _bmad-output/implementation-artifacts/control-loop-redesign-empirical-2026-05-15-session9/runtime-log-stack-traces.md}.
+         */
+        @Override
+        public void execute() {
+            SwtUiThreadDispatcher.runOnUiThread(gefCommand::execute);
+        }
+
+        /**
+         * Marshals undo to the SWT UI thread — symmetric with execute. See
+         * {@link #execute()} for fix rationale.
+         */
+        @Override
+        public void undo() {
+            SwtUiThreadDispatcher.runOnUiThread(gefCommand::undo);
+        }
     }
 
     // ---- Approval helpers (Story 7-6) ----
@@ -13159,7 +16863,10 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         StylingHelper.readLineWidth(groupObj),
                         ImageHelper.readImagePath(groupObj),
                         ImageHelper.readImagePosition(groupObj),
-                        ImageHelper.readShowIcon(groupObj)));
+                        ImageHelper.readShowIcon(groupObj),
+                        StylingHelper.readFigureType(groupObj),
+                        StylingHelper.readTextAlignment(groupObj),
+                        StylingHelper.readVerticalTextAlignment(groupObj)));
 
                 // Recurse into group's children
                 collectViewContents(groupObj, elements, relationships, visualMetadata,
@@ -13187,7 +16894,9 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         null, // note field
                         ImageHelper.readImagePath(noteObj),
                         ImageHelper.readImagePosition(noteObj),
-                        ImageHelper.readShowIcon(noteObj)));
+                        ImageHelper.readShowIcon(noteObj),
+                        StylingHelper.readTextAlignment(noteObj),
+                        StylingHelper.readVerticalTextAlignment(noteObj)));
                 continue; // Notes are not containers, no recursion needed
             }
 
@@ -13274,6 +16983,8 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
      * A plateau is reached when the rating and score are unchanged AND
      * average spacing has not improved by more than 1.0px.
      * Package-visible for testing.
+     * Superseded by {@link #isFactorAwarePlateauReached} (B62-5) which considers
+     * limiting-factor shifts and factor-count improvements.
      */
     static boolean isPlateauReached(String rating, String previousRating,
             int score, int previousScore,
@@ -13282,6 +16993,37 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 && Math.abs(avgSpacing - previousAvgSpacing) > 1.0;
         return rating.equals(previousRating) && score == previousScore
                 && !spacingImproved;
+    }
+
+    /**
+     * Factor-aware plateau detection (B62-5). Returns true (plateau) only when the
+     * limiting factor is the same, its count has not improved, and the rating is unchanged.
+     * A factor shift (e.g., crossings → pass-throughs) or factor count improvement
+     * indicates structural progress and prevents premature stopping.
+     * Package-visible for testing.
+     */
+    static boolean isFactorAwarePlateauReached(
+            String limitingFactor, String previousLimitingFactor,
+            int factorCount, int previousFactorCount,
+            String rating, String previousRating) {
+        // First iteration (no previous state) — never a plateau
+        if (previousLimitingFactor == null) {
+            return false;
+        }
+        // All metrics pass (null current factor) — not a plateau; target-met handles exit
+        if (limitingFactor == null) {
+            return false;
+        }
+        // Factor shifted — structural progress, not a plateau
+        if (!limitingFactor.equals(previousLimitingFactor)) {
+            return false;
+        }
+        // Factor count improved — progress on the same bottleneck
+        if (factorCount < previousFactorCount) {
+            return false;
+        }
+        // Same factor, same or worse count, same rating — plateau
+        return rating.equals(previousRating);
     }
 
     /**

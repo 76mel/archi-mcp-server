@@ -501,6 +501,262 @@ public class GroupLayoutCalculatorTest {
 
     // ---- validateGroupGaps ----
 
+    // ---- detectSpacingFromPositions (B68) ----
+
+    @Test
+    public void detectSpacing_row_shouldDetectMinHorizontalGap() {
+        // 3 elements in a row: x=10 w=120, x=230 w=150, x=480 w=100
+        // Gaps: 230-(10+120)=100, 480-(230+150)=100
+        List<int[]> positions = List.of(
+                new int[]{10, 34, 120, 55},
+                new int[]{230, 34, 150, 55},
+                new int[]{480, 34, 100, 55});
+
+        assertEquals(100, GroupLayoutCalculator.detectSpacingFromPositions(positions, "row"));
+    }
+
+    @Test
+    public void detectSpacing_row_variableSizes_shouldDetectSmallestGap() {
+        // Elements with different widths, gaps of 40 and 60
+        List<int[]> positions = List.of(
+                new int[]{10, 34, 100, 55},
+                new int[]{150, 34, 80, 55},   // gap = 150 - 110 = 40
+                new int[]{290, 34, 120, 55});  // gap = 290 - 230 = 60
+
+        assertEquals(40, GroupLayoutCalculator.detectSpacingFromPositions(positions, "row"));
+    }
+
+    @Test
+    public void detectSpacing_column_shouldDetectMinVerticalGap() {
+        // 3 elements in a column: y=34 h=55, y=129 h=70, y=239 h=55
+        // Gaps: 129-(34+55)=40, 239-(129+70)=40
+        List<int[]> positions = List.of(
+                new int[]{10, 34, 120, 55},
+                new int[]{10, 129, 120, 70},
+                new int[]{10, 239, 120, 55});
+
+        assertEquals(40, GroupLayoutCalculator.detectSpacingFromPositions(positions, "column"));
+    }
+
+    @Test
+    public void detectSpacing_grid_shouldDetectMinOfBothAxes() {
+        // 4 elements in 2x2 grid, horizontal gap=80, vertical gap=60
+        List<int[]> positions = List.of(
+                new int[]{10, 34, 100, 50},
+                new int[]{190, 34, 100, 50},   // hGap = 190-110 = 80
+                new int[]{10, 144, 100, 50},   // vGap = 144-84 = 60
+                new int[]{190, 144, 100, 50});
+
+        assertEquals(60, GroupLayoutCalculator.detectSpacingFromPositions(positions, "grid"));
+    }
+
+    @Test
+    public void detectSpacing_singleElement_shouldReturnDefault() {
+        List<int[]> positions = List.of(new int[]{10, 34, 120, 55});
+
+        assertEquals(GroupLayoutCalculator.DEFAULT_DETECTED_SPACING,
+                GroupLayoutCalculator.detectSpacingFromPositions(positions, "row"));
+    }
+
+    @Test
+    public void detectSpacing_emptyList_shouldReturnDefault() {
+        assertEquals(GroupLayoutCalculator.DEFAULT_DETECTED_SPACING,
+                GroupLayoutCalculator.detectSpacingFromPositions(List.of(), "row"));
+    }
+
+    // ---- detectPaddingFromPositions (B68) ----
+
+    @Test
+    public void detectPadding_standardPadding10_shouldDetect10() {
+        // Group 300x200, children start at x=10, y=34 (10 + 24 label height)
+        // Last child: x=10+120=130 → rightPadding = 300-130=170
+        // Bottom child: y=34+55=89 → bottomPadding = 200-89=111
+        // leftPadding=10, topPadding=34-24=10
+        List<int[]> positions = List.of(new int[]{10, 34, 120, 55});
+
+        assertEquals(10, GroupLayoutCalculator.detectPaddingFromPositions(positions, 300, 200));
+    }
+
+    @Test
+    public void detectPadding_padding20_shouldDetect20() {
+        // Children start at x=20, y=44 (20 + 24), group 400x300
+        List<int[]> positions = List.of(
+                new int[]{20, 44, 120, 55},
+                new int[]{20, 139, 120, 55});  // y=44+55+40=139
+
+        // leftPadding=20, topPadding=44-24=20
+        assertEquals(20, GroupLayoutCalculator.detectPaddingFromPositions(positions, 400, 300));
+    }
+
+    @Test
+    public void detectPadding_emptyPositions_shouldReturnDefault() {
+        assertEquals(GroupLayoutCalculator.DEFAULT_DETECTED_PADDING,
+                GroupLayoutCalculator.detectPaddingFromPositions(List.of(), 300, 200));
+    }
+
+    // ---- computeInterGroupShifts (B68) ----
+
+    @Test
+    public void interGroupShifts_horizontalGroups_shouldShiftInX() {
+        // 3 groups side by side: x=20, x=300, x=580
+        List<int[]> groups = List.of(
+                new int[]{20, 20, 260, 400},
+                new int[]{300, 20, 260, 400},
+                new int[]{580, 20, 260, 400});
+
+        List<int[]> shifted = GroupLayoutCalculator.computeInterGroupShifts(groups, 40);
+
+        // Group 0: x stays at 20 (rank 0, shift=0)
+        assertEquals(20, shifted.get(0)[0]);
+        // Group 1: x = 300 + 1*40 = 340
+        assertEquals(340, shifted.get(1)[0]);
+        // Group 2: x = 580 + 2*40 = 660
+        assertEquals(660, shifted.get(2)[0]);
+        // Y unchanged for all
+        assertEquals(20, shifted.get(0)[1]);
+        assertEquals(20, shifted.get(1)[1]);
+        assertEquals(20, shifted.get(2)[1]);
+        // Dimensions preserved
+        assertEquals(260, shifted.get(0)[2]);
+        assertEquals(400, shifted.get(0)[3]);
+    }
+
+    @Test
+    public void interGroupShifts_verticalGroups_shouldShiftInY() {
+        // 3 groups stacked vertically: y=20, y=300, y=580
+        List<int[]> groups = List.of(
+                new int[]{20, 20, 400, 260},
+                new int[]{20, 300, 400, 260},
+                new int[]{20, 580, 400, 260});
+
+        List<int[]> shifted = GroupLayoutCalculator.computeInterGroupShifts(groups, 60);
+
+        // X unchanged for all
+        assertEquals(20, shifted.get(0)[0]);
+        assertEquals(20, shifted.get(1)[0]);
+        assertEquals(20, shifted.get(2)[0]);
+        // Group 0: y stays at 20
+        assertEquals(20, shifted.get(0)[1]);
+        // Group 1: y = 300 + 1*60 = 360
+        assertEquals(360, shifted.get(1)[1]);
+        // Group 2: y = 580 + 2*60 = 700
+        assertEquals(700, shifted.get(2)[1]);
+    }
+
+    @Test
+    public void interGroupShifts_singleGroup_shouldReturnUnchanged() {
+        List<int[]> groups = List.of(new int[]{20, 20, 260, 400});
+
+        List<int[]> shifted = GroupLayoutCalculator.computeInterGroupShifts(groups, 40);
+
+        assertEquals(1, shifted.size());
+        assertEquals(20, shifted.get(0)[0]);
+        assertEquals(20, shifted.get(0)[1]);
+    }
+
+    @Test
+    public void interGroupShifts_zeroDelta_shouldReturnUnchanged() {
+        List<int[]> groups = List.of(
+                new int[]{20, 20, 260, 400},
+                new int[]{300, 20, 260, 400});
+
+        List<int[]> shifted = GroupLayoutCalculator.computeInterGroupShifts(groups, 0);
+
+        assertEquals(20, shifted.get(0)[0]);
+        assertEquals(300, shifted.get(1)[0]);
+    }
+
+    @Test
+    public void interGroupShifts_unsortedInput_shouldSortByDominantAxis() {
+        // Groups provided out of order by x
+        List<int[]> groups = List.of(
+                new int[]{580, 20, 260, 400},  // rightmost
+                new int[]{20, 20, 260, 400},   // leftmost
+                new int[]{300, 20, 260, 400}); // middle
+
+        List<int[]> shifted = GroupLayoutCalculator.computeInterGroupShifts(groups, 40);
+
+        // Index 0 (originally x=580) is rank 2 → shift 2*40=80
+        assertEquals(660, shifted.get(0)[0]);
+        // Index 1 (originally x=20) is rank 0 → shift 0
+        assertEquals(20, shifted.get(1)[0]);
+        // Index 2 (originally x=300) is rank 1 → shift 1*40=40
+        assertEquals(340, shifted.get(2)[0]);
+    }
+
+    // ---- detectInterGroupSpacing (RoutingPreconditions.InterGroup) ----
+
+    @Test
+    public void detectInterGroupSpacing_twoHorizontalGroupsGap80_shouldDetect80() {
+        // Group A at x=0 width=100 (right edge=100), group B at x=180 (gap=80)
+        List<int[]> groups = List.of(
+                new int[]{0, 0, 100, 200},
+                new int[]{180, 0, 100, 200});
+
+        assertEquals(80, GroupLayoutCalculator.detectInterGroupSpacing(groups));
+    }
+
+    @Test
+    public void detectInterGroupSpacing_threeVerticalGroupsMinGap40_shouldDetect40() {
+        // Three groups stacked vertically: gap 60, gap 40 → MIN = 40 wins
+        // Y-spread (0..280) > X-spread (0..200) → vertical dominant
+        List<int[]> groups = List.of(
+                new int[]{0, 0, 200, 100},     // bottom edge=100
+                new int[]{0, 160, 200, 80},    // top edge=160 (gap from prev=60)
+                new int[]{0, 280, 200, 100});  // top edge=280 (gap from prev=40)
+
+        assertEquals(40, GroupLayoutCalculator.detectInterGroupSpacing(groups));
+    }
+
+    @Test
+    public void detectInterGroupSpacing_singleGroup_shouldReturnDefault() {
+        List<int[]> groups = List.of(new int[]{0, 0, 100, 100});
+
+        assertEquals(GroupLayoutCalculator.DEFAULT_DETECTED_SPACING,
+                GroupLayoutCalculator.detectInterGroupSpacing(groups));
+    }
+
+    @Test
+    public void detectInterGroupSpacing_overlappingGroups_shouldReturnDefault() {
+        // Two groups fully overlapping on dominant axis (vertical here, since
+        // y-spread=200 > x-spread=180). The single adjacent pair has a
+        // negative gap on the dominant axis, which detectMinGapOnAxis skips.
+        // With no positive gaps observed, the contract returns
+        // DEFAULT_DETECTED_SPACING (sibling-symmetric with
+        // detectSpacingFromPositions). Overlap is a degenerate case in
+        // practice — Archi's UI doesn't auto-produce overlapping top-level
+        // groups, and the convenience tool's heuristic relies on valid
+        // layouts. The 40px "as if default" reading is benign: the tool's
+        // delta computation will still produce a positive delta against
+        // tier targets ≥ 40, and overlap-driven layouts have bigger problems
+        // than spacing.
+        List<int[]> groups = List.of(
+                new int[]{0, 0, 100, 200},
+                new int[]{80, 0, 100, 200});
+
+        assertEquals(GroupLayoutCalculator.DEFAULT_DETECTED_SPACING,
+                GroupLayoutCalculator.detectInterGroupSpacing(groups));
+    }
+
+    @Test
+    public void detectInterGroupSpacing_emptyList_shouldReturnDefault() {
+        assertEquals(GroupLayoutCalculator.DEFAULT_DETECTED_SPACING,
+                GroupLayoutCalculator.detectInterGroupSpacing(List.of()));
+    }
+
+    @Test
+    public void detectInterGroupSpacing_unsortedHorizontalInput_shouldDetectByPosition() {
+        // Groups provided out of x-order: gaps (sorted) are 80 then 50 → MIN=50
+        List<int[]> groups = List.of(
+                new int[]{330, 0, 100, 200},    // rightmost (left edge=330)
+                new int[]{0, 0, 100, 200},      // leftmost (right edge=100)
+                new int[]{180, 0, 100, 200});   // middle (180→280; sorted: 0..100, gap 80, 180..280, gap 50, 330..)
+
+        assertEquals(50, GroupLayoutCalculator.detectInterGroupSpacing(groups));
+    }
+
+    // ---- validateGroupGaps ----
+
     @Test
     public void validateGaps_noOverlap_shouldReturnTrue() {
         // Two groups side by side with gap

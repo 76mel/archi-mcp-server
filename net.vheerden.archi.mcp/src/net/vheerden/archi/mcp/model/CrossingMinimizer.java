@@ -71,12 +71,28 @@ class CrossingMinimizer {
 
     /**
      * Optimizes element order within groups to minimize inter-group edge crossings.
+     * Uses forward sweep (standard processing order) for the barycentric phase.
      *
      * @param groups list of groups with their elements and center positions
      * @param edges  list of inter-group edges
      * @return optimization result with before/after crossing counts and new orderings
      */
     OptimizationResult optimize(List<GroupInfo> groups, List<InterGroupEdge> edges) {
+        return optimize(groups, edges, false);
+    }
+
+    /**
+     * Optimizes element order within groups to minimize inter-group edge crossings.
+     *
+     * @param groups       list of groups with their elements and center positions
+     * @param edges        list of inter-group edges
+     * @param reverseSweep if true, processes groups in reversed order during the
+     *                     barycentric phase (Phase 1), escaping the local minimum
+     *                     that forward-sweep converges to on asymmetric topologies
+     * @return optimization result with before/after crossing counts and new orderings
+     */
+    OptimizationResult optimize(List<GroupInfo> groups, List<InterGroupEdge> edges,
+                                boolean reverseSweep) {
         if (groups == null || groups.isEmpty() || edges == null || edges.isEmpty()) {
             return new OptimizationResult(0, 0, List.of(), Map.of(), 0);
         }
@@ -106,11 +122,16 @@ class CrossingMinimizer {
         int bestCrossings = crossingsBefore;
         Map<String, List<String>> bestOrder = deepCopyOrder(currentOrder);
 
+        // Compute sweep order for Phase 1 barycentric iteration
+        List<GroupInfo> sweepOrder = reverseSweep
+                ? new ArrayList<>(optimizableGroups).reversed()
+                : optimizableGroups;
+
         // Multi-pass barycentric iteration
         for (int iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
             boolean anyChanged = false;
 
-            for (GroupInfo group : optimizableGroups) {
+            for (GroupInfo group : sweepOrder) {
                 String groupId = group.groupId();
                 List<String> order = currentOrder.get(groupId);
 

@@ -92,7 +92,7 @@ public class ToolDiscoveryIntegrationTest {
     @Test
     public void shouldDiscoverAllRegisteredTools() {
         List<McpServerFeatures.SyncToolSpecification> tools = registry.getToolSpecifications();
-        assertEquals("Expected exactly 62 tools (3 ModelQuery + 3 View + 2 Search + 1 Traversal + 2 Session + 2 Folder + 4 Mutation + 4 Creation + 4 Specialization + 2 Update + 2 Discovery + 3 Approval + 20 ViewPlacement + 1 Render + 4 Deletion + 3 FolderMutation + 2 CommandStack)", 62, tools.size());
+        assertEquals("Expected exactly 66 tools (3 ModelQuery + 3 View + 2 Search + 1 Traversal + 2 Session + 2 Folder + 4 Mutation + 4 Creation + 4 Specialization + 2 Update + 2 Discovery + 3 Approval + 24 ViewPlacement + 1 Render + 4 Deletion + 3 FolderMutation + 2 CommandStack)", 66, tools.size());
     }
 
     @Test

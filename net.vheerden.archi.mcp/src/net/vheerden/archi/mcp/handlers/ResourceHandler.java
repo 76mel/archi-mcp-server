@@ -35,35 +35,63 @@ public class ResourceHandler {
 	private static final String MIME_TYPE = "text/markdown";
 	private static final String URI_PREFIX = "archimate://";
 
-	private static final Map<String, ResourceDefinition> RESOURCE_DEFINITIONS = Map.of(
-			"prompts/model-exploration-guide", new ResourceDefinition(
+	private static final Map<String, ResourceDefinition> RESOURCE_DEFINITIONS = Map.ofEntries(
+			Map.entry("prompts/model-exploration-guide", new ResourceDefinition(
 					"Model Exploration Guide",
 					"Strategy guide for LLMs on how to efficiently search and traverse ArchiMate models",
-					"prompts/model-exploration-guide.md"),
-			"prompts/explore-dependencies", new ResourceDefinition(
+					"prompts/model-exploration-guide.md")),
+			Map.entry("prompts/explore-dependencies", new ResourceDefinition(
 					"Explore Dependencies",
 					"Workflow template for systematic dependency analysis of ArchiMate elements",
-					"prompts/explore-dependencies.md"),
-			"prompts/landscape-overview", new ResourceDefinition(
+					"prompts/explore-dependencies.md")),
+			Map.entry("prompts/landscape-overview", new ResourceDefinition(
 					"Landscape Overview",
 					"Workflow template for generating architecture landscape summaries",
-					"prompts/landscape-overview.md"),
-			"reference/archimate-layers", new ResourceDefinition(
+					"prompts/landscape-overview.md")),
+			Map.entry("prompts/routing-preconditions-checklist", new ResourceDefinition(
+					"Routing Preconditions Checklist",
+					"Three-precondition checklist (hub sizing / inter-element spacing / inter-group arrangement) to verify BEFORE calling auto-route-connections or auto-layout-and-route on any non-trivial view.",
+					"prompts/routing-preconditions-checklist.md")),
+			Map.entry("reference/archimate-layers", new ResourceDefinition(
 					"ArchiMate Layers Reference",
-					"Comprehensive mapping of ArchiMate layers to element types with descriptions",
-					"reference/archimate-layers.md"),
-			"reference/archimate-relationships", new ResourceDefinition(
+					"Comprehensive mapping of ArchiMate layers to element types with descriptions, plus a concept-to-element-type decision aid (Component vs Service, Process vs Function, Node vs Component, Actor vs Role)",
+					"reference/archimate-layers.md")),
+			Map.entry("reference/archimate-relationships", new ResourceDefinition(
 					"ArchiMate Relationships Reference",
 					"All ArchiMate relationship types with valid source/target combinations and usage guidance",
-					"reference/archimate-relationships.md"),
-			"reference/archimate-specializations", new ResourceDefinition(
+					"reference/archimate-relationships.md")),
+			Map.entry("reference/archimate-specializations", new ResourceDefinition(
 					"ArchiMate Specializations Reference",
 					"Specialization (IS-A subtype) vocabulary: when to use specializations vs properties, common patterns per layer, and the discovery/create/audit/delete tool pipeline",
-					"reference/archimate-specializations.md"),
-			"reference/archimate-view-patterns", new ResourceDefinition(
+					"reference/archimate-specializations.md")),
+			Map.entry("reference/archimate-view-patterns", new ResourceDefinition(
 					"ArchiMate View Patterns",
 					"Curated viewpoint patterns, layout algorithm guidance, and diagramming best practices for composing ArchiMate views",
-					"reference/archimate-view-patterns.md"));
+					"reference/archimate-view-patterns.md")),
+			Map.entry("recipes/index", new ResourceDefinition(
+					"ArchiMate Viewpoint Recipes Index",
+					"Selector for the viewpoint recipe library: states the invariant build sequence once, routes conventional viewpoints to the principles section, and points non-conventional viewpoints to their full recipe page. Fetch this first.",
+					"recipes/index.md")),
+			Map.entry("recipes/application-integration", new ResourceDefinition(
+					"Recipe — Application Integration",
+					"Hub-and-spoke recipe for Application Cooperation / Integration views: element + relationship subset, the hub-and-spoke topology block, and the per-family deltas vs the invariant build sequence.",
+					"recipes/application-integration.md")),
+			Map.entry("recipes/behaviour-process-flow", new ResourceDefinition(
+					"Recipe — Behaviour & Process Flow",
+					"Swimlane recipe for Business Process Cooperation views plus the Service Design / Customer Journey band layout.",
+					"recipes/behaviour-process-flow.md")),
+			Map.entry("recipes/motivation", new ResourceDefinition(
+					"Recipe — Motivation",
+					"Directed influence-chain recipe for Motivation views: stakeholder -> driver -> assessment -> goal -> requirement banded topology.",
+					"recipes/motivation.md")),
+			Map.entry("recipes/technology-deployment", new ResourceDefinition(
+					"Recipe — Technology / Deployment",
+					"Nested-deployment recipe: infrastructure nodes as containers with deployed software/artifacts nested inside, wired by network paths.",
+					"recipes/technology-deployment.md")),
+			Map.entry("recipes/roadmap-migration", new ResourceDefinition(
+					"Recipe — Roadmap / Migration",
+					"Left-to-right plateau-timeline recipe for Implementation & Migration views: plateaus and gap elements on a time axis with work packages below.",
+					"recipes/roadmap-migration.md")));
 
 	private final Map<String, String> cachedContent = new HashMap<>();
 

@@ -1,5 +1,7 @@
 package net.vheerden.archi.mcp.model;
 
+import java.util.List;
+
 import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelObject;
 import com.archimatetool.model.IIconic;
@@ -16,6 +18,23 @@ import net.vheerden.archi.mcp.response.ErrorCode;
 final class ImageHelper {
 
     private ImageHelper() {}
+
+    /**
+     * Icon-band size in px reserved at a corner of a container Node that
+     * carries both a corner-anchored icon AND nested children, so the icon
+     * cannot visually collide with a child. Sized as
+     * {@code 16 (icon) + 8 (margin) = 24}, by parity with
+     * {@code GROUP_LABEL_HEIGHT = 24} at
+     * {@code ArchiModelAccessorImpl :8955} — same "reserve room for the
+     * thing that must render here" idiom, different edge.
+     *
+     * <p>Backlog W2 (story
+     * {@code backlog-cloud-icon-container-node-collision}): the symmetric
+     * cousin of W1's text-band reservation
+     * ({@code backlog-view-title-note-autosize}, commit {@code 979ca76},
+     * 2026-05-20).</p>
+     */
+    static final int ICON_BAND_HEIGHT = 24;
 
     /**
      * Validates image parameters, throwing {@link ModelAccessException} on invalid values.
@@ -178,6 +197,124 @@ final class ImageHelper {
 
         // Show icon state (available on all IDiagramModelObject)
         target.setIconVisibleState(source.getIconVisibleState());
+    }
+
+    // ---- Reserved icon-band geometry (Backlog W2, story
+    // `backlog-cloud-icon-container-node-collision`) ----
+
+    /**
+     * Returns the inset (in px) that a container Node should reserve at the
+     * specified image-position corner to accommodate a corner-anchored icon,
+     * or 0 when the position is not a corner.
+     *
+     * <p>Pure geometry — no SWT, no EMF — directly unit-testable from
+     * {@code ImageHelperTest} without an Archi runtime (AC-8 test-seam).</p>
+     *
+     * <p>Returns {@code iconSize + margin} for the four corner positions
+     * (0=top-left, 2=top-right, 6=bottom-left, 8=bottom-right per
+     * {@link ImageParams#positionToInt}); returns 0 for the six non-corner
+     * positions (1, 3, 4, 5, 7, and fill=9) and any unrecognised int.</p>
+     *
+     * <p><strong>Note:</strong> this method is pure-geometry and returns
+     * non-zero for all four corners including {@code 2} (top-right). The
+     * accessor-layer wiring in {@code ArchiModelAccessorImpl} restricts
+     * <em>firing</em> the lever to non-default corners (i.e. excluding the
+     * Archi default at 2) to preserve byte-identical bounds for the
+     * "no explicit image position" case (AC-6 + AC-14 Case A).</p>
+     *
+     * @param imagePositionInt {@link ImageParams} position int (0..9)
+     * @param iconSize         icon size in px (typically 16)
+     * @param margin           safety margin in px (typically 8)
+     * @return {@code iconSize + margin} for corners; 0 otherwise
+     */
+    static int reservedIconBandForCorner(int imagePositionInt, int iconSize, int margin) {
+        if (imagePositionInt == 0      // top-left
+                || imagePositionInt == 2   // top-right
+                || imagePositionInt == 6   // bottom-left
+                || imagePositionInt == 8) { // bottom-right
+            return iconSize + margin;
+        }
+        return 0;
+    }
+
+    /**
+     * Returns true iff at least one child rectangle intersects the icon-band
+     * rectangle for the supplied corner. This is the AC-14 Case B predicate
+     * of W2 — the tightest non-vacuous gate that fires only when an icon
+     * would actually collide with a child.
+     *
+     * <p>Pure geometry — no SWT, no EMF — directly unit-testable from
+     * {@code ImageHelperTest} (AC-8 test-seam).</p>
+     *
+     * <p>Icon-band rectangle (relative-to-parent, all in px; let
+     * {@code band = iconSize + margin}):</p>
+     * <ul>
+     *   <li>top-left     (0): {@code (0,         0,         band, band)}</li>
+     *   <li>top-right    (2): {@code (parentW-band, 0,      band, band)}</li>
+     *   <li>bottom-left  (6): {@code (0,         parentH-band, band, band)}</li>
+     *   <li>bottom-right (8): {@code (parentW-band, parentH-band, band, band)}</li>
+     * </ul>
+     *
+     * @param parentW             parent width in px
+     * @param parentH             parent height in px
+     * @param imagePositionInt    {@link ImageParams} position int (0..9)
+     * @param iconSize            icon size in px
+     * @param margin              safety margin in px
+     * <p><strong>Half-open interval semantics:</strong> the intersection test
+     * is strict — a child whose edge exactly <em>touches</em> the band's edge
+     * (e.g. {@code child.x + child.width == band.x}) is treated as NO overlap,
+     * matching standard raster-display conventions where touching edges do
+     * not visibly collide. Only a genuine <em>interior</em> overlap (at least
+     * one shared pixel) triggers the predicate.</p>
+     *
+     * @param childRectsRelative  each {@code int[]} is {@code [x, y, w, h]}
+     *                            relative-to-parent; null or empty returns false
+     * @return true if any child rectangle has an interior overlap with the
+     *         icon-band rectangle (any shared pixel counts);
+     *         false otherwise (or when the position is not a corner, or when
+     *         a child edge exactly touches the band edge without intruding)
+     */
+    static boolean anyChildOccupiesIconBand(int parentW, int parentH,
+            int imagePositionInt, int iconSize, int margin,
+            List<int[]> childRectsRelative) {
+        if (childRectsRelative == null || childRectsRelative.isEmpty()) return false;
+        int band = iconSize + margin;
+        int bandX;
+        int bandY;
+        switch (imagePositionInt) {
+            case 0: // top-left
+                bandX = 0;
+                bandY = 0;
+                break;
+            case 2: // top-right
+                bandX = parentW - band;
+                bandY = 0;
+                break;
+            case 6: // bottom-left
+                bandX = 0;
+                bandY = parentH - band;
+                break;
+            case 8: // bottom-right
+                bandX = parentW - band;
+                bandY = parentH - band;
+                break;
+            default:
+                return false; // non-corner
+        }
+        for (int[] r : childRectsRelative) {
+            if (r == null || r.length < 4) continue;
+            int cx = r[0];
+            int cy = r[1];
+            int cw = r[2];
+            int ch = r[3];
+            // Standard rectangle-intersection test — any overlap counts.
+            boolean noOverlap = cx + cw <= bandX
+                    || bandX + band <= cx
+                    || cy + ch <= bandY
+                    || bandY + band <= cy;
+            if (!noOverlap) return true;
+        }
+        return false;
     }
 
     // ---- Private helpers ----

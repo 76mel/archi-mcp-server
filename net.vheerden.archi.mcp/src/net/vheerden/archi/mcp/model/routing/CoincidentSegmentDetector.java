@@ -286,16 +286,25 @@ public class CoincidentSegmentDetector {
     }
 
     /**
+     * Per-connection anchoring context bundle for B71 wrap-site rollback.
+     *
+     * <p>Built once per {@code applyOffsets} call and looked up by connection
+     * index. A {@code null} context (or null anchorings inside) bypasses the
+     * predicate check for that connection — the legacy 3-arg overload
+     * constructs an empty map, preserving pre-B71 test behaviour.</p>
+     */
+    public record AnchoringContext(
+            RoutingPipeline.ConnectionEndpoints connection,
+            int[] sourceCenter, int[] targetCenter,
+            TerminalAnchoring sourceAnchoring, TerminalAnchoring targetAnchoring) {}
+
+    /**
      * Applies perpendicular offsets to coincident segments to make them visually
      * distinguishable. Uses corridor-group-first processing with proportional
      * spacing when sufficient gap exists between obstacles.
      *
-     * <p>Algorithm:
-     * <ol>
-     *   <li>First pass: Collect all unique segments per corridor using tolerance-aware grouping</li>
-     *   <li>Second pass: For each corridor group, compute gap and proportional positions</li>
-     *   <li>Third pass: Apply offsets with obstacle validation, falling back to fixed-delta per-segment</li>
-     * </ol>
+     * <p>Legacy overload — runs without the B71 terminal-anchoring wrap.
+     * Used by unit tests that have no per-connection anchoring context.</p>
      *
      * @param coincidentPairs detected coincident pairs
      * @param bendpointLists  mutable bendpoint lists per connection (modified in place)
@@ -305,6 +314,29 @@ public class CoincidentSegmentDetector {
     public int applyOffsets(List<CoincidentPair> coincidentPairs,
                             List<List<AbsoluteBendpointDto>> bendpointLists,
                             List<RoutingRect> allObstacles) {
+        return applyOffsets(coincidentPairs, bendpointLists, allObstacles, java.util.Map.of());
+    }
+
+    /**
+     * B71 wrap-site overload: applies coincident segment offsets while
+     * enforcing the {@link TerminalAnchoring#preservesEndpoints} predicate.
+     *
+     * <p>Replaces the B70-a Mode B {@code touchesPerimeterAnchoredTerminal}
+     * filter. When a {@code tryOffset} call mutates segment endpoint at
+     * index 0 or {@code path.size() - 1}, the predicate is re-evaluated; on
+     * violation, both touched BPs are restored from the per-segment snapshot
+     * and the offset is reported as not-applied. The legacy 3-arg overload
+     * routes here with an empty {@code anchoringContexts} map, in which case
+     * every connection's check is bypassed (no-op wrap).</p>
+     *
+     * @param anchoringContexts per-connection-index anchoring context; an
+     *                          absent or {@code null} value bypasses the wrap
+     *                          for that connection
+     */
+    public int applyOffsets(List<CoincidentPair> coincidentPairs,
+                            List<List<AbsoluteBendpointDto>> bendpointLists,
+                            List<RoutingRect> allObstacles,
+                            Map<Integer, AnchoringContext> anchoringContexts) {
         if (coincidentPairs.isEmpty()) {
             return 0;
         }
@@ -359,13 +391,13 @@ public class CoincidentSegmentDetector {
             if (proportionalPositions != null) {
                 // Proportional mode: distribute all segments across the gap
                 offsetCount += applyProportionalOffsets(segments, proportionalPositions,
-                        horizontal, bendpointLists, allObstacles, alreadyOffset);
+                        horizontal, bendpointLists, allObstacles, alreadyOffset, anchoringContexts);
                 logger.debug("Proportional spacing for corridor {}: {} segments across gap [{}, {}]",
                         entry.getKey(), segments.size(), gap[0], gap[1]);
             } else {
                 // Fixed-delta fallback: original stacking behavior
                 offsetCount += applyFixedDeltaOffsets(segments, horizontal,
-                        bendpointLists, allObstacles, alreadyOffset);
+                        bendpointLists, allObstacles, alreadyOffset, anchoringContexts);
                 logger.debug("Fixed-delta fallback for corridor {}: {} segments",
                         entry.getKey(), segments.size());
             }
@@ -414,7 +446,8 @@ public class CoincidentSegmentDetector {
                                           int[] targetPositions, boolean horizontal,
                                           List<List<AbsoluteBendpointDto>> bendpointLists,
                                           List<RoutingRect> allObstacles,
-                                          Set<String> alreadyOffset) {
+                                          Set<String> alreadyOffset,
+                                          Map<Integer, AnchoringContext> anchoringContexts) {
         int count = 0;
         for (int i = 0; i < segments.size(); i++) {
             PathOrderer.Segment seg = segments.get(i);
@@ -438,6 +471,11 @@ public class CoincidentSegmentDetector {
                 continue; // Already at target position
             }
 
+            // B71 wrap: snapshot the two BPs before mutating so we can roll back
+            // on terminal anchoring violation at index 0 / path.size()-1.
+            AbsoluteBendpointDto snap1 = path.get(bpIdx1);
+            AbsoluteBendpointDto snap2 = path.get(bpIdx2);
+
             boolean applied = tryOffset(path, bpIdx1, bpIdx2, horizontal, delta, allObstacles);
             boolean usedFallback = false;
             if (!applied) {
@@ -448,6 +486,15 @@ public class CoincidentSegmentDetector {
                     applied = tryOffset(path, bpIdx1, bpIdx2, horizontal, -fixedDelta, allObstacles);
                 }
                 usedFallback = applied;
+            }
+
+            if (applied && violatesTerminalAnchoring(
+                    seg.connectionIndex(), bpIdx1, bpIdx2, path, anchoringContexts)) {
+                path.set(bpIdx1, snap1);
+                path.set(bpIdx2, snap2);
+                applied = false;
+                logger.debug("applyOffsets (proportional): rolled back conn[{}] seg[{}] — terminal anchoring violated",
+                        seg.connectionIndex(), seg.segmentIndex());
             }
 
             if (applied) {
@@ -474,7 +521,8 @@ public class CoincidentSegmentDetector {
     private int applyFixedDeltaOffsets(List<PathOrderer.Segment> segments, boolean horizontal,
                                         List<List<AbsoluteBendpointDto>> bendpointLists,
                                         List<RoutingRect> allObstacles,
-                                        Set<String> alreadyOffset) {
+                                        Set<String> alreadyOffset,
+                                        Map<Integer, AnchoringContext> anchoringContexts) {
         int count = 0;
         for (int i = 1; i < segments.size(); i++) {
             PathOrderer.Segment seg = segments.get(i);
@@ -490,10 +538,23 @@ public class CoincidentSegmentDetector {
                 continue;
             }
 
+            // B71 wrap: snapshot the two BPs for rollback on predicate violation.
+            AbsoluteBendpointDto snap1 = path.get(bpIdx1);
+            AbsoluteBendpointDto snap2 = path.get(bpIdx2);
+
             int delta = offsetDelta * i;
             boolean applied = tryOffset(path, bpIdx1, bpIdx2, horizontal, delta, allObstacles);
             if (!applied) {
                 applied = tryOffset(path, bpIdx1, bpIdx2, horizontal, -delta, allObstacles);
+            }
+
+            if (applied && violatesTerminalAnchoring(
+                    seg.connectionIndex(), bpIdx1, bpIdx2, path, anchoringContexts)) {
+                path.set(bpIdx1, snap1);
+                path.set(bpIdx2, snap2);
+                applied = false;
+                logger.debug("applyOffsets (fixed-delta): rolled back conn[{}] seg[{}] — terminal anchoring violated",
+                        seg.connectionIndex(), seg.segmentIndex());
             }
 
             if (applied) {
@@ -537,6 +598,369 @@ public class CoincidentSegmentDetector {
 
         path.set(bpIdx1, newBp1);
         path.set(bpIdx2, newBp2);
+        return true;
+    }
+
+    /**
+     * B71 wrap-site predicate gate: returns {@code true} iff the segment we
+     * just offset touches a terminal index (0 or {@code path.size() - 1}) AND
+     * the connection has an anchoring context AND
+     * {@link TerminalAnchoring#preservesEndpoints} now reports a violation.
+     *
+     * <p>When {@code anchoringContexts} is empty or has no entry for
+     * {@code connIdx}, this returns {@code false} (legacy 3-arg overload
+     * behaviour — no wrap).</p>
+     */
+    private static boolean violatesTerminalAnchoring(
+            int connIdx, int bpIdx1, int bpIdx2, List<AbsoluteBendpointDto> path,
+            Map<Integer, AnchoringContext> anchoringContexts) {
+        if (anchoringContexts == null || anchoringContexts.isEmpty()) {
+            return false;
+        }
+        // Only terminal-touching segments can change the predicate result.
+        boolean touchesTerminal = (bpIdx1 == 0) || (bpIdx2 == path.size() - 1);
+        if (!touchesTerminal) {
+            return false;
+        }
+        AnchoringContext ctx = anchoringContexts.get(connIdx);
+        if (ctx == null) {
+            return false;
+        }
+        return !TerminalAnchoring.preservesEndpoints(
+                ctx.sourceAnchoring(), ctx.connection().source(), ctx.sourceCenter(),
+                ctx.targetAnchoring(), ctx.connection().target(), ctx.targetCenter(),
+                path);
+    }
+
+    /**
+     * Approach-3 reconciliation pass for coincident segments that touch a
+     * terminal BP — runs after {@link #applyOffsets} as a downstream stage.
+     *
+     * <p>The B71 rollback in {@link #applyOffsets} preserves terminal
+     * anchoring by reverting any perpendicular delta-shift that would move a
+     * terminal BP off its face line. For corridor-perpendicular coincidences
+     * (multiple connections terminating at distinct B9-allocated face slots
+     * but sharing a common approach corridor — the V4 oracle current-pipeline
+     * regression pattern), the simple delta-shift is the wrong mutation
+     * shape: the rollback fires correctly but the coincidence persists. This
+     * method resolves that residual by <em>inserting</em> two BPs around
+     * the existing terminal BP:
+     *
+     * <ol>
+     *   <li>Shift the interior endpoint of the coincident segment perpendicular
+     *       to its corridor by {@code delta} px.</li>
+     *   <li>Insert a new BP between the shifted interior endpoint and the
+     *       still-anchored terminal BP, at the terminal's parallel coordinate
+     *       and the shifted perpendicular coordinate — this creates a short
+     *       orthogonal "drop" that returns the path to the face line.</li>
+     * </ol>
+     *
+     * <p>Because the terminal BP itself is unchanged, the
+     * {@link TerminalAnchoring#preservesEndpoints} predicate continues to
+     * hold post-reconciliation. Existing rollback safety semantics in
+     * {@code applyOffsets} are entirely preserved — this method ADDS a new
+     * resolution path without modifying the existing one.
+     *
+     * @param connectionIds     parallel array of connection identifiers
+     * @param bendpointLists    mutable bendpoint lists per connection (modified in place)
+     * @param sourceCenters     source-element center [x,y] per connection
+     * @param targetCenters     target-element center [x,y] per connection
+     * @param allObstacles      obstacles for collision checks
+     * @param anchoringContexts per-connection-index anchoring context;
+     *                          {@code null}/empty short-circuits (no-op)
+     * @return number of coincident pairs reconciled by interior-BP insertion
+     */
+    public int applyTerminalAnchoredReconciliation(
+            List<String> connectionIds,
+            List<List<AbsoluteBendpointDto>> bendpointLists,
+            List<int[]> sourceCenters,
+            List<int[]> targetCenters,
+            List<RoutingRect> allObstacles,
+            Map<Integer, AnchoringContext> anchoringContexts) {
+        if (anchoringContexts == null || anchoringContexts.isEmpty()) {
+            return 0;
+        }
+
+        // Re-detect coincident pairs on the post-applyOffsets path state.
+        List<CoincidentPair> pairs = detect(
+                connectionIds, bendpointLists, sourceCenters, targetCenters);
+        if (pairs.isEmpty()) {
+            return 0;
+        }
+
+        // Group into corridors using the same tolerance-aware key as applyOffsets.
+        Map<String, List<PathOrderer.Segment>> corridorGroups = new LinkedHashMap<>();
+        Set<String> seenSegments = new HashSet<>();
+        for (CoincidentPair pair : pairs) {
+            addToCorridorGroup(corridorGroups, seenSegments, pair.segA());
+            addToCorridorGroup(corridorGroups, seenSegments, pair.segB());
+        }
+
+        int resolvedCount = 0;
+        for (Map.Entry<String, List<PathOrderer.Segment>> entry : corridorGroups.entrySet()) {
+            List<PathOrderer.Segment> segments = entry.getValue();
+            if (segments.size() < 2) {
+                continue;
+            }
+
+            // Filter to terminal-touching segments only — those are the
+            // ones where applyOffsets's rollback fires.
+            List<PathOrderer.Segment> terminalAnchored = new ArrayList<>();
+            for (PathOrderer.Segment seg : segments) {
+                if (touchesAnchoredTerminal(seg, bendpointLists, anchoringContexts)) {
+                    terminalAnchored.add(seg);
+                }
+            }
+            if (terminalAnchored.size() < 2) {
+                continue;
+            }
+
+            boolean horizontal = terminalAnchored.get(0).horizontal();
+            // Stagger pos i ≥ 1 by MIN_SEPARATION * i px; leave i==0 at original.
+            for (int i = 1; i < terminalAnchored.size(); i++) {
+                PathOrderer.Segment seg = terminalAnchored.get(i);
+                int magnitude = MIN_SEPARATION * i;
+                // Choose the sign direction that makes the drop segment continue
+                // in the same direction as the implicit terminal segment (avoids
+                // a "drop-then-reverse-back" zigzag at the terminal end). For
+                // source-terminal cases the drop is perpendicular to the path
+                // direction, so either sign is zigzag-free; default to +1.
+                int preferredSign = preferredReconcileSign(
+                        seg, horizontal, bendpointLists, anchoringContexts);
+                int firstDelta = magnitude * preferredSign;
+                boolean reconciled =
+                        tryReconcileWithInsertion(seg, horizontal, firstDelta,
+                                bendpointLists, allObstacles, anchoringContexts)
+                        || tryReconcileWithInsertion(seg, horizontal, -firstDelta,
+                                bendpointLists, allObstacles, anchoringContexts);
+                if (reconciled) {
+                    resolvedCount++;
+                }
+            }
+        }
+
+        if (resolvedCount > 0) {
+            logger.info("Applied {} terminal-anchored reconciliation insertions",
+                    resolvedCount);
+        }
+        return resolvedCount;
+    }
+
+    /**
+     * Returns the preferred sign (+1 or -1) for the perpendicular shift delta,
+     * chosen so the inserted drop segment continues in the same direction as
+     * the implicit terminal segment (source.center → bp[0] for source-terminal
+     * cases, or bp[last] → target.center for target-terminal cases) —
+     * avoiding the "drop then reverse back" zigzag pattern that the assessor's
+     * R3 detector flags.
+     *
+     * <p>The unified formula {@code delta_sign = sign(terminalBp - anchor.center)}
+     * on the perpendicular axis works for both ends: at the source end the
+     * drop direction (bp[0] → dropBp) must align with the incoming direction
+     * (source → bp[0]); at the target end the drop direction (dropBp → bp[last])
+     * must align with the outgoing direction (bp[last] → target.center). Both
+     * algebraically reduce to the same expression.
+     *
+     * <p>Falls back to +1 when no usable anchor center is available.
+     */
+    private static int preferredReconcileSign(
+            PathOrderer.Segment seg, boolean horizontal,
+            List<List<AbsoluteBendpointDto>> bendpointLists,
+            Map<Integer, AnchoringContext> anchoringContexts) {
+        int connIdx = seg.connectionIndex();
+        List<AbsoluteBendpointDto> path = bendpointLists.get(connIdx);
+        int bpIdx1 = seg.segmentIndex();
+        int bpIdx2 = bpIdx1 + 1;
+        if (bpIdx1 < 0 || bpIdx2 >= path.size()) {
+            return 1;
+        }
+        boolean bp1IsTerminal = (bpIdx1 == 0);
+        boolean bp2IsTerminal = (bpIdx2 == path.size() - 1);
+        AnchoringContext ctx = anchoringContexts.get(connIdx);
+        if (ctx == null) {
+            return 1;
+        }
+
+        AbsoluteBendpointDto terminalBp;
+        int[] anchorCenter;
+        if (bp1IsTerminal) {
+            terminalBp = path.get(bpIdx1);
+            anchorCenter = ctx.sourceCenter();
+        } else if (bp2IsTerminal) {
+            terminalBp = path.get(bpIdx2);
+            anchorCenter = ctx.targetCenter();
+        } else {
+            // Should never happen — touchesAnchoredTerminal already filtered.
+            return 1;
+        }
+        if (anchorCenter == null) {
+            // Unified algebraic argument requires a usable anchor center;
+            // without it the +1 fallback can produce a zigzag at the terminal
+            // (the very pattern this heuristic was added to prevent). Log so
+            // the silent fall-through is observable rather than hidden.
+            logger.warn("preferredReconcileSign: null anchorCenter for conn[{}] "
+                    + "seg[{}] (bp1IsTerminal={}); falling back to +1 — drop "
+                    + "direction may produce R3 zigzag",
+                    connIdx, seg.segmentIndex(), bp1IsTerminal);
+            return 1;
+        }
+
+        int diff;
+        if (horizontal) {
+            diff = terminalBp.y() - anchorCenter[1];
+        } else {
+            diff = terminalBp.x() - anchorCenter[0];
+        }
+        if (diff == 0) {
+            return 1;
+        }
+        return diff > 0 ? 1 : -1;
+    }
+
+    /**
+     * True iff the segment touches a terminal BP (path[0] or path[last]) AND the
+     * connection has an anchoring context — i.e., this is a candidate for
+     * Approach-3 reconciliation (rollback-prone in {@link #applyOffsets}).
+     */
+    private static boolean touchesAnchoredTerminal(
+            PathOrderer.Segment seg, List<List<AbsoluteBendpointDto>> bendpointLists,
+            Map<Integer, AnchoringContext> anchoringContexts) {
+        int connIdx = seg.connectionIndex();
+        if (anchoringContexts.get(connIdx) == null) {
+            return false;
+        }
+        List<AbsoluteBendpointDto> path = bendpointLists.get(connIdx);
+        int bpIdx1 = seg.segmentIndex();
+        int bpIdx2 = bpIdx1 + 1;
+        if (bpIdx1 < 0 || bpIdx2 >= path.size()) {
+            return false;
+        }
+        return bpIdx1 == 0 || bpIdx2 == path.size() - 1;
+    }
+
+    /**
+     * Reconciles a terminal-anchored coincident segment by shifting the
+     * interior endpoint perpendicular and inserting a new BP that drops back
+     * to the face line. Returns {@code false} (path unchanged) if the
+     * inserted path collides with any obstacle, or if both endpoints are
+     * terminals (2-BP path).
+     */
+    private boolean tryReconcileWithInsertion(
+            PathOrderer.Segment seg, boolean horizontal, int delta,
+            List<List<AbsoluteBendpointDto>> bendpointLists,
+            List<RoutingRect> allObstacles,
+            Map<Integer, AnchoringContext> anchoringContexts) {
+        int connIdx = seg.connectionIndex();
+        List<AbsoluteBendpointDto> path = bendpointLists.get(connIdx);
+        int bpIdx1 = seg.segmentIndex();
+        int bpIdx2 = bpIdx1 + 1;
+        if (bpIdx1 < 0 || bpIdx2 >= path.size()) {
+            return false;
+        }
+
+        boolean bp1IsTerminal = (bpIdx1 == 0);
+        boolean bp2IsTerminal = (bpIdx2 == path.size() - 1);
+        if (bp1IsTerminal && bp2IsTerminal) {
+            // 2-BP path — no interior to insert into.
+            return false;
+        }
+        if (!bp1IsTerminal && !bp2IsTerminal) {
+            // Stored seg.segmentIndex() may be stale: a prior corridor group's
+            // reconciliation could have grown this connection's path via
+            // insertion, shifting bp indices. The seg was classified as
+            // terminal-anchored at touchesAnchoredTerminal time; if it is no
+            // longer terminal-anchored now, skip — operating on stale indices
+            // would silently treat an interior BP as a terminal and corrupt
+            // the path. (Latent at V4 oracle's topology; defensive guard.)
+            return false;
+        }
+
+        AbsoluteBendpointDto bp1 = path.get(bpIdx1);
+        AbsoluteBendpointDto bp2 = path.get(bpIdx2);
+        AbsoluteBendpointDto terminalBp = bp1IsTerminal ? bp1 : bp2;
+        AbsoluteBendpointDto interiorBp = bp1IsTerminal ? bp2 : bp1;
+
+        AbsoluteBendpointDto newInterior;
+        AbsoluteBendpointDto dropBp;
+        if (horizontal) {
+            // Horizontal segment shifts in y.
+            newInterior = new AbsoluteBendpointDto(interiorBp.x(),
+                    interiorBp.y() + delta);
+            dropBp = new AbsoluteBendpointDto(terminalBp.x(),
+                    terminalBp.y() + delta);
+        } else {
+            // Vertical segment shifts in x.
+            newInterior = new AbsoluteBendpointDto(interiorBp.x() + delta,
+                    interiorBp.y());
+            dropBp = new AbsoluteBendpointDto(terminalBp.x() + delta,
+                    terminalBp.y());
+        }
+
+        // Collision-check the moved corridor and the new drop segment.
+        if (segmentOverlapsAnyObstacle(newInterior.x(), newInterior.y(),
+                dropBp.x(), dropBp.y(), allObstacles)) {
+            return false;
+        }
+        if (segmentOverlapsAnyObstacle(dropBp.x(), dropBp.y(),
+                terminalBp.x(), terminalBp.y(), allObstacles)) {
+            return false;
+        }
+
+        // Capture the predicate result PRE-mutation. The defensive check
+        // below compares pre vs post: rollback fires only if our insertion
+        // FLIPPED the predicate from true to false. Without this comparison,
+        // paths whose predicate was already failing pre-mutation (e.g.,
+        // bp[last] off the target face line because the route was already
+        // simplified to a corridor-elbow terminal) would always trigger
+        // rollback, even though our insertion preserves the terminal BP
+        // verbatim. Since we never touch the terminal BP, the predicate
+        // result must be invariant — so a flip indicates a logic bug.
+        AnchoringContext ctx = anchoringContexts.get(connIdx);
+        boolean preservesBefore = (ctx == null) || TerminalAnchoring.preservesEndpoints(
+                ctx.sourceAnchoring(), ctx.connection().source(), ctx.sourceCenter(),
+                ctx.targetAnchoring(), ctx.connection().target(), ctx.targetCenter(),
+                path);
+
+        // Apply: replace interior endpoint with newInterior; insert dropBp
+        // adjacent to the terminal. Insert position depends on which end is
+        // the terminal.
+        if (bp1IsTerminal) {
+            // path: [bp[0]=terminal, bp[1]=interior, ...]
+            // After: [bp[0]=terminal, dropBp, newInterior, ...]
+            path.set(bpIdx2, newInterior);
+            path.add(bpIdx1 + 1, dropBp);
+        } else {
+            // bp2IsTerminal — path: [..., bp[bpIdx1]=interior, bp[bpIdx2]=terminal]
+            // After: [..., newInterior, dropBp, terminal]
+            path.set(bpIdx1, newInterior);
+            path.add(bpIdx2, dropBp);
+        }
+
+        // Defensive flip-check: terminalBp itself was untouched, so the
+        // predicate result MUST be invariant. If pre was true and post is
+        // false, our insertion has somehow broken the contract — roll back.
+        boolean preservesAfter = (ctx == null) || TerminalAnchoring.preservesEndpoints(
+                ctx.sourceAnchoring(), ctx.connection().source(), ctx.sourceCenter(),
+                ctx.targetAnchoring(), ctx.connection().target(), ctx.targetCenter(),
+                path);
+        if (preservesBefore && !preservesAfter) {
+            if (bp1IsTerminal) {
+                path.remove(bpIdx1 + 1);
+                path.set(bpIdx2, interiorBp);
+            } else {
+                path.remove(bpIdx2);
+                path.set(bpIdx1, interiorBp);
+            }
+            logger.warn("applyTerminalAnchoredReconciliation: defensive rollback "
+                    + "fired conn[{}] seg[{}] (unexpected — terminal BP untouched)",
+                    connIdx, seg.segmentIndex());
+            return false;
+        }
+
+        logger.debug("Reconciled coincident segment via insertion: conn[{}] seg[{}] "
+                + "delta={}px {}",
+                connIdx, seg.segmentIndex(), delta,
+                horizontal ? "vertically" : "horizontally");
         return true;
     }
 
@@ -682,6 +1106,56 @@ public class CoincidentSegmentDetector {
         }
 
         return new CoincidentSegmentResult(count, violatorIndices);
+    }
+
+    /**
+     * Diagnostic variant of {@link #detectCoincidentSegments}: returns the raw
+     * {@link CoincidentPair} list so external tooling in this package (e.g.
+     * {@link CoincidentSegmentDiagnostic}) can inspect per-segment geometry.
+     * Package-private — not for production routing use outside this package.
+     */
+    List<CoincidentPair> detectPairs(List<? extends CoincidentAssessable> connections) {
+        if (connections.size() < 2) {
+            return List.of();
+        }
+
+        List<PathOrderer.Segment> allSegments = new ArrayList<>();
+        for (int connIdx = 0; connIdx < connections.size(); connIdx++) {
+            CoincidentAssessable conn = connections.get(connIdx);
+            List<double[]> points = conn.pathPoints();
+            if (points.size() < 3) {
+                continue;
+            }
+            for (int i = 1; i < points.size() - 2; i++) {
+                double[] p1 = points.get(i);
+                double[] p2 = points.get(i + 1);
+                int x1 = (int) Math.round(p1[0]);
+                int y1 = (int) Math.round(p1[1]);
+                int x2 = (int) Math.round(p2[0]);
+                int y2 = (int) Math.round(p2[1]);
+                boolean horizontal = (y1 == y2);
+                boolean vertical = (x1 == x2);
+                if (horizontal || vertical) {
+                    allSegments.add(new PathOrderer.Segment(
+                            connIdx, i - 1, x1, y1, x2, y2, horizontal));
+                }
+            }
+        }
+
+        if (allSegments.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, List<PathOrderer.Segment>> groups = pathOrderer.groupSegments(allSegments);
+
+        List<CoincidentPair> pairs = new ArrayList<>();
+        for (List<PathOrderer.Segment> group : groups.values()) {
+            if (group.size() < 2) {
+                continue;
+            }
+            detectCoincidentInGroup(group, pairs);
+        }
+        return pairs;
     }
 
     /**

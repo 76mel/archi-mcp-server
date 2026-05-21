@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -1197,28 +1198,28 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void rating_densityRatio_shouldScaleWithConnectionCount() {
-        // AC #2: 60 crossings / 30 connections = 2.0 ratio (moderate) → fair
+        // PRE-REDESIGN B38: crossings Tier 2 cap fair. POST-REDESIGN M6: crossings Tier 3R cap good.
+        // 2.0 ratio → breakdown "fair", but routing-tier caps at "good" under M6.
         String ratingDense = assessor.computeOverallRating(
                 0, 60, 50.0, 50, 0, 0, 30);
-        assertEquals("2.0 crossings/connection with clean metrics should be fair",
-                "fair", ratingDense);
+        assertEquals("M6: 2.0 crossings/connection caps at good (Tier 3R, not Tier 2)",
+                "good", ratingDense);
 
-        // 150 crossings / 30 connections = 5.0 ratio (high) → crossing "poor"
-        // B38: crossings are Tier 2, capped at "fair" overall (never "poor" from crossings alone)
+        // 5.0 ratio → breakdown "poor", but routing-tier still caps at "good" under M6.
         String ratingVeryDense = assessor.computeOverallRating(
                 0, 150, 50.0, 50, 0, 0, 30);
-        assertEquals("5.0 crossings/connection should be fair (B38: Tier 2 cap)",
-                "fair", ratingVeryDense);
+        assertEquals("M6: 5.0 crossings/connection caps at good (Tier 3R, was Tier 2)",
+                "good", ratingVeryDense);
     }
 
     @Test
     public void rating_zeroConnectionsWithManyCrossings_shouldUseLegacyThreshold() {
-        // No connections → use absolute threshold (backward compatibility)
-        // B38: crossings are Tier 2, capped at "fair" overall (never "poor" from crossings alone)
+        // No connections → use absolute threshold (backward compatibility).
+        // PRE-REDESIGN B38: crossings Tier 2 cap fair. POST-REDESIGN M6: Tier 3R cap good.
         String rating = assessor.computeOverallRating(
                 0, 50, 50.0, 50, 0, 0, 0);
-        assertEquals("50 crossings with 0 connections should be fair (B38: Tier 2 cap)",
-                "fair", rating);
+        assertEquals("M6: 50 crossings with 0 connections → good (Tier 3R cap, was fair)",
+                "good", rating);
     }
 
     // ---- Story 11-12: Deep nesting overlap false positive tests ----
@@ -1305,12 +1306,13 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void rating_densityRatio_atExactModerateThreshold_shouldBeFair() {
-        // Boundary: exactly 4.0 crossings/connection (CROSSING_RATIO_MODERATE)
-        // Condition is <= 4.0, so should be "fair"
+        // Boundary: exactly 4.0 crossings/connection (CROSSING_RATIO_MODERATE).
+        // PRE-REDESIGN B38: crossings Tier 2 cap fair → overall "fair".
+        // POST-REDESIGN M6: crossings demoted Tier 3R cap good → overall "good".
         String rating = assessor.computeOverallRating(
                 0, 120, 50.0, 50, 0, 0, 30); // 120/30 = 4.0
-        assertEquals("Exactly 4.0 crossings/connection should be fair",
-                "fair", rating);
+        assertEquals("M6: 4.0 crossings/connection breakdown fair, overall capped at good (Tier 3R)",
+                "good", rating);
     }
 
     // ---- Story 11-15: Note-aware layout tests ----
@@ -1607,16 +1609,19 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void ratingBreakdown_crossingsOnly_shouldShowCrossingsFair() {
-        // Only crossings are bad (25 crossings, 10 connections = 2.5 ratio)
+        // Only crossings are bad (25 crossings, 10 connections = 2.5 ratio).
+        // PRE-REDESIGN: crossings Tier 2 cap fair → overall fair.
+        // POST-REDESIGN M6: crossings demoted Tier 3R cap good → overall good.
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 25, 50.0, 80, 0, 0, 0, 0, 10, false);
 
-        assertEquals("fair", result.rating());
+        // M6: crossings now Tier 3R cap good — overall caps at "good" not "fair".
+        assertEquals("good", result.rating());
         assertEquals("pass", result.breakdown().get("overlaps"));
         assertEquals("fair", result.breakdown().get("edgeCrossings"));
         assertEquals("pass", result.breakdown().get("spacing"));
         assertEquals("pass", result.breakdown().get("alignment"));
-        assertEquals("fair", result.breakdown().get("overall"));
+        assertEquals("good", result.breakdown().get("overall"));
     }
 
     @Test
@@ -1635,24 +1640,25 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void ratingBreakdown_flatView_crossingsOnly_shouldStayFair() {
-        // AC2: Same crossings on flat view should stay "fair"
+        // PRE-REDESIGN AC2: Same crossings on flat view stayed "fair".
+        // POST-REDESIGN M6: crossings demoted Tier 3R cap good → overall good.
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 25, 50.0, 80, 0, 0, 0, 0, 10, false);
 
-        assertEquals("fair", result.rating());
+        assertEquals("good", result.rating());
         assertEquals("fair", result.breakdown().get("edgeCrossings"));
     }
 
     @Test
     public void ratingBreakdown_groupedView_withOverlaps_shouldNotGetBonus() {
-        // Grouped view but has overlaps too — crossing leniency should NOT apply
+        // Grouped view with overlaps — leniency bonus does NOT apply (predicate keyed on
+        // `overlaps == 0`); under binary rule, `overlaps=2 → poor` drives overall to `poor`.
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 2, 25, 50.0, 80, 0, 0, 0, 0, 10, true);
 
-        // Overlaps are "fair", crossings are "fair" (no leniency because overlaps exist)
-        assertEquals("fair", result.rating());
+        assertEquals("poor", result.rating());
         assertEquals("fair", result.breakdown().get("edgeCrossings"));
-        assertEquals("fair", result.breakdown().get("overlaps"));
+        assertEquals("poor", result.breakdown().get("overlaps"));
     }
 
     @Test
@@ -1677,10 +1683,23 @@ public class LayoutQualityAssessorTest {
     }
 
     @Test
-    public void ratingBreakdown_overlapsPoor_shouldShowPoor() {
-        // More than FAIR_MAX_OVERLAPS (3) → poor (Tier 1 — can produce "poor")
+    public void ratingBreakdown_overlapBinary_zero_shouldRatePass() {
+        // Lower-edge boundary: overlap=0 + zero other defects → breakdown.overlaps="pass" + overall "excellent".
+        // hubPortQualityScore=0 is neutral here — HPQ only enters the routing tier for grouped views (hasGroups=false).
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
-                5, 0, 50.0, 80, 0, 0, 0, 0, 0, false);
+                0, 0, 50.0, 80, 0, 0, 0, 0, 0, false);
+
+        assertEquals("excellent", result.rating());
+        assertEquals("pass", result.breakdown().get("overlaps"));
+    }
+
+    @Test
+    public void ratingBreakdown_overlapBinary_one_shouldRatePoor() {
+        // Upper-edge boundary (the cut-point this story redefines): overlap=1 + zero other defects →
+        // breakdown.overlaps="poor" + overall "poor" (Tier-1L no-cap drives layoutLevel=3 → layoutRating=poor).
+        // hubPortQualityScore=0 is neutral here — HPQ only enters the routing tier for grouped views (hasGroups=false).
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                1, 0, 50.0, 80, 0, 0, 0, 0, 0, false);
 
         assertEquals("poor", result.rating());
         assertEquals("poor", result.breakdown().get("overlaps"));
@@ -1701,7 +1720,12 @@ public class LayoutQualityAssessorTest {
 
         assertTrue("Should detect groups", result.hasGroups());
         assertNotNull("ratingBreakdown should be present", result.ratingBreakdown());
-        assertEquals(9, result.ratingBreakdown().size());
+        // Assessor.Redesign M6: breakdown grew from 9 (8 metrics + overall) to 17 (16 metrics + overall):
+        // pre-existing 8 (overlaps, edgeCrossings, spacing, alignment, labelOverlaps, passThroughs,
+        // coincidentSegments, nonOrthogonalTerminals) + new 8 (boundaryViolations, parentLabelObscured,
+        // offCanvas, labelTruncations, interiorTerminations, zigzags, connectionEdgeCoincidence,
+        // hubPortQuality) + "overall" = 17.
+        assertEquals(17, result.ratingBreakdown().size());
         assertEquals(result.overallRating(), result.ratingBreakdown().get("overall"));
     }
 
@@ -2100,6 +2124,34 @@ public class LayoutQualityAssessorTest {
         assertTrue(result.descriptions().get(0).contains("Bad Parent"));
     }
 
+    @Test
+    public void detectParentLabelObscured_regressionGuard_backlogViewTitleNoteAutosize_AC13() {
+        // backlog-view-title-note-autosize AC-13 regression-guard pin.
+        //
+        // SCOPE (acknowledged per review L1): this is an ASSESSOR-UNIT pin — it verifies
+        // that detectParentLabelObscuredByChild does not regress on the canonical "default-
+        // sized group with child below label band" shape that the autosize fix preserves.
+        // It is NOT an end-to-end test (no accessor.addGroupToView call). The end-to-end
+        // height pin lives in ArchiModelAccessorImplTest.addGroupToView_shouldKeepDefault
+        // Height_whenShortLabel_AC15, which guarantees the resolved-height stays at 200 for
+        // short labels — combined with this assessor-unit pin, the AC-13 regression-guard
+        // intent is covered transitively.
+        //
+        // The 200-px default height continues to fit the short label (AC-15 short-circuit),
+        // and the child positioned at y=30 (relative-to-parent, > label-band height) does
+        // not overlap the label area.
+        List<AssessmentNode> nodes = List.of(
+                new AssessmentNode("default-group", 0, 0, 300, 200, null, true, false,
+                        "Banking Products", 80.0, null, null),
+                new AssessmentNode("child-below-label", 10, 30, 120, 55, "default-group",
+                        false, false, "Customer", 40.0, null, null));
+        LayoutQualityAssessor.ParentLabelObscuredResult result =
+                assessor.detectParentLabelObscuredByChild(nodes);
+        assertEquals("AC-13 regression: default-sized group with short label + child below "
+                + "label band must remain at 0 obscured (pass rating).",
+                0, result.count());
+    }
+
     // ---- B53: Image sibling overlap tests ----
 
     @Test
@@ -2143,9 +2195,13 @@ public class LayoutQualityAssessorTest {
         assertEquals(0, result.count());
     }
 
-    // ---- B53: Rating regression test ----
+    // ---- B53: Rating regression test (REPLACED under Assessor.Redesign M6, 2026-04-26) ----
 
     @Test
+    @Ignore("Assessor.Redesign M6 (2026-04-26) — REPLACED by assess_withB53Fields_shouldChangeRating_underM6Promotions. "
+            + "Pre-redesign B53 fields had no rating impact. Under M6 parentLabelObscuredCount is "
+            + "promoted Tier 1L and labelTruncationCount is promoted Tier 2R, so the OPPOSITE "
+            + "assertion is now correct.")
     public void assess_withB53Fields_shouldNotChangeRating() {
         // Same layout as existing tests, but with B53 fields populated — rating must be identical
         List<AssessmentNode> nodes = List.of(
@@ -2420,18 +2476,20 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_connectionThroughOwnTarget_shouldDetect() {
-        // Connection from A to B where the path routes through B's body
-        // A at left, B at right, path goes horizontally through B
+        // backlog-assessor-redesign-pre-existing-failures Option α: stored final point
+        // STRICTLY past target center along the dominant entry axis is treated as
+        // terminal-segment over-penetration (caught by terminalSegmentOverPenetrates).
+        // A at left, B at right, path approaches B from west and stores its final
+        // bendpoint at (380, 115) — 30px past target center (350, 115).
         List<AssessmentNode> nodes = List.of(
                 node("a", 0, 90, 50, 50),      // source: center (25, 115)
                 node("b", 300, 90, 100, 50));   // target: center (350, 115), x range 300-400
 
-        // Path: source center → through target body → target center
-        // Segment from (200, 115) to (350, 115) passes through target at x=300..400
+        // Path stored final point (380, 115) inside target body and past center → over-penetration.
         List<AssessmentConnection> connections = List.of(
                 new AssessmentConnection("c1", "a", "b",
                         List.of(new double[]{25, 115}, new double[]{200, 115},
-                                new double[]{350, 115}), "", 1));
+                                new double[]{380, 115}), "", 1));
 
         LayoutAssessmentResult result = assessor.assess(nodes, connections, false);
 
@@ -2464,6 +2522,33 @@ public class LayoutQualityAssessorTest {
         boolean hasSelfPassThrough = result.connectionPassThroughs().stream()
                 .anyMatch(d -> d.contains("routes through its own source"));
         assertTrue("Should detect self-element pass-through for source", hasSelfPassThrough);
+    }
+
+    @Test
+    public void assess_connectionThroughOwnSource_deepPenetration_shouldDetect() {
+        // backlog-assessor-redesign-pre-existing-failures AC-4: symmetric source-side
+        // counterpart of assess_connectionThroughOwnTarget_shouldDetect. Path's stored
+        // first bendpoint sits past source center along the exit axis — caught by
+        // terminalSegmentOverPenetrates.
+        List<AssessmentNode> nodes = List.of(
+                node("a", 300, 90, 100, 50),    // source: center (350, 115), x range 300-400
+                node("t", 0, 90, 50, 50));      // target: center (25, 115)
+
+        // Path stored first point (380, 115) inside source body and 30px past center → over-penetration.
+        // OLD nonTerminalPassesThroughNode (source side) skips first segment, intermediate
+        // segment (200,115)→(25,115) is outside source — old method does not detect.
+        // NEW terminalSegmentOverPenetrates fires: tx=380 > centerX=350 (entry axis horizontal,
+        // otherPoint west of terminal).
+        List<AssessmentConnection> connections = List.of(
+                new AssessmentConnection("c1", "a", "t",
+                        List.of(new double[]{380, 115}, new double[]{200, 115},
+                                new double[]{25, 115}), "", 1));
+
+        LayoutAssessmentResult result = assessor.assess(nodes, connections, false);
+
+        boolean hasSelfPassThrough = result.connectionPassThroughs().stream()
+                .anyMatch(d -> d.contains("routes through its own source"));
+        assertTrue("Should detect terminal-segment over-penetration for source", hasSelfPassThrough);
     }
 
     @Test
@@ -2778,17 +2863,77 @@ public class LayoutQualityAssessorTest {
     }
 
     @Test
-    public void b38_nonOrthogonalTerminals_threeShouldRateFair() {
+    public void b58_nonOrthogonalTerminals_thirtyPercentShouldRateFair() {
+        // B58: 3 non-orth / 10 connections = 30% → exactly at NON_ORTH_RATIO_FAIR boundary → "fair"
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
-                0, 0, 50.0, 80, 0, 0, 0, 3, 0, false);
+                0, 0, 50.0, 80, 0, 0, 0, 3, 10, false);
         assertEquals("fair", result.breakdown().get("nonOrthogonalTerminals"));
     }
 
     @Test
-    public void b38_nonOrthogonalTerminals_fourShouldRatePoor() {
+    public void b58_nonOrthogonalTerminals_fortyPercentShouldRatePoor() {
+        // B58: 4 non-orth / 10 connections = 40% → above NON_ORTH_RATIO_FAIR → "poor"
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
-                0, 0, 50.0, 80, 0, 0, 0, 4, 0, false);
+                0, 0, 50.0, 80, 0, 0, 0, 4, 10, false);
         assertEquals("poor", result.breakdown().get("nonOrthogonalTerminals"));
+    }
+
+    // ---- B58: Density-aware non-orthogonal terminal threshold tests ----
+
+    @Test
+    public void b58_nonOrthogonalTerminals_lowDensityShouldRateGood() {
+        // 2 non-orth / 47 connections = 4.3% → below NON_ORTH_RATIO_GOOD (10%) → "good"
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 2, 47, false);
+        assertEquals("good", result.breakdown().get("nonOrthogonalTerminals"));
+    }
+
+    @Test
+    public void b58_nonOrthogonalTerminals_exactlyTenPercentShouldRateGood() {
+        // 1 non-orth / 10 connections = 10% → exactly at NON_ORTH_RATIO_GOOD boundary (≤) → "good"
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 1, 10, false);
+        assertEquals("good", result.breakdown().get("nonOrthogonalTerminals"));
+    }
+
+    @Test
+    public void b58_nonOrthogonalTerminals_midDensityShouldRateFair() {
+        // 5 non-orth / 20 connections = 25% → between 10% and 30% → "fair"
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 5, 20, false);
+        assertEquals("fair", result.breakdown().get("nonOrthogonalTerminals"));
+    }
+
+    @Test
+    public void b58_nonOrthogonalTerminals_exactlyThirtyPercentShouldRateFair() {
+        // 6 non-orth / 20 connections = 30% → exactly at NON_ORTH_RATIO_FAIR boundary (≤) → "fair"
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 6, 20, false);
+        assertEquals("fair", result.breakdown().get("nonOrthogonalTerminals"));
+    }
+
+    @Test
+    public void b58_nonOrthogonalTerminals_highDensityShouldRatePoor() {
+        // 8 non-orth / 20 connections = 40% → above NON_ORTH_RATIO_FAIR → "poor"
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 8, 20, false);
+        assertEquals("poor", result.breakdown().get("nonOrthogonalTerminals"));
+    }
+
+    @Test
+    public void b58_nonOrthogonalTerminals_veryHighDensityShouldRatePoor() {
+        // 15 non-orth / 20 connections = 75% → well above NON_ORTH_RATIO_FAIR → "poor" (AC-6)
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 15, 20, false);
+        assertEquals("poor", result.breakdown().get("nonOrthogonalTerminals"));
+    }
+
+    @Test
+    public void b58_nonOrthogonalTerminals_zeroConnectionsFallbackShouldRateFair() {
+        // 3 non-orth / 0 connections → zero-connection fallback → "fair"
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 3, 0, false);
+        assertEquals("fair", result.breakdown().get("nonOrthogonalTerminals"));
     }
 
     // ---- B38: Severity-tiered rating tests ----
@@ -2803,30 +2948,35 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void b38_tieredRating_tier2PoorAlone_shouldCapOverallAtFair() {
-        // Crossings "poor" (Tier 2) → overall capped at "fair", NOT "poor"
-        // 150/28 = 5.36 ratio, no leniency (not grouped)
+        // PRE-REDESIGN: crossings "poor" (Tier 2) → overall capped at "fair".
+        // POST-REDESIGN M6: crossings demoted to Tier 3R cap "good" → overall capped at "good".
+        // 150/28 = 5.36 ratio, no leniency (not grouped).
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 150, 50.0, 80, 0, 0, 0, 0, 28, false);
         assertEquals("poor", result.breakdown().get("edgeCrossings"));
-        assertEquals("fair", result.rating());
+        // M6: crossings now in Tier 3R cap good — overall caps at "good", not "fair".
+        assertEquals("M6: crossings demoted to Tier 3R — overall good", "good", result.rating());
     }
 
     @Test
     public void b38_tieredRating_tier3PoorAlone_shouldCapOverallAtGood() {
-        // Spacing "fair" and alignment "fair" (Tier 3) → overall capped at "good"
-        // Tier 3 metrics can only produce up to "fair" in their individual rating,
-        // but Tier 3 contribution to overall caps at "good" (level 1)
+        // PRE-REDESIGN B38: spacing + alignment both Tier 3 cap good → overall "good".
+        // POST-REDESIGN M6: spacing promoted Tier 2L cap fair; alignment stays Tier 3L cap good.
+        // Spacing "fair" → layout-tier 2 (capped at 2 by Tier 2L) → layoutLevel = 2 → layoutRating "fair".
+        // Overall = worse(fair, excellent) = "fair".
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 0, 10.0, 20, 0, 0, 0, 0, 0, false);
         assertEquals("fair", result.breakdown().get("spacing"));
         assertEquals("fair", result.breakdown().get("alignment"));
-        assertEquals("good", result.rating());
+        assertEquals("M6: spacing promoted Tier 2L cap fair — overall fair (was good under B38 Tier 3)",
+                "fair", result.rating());
     }
 
     @Test
     public void b38_tieredRating_mixedTier2PoorTier1Fair_shouldProduceOverallFair() {
-        // PT=2 → "fair" (Tier 1), crossings "poor" (Tier 2)
-        // Tier 1 drives to "fair", Tier 2 caps at "fair" → overall "fair"
+        // PT=2 → "fair" (Tier 1R), crossings "poor" (M6: Tier 3R cap good).
+        // Tier 1R drives routing to "fair"; Tier 3R caps at "good" so doesn't override.
+        // Routing tier = fair; layout tier = excellent; overall = worse(layout, routing) = fair.
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 150, 50.0, 80, 0, 2, 0, 0, 28, false);
         assertEquals("fair", result.breakdown().get("passThroughs"));
@@ -2839,6 +2989,43 @@ public class LayoutQualityAssessorTest {
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 0, 50.0, 80, 0, 0, 0, 0, 0, false);
         assertEquals("excellent", result.rating());
+    }
+
+    // ---- B59 / Assessor.Redesign M6: Non-orthogonal terminals — Tier 2R cap fair (promoted) ----
+
+    @Test
+    public void b59_tieredRating_nonOrthPoorAlone_shouldCapOverallAtGood() {
+        // PRE-REDESIGN B59: nonOrth was Tier 3 cap "good".
+        // POST-REDESIGN M6: nonOrth promoted to Tier 2R cap "fair" — overall now caps at "fair".
+        // 15 non-orth / 20 connections = 75% ratio → "poor" per-metric (B58: >30%)
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 15, 20, false);
+        assertEquals("poor", result.breakdown().get("nonOrthogonalTerminals"));
+        // M6: nonOrth now Tier 2R cap fair — overall caps at "fair", not "good".
+        assertEquals("M6: nonOrth promoted to Tier 2R — overall fair", "fair", result.rating());
+    }
+
+    @Test
+    public void b59_tieredRating_nonOrthPoorWithSpacingFair_shouldCapOverallAtGood() {
+        // PRE-REDESIGN: nonOrth "poor" + spacing "fair" (both Tier 3) → overall "good".
+        // POST-REDESIGN M6: nonOrth Tier 2R fair-cap dominates → overall "fair".
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 10.0, 20, 0, 0, 0, 15, 20, false);
+        assertEquals("poor", result.breakdown().get("nonOrthogonalTerminals"));
+        assertEquals("fair", result.breakdown().get("spacing"));
+        assertEquals("M6: nonOrth Tier 2R promoted — overall fair", "fair", result.rating());
+    }
+
+    @Test
+    public void b59_tieredRating_nonOrthPoorWithCrossingsPoor_shouldProduceOverallFair() {
+        // PRE-REDESIGN: crossings "poor" (Tier 2 cap fair) + nonOrth "poor" (Tier 3) → "fair".
+        // POST-REDESIGN M6: crossings demoted Tier 3R cap good; nonOrth promoted Tier 2R cap fair.
+        // Routing tier worst contribution = nonOrth Tier 2R fair → overall stays "fair".
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 150, 50.0, 80, 0, 0, 0, 15, 28, false);
+        assertEquals("poor", result.breakdown().get("edgeCrossings"));
+        assertEquals("poor", result.breakdown().get("nonOrthogonalTerminals"));
+        assertEquals("fair", result.rating());
     }
 
     // ---- B38: Non-orthogonal terminal detection tests ----
@@ -2881,7 +3068,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void b38_countNonOrthogonalTerminals_withinTolerance_shouldNotCount() {
-        // dx=3, dy=40 — dx within tolerance (5.0), so this is "nearly vertical" → orthogonal
+        // dx=3, dy=40 — angular deviation = atan2(40,3) ≈ 85.7° → 4.3° from vertical → below 5° threshold (B57)
         List<AssessmentConnection> conns = List.of(
                 new AssessmentConnection("c1", "a", "b", List.of(
                         new double[]{0, 0}, new double[]{3, 40}, new double[]{3, 100}), "", 0));
@@ -2893,6 +3080,71 @@ public class LayoutQualityAssessorTest {
         // Path with less than 2 points — should not crash
         List<AssessmentConnection> conns = List.of(
                 new AssessmentConnection("c1", "a", "b", List.of(new double[]{0, 0}), "", 0));
+        assertEquals(0, assessor.countNonOrthogonalTerminals(conns, false).count());
+    }
+
+    // ---- B57: Angular non-orthogonal terminal detection tests ----
+
+    @Test
+    public void b57_angularDetection_nearVertical_shouldNotFlag() {
+        // dx=7, dy=270 → angle ≈ 1.5° from vertical → NOT flagged
+        List<AssessmentConnection> conns = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{0, 0}, new double[]{7, 270}, new double[]{7, 400}), "", 0));
+        assertEquals(0, assessor.countNonOrthogonalTerminals(conns, false).count());
+    }
+
+    @Test
+    public void b57_angularDetection_nearHorizontal_shouldNotFlag() {
+        // dx=270, dy=7 → angle ≈ 1.5° from horizontal → NOT flagged
+        List<AssessmentConnection> conns = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{0, 0}, new double[]{270, 7}, new double[]{270, 100}), "", 0));
+        assertEquals(0, assessor.countNonOrthogonalTerminals(conns, false).count());
+    }
+
+    @Test
+    public void b57_angularDetection_genuinelyDiagonal_shouldFlag() {
+        // dx=30, dy=40 → deviation ≈ 36.9° → flagged
+        List<AssessmentConnection> conns = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{0, 0}, new double[]{30, 40}, new double[]{30, 100}), "", 0));
+        assertEquals(1, assessor.countNonOrthogonalTerminals(conns, false).count());
+    }
+
+    @Test
+    public void b57_angularDetection_justBelowThreshold_shouldNotFlag() {
+        // ~4.997° from horizontal (dx=99.62, dy=8.71) → below 5° threshold → NOT flagged
+        List<AssessmentConnection> conns = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{0, 0}, new double[]{99.62, 8.71}, new double[]{99.62, 100}), "", 0));
+        assertEquals(0, assessor.countNonOrthogonalTerminals(conns, false).count());
+    }
+
+    @Test
+    public void b57_angularDetection_justAboveThreshold_shouldFlag() {
+        // ~5.01° from horizontal (dx=100, dy=8.77) → just above 5° threshold → flagged
+        List<AssessmentConnection> conns = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{0, 0}, new double[]{100, 8.77}, new double[]{100, 100}), "", 0));
+        assertEquals(1, assessor.countNonOrthogonalTerminals(conns, false).count());
+    }
+
+    @Test
+    public void b57_angularDetection_zeroLengthSegment_shouldNotFlagOrThrow() {
+        // dx=0, dy=0 → atan2(0,0)=0° → deviation=0° → NOT flagged, no exception
+        List<AssessmentConnection> conns = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{50, 50}, new double[]{50, 50}, new double[]{50, 100}), "", 0));
+        assertEquals(0, assessor.countNonOrthogonalTerminals(conns, false).count());
+    }
+
+    @Test
+    public void b57_angularDetection_negativeDirection_shouldNotFlag() {
+        // Near-vertical with negative dy direction: p1=(100,300)→p2=(107,30) → dx=7, dy=270 → 1.5° → NOT flagged
+        List<AssessmentConnection> conns = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{100, 300}, new double[]{107, 30}, new double[]{107, 0}), "", 0));
         assertEquals(0, assessor.countNonOrthogonalTerminals(conns, false).count());
     }
 
@@ -3216,5 +3468,1113 @@ public class LayoutQualityAssessorTest {
         LayoutQualityAssessor.PassThroughResult result =
                 assessor.detectPassThroughs(connections, nodes, true);
         assertTrue("Should contain pt-conn", result.violatorIds().contains("pt-conn"));
+    }
+
+    // ---- B60: Zero-bendpoint non-orthogonal terminal detection tests ----
+
+    @Test
+    public void b60_countNonOrthogonalTerminals_orthogonalZeroBendpoint_shouldNotCount() {
+        // 2-point horizontal path (zero bendpoints but orthogonal) — should not count
+        List<AssessmentConnection> conns = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{0, 0}, new double[]{100, 0}), "", 0));
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(conns, false);
+        assertEquals(0, result.count());
+        assertEquals(0, result.zeroBendpointCount());
+    }
+
+    @Test
+    public void b60_countNonOrthogonalTerminals_zeroBendpointDiagonal_shouldCountInZeroBP() {
+        // 2-point path (source center → target center, no bendpoints) with diagonal = ELK signature
+        List<AssessmentConnection> conns = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{0, 0}, new double[]{30, 40}), "", 0));
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(conns, false);
+        assertEquals(1, result.count());
+        assertEquals(1, result.zeroBendpointCount());
+    }
+
+    @Test
+    public void b60_countNonOrthogonalTerminals_routedDiagonal_shouldNotCountInZeroBP() {
+        // 3-point path (has bendpoints) with diagonal source terminal
+        List<AssessmentConnection> conns = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{0, 0}, new double[]{30, 40}, new double[]{30, 100}), "", 0));
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(conns, false);
+        assertEquals(1, result.count());
+        assertEquals(0, result.zeroBendpointCount());
+    }
+
+    @Test
+    public void b60_countNonOrthogonalTerminals_mixed_shouldReturnCorrectCounts() {
+        // Mix of zero-BP diagonal and routed diagonal connections
+        List<AssessmentConnection> conns = List.of(
+                // Zero-BP diagonal (ELK signature)
+                new AssessmentConnection("c-elk", "a", "b", List.of(
+                        new double[]{0, 0}, new double[]{30, 40}), "", 0),
+                // Routed diagonal (3-point path)
+                new AssessmentConnection("c-routed", "a", "c", List.of(
+                        new double[]{0, 0}, new double[]{30, 40}, new double[]{30, 100}), "", 0),
+                // Orthogonal (should not count at all)
+                new AssessmentConnection("c-orth", "a", "d", List.of(
+                        new double[]{0, 0}, new double[]{100, 0}, new double[]{100, 50}), "", 0));
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(conns, false);
+        assertEquals(2, result.count());
+        assertEquals(1, result.zeroBendpointCount());
+    }
+
+    // ---- B60: Suggestion text differentiation tests ----
+
+    @Test
+    public void b60_suggestions_allZeroBP_shouldNotSuggestReRouting() {
+        // All non-orth connections are zero-bendpoint (ELK signature)
+        // Need nodes for assess() and zero-BP diagonal connections
+        List<AssessmentNode> nodes = List.of(
+                node("a", 0, 0, 50, 50),
+                node("b", 200, 200, 50, 50));
+        List<AssessmentConnection> connections = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{25, 25}, new double[]{225, 225}), "", 1));
+        LayoutAssessmentResult result = assessor.assess(nodes, connections, false);
+        // Should have suggestion about straight-line connections
+        boolean hasElkText = result.suggestions().stream()
+                .anyMatch(s -> s.contains("straight-line connections typical of ELK layout"));
+        assertTrue("Should have ELK-aware suggestion text", hasElkText);
+        // Should NOT suggest re-routing
+        boolean hasReRoute = result.suggestions().stream()
+                .anyMatch(s -> s.contains("re-run auto-route-connections to improve orthogonality"));
+        assertFalse("Should NOT suggest re-routing for all-zero-BP", hasReRoute);
+    }
+
+    @Test
+    public void b60_suggestions_mixed_shouldContainBothElkAndReRouteAdvice() {
+        // Mix of zero-BP and routed non-orth connections
+        List<AssessmentNode> nodes = List.of(
+                node("a", 0, 0, 50, 50),
+                node("b", 200, 200, 50, 50),
+                node("c", 400, 0, 50, 50));
+        List<AssessmentConnection> connections = List.of(
+                // Zero-BP diagonal (ELK)
+                new AssessmentConnection("c-elk", "a", "b", List.of(
+                        new double[]{25, 25}, new double[]{225, 225}), "", 1),
+                // Routed diagonal (3-point path with diagonal target terminal)
+                new AssessmentConnection("c-routed", "a", "c", List.of(
+                        new double[]{25, 25}, new double[]{25, 200}, new double[]{225, 425}), "", 1));
+        LayoutAssessmentResult result = assessor.assess(nodes, connections, false);
+        // Should have ELK-aware text for zero-BP portion
+        boolean hasElkText = result.suggestions().stream()
+                .anyMatch(s -> s.contains("straight-line connections typical of ELK layout"));
+        assertTrue("Should have ELK text for zero-BP portion", hasElkText);
+        // Should also have re-route advice for routed portion. The full parenthetical
+        // "(or use mode='terminals-only'" is unique to the routed-advice branches and
+        // does not appear in any other generateSuggestions output (group-overlap,
+        // group-crossings, M2 interior, M3 zigzag, etc.).
+        boolean hasReRoute = result.suggestions().stream()
+                .anyMatch(s -> s.contains("re-run auto-route-connections (or use mode='terminals-only'"));
+        assertTrue("Should have re-route advice for routed portion", hasReRoute);
+    }
+
+    @Test
+    public void b60_suggestions_noZeroBP_shouldSuggestReRouting() {
+        // All non-orth connections are routed (3+ point paths) — existing text unchanged
+        List<AssessmentNode> nodes = List.of(
+                node("a", 0, 0, 50, 50),
+                node("b", 200, 200, 50, 50));
+        List<AssessmentConnection> connections = List.of(
+                new AssessmentConnection("c1", "a", "b", List.of(
+                        new double[]{25, 25}, new double[]{55, 55}, new double[]{225, 225}), "", 1));
+        LayoutAssessmentResult result = assessor.assess(nodes, connections, false);
+        // Should have the existing re-route suggestion. The full parenthetical
+        // "(or use mode='terminals-only'" is unique to the routed-advice branches.
+        boolean hasReRoute = result.suggestions().stream()
+                .anyMatch(s -> s.contains("re-run auto-route-connections (or use mode='terminals-only'"));
+        assertTrue("Should suggest re-routing for all-routed non-orth", hasReRoute);
+        // Should NOT have ELK text
+        boolean hasElkText = result.suggestions().stream()
+                .anyMatch(s -> s.contains("straight-line connections typical of ELK layout"));
+        assertFalse("Should NOT have ELK text for all-routed", hasElkText);
+    }
+
+    // ====================================================================
+    // Assessor.Redesign M1-M6 unit tests (Task 1.4-1.9, 2026-04-26)
+    // ====================================================================
+
+    // ---- M1: Corrected nonOrthogonalTerminalCount (post-clip definition, Task 1.4) ----
+
+    @Test
+    public void m1_shouldNotFlagAsNonOrthogonal_whenFirstBpOnSourceLeftPerimeter_alongFaceAxis() {
+        // Source rect: x=200, y=100, w=100, h=80. LEFT face at x=200. Source center (250, 140).
+        // BP1 (200, 130) on LEFT perimeter. Target rect chosen so target-side segment is also orthogonal.
+        AssessmentNode source = node("src", 200, 100, 100, 80);
+        AssessmentNode target = node("tgt", 0, 115, 50, 30); // target center (25, 130) — same Y as BP1
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{250, 140}, new double[]{200, 130},
+                        new double[]{25, 130}), "", 1);
+
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(List.of(conn), List.of(source, target), false);
+
+        // Pre-M1: would flag (source-center → BP1 is diagonal). Post-M1: skipped — BP1 on perimeter.
+        // Target-side segment (200,130)→(25,130) is horizontal — orthogonal.
+        assertEquals("M1: BP1 on LEFT perimeter must NOT flag as non-orthogonal",
+                0, result.count());
+    }
+
+    @Test
+    public void m1_shouldNotFlagAsNonOrthogonal_whenFirstBpOnSourceRightPerimeter() {
+        // Source rect: x=100, y=100, w=100, h=80. RIGHT face at x=200.
+        AssessmentNode source = node("src", 100, 100, 100, 80);
+        AssessmentNode target = node("tgt", 400, 135, 50, 30); // target center (425, 150)
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{150, 140}, new double[]{200, 150},
+                        new double[]{425, 150}), "", 1);
+
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(List.of(conn), List.of(source, target), false);
+
+        assertEquals("M1: BP1 on RIGHT perimeter must NOT flag as non-orthogonal",
+                0, result.count());
+    }
+
+    @Test
+    public void m1_shouldNotFlagAsNonOrthogonal_whenFirstBpOnSourceTopPerimeter() {
+        // Source rect: x=100, y=200, w=100, h=80. TOP face at y=200.
+        AssessmentNode source = node("src", 100, 200, 100, 80);
+        AssessmentNode target = node("tgt", 105, 0, 30, 30); // target center (120, 15) — same X as BP1
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{150, 240}, new double[]{120, 200},
+                        new double[]{120, 15}), "", 1);
+
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(List.of(conn), List.of(source, target), false);
+
+        assertEquals("M1: BP1 on TOP perimeter must NOT flag as non-orthogonal",
+                0, result.count());
+    }
+
+    @Test
+    public void m1_shouldNotFlagAsNonOrthogonal_whenFirstBpOnSourceBottomPerimeter() {
+        // Source rect: x=100, y=100, w=100, h=80. BOTTOM face at y=180.
+        AssessmentNode source = node("src", 100, 100, 100, 80);
+        AssessmentNode target = node("tgt", 105, 400, 30, 30); // target center (120, 415)
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{150, 140}, new double[]{120, 180},
+                        new double[]{120, 415}), "", 1);
+
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(List.of(conn), List.of(source, target), false);
+
+        assertEquals("M1: BP1 on BOTTOM perimeter must NOT flag as non-orthogonal",
+                0, result.count());
+    }
+
+    @Test
+    public void m1_shouldFlagWhenBpExterior_andSegmentDiagonal() {
+        // Control: BP1 well outside source rect, segment from source center to BP1 is diagonal.
+        // Source rect: x=100, y=100, w=50, h=50. BP1=(300, 150) — well right of source.
+        AssessmentNode source = node("src", 100, 100, 50, 50);
+        AssessmentNode target = node("tgt", 400, 0, 50, 30);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                // Source center (125, 125) → BP1 (300, 150). dx=175, dy=25. angle ≈ 8.1° → non-orth.
+                List.of(new double[]{125, 125}, new double[]{300, 150},
+                        new double[]{425, 15}), "", 1);
+
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(List.of(conn), List.of(source, target), false);
+
+        assertEquals("M1: BP1 exterior + diagonal segment must flag as non-orthogonal",
+                1, result.count());
+    }
+
+    // ---- M1: Minimum-visible-length guard (Calibration.M1ManualOracle21, 2026-04-27) ----
+    // Tests AC-3A.4: when the visible (post-clip) terminal-segment length is below
+    // VISIBLE_DIAGONAL_MIN_PX = 3.0, M1 must not flag the connection (sub-perceptible).
+    // Calibrated against the V4 manual oracle (id-3b2665e3ff6840708dbed2b3d1415613)
+    // where 20 of 21 violators had visible length 1.0–1.3px from BPs Archi stored
+    // 1px off the perimeter face line. See investigation table at
+    // _bmad-output/implementation-artifacts/m1-manual-oracle-21-investigation-2026-04-27.md.
+
+    @Test
+    public void m1_shouldNotFlag_whenBpExteriorButVisibleSegmentSubperceptible_lengthBelowThreshold() {
+        // Source rect: x=200, y=100, w=100, h=50. LEFT face at x=200, source center (250, 125).
+        // BP1 (199, 145) — 1px LEFT of LEFT face. Geometric segment (250,125)→(199,145):
+        //   dx=51, dy=20, deviation 21.4° → predicate 2 fires.
+        // Visible segment: clip at LEFT face → t=50/51, y=125+20·(50/51)≈144.61.
+        //   Clip (200, 144.61), bp (199, 145). Visible length = √(1 + 0.1521) ≈ 1.07px.
+        // Pre-guard: M1 = 1 (perimeter-skip miss + non-orth angle).
+        // Post-guard (Calibration.M1ManualOracle21): visible 1.07 < 3.0 → suppressed → M1 = 0.
+        AssessmentNode source = node("src", 200, 100, 100, 50);
+        AssessmentNode target = node("tgt", 50, 0, 100, 30);  // far enough that target side won't flag
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                // Path: source center → BP1 (just outside LEFT, sub-perceptible diagonal)
+                //       → BP2 (orthogonal to BP1) → target center.
+                List.of(new double[]{250, 125}, new double[]{199, 145},
+                        new double[]{199, 15}, new double[]{100, 15}), "", 1);
+
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(List.of(conn), List.of(source, target), false);
+
+        assertEquals("M1 visible-length guard: sub-perceptible (~1.07px) diagonal must NOT flag",
+                0, result.count());
+    }
+
+    @Test
+    public void m1_shouldFlag_whenBpExteriorAndVisibleSegmentExceedsThreshold() {
+        // Source rect: x=200, y=100, w=100, h=50. LEFT face at x=200, source center (250, 125).
+        // BP1 (180, 145) — 20px LEFT of LEFT face. Geometric segment (250,125)→(180,145):
+        //   dx=70, dy=20, deviation 15.95° → predicate 2 fires.
+        // Visible segment: clip at LEFT face → t=50/70, y=125+20·(50/70)≈139.29.
+        //   Clip (200, 139.29), bp (180, 145). Visible length = √(400 + 32.7) ≈ 20.80px.
+        // Post-guard: visible 20.80 ≥ 3.0 → guard does NOT suppress → M1 = 1.
+        AssessmentNode source = node("src", 200, 100, 100, 50);
+        AssessmentNode target = node("tgt", 50, 0, 100, 30);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{250, 125}, new double[]{180, 145},
+                        new double[]{180, 15}, new double[]{100, 15}), "", 1);
+
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(List.of(conn), List.of(source, target), false);
+
+        assertEquals("M1 visible-length guard: visible diagonal ≥ 3.0px must STILL flag",
+                1, result.count());
+    }
+
+    @Test
+    public void m1_shouldNotFlag_whenBpInsideElement_evenForLongDiagonal() {
+        // Source rect: x=200, y=100, w=100, h=50. BP1 (220, 130) STRICTLY inside source.
+        // isOnOrInsideElement returns true → predicate 1 short-circuits → predicate 2/3 not
+        // evaluated. Behaviour preserved post-guard (the new && visibleSegmentLength is
+        // never reached). This test pins the AND-short-circuit ordering.
+        AssessmentNode source = node("src", 200, 100, 100, 50);
+        AssessmentNode target = node("tgt", 240, 190, 40, 30);  // target center (260, 205)
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                // Path: source center (250,125) → BP1 (220,130) [inside source] → BP2 (220,205)
+                //       [outside target LEFT, orthogonal to target center] → target center.
+                List.of(new double[]{250, 125}, new double[]{220, 130},
+                        new double[]{220, 205}, new double[]{260, 205}), "", 1);
+
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(List.of(conn), List.of(source, target), false);
+
+        assertEquals("M1: BP inside element must NOT flag — guard ordering preserved",
+                0, result.count());
+    }
+
+    @Test
+    public void m1_shouldFlag_targetSide_whenLastBpExteriorAndVisibleLengthExceedsThreshold() {
+        // Symmetric to the source-side test above, but the diagonal is on the target terminal.
+        // Target rect: x=200, y=100, w=100, h=50. LEFT face at x=200, target center (250, 125).
+        // BP_last (180, 145) — 20px LEFT of target LEFT. Geometric segment (180,145)→(250,125):
+        //   dx=70, dy=20, deviation 15.95° → predicate 2 fires.
+        // Visible segment: clip at target LEFT → t=50/70 (parametrized from anchor=target
+        //   center toward bp), y=125+20·(50/70)≈139.29.
+        //   Clip (200, 139.29), bp (180, 145). Visible length ≈ 20.80px ≥ 3.0 → flag.
+        AssessmentNode source = node("src", 50, 0, 100, 30);  // source center (100, 15)
+        AssessmentNode target = node("tgt", 200, 100, 100, 50);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                // Source-side is orthogonal: (100,15) → (180,15) horizontal.
+                // Target-side: (180,145) → (250,125) is the diagonal.
+                List.of(new double[]{100, 15}, new double[]{180, 15},
+                        new double[]{180, 145}, new double[]{250, 125}), "", 1);
+
+        LayoutQualityAssessor.NonOrthogonalTerminalResult result =
+                assessor.countNonOrthogonalTerminals(List.of(conn), List.of(source, target), false);
+
+        assertEquals("M1 target-side: visible diagonal ≥ 3.0px on target terminal must flag",
+                1, result.count());
+    }
+
+    @Test
+    public void m1_visibleSegmentLength_returnsExpectedValue_forKnownGeometry() {
+        // Direct unit test of the visibleSegmentLength helper.
+        // Element rect [200..300, 100..150] (LEFT face at x=200).
+        // anchor (250, 125) inside; bp (199, 145) outside by 1px on LEFT.
+        // Expected clip at (200, 144.6078...) → visible length √(1 + 0.1538...) ≈ 1.0744...px.
+        AssessmentNode elem = node("e", 200, 100, 100, 50);
+        double[] anchor = {250, 125};
+        double[] bp = {199, 145};
+
+        double visibleLen = LayoutQualityAssessor.visibleSegmentLength(anchor, bp, elem);
+
+        // Tolerance 1e-3 is plenty for double-precision intersection arithmetic.
+        assertEquals("visibleSegmentLength must return ~1.074px for known clip geometry",
+                1.0744, visibleLen, 1e-3);
+
+        // Also exercise the null-elem early return: must return +∞ so the guard
+        // becomes a no-op in the 2-arg overload (legacy geometric-only behaviour
+        // preserved — pre-existing b38/b55/b57/b60 tests depend on this).
+        assertTrue("visibleSegmentLength returns +∞ when elem is null (legacy no-op)",
+                Double.isInfinite(LayoutQualityAssessor.visibleSegmentLength(anchor, bp, null)));
+
+        // Also exercise the bp-on-or-inside early return (defense-in-depth).
+        double[] bpInside = {220, 130};
+        assertEquals("visibleSegmentLength returns 0 when bp is on/inside elem (defense-in-depth)",
+                0.0, LayoutQualityAssessor.visibleSegmentLength(anchor, bpInside, elem), 1e-9);
+    }
+
+    // ---- M2: Interior-termination detection (Task 1.5) ----
+
+    @Test
+    public void m2_shouldFlag_whenLastBpStrictlyInsideTarget_topQuadrant() {
+        // Target rect: x=200, y=100, w=100, h=80. Last BP (220, 110) strictly inside.
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 200, 100, 100, 80);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{25, 25}, new double[]{220, 25},
+                        new double[]{220, 110}, new double[]{250, 140}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M2: BP_last strictly inside target — flag",
+                1, result.interiorTerminationCount());
+    }
+
+    @Test
+    public void m2_shouldFlag_whenFirstBpStrictlyInsideSource() {
+        // Source rect: x=200, y=100, w=100, h=80. First BP (220, 110) strictly inside.
+        AssessmentNode source = node("src", 200, 100, 100, 80);
+        AssessmentNode target = node("tgt", 400, 200, 50, 30);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{250, 140}, new double[]{220, 110},
+                        new double[]{425, 215}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M2: BP_first strictly inside source — flag",
+                1, result.interiorTerminationCount());
+    }
+
+    @Test
+    public void m2_shouldNotFlag_whenBpOnPerimeter_notStrictlyInside() {
+        // BP exactly on perimeter line — strict-inside fails, M2 does NOT flag.
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 200, 100, 100, 80);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                // Last BP (200, 140) on LEFT face line of target — perimeter, not interior.
+                List.of(new double[]{25, 25}, new double[]{200, 140}, new double[]{250, 140}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M2: BP on perimeter line is NOT strictly inside — do NOT flag",
+                0, result.interiorTerminationCount());
+    }
+
+    @Test
+    public void m2_shouldNotFlag_whenBpOutsideElement() {
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 200, 100, 100, 80);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                // Last BP (180, 140) OUTSIDE target rect.
+                List.of(new double[]{25, 25}, new double[]{180, 140}, new double[]{250, 140}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M2: BP outside element — do NOT flag",
+                0, result.interiorTerminationCount());
+    }
+
+    @Test
+    public void m2_shouldFlagBothWhenBothInterior() {
+        AssessmentNode source = node("src", 100, 100, 100, 80);
+        AssessmentNode target = node("tgt", 400, 400, 100, 80);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                // BP1 inside source, BP_last inside target.
+                List.of(new double[]{150, 140}, new double[]{120, 110},
+                        new double[]{420, 410}, new double[]{450, 440}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M2: both BPs interior — single flag per connection (binary defect)",
+                1, result.interiorTerminationCount());
+    }
+
+    @Test
+    public void m2_shouldSkipShortPaths() {
+        // path.size() == 2 (no intermediate BPs) — M2 does not apply.
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 200, 100, 100, 80);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{25, 25}, new double[]{250, 140}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M2: 2-point path has no BP — do NOT flag",
+                0, result.interiorTerminationCount());
+    }
+
+    // ---- M3: Zigzag/reversal detection (Task 1.6) ----
+
+    @Test
+    public void m3_shouldFlagSharedXReversal() {
+        // Triple (100, 50) → (100, 30) → (100, 60). x=100 shared, Δy=-20, +30 — opposite signs > 1px.
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 200, 100, 50, 30);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{25, 25}, new double[]{100, 50}, new double[]{100, 30},
+                        new double[]{100, 60}, new double[]{225, 115}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M3: shared-X with opposite-sign Y deltas — flag",
+                1, result.zigzagCount());
+    }
+
+    @Test
+    public void m3_shouldFlagSharedYReversal() {
+        // Triple (50, 100) → (30, 100) → (60, 100). y=100 shared, Δx=-20, +30 — opposite signs.
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 200, 100, 50, 30);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{25, 25}, new double[]{50, 100}, new double[]{30, 100},
+                        new double[]{60, 100}, new double[]{225, 115}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M3: shared-Y with opposite-sign X deltas — flag",
+                1, result.zigzagCount());
+    }
+
+    @Test
+    public void m3_shouldNotFlagMonotonicSequence() {
+        // Triple (100, 50) → (100, 60) → (100, 70). x=100 shared, Δy=+10, +10 — same sign, no reversal.
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 200, 100, 50, 30);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{25, 25}, new double[]{100, 50}, new double[]{100, 60},
+                        new double[]{100, 70}, new double[]{225, 115}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M3: monotonic sequence (no reversal) — do NOT flag",
+                0, result.zigzagCount());
+    }
+
+    @Test
+    public void m3_shouldNotFlagWhenDeltaBelowTolerance() {
+        // Triple (100, 50) → (100, 50.5) → (100, 51). Both deltas < 1px — colinear, no zigzag.
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 200, 100, 50, 30);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{25, 25}, new double[]{100, 50}, new double[]{100, 50.5},
+                        new double[]{100, 51}, new double[]{225, 115}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M3: deltas below 1px tolerance — do NOT flag",
+                0, result.zigzagCount());
+    }
+
+    @Test
+    public void m3_shouldFlagFixture2_apiMgmtCorpBankingC1() {
+        // Live R5 C1 fixture triple (403,259) → (403,219) → (403,261). Δy=-40, +42 — flag.
+        AssessmentNode source = node("apiMgmt", 641, 219, 303, 126);
+        AssessmentNode target = node("corpBanking", 400, 1100, 120, 60);
+        AssessmentConnection conn = new AssessmentConnection("c1", "apiMgmt", "corpBanking",
+                List.of(new double[]{792, 282}, new double[]{641, 259}, new double[]{403, 259},
+                        new double[]{403, 219}, new double[]{403, 261}, new double[]{437, 261},
+                        new double[]{437, 1159}, new double[]{460, 1130}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M3: fixture 2 zigzag must flag",
+                1, result.zigzagCount());
+    }
+
+    @Test
+    public void m3_shouldCountBinaryPerConnection_evenWithMultipleZigzags() {
+        // Two zigzag triples in one connection — count = 1 (binary defect per connection).
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 500, 500, 50, 30);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{25, 25},
+                        new double[]{100, 50}, new double[]{100, 30}, new double[]{100, 60}, // zigzag 1
+                        new double[]{200, 60}, new double[]{200, 100}, new double[]{200, 80}, // zigzag 2
+                        new double[]{525, 515}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(source, target), List.of(conn), false);
+
+        assertEquals("M3: multiple zigzags within same connection — count once",
+                1, result.zigzagCount());
+    }
+
+    // ---- M4: Connection-vs-element-edge coincidence (Task 1.7) ----
+
+    @Test
+    public void m4_shouldFlagHorizontalSegmentNearElementTopEdge() {
+        // Horizontal segment at y=148 vs foreign element TOP at y=150 (gap 2px, within 3px tolerance).
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 600, 0, 50, 50);
+        AssessmentNode foreign = node("foreign", 200, 150, 200, 100); // TOP at y=150
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{25, 25}, new double[]{100, 148}, new double[]{500, 148},
+                        new double[]{625, 25}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(source, target, foreign), List.of(conn), false);
+
+        assertEquals("M4: horizontal segment within 3px of foreign TOP edge — flag",
+                1, result.connectionEdgeCoincidenceCount());
+    }
+
+    @Test
+    public void m4_shouldNotFlagWhenGapExceedsTolerance() {
+        // Horizontal segment at y=145 vs foreign TOP at y=150 (gap 5px, beyond 3px tolerance).
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 600, 0, 50, 50);
+        AssessmentNode foreign = node("foreign", 200, 150, 200, 100);
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{25, 25}, new double[]{100, 145}, new double[]{500, 145},
+                        new double[]{625, 25}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(source, target, foreign), List.of(conn), false);
+
+        assertEquals("M4: 5px gap exceeds 3px tolerance — do NOT flag",
+                0, result.connectionEdgeCoincidenceCount());
+    }
+
+    @Test
+    public void m4_shouldFlagVerticalSegmentNearElementLeftEdge() {
+        AssessmentNode source = node("src", 0, 0, 50, 50);
+        AssessmentNode target = node("tgt", 0, 600, 50, 50);
+        AssessmentNode foreign = node("foreign", 200, 200, 100, 200); // LEFT at x=200
+        // Vertical at x=198 hugs LEFT face (gap 2px).
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{25, 25}, new double[]{198, 50}, new double[]{198, 500},
+                        new double[]{25, 625}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(source, target, foreign), List.of(conn), false);
+
+        assertEquals("M4: vertical segment within 3px of foreign LEFT edge — flag",
+                1, result.connectionEdgeCoincidenceCount());
+    }
+
+    @Test
+    public void m4_shouldFlagWhenSegmentHugsOwnSourceFace() {
+        // A segment running along its own source's RIGHT face FLAGS
+        // (story M4.RemoveSelfExclusion 2026-04-27 — self-exclusion removed; any element face is in scope).
+        AssessmentNode source = node("src", 100, 100, 100, 100); // RIGHT at x=200, y-range [100,200]
+        AssessmentNode target = node("tgt", 500, 0, 50, 30);
+        // Vertical at x=200 hugs source's own RIGHT face — post-removal, this is in scope and flags.
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{150, 150}, new double[]{200, 150}, new double[]{200, 100},
+                        new double[]{525, 15}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(source, target), List.of(conn), false);
+
+        assertEquals("M4: self-element coincidence flagged (no longer excluded)",
+                1, result.connectionEdgeCoincidenceCount());
+    }
+
+    @Test
+    public void m4_shouldFlagWhenSegmentHugsOwnTargetFace() {
+        // A segment running along its own target's LEFT face FLAGS
+        // (story M4.RemoveSelfExclusion 2026-04-27).
+        AssessmentNode source = node("src", 0, 0, 50, 30);
+        AssessmentNode target = node("tgt", 200, 100, 100, 200); // LEFT at x=200, y-range [100,300]
+        // Vertical at x=200 hugs target's own LEFT face — post-removal, this is in scope and flags.
+        AssessmentConnection conn = new AssessmentConnection("c1", "src", "tgt",
+                List.of(new double[]{25, 15}, new double[]{200, 50},
+                        new double[]{200, 250}, new double[]{250, 200}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(source, target), List.of(conn), false);
+
+        assertEquals("M4: target's own face coincidence flagged",
+                1, result.connectionEdgeCoincidenceCount());
+    }
+
+    // ---- M5: Hub-port allocation quality (Task 1.8) ----
+
+    @Test
+    public void m5_shouldReportLowQuality_when4ConnectionsShareSameSlotOnLeftFace() {
+        AssessmentNode hub = node("hub", 200, 100, 100, 200); // LEFT at x=200
+        AssessmentNode peer1 = node("p1", 0, 100, 50, 30);
+        AssessmentNode peer2 = node("p2", 0, 150, 50, 30);
+        AssessmentNode peer3 = node("p3", 0, 200, 50, 30);
+        AssessmentNode peer4 = node("p4", 0, 250, 50, 30);
+        // 4 connections all entering hub LEFT face at slot Y=200.
+        List<AssessmentConnection> conns = List.of(
+                connToHubLeft("c1", peer1, hub, 200),
+                connToHubLeft("c2", peer2, hub, 200),
+                connToHubLeft("c3", peer3, hub, 200),
+                connToHubLeft("c4", peer4, hub, 200));
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(hub, peer1, peer2, peer3, peer4), conns, true);
+
+        assertEquals("M5: 4 connections at 1 slot — quality = 0.25",
+                0.25, result.hubPortQualityScore(), 1e-9);
+        assertNotNull(result.hubPortQualityFaces());
+        assertEquals("M5: one hub face detail expected", 1, result.hubPortQualityFaces().size());
+    }
+
+    @Test
+    public void m5_shouldReportPerfectQuality_when4ConnectionsAtDistinctSlots() {
+        AssessmentNode hub = node("hub", 200, 100, 100, 200);
+        AssessmentNode peer1 = node("p1", 0, 100, 50, 30);
+        AssessmentNode peer2 = node("p2", 0, 150, 50, 30);
+        AssessmentNode peer3 = node("p3", 0, 200, 50, 30);
+        AssessmentNode peer4 = node("p4", 0, 250, 50, 30);
+        // 4 connections at 4 distinct slot Ys: 130, 180, 230, 280.
+        List<AssessmentConnection> conns = List.of(
+                connToHubLeft("c1", peer1, hub, 130),
+                connToHubLeft("c2", peer2, hub, 180),
+                connToHubLeft("c3", peer3, hub, 230),
+                connToHubLeft("c4", peer4, hub, 280));
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(hub, peer1, peer2, peer3, peer4), conns, false);
+
+        assertEquals("M5: 4 distinct slots — quality = 1.0",
+                1.0, result.hubPortQualityScore(), 1e-9);
+    }
+
+    @Test
+    public void m5_shouldNotCountFaceWithFewerThanMinConnections() {
+        // Only 3 connections on the face — below M5_FACE_GUARD_MIN_CONNECTIONS=4. No hub face exists.
+        AssessmentNode hub = node("hub", 200, 100, 100, 200);
+        AssessmentNode peer1 = node("p1", 0, 100, 50, 30);
+        AssessmentNode peer2 = node("p2", 0, 150, 50, 30);
+        AssessmentNode peer3 = node("p3", 0, 200, 50, 30);
+        List<AssessmentConnection> conns = List.of(
+                connToHubLeft("c1", peer1, hub, 200),
+                connToHubLeft("c2", peer2, hub, 200),
+                connToHubLeft("c3", peer3, hub, 200));
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(hub, peer1, peer2, peer3), conns, false);
+
+        assertEquals("M5: 3 connections (below threshold) — quality remains 1.0",
+                1.0, result.hubPortQualityScore(), 1e-9);
+    }
+
+    // Assessor.Redesign code-review H3+M2 (2026-04-27): when terminal BPs are exterior to the
+    // element rect (M1-non-orthogonal cases), M5 must STILL attribute the connection to the
+    // visible face via segment clip-point. Pre-fix, exterior BPs returned inferFace==null
+    // and silently dropped out of M5, masking hub congestion on real models.
+    @Test
+    public void m5_shouldUseClipPoint_whenBpIsExteriorToHubFace() {
+        // Hub at (200, 100, 100, 200) — center (250, 200), LEFT face x=200, y range 100-300.
+        AssessmentNode hub = node("hub", 200, 100, 100, 200);
+        AssessmentNode peer1 = node("p1", 0, 50, 50, 30);
+        AssessmentNode peer2 = node("p2", 0, 150, 50, 30);
+        AssessmentNode peer3 = node("p3", 0, 250, 50, 30);
+        AssessmentNode peer4 = node("p4", 0, 350, 50, 30);
+        // Each peer→hub connection has BP1 exterior — well left of hub LEFT face.
+        // Segment peer-center → BP1 lands on hub LEFT at clipY=200 for ALL four peers
+        // (deliberate construction: BP1 is co-linear with hub-center → clip slot = 200).
+        // Pre-fix: inferFace returned null on these exterior BPs and M5 reported quality=1.0.
+        // Post-fix: clipSegmentToFace finds LEFT face at slot=200 → 4 conns / 1 slot = 0.25.
+        // BPs chosen so hub-center→BP segment passes through (200, 200) on LEFT face.
+        // For peer connections going hub→peer: hub center (250, 200), BP at (-100, 200) — exterior.
+        // dx=-350, dy=0 → exits LEFT face at x=200, y=200.
+        AssessmentConnection c1 = new AssessmentConnection("c1", "hub", "p1",
+                List.of(new double[]{250, 200}, new double[]{-100, 200},
+                        new double[]{25, 65}), "", 1);
+        AssessmentConnection c2 = new AssessmentConnection("c2", "hub", "p2",
+                List.of(new double[]{250, 200}, new double[]{-200, 200},
+                        new double[]{25, 165}), "", 1);
+        AssessmentConnection c3 = new AssessmentConnection("c3", "hub", "p3",
+                List.of(new double[]{250, 200}, new double[]{-50, 200},
+                        new double[]{25, 265}), "", 1);
+        AssessmentConnection c4 = new AssessmentConnection("c4", "hub", "p4",
+                List.of(new double[]{250, 200}, new double[]{-300, 200},
+                        new double[]{25, 365}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(hub, peer1, peer2, peer3, peer4),
+                List.of(c1, c2, c3, c4), true);
+
+        assertEquals("M5 clip-point fallback: 4 exterior BPs, all clip at LEFT slot=200 — quality 0.25",
+                0.25, result.hubPortQualityScore(), 1e-6);
+        assertNotNull(result.hubPortQualityFaces());
+        LayoutAssessmentResult.HubFaceDetail leftFace = result.hubPortQualityFaces().stream()
+                .filter(d -> "hub".equals(d.elementId()) && "LEFT".equals(d.face()))
+                .findFirst().orElse(null);
+        assertNotNull("hub LEFT face must be reported via clip-point", leftFace);
+        assertEquals(4, leftFace.connectionsOnFace());
+        assertEquals(1, leftFace.distinctSlots());
+    }
+
+    @Test
+    public void m5_shouldUseClipPoint_distinctSlotsWhenSegmentsExitAtDifferentY() {
+        // Same hub, but each connection's BP is at a distinct Y → clip-point on LEFT face
+        // lands at distinct slot Y values (not equal, but distinct).
+        AssessmentNode hub = node("hub", 200, 100, 100, 200); // center (250, 200)
+        AssessmentNode p1 = node("p1", 0, 110, 50, 30);
+        AssessmentNode p2 = node("p2", 0, 160, 50, 30);
+        AssessmentNode p3 = node("p3", 0, 210, 50, 30);
+        AssessmentNode p4 = node("p4", 0, 260, 50, 30);
+        // Segment from hub-center (250, 200) to BP (100, bpY) exits LEFT (x=200) at
+        // clipY = 200 + (1/3)*(bpY - 200).  For bpY ∈ {125, 175, 225, 275} this gives
+        // clipY ∈ {175, 191.67, 208.33, 225} — 4 distinct slots beyond 1px tolerance.
+        AssessmentConnection c1 = new AssessmentConnection("c1", "hub", "p1",
+                List.of(new double[]{250, 200}, new double[]{100, 125},
+                        new double[]{25, 125}), "", 1);
+        AssessmentConnection c2 = new AssessmentConnection("c2", "hub", "p2",
+                List.of(new double[]{250, 200}, new double[]{100, 175},
+                        new double[]{25, 175}), "", 1);
+        AssessmentConnection c3 = new AssessmentConnection("c3", "hub", "p3",
+                List.of(new double[]{250, 200}, new double[]{100, 225},
+                        new double[]{25, 225}), "", 1);
+        AssessmentConnection c4 = new AssessmentConnection("c4", "hub", "p4",
+                List.of(new double[]{250, 200}, new double[]{100, 275},
+                        new double[]{25, 275}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(hub, p1, p2, p3, p4), List.of(c1, c2, c3, c4), false);
+
+        assertEquals("M5 clip-point fallback: 4 distinct exit slots — quality 1.0",
+                1.0, result.hubPortQualityScore(), 1e-6);
+    }
+
+    @Test
+    public void m5_shouldDetectBottomFaceHub() {
+        // 4 connections at same slot on hub BOTTOM face (slot = X coordinate).
+        AssessmentNode hub = node("hub", 100, 100, 200, 100); // BOTTOM at y=200
+        AssessmentNode peer1 = node("p1", 0, 400, 50, 30);
+        AssessmentNode peer2 = node("p2", 100, 400, 50, 30);
+        AssessmentNode peer3 = node("p3", 200, 400, 50, 30);
+        AssessmentNode peer4 = node("p4", 300, 400, 50, 30);
+        // All 4 connections enter BOTTOM face at slot X=200.
+        List<AssessmentConnection> conns = List.of(
+                connFromHubBottom("c1", hub, peer1, 200),
+                connFromHubBottom("c2", hub, peer2, 200),
+                connFromHubBottom("c3", hub, peer3, 200),
+                connFromHubBottom("c4", hub, peer4, 200));
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(hub, peer1, peer2, peer3, peer4), conns, false);
+
+        assertEquals("M5: BOTTOM face with 4 connections at same X-slot — quality = 0.25",
+                0.25, result.hubPortQualityScore(), 1e-9);
+    }
+
+    /** Builds a connection peer→hub LEFT face at the given slot Y. Path: peer center → BP on LEFT face → hub center. */
+    private static AssessmentConnection connToHubLeft(String id, AssessmentNode peer,
+                                                      AssessmentNode hub, double slotY) {
+        double pcx = peer.x() + peer.width() / 2.0;
+        double pcy = peer.y() + peer.height() / 2.0;
+        double hcx = hub.x() + hub.width() / 2.0;
+        double hcy = hub.y() + hub.height() / 2.0;
+        return new AssessmentConnection(id, peer.id(), hub.id(),
+                List.of(new double[]{pcx, pcy},
+                        new double[]{hub.x(), slotY},
+                        new double[]{hcx, hcy}),
+                "", 1);
+    }
+
+    /** Builds a connection hub→peer BOTTOM face at the given slot X. Path: hub center → BP on BOTTOM face → peer center. */
+    private static AssessmentConnection connFromHubBottom(String id, AssessmentNode hub,
+                                                           AssessmentNode peer, double slotX) {
+        double hcx = hub.x() + hub.width() / 2.0;
+        double hcy = hub.y() + hub.height() / 2.0;
+        double pcx = peer.x() + peer.width() / 2.0;
+        double pcy = peer.y() + peer.height() / 2.0;
+        return new AssessmentConnection(id, hub.id(), peer.id(),
+                List.of(new double[]{hcx, hcy},
+                        new double[]{slotX, hub.y() + hub.height()},
+                        new double[]{pcx, pcy}),
+                "", 1);
+    }
+
+    // ---- R8: Corridor Utilisation (Story WCU.RegressionTest, 2026-05-03) ----
+
+    @Test
+    public void r8_emptyConnections_returnsVacuous1() {
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(group("g1", 0, 0, 100, 100), group("g2", 200, 0, 100, 100)),
+                List.of(), false);
+        assertEquals("R8: no connections → vacuous 1.0",
+                1.0, result.corridorUtilisationScore(), 1e-9);
+    }
+
+    @Test
+    public void r8_singleOccupantChannel_isSkipped_vacuous1() {
+        // One vertical segment at x=150 in a corridor between two group walls; n=1 < 2 → skip.
+        AssessmentNode left = group("left", 0, 0, 100, 400);
+        AssessmentNode right = group("right", 350, 0, 100, 400);
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(left, right),
+                List.of(vSeg("c1", "left", "right", 150, 100, 200)), false);
+        assertEquals("R8: single-occupant corridor skipped → vacuous 1.0",
+                1.0, result.corridorUtilisationScore(), 1e-9);
+    }
+
+    @Test
+    public void r8_singleChannel_fourOccupants_returnsSpanOverAvailable() {
+        // Walls: left.right_edge=100, right.left_edge=350.
+        // available = 350 - 100 - 2*MIN_CLEARANCE_PX(=10) = 230.
+        // 4 verticals at x ∈ {150, 180, 220, 280}; span = 280-150 = 130.
+        // spread_ratio = 130/230.
+        AssessmentNode left = group("left", 0, 0, 100, 400);
+        AssessmentNode right = group("right", 350, 0, 100, 400);
+        List<AssessmentConnection> conns = List.of(
+                vSeg("c1", "left", "right", 150, 100, 200),
+                vSeg("c2", "left", "right", 180, 100, 200),
+                vSeg("c3", "left", "right", 220, 100, 200),
+                vSeg("c4", "left", "right", 280, 100, 200));
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(left, right), conns, true);
+        assertEquals("R8: span=130, available=230 → spread_ratio = 130/230",
+                130.0 / 230.0, result.corridorUtilisationScore(), 1e-9);
+        assertEquals("R8: one corridor detail expected when includeViolatorIds=true",
+                1, result.corridorUtilisationChannels().size());
+        LayoutAssessmentResult.CorridorUtilisationDetail d =
+                result.corridorUtilisationChannels().get(0);
+        assertEquals(0, d.axis());
+        assertEquals(4, d.occupantCount());
+        assertEquals(130.0, d.span(), 1e-9);
+        assertEquals(230.0, d.available(), 1e-9);
+    }
+
+    @Test
+    public void r8_narrowCorridor_spreadRatioClampedToOne() {
+        // Walls 24 px apart: left.right=100, right.left=124.
+        // available = 124 - 100 - 2*MIN_CLEARANCE_PX(=10) = 4 px.
+        // 2 verticals at x ∈ {109, 120}; span = 11 px > available 4 px.
+        // Pre-clamp ratio = 11/4 = 2.75; post-clamp = 1.0 (per code-review M1).
+        AssessmentNode left = group("left", 0, 0, 100, 400);
+        AssessmentNode right = group("right", 124, 0, 100, 400);
+        List<AssessmentConnection> conns = List.of(
+                vSeg("c1", "left", "right", 109, 100, 200),
+                vSeg("c2", "left", "right", 120, 100, 200));
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(left, right), conns, true);
+        assertEquals("R8: narrow corridor (span > available) clamped to 1.0",
+                1.0, result.corridorUtilisationScore(), 1e-9);
+        assertEquals("R8: per-channel detail records the clamped value",
+                1.0, result.corridorUtilisationChannels().get(0).spreadRatio(), 1e-9);
+    }
+
+    @Test
+    public void r8_multiChannel_returnsOccupantCountWeightedMean() {
+        // Corridor A: walls aL.right=50, aR.left=200 → available = 130. 2 occupants at
+        //   x ∈ {100, 165} → span 65 → ratio 0.5.
+        // Corridor B: walls bL.right=450, bR.left=600 → available = 130. 4 occupants at
+        //   x ∈ {500, 510, 520, 526} → span 26 → ratio 0.2.
+        // Weighted mean = (0.5*2 + 0.2*4) / 6 = 1.8 / 6 = 0.3.
+        AssessmentNode aL = group("aL", 0, 0, 50, 400);
+        AssessmentNode aR = group("aR", 200, 0, 50, 400);
+        AssessmentNode bL = group("bL", 400, 0, 50, 400);
+        AssessmentNode bR = group("bR", 600, 0, 50, 400);
+        List<AssessmentConnection> conns = List.of(
+                vSeg("a1", "aL", "aR", 100, 100, 200),
+                vSeg("a2", "aL", "aR", 165, 100, 200),
+                vSeg("b1", "bL", "bR", 500, 100, 200),
+                vSeg("b2", "bL", "bR", 510, 100, 200),
+                vSeg("b3", "bL", "bR", 520, 100, 200),
+                vSeg("b4", "bL", "bR", 526, 100, 200));
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(aL, aR, bL, bR), conns, false);
+        assertEquals("R8: occupant-count-weighted mean = (0.5*2 + 0.2*4) / 6 = 0.3",
+                0.3, result.corridorUtilisationScore(), 1e-9);
+    }
+
+    /**
+     * Builds a connection whose pathPoints contain ONE long vertical segment at x=segX
+     * spanning y ∈ [segYStart, segYEnd]. Pre/post diagonals (dx=5, dy=5) avoid spurious
+     * axis-parallel detection on the approach/exit pairs.
+     */
+    private static AssessmentConnection vSeg(String id, String srcId, String tgtId,
+                                              double segX, double segYStart, double segYEnd) {
+        return new AssessmentConnection(id, srcId, tgtId,
+                List.of(new double[]{segX - 5, segYStart - 5},
+                        new double[]{segX, segYStart},
+                        new double[]{segX, segYEnd},
+                        new double[]{segX + 5, segYEnd + 5}),
+                "", 1);
+    }
+
+    // ---- M6: Two-dimensional rating + tier promotions (Task 1.9) ----
+
+    @Test
+    public void m6_layoutCleanRoutingPoor_shouldRateOverallPoor() {
+        // 4-node grid for clean alignment + spacing — layout dimension passes excellent.
+        // One connection introduces an interior-termination → routing Tier 1R poor.
+        AssessmentNode a = node("a", 0, 0, 100, 50);
+        AssessmentNode b = node("b", 200, 0, 100, 50);
+        AssessmentNode c = node("c", 0, 200, 100, 50);
+        AssessmentNode d = node("d", 200, 200, 100, 50);
+        AssessmentConnection interior = new AssessmentConnection("conn", "a", "d",
+                // BP_last (220, 210) strictly inside d (rect 200,200,100,50).
+                List.of(new double[]{50, 25}, new double[]{220, 25},
+                        new double[]{220, 210}, new double[]{250, 225}), "", 1);
+
+        LayoutAssessmentResult result = assessor.assess(
+                List.of(a, b, c, d), List.of(interior), false);
+
+        assertEquals("M6: routing Tier-1R interior termination — routingRating poor",
+                "poor", result.routingRating());
+        assertEquals("M6: clean grid — layoutRating excellent",
+                "excellent", result.layoutRating());
+        assertEquals("M6: overall = worse(layout, routing) = poor",
+                "poor", result.overallRating());
+    }
+
+    @Test
+    public void m6_layoutPoorRoutingClean_shouldRateOverallPoor() {
+        // Layout-Tier-1L defect (sibling overlap), no routing defects.
+        AssessmentNode a = node("a", 0, 0, 100, 50);
+        AssessmentNode b = node("b", 50, 25, 100, 50); // overlaps a (sibling)
+
+        LayoutAssessmentResult result = assessor.assess(List.of(a, b), List.of(), false);
+
+        assertEquals("M6: layout Tier-1L overlap → layoutRating poor (binary >0 → poor)",
+                "poor", result.layoutRating());
+        assertEquals("M6: routing clean — routingRating excellent",
+                "excellent", result.routingRating());
+        assertEquals("M6: overall = worse(poor, excellent) = poor",
+                "poor", result.overallRating());
+    }
+
+    @Test
+    public void m6_bothDimensionsClean_shouldRateExcellent() {
+        // Clean layout + no connections → both dimensions excellent.
+        AssessmentNode a = node("a", 0, 0, 100, 50);
+        AssessmentNode b = node("b", 200, 0, 100, 50);
+
+        LayoutAssessmentResult result = assessor.assess(List.of(a, b), List.of(), false);
+
+        assertEquals("M6: clean layout, no connections — layoutRating excellent",
+                "excellent", result.layoutRating());
+        assertEquals("M6: no connections — routingRating excellent",
+                "excellent", result.routingRating());
+        assertEquals("M6: both dimensions clean — overall excellent",
+                "excellent", result.overallRating());
+    }
+
+    @Test
+    public void m6_promotion_labelOverlapShouldCapRoutingAtFair() {
+        // Pre-redesign: labelOverlap → Tier 3 cap "good". Under M6 promotion: Tier 2R cap "fair".
+        // labelOverlapCount=3 produces breakdown "fair" (per existing thresholds). Under M6
+        // Tier 2R cap fair — routing must rate "fair", NOT "good" (which is what pre-redesign
+        // Tier 3 cap good would have produced).
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 3, 0, 0, 0, 5, false,
+                0, 0, 0, 0,
+                0, 0, 0, 1.0);
+
+        assertEquals("M6 promotion: labelOverlap=3 → breakdown fair → routing Tier 2R fair",
+                "fair", result.routingRating());
+    }
+
+    @Test
+    public void m6_promotion_parentLabelObscuredShouldDropLayoutFromExcellent() {
+        // M6 promotion: parentLabelObscuredCount info → Tier 1L. Any > 0 → layoutRating poor.
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 0, 5, false,
+                0, 1, 0, 0,
+                0, 0, 0, 1.0);
+
+        assertEquals("M6 promotion: parentLabelObscuredCount > 0 — layoutRating poor",
+                "poor", result.layoutRating());
+        assertEquals("M6: layout poor dominates — overall poor",
+                "poor", result.rating());
+    }
+
+    @Test
+    public void m6_promotion_labelTruncationShouldCapRoutingAtFair() {
+        // M6 promotion: labelTruncationCount info → Tier 2R cap fair.
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 0, 5, false,
+                0, 0, 0, 1,
+                0, 0, 0, 1.0);
+
+        // labelTruncations rated "fair" → contributes Tier 2R level 2 → routing capped at fair.
+        assertEquals("M6 promotion: labelTruncations contributes Tier 2R fair",
+                "fair", result.routingRating());
+    }
+
+    @Test
+    public void m6_demotion_crossingsShouldNoLongerCapAtFair() {
+        // Pre-redesign B38: many crossings → Tier 2 cap fair. Under M6: Tier 3R cap good.
+        // 25 crossings, low PT, no other defects. Pre-redesign: fair. Under M6: good.
+        LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
+                0, 25, 50.0, 80, 0, 0, 0, 0, 10, false,
+                0, 0, 0, 0,
+                0, 0, 0, 1.0);
+
+        // Density 25/10 = 2.5 → falls in CROSSING_RATIO_MODERATE territory which is "fair" per metric.
+        // Under M6 Tier 3R cap good, the routing-tier contribution caps at good.
+        assertEquals("M6 demotion: crossings cap routing at good (Tier 3R, not Tier 2)",
+                "good", result.routingRating());
+    }
+
+    // ---- M2: AC-9-related — assess_withB53Fields_shouldChangeRating_underM6Promotions (REPLACES old test) ----
+    //
+    // The previous `assess_withB53Fields_shouldNotChangeRating` (REPLACED 2026-04-26) asserted
+    // that B53 informational fields had NO rating impact. Under M6 the OPPOSITE is required:
+    // parentLabelObscuredCount and labelTruncationCount are explicitly promoted (Tier 1L and
+    // Tier 2R respectively) — when they're nonzero the rating MUST move.
+    @Test
+    public void assess_withB53Fields_shouldChangeRating_underM6Promotions() {
+        // Build a layout where parentLabelObscured > 0 will drop layoutRating to poor.
+        // Two siblings, parent group has child whose label position obscures parent's.
+        // We synthesise this via direct rating call to avoid relying on assess()-level
+        // detection mechanics (those are covered by detectParentLabelObscuredByChild_* tests).
+        LayoutQualityAssessor.RatingResult cleanResult = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 0, 5, false,
+                0, 0, 0, 0,
+                0, 0, 0, 1.0);
+        LayoutQualityAssessor.RatingResult promotedResult = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 0, 5, false,
+                0, 1, 0, 1,
+                0, 0, 0, 1.0);
+
+        assertEquals("Baseline clean — overall excellent", "excellent", cleanResult.rating());
+        assertNotEquals("Promoted parentLabelObscured + labelTruncation must change rating",
+                cleanResult.rating(), promotedResult.rating());
+    }
+
+    // ---- A-gated M4 escalation (story W3 backlog-terminal-egress-edge-hug-quality, 2026-05-21) ----
+    //
+    // M4 connectionEdgeCoincidence is Tier-2R cap-fair UNTIL the count reaches
+    // EDGE_COINCIDENCE_EGREGIOUS_MAX (7 = Retail Bank View G), at which point it escalates to
+    // Tier-1R so overall reads "poor" (owner-ratified guardrail beside the Lever-B router fix).
+    // Synthetic counts isolate the escalation logic in computeRoutingTierLevel; detection is
+    // covered by the m4_* tests above. No existing fixture has M4 >= 7, so no prior overall pin
+    // moves (Task-1.3 re-pin reduces to "verify none break").
+    @Test
+    public void aGated_m4EgregiousCount_escalatesOverallToPoor() {
+        // Clean baseline (same arg shape as assess_withB53Fields cleanResult = "excellent"),
+        // varying ONLY the M4 connectionEdgeCoincidenceCount (17th arg).
+        LayoutQualityAssessor.RatingResult m4Good = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 0, 10, false,
+                0, 0, 0, 0, 0, 0, 2, 1.0);     // M4=2 (<= GOOD_MAX) -> "good" sub-rating
+        LayoutQualityAssessor.RatingResult m4FairMax = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 0, 10, false,
+                0, 0, 0, 0, 0, 0, 5, 1.0);     // M4=5 (FAIR_MAX) -> "fair" sub-rating, cap-fair
+        LayoutQualityAssessor.RatingResult m4PoorBelowThreshold = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 0, 10, false,
+                0, 0, 0, 0, 0, 0, 6, 1.0);     // M4=6 -> "poor" sub-rating but < EGREGIOUS -> cap-fair
+        LayoutQualityAssessor.RatingResult m4Egregious = assessor.computeRatingWithBreakdown(
+                0, 0, 50.0, 80, 0, 0, 0, 0, 10, false,
+                0, 0, 0, 0, 0, 0, 7, 1.0);     // M4=7 (>= EGREGIOUS) -> escalate to Tier-1R -> poor
+
+        assertEquals("M4=2 good sub-rating -> overall good (no escalation)",
+                "good", m4Good.rating());
+        assertEquals("M4=5 cap-fair -> overall fair (baseline behaviour preserved)",
+                "fair", m4FairMax.rating());
+        // The crux the owner objected to: M4=6 is already 'poor' in the breakdown but stays
+        // masked at overall=fair (cap-fair) because 6 < EGREGIOUS. Intentionally preserved for
+        // the common forced-hug case.
+        assertEquals("M4=6 poor sub-rating but below egregious -> overall still fair (cap-fair)",
+                "fair", m4PoorBelowThreshold.rating());
+        assertEquals("M4=6 breakdown is 'poor' even though overall is 'fair'",
+                "poor", m4PoorBelowThreshold.breakdown().get("connectionEdgeCoincidence"));
+        // The fix: an egregious count (>= 7, the Retail Bank View G level) escalates to Tier-1R.
+        assertEquals("M4=7 egregious -> overall poor (A-gated escalation)",
+                "poor", m4Egregious.rating());
+        assertEquals("M4=7 routing tier is poor", "poor", m4Egregious.routingRating());
+        assertEquals("M4=7 layout tier unaffected (still excellent)",
+                "excellent", m4Egregious.layoutRating());
     }
 }

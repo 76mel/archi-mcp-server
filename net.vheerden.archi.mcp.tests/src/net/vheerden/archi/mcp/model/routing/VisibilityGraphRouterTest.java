@@ -1147,15 +1147,16 @@ public class VisibilityGraphRouterTest {
 
     @Test
     public void findPath_shouldNotPenalizeIntraGroupRoute_whenGroupExcludedFromBoundaries() {
-        // Two elements inside the same group. Group is NOT in groupBoundaries
-        // (because it's excluded as an ancestor). Route should behave normally.
+        // B69-C re-bless: original ports at (90,70) and (290,70) were inside the
+        // elements (elem1 x:50-130, elem2 x:250-330). A* can't route from inside
+        // obstacles. Fixed: ports at x=10 and x=360 (outside element x-ranges).
         RoutingRect elem1 = new RoutingRect(50, 50, 80, 40, "e1");
         RoutingRect elem2 = new RoutingRect(250, 50, 80, 40, "e2");
-        // Group spans 0,0 to 400,200 — NOT passed as group boundary (excluded)
         List<RoutingRect> groups = List.of();
 
         graph.build(List.of(elem1, elem2));
-        VisNode[] ports = graph.addPortNodes(90, 70, 290, 70);
+        // Ports in open space: left of elem1 (x<50) and right of elem2 (x>330)
+        VisNode[] ports = graph.addPortNodes(10, 70, 360, 70);
 
         VisibilityGraphRouter groupRouter = new VisibilityGraphRouter(
                 VisibilityGraphRouter.DEFAULT_BEND_PENALTY, 0.0, VisibilityGraphRouter.DEFAULT_CLEARANCE_WEIGHT, VisibilityGraphRouter.DEFAULT_DIRECTIONALITY_WEIGHT, groups);
@@ -1395,5 +1396,154 @@ public class VisibilityGraphRouterTest {
             assertEquals("Node " + i + " should match",
                     pathNoTracker.get(i), pathNullTracker.get(i));
         }
+    }
+
+    // --- R2 Task 0.2 — CostBreakdown + computeEdgeCost + evaluatePathCost ---
+
+    /**
+     * R2 Task 0.2b behavior-preservation (extraction-level).
+     * computeEdgeCost on a straight-line edge with no obstacles and no tracker
+     * should produce: base = edge distance; all other terms zero except
+     * directionality (cosine-based; 0 when edge points directly toward target).
+     */
+    @Test
+    public void computeEdgeCost_shouldReturnBaseDistanceOnly_whenNoObstaclesAndNoTracker() {
+        graph.build(Collections.emptyList());
+        VisNode[] ports = graph.addPortNodes(50, 100, 300, 100);
+        VisNode from = ports[0];
+        VisNode target = ports[1];
+
+        // Find the single outgoing RIGHT edge from the source port toward the target.
+        VisEdge edge = null;
+        for (VisEdge e : graph.getEdges(from)) {
+            if (e.direction() == Direction.RIGHT) {
+                edge = e;
+                break;
+            }
+        }
+        assertNotNull("Source port should have a RIGHT-bound edge", edge);
+
+        VisibilityGraphRouter.CostBreakdown cb =
+                router.computeEdgeCost(from, edge, target, null, graph, null);
+
+        assertEquals("base should equal edge.distance()", edge.distance(), cb.base(), 0.001);
+        assertEquals("occupancyExtra should be 0 (null tracker)", 0.0, cb.occupancyExtra(), 0.001);
+        assertEquals("bend should be 0 (null entryDir)", 0.0, cb.bend(), 0.001);
+        assertEquals("direction should be 0 (moving toward target)", 0.0, cb.direction(), 0.001);
+        assertEquals("congestion should be 0 (no obstacles)", 0.0, cb.congestion(), 0.001);
+        assertEquals("directionality should be 0 (cosine=1, moving toward target)",
+                0.0, cb.directionality(), 0.001);
+        // clearance may be non-zero when default router is used (no obstacles, so clearance = MAX_VALUE → no penalty)
+        assertEquals("clearance should be 0 when no obstacles in bounding box",
+                0.0, cb.clearance(), 0.001);
+        assertEquals("groupWall should be 0 when no group boundaries",
+                0.0, cb.groupWall(), 0.001);
+    }
+
+    /**
+     * R2 Task 0.2b — CostBreakdown.total() equals the sum of all 8 fields.
+     */
+    @Test
+    public void costBreakdown_total_shouldEqualSumOfAllFields() {
+        VisibilityGraphRouter.CostBreakdown cb = new VisibilityGraphRouter.CostBreakdown(
+                10.0, 2.5, 30.0, 15.0, 5.0, 25.0, 12.5, 7.5);
+        double expected = 10.0 + 2.5 + 30.0 + 15.0 + 5.0 + 25.0 + 12.5 + 7.5;
+        assertEquals("total() should sum all 8 fields", expected, cb.total(), 0.001);
+    }
+
+    /**
+     * R2 Task 0.2b — CostBreakdown.plus() is element-wise addition.
+     */
+    @Test
+    public void costBreakdown_plus_shouldBeElementWiseAddition() {
+        VisibilityGraphRouter.CostBreakdown a = new VisibilityGraphRouter.CostBreakdown(
+                1, 2, 3, 4, 5, 6, 7, 8);
+        VisibilityGraphRouter.CostBreakdown b = new VisibilityGraphRouter.CostBreakdown(
+                10, 20, 30, 40, 50, 60, 70, 80);
+        VisibilityGraphRouter.CostBreakdown sum = a.plus(b);
+        assertEquals(11.0, sum.base(), 0.001);
+        assertEquals(22.0, sum.occupancyExtra(), 0.001);
+        assertEquals(33.0, sum.bend(), 0.001);
+        assertEquals(44.0, sum.direction(), 0.001);
+        assertEquals(55.0, sum.congestion(), 0.001);
+        assertEquals(66.0, sum.clearance(), 0.001);
+        assertEquals(77.0, sum.directionality(), 0.001);
+        assertEquals(88.0, sum.groupWall(), 0.001);
+    }
+
+    /**
+     * R2 Task 0.2b — EMPTY is neutral element for plus().
+     */
+    @Test
+    public void costBreakdown_empty_shouldBeNeutralForPlus() {
+        VisibilityGraphRouter.CostBreakdown a = new VisibilityGraphRouter.CostBreakdown(
+                1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5);
+        VisibilityGraphRouter.CostBreakdown sum = a.plus(VisibilityGraphRouter.CostBreakdown.EMPTY);
+        assertEquals("a + EMPTY = a (total)", a.total(), sum.total(), 0.001);
+        assertEquals(a.base(), sum.base(), 0.001);
+        assertEquals(a.groupWall(), sum.groupWall(), 0.001);
+        assertEquals("EMPTY.total() = 0", 0.0, VisibilityGraphRouter.CostBreakdown.EMPTY.total(), 0.001);
+    }
+
+    /**
+     * R2 Task 0.2c — evaluatePathCost returns EMPTY for paths shorter than 2 nodes.
+     */
+    @Test
+    public void evaluatePathCost_shouldReturnEmpty_whenPathTooShort() {
+        graph.build(Collections.emptyList());
+
+        VisibilityGraphRouter.CostBreakdown cbNull = router.evaluatePathCost(graph, null, null);
+        assertEquals("null path → EMPTY", 0.0, cbNull.total(), 0.001);
+
+        VisibilityGraphRouter.CostBreakdown cbEmpty =
+                router.evaluatePathCost(graph, Collections.emptyList(), null);
+        assertEquals("empty path → EMPTY", 0.0, cbEmpty.total(), 0.001);
+
+        VisNode[] ports = graph.addPortNodes(50, 100, 300, 100);
+        VisibilityGraphRouter.CostBreakdown cbSingle =
+                router.evaluatePathCost(graph, List.of(ports[0]), null);
+        assertEquals("single-node path → EMPTY", 0.0, cbSingle.total(), 0.001);
+    }
+
+    /**
+     * R2 Task 0.2c — evaluatePathCost on a 2-node straight path matches
+     * computeEdgeCost on a single synthetic edge.
+     */
+    @Test
+    public void evaluatePathCost_shouldMatchSingleEdgeCost_onStraightPath() {
+        graph.build(Collections.emptyList());
+        VisNode[] ports = graph.addPortNodes(50, 100, 300, 100);
+
+        VisibilityGraphRouter.CostBreakdown pathCost =
+                router.evaluatePathCost(graph, List.of(ports[0], ports[1]), null);
+
+        // Synthetic edge: RIGHT from port[0] to port[1], Manhattan distance = 250
+        double expectedBase = Math.abs(ports[1].x() - ports[0].x()) + Math.abs(ports[1].y() - ports[0].y());
+        assertEquals("straight-path base should equal Manhattan distance",
+                expectedBase, pathCost.base(), 0.001);
+        assertEquals("straight-path bend should be 0 (first segment, prevDir=null)",
+                0.0, pathCost.bend(), 0.001);
+        assertEquals("straight-path direction should be 0 (moving toward target)",
+                0.0, pathCost.direction(), 0.001);
+    }
+
+    /**
+     * R2 Task 0.2c — evaluatePathCost accumulates costs across multi-segment L-path.
+     * L-shaped path should pick up one bend-penalty contribution at the bend point.
+     */
+    @Test
+    public void evaluatePathCost_shouldAccumulateBendPenalty_onLShapedPath() {
+        graph.build(Collections.emptyList());
+        // L-path: (0,0) → (100,0) RIGHT, → (100,100) DOWN. One bend at (100,0).
+        VisNode a = new VisNode(0, 0, VisNode.NodeType.PORT);
+        VisNode b = new VisNode(100, 0, VisNode.NodeType.SCAN_INTERSECTION);
+        VisNode c = new VisNode(100, 100, VisNode.NodeType.PORT);
+
+        VisibilityGraphRouter.CostBreakdown cb =
+                router.evaluatePathCost(graph, List.of(a, b, c), null);
+
+        assertEquals("total base distance = 200 (100 + 100)", 200.0, cb.base(), 0.001);
+        assertEquals("bend cost = DEFAULT_BEND_PENALTY (30) at the single bend",
+                (double) VisibilityGraphRouter.DEFAULT_BEND_PENALTY, cb.bend(), 0.001);
     }
 }

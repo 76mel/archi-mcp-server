@@ -8,10 +8,14 @@ import java.util.List;
 
 import org.junit.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
- * Tests for {@link AutoRouteResultDto} (Story 13-7, backlog-b14).
+ * Tests for {@link AutoRouteResultDto} (Story 13-7, backlog-b14, RoutingPreconditions.AutoRouteStructuredWarning).
  */
 public class AutoRouteResultDtoTest {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
     public void shouldStoreNudgedElements_whenFullConstructor() {
@@ -240,5 +244,65 @@ public class AutoRouteResultDtoTest {
                 List.of(), List.of(), List.of(), List.of(), List.of());
 
         assertEquals(0, dto.straightLineCrossings());
+    }
+
+    // ---- Structured warnings tests (RoutingPreconditions.AutoRouteStructuredWarning, Row E) ----
+
+    @Test
+    public void serialization_emptyStructuredWarnings_shouldOmitField() throws Exception {
+        AutoRouteResultDto dto = new AutoRouteResultDto(
+                "v-1", 5, "orthogonal", false);
+
+        String json = objectMapper.writeValueAsString(dto);
+        assertFalse("structuredWarnings should be omitted when empty per @JsonInclude(NON_EMPTY)",
+                json.contains("structuredWarnings"));
+        assertTrue("viewId should still be present",
+                json.contains("\"viewId\":\"v-1\""));
+    }
+
+    @Test
+    public void serialization_populatedStructuredWarnings_shouldIncludeField() throws Exception {
+        StructuredWarningDto warning = new StructuredWarningDto(
+                StructuredWarningCodes.AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP,
+                "autoNudge skipped because sibling elements have overlapping bounding boxes.",
+                "layout-within-group",
+                List.of("id-sibling-A", "id-sibling-B"));
+
+        AutoRouteResultDto dto = new AutoRouteResultDto(
+                "v-1", 5, 0, "orthogonal", false, 1,
+                3, 1, 8,
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(warning));
+
+        String json = objectMapper.writeValueAsString(dto);
+        assertTrue("structuredWarnings should be present in JSON",
+                json.contains("\"structuredWarnings\""));
+        assertTrue("structured warning code should be present",
+                json.contains("\"code\":\"AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP\""));
+        assertTrue("structured warning remediationTool should be present",
+                json.contains("\"remediationTool\":\"layout-within-group\""));
+        assertTrue("structured warning remediationViolatorIds should be present (2 elements)",
+                json.contains("\"remediationViolatorIds\":[\"id-sibling-A\",\"id-sibling-B\"]"));
+    }
+
+    @Test
+    public void shouldDefaultStructuredWarningsToEmpty_whenConvenienceConstructor() {
+        AutoRouteResultDto dto = new AutoRouteResultDto(
+                "v-1", 5, "orthogonal", false);
+
+        assertTrue("convenience constructors must default structuredWarnings to empty",
+                dto.structuredWarnings().isEmpty());
+    }
+
+    @Test
+    public void shouldDefaultStructuredWarningsToEmpty_whenNullPassed() {
+        AutoRouteResultDto dto = new AutoRouteResultDto(
+                "v-1", 5, 0, "orthogonal", false, 1,
+                3, 1, 8,
+                null, null, null, null, null, null,
+                null);
+
+        assertTrue("compact constructor must null-guard structuredWarnings to empty",
+                dto.structuredWarnings().isEmpty());
     }
 }

@@ -1,5 +1,6 @@
 package net.vheerden.archi.mcp.model.routing;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -9,20 +10,31 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Post-routing path straightening (backlog-b42).
+ * Post-routing path straightening (backlog-b42, B71).
  * Pure-geometry class — no EMF/SWT dependencies.
  *
- * <p>Cleans up routed paths after all pipeline stages by applying three
+ * <p>Cleans up routed paths after all pipeline stages by applying four
  * complementary transformations:
  * <ol>
  *   <li>{@link #snapToStraight} — snaps near-aligned consecutive points</li>
  *   <li>{@link #eliminateReversals} — collapses direction reversal patterns</li>
+ *   <li>{@link #collapseStaircaseJogs} — eliminates small jogs between parallel runs</li>
  *   <li>{@link #collapseBends} — removes redundant intermediate bendpoints</li>
  * </ol>
  *
- * <p>Complements Stage 4.7g (simplifyFinalPath) which does greedy forward
- * shortcutting but misses near-aligned snaps, reversal patterns, and
- * zigzag collapses.</p>
+ * <h2>B71 perimeter-terminal immutability wrap</h2>
+ *
+ * <p>Each of the four mutators above is one of the five "wrap sites" governed by
+ * {@link TerminalAnchoring#preservesTerminalAnchoring}. The new overloads accept
+ * source/target {@link TerminalAnchoring} pairs and snapshot the path on entry,
+ * run the mutation, then roll back if the predicate is violated at either
+ * terminal. The legacy overloads (without anchorings) bypass the wrap and are
+ * preserved for pre-B71 callers — primarily {@link PathStraightener}'s own unit
+ * tests. The B70 / B70-a {@code containsPerimeterBP} guards previously living
+ * inside {@link #eliminateReversals} and {@link #collapseBends} are removed by
+ * this rewrite — the predicate-based wrap supersedes them.
+ *
+ * @see TerminalAnchoring#preservesEndpoints
  */
 public class PathStraightener {
 
@@ -32,35 +44,62 @@ public class PathStraightener {
         // Static utility class
     }
 
+    // ---------------------------------------------------------------------
+    // snapToStraight
+    // ---------------------------------------------------------------------
+
     /**
      * Snaps near-aligned consecutive points to eliminate small jogs.
      *
-     * <p>For each pair of consecutive points, if the delta in one axis is
-     * within the threshold and smaller than the delta in the other axis,
-     * snaps the smaller delta to zero. Validates that snapped segments
-     * remain obstacle-free before committing the snap.</p>
-     *
-     * <p>Does NOT handle terminal-to-terminal snapping (that's Stage 4.4).
-     * Only processes paths with 3+ points (at least one intermediate BP).</p>
-     *
-     * @param path      mutable list of bendpoints (modified in place)
-     * @param threshold maximum pixel delta to snap (e.g., 20)
-     * @param obstacles list of element rectangles to avoid
+     * <p>Legacy overload — runs the mutation without the B71 wrap. Used by unit
+     * tests that have no terminal anchoring context.</p>
      */
     public static void snapToStraight(List<AbsoluteBendpointDto> path, int threshold,
             List<RoutingRect> obstacles) {
+        snapToStraightCore(path, threshold, obstacles);
+    }
+
+    /**
+     * B71 wrap-site overload: runs {@link #snapToStraight} with terminal
+     * anchoring rollback. On predicate violation at either terminal, the
+     * path is rolled back to its pre-mutation snapshot.
+     *
+     * @param augmented when {@code true}, indices {@code 0} and
+     *                  {@code path.size() - 1} are treated as sentinel
+     *                  source/target centers (as in the temporary path used
+     *                  by {@code RoutingPipeline} stage 4.7i) — the predicate
+     *                  is evaluated against {@code path[1]} and
+     *                  {@code path[size - 2]}, the real perimeter terminals
+     */
+    public static void snapToStraight(List<AbsoluteBendpointDto> path, int threshold,
+            List<RoutingRect> obstacles,
+            RoutingRect source, RoutingRect target,
+            int[] sourceCenter, int[] targetCenter,
+            TerminalAnchoring sourceAnchoring, TerminalAnchoring targetAnchoring,
+            boolean augmented) {
+        List<AbsoluteBendpointDto> snapshot = new ArrayList<>(path);
+        snapToStraightCore(path, threshold, obstacles);
+        if (!checkAnchoringWrap(path, augmented,
+                sourceAnchoring, source, sourceCenter,
+                targetAnchoring, target, targetCenter)) {
+            path.clear();
+            path.addAll(snapshot);
+            logger.debug("snapToStraight: rolled back — terminal anchoring violated");
+        }
+    }
+
+    private static void snapToStraightCore(List<AbsoluteBendpointDto> path, int threshold,
+            List<RoutingRect> obstacles) {
         if (path.size() < 3) {
-            return; // No intermediate bendpoints — Stage 4.4 handles terminal-only
+            return;
         }
 
         int snapped = 0;
-        // Process interior points only (preserve terminal anchors at index 0 and last)
         for (int i = 1; i < path.size() - 1; i++) {
             AbsoluteBendpointDto prev = path.get(i - 1);
             AbsoluteBendpointDto curr = path.get(i);
             AbsoluteBendpointDto next = path.get(i + 1);
 
-            // Check alignment with predecessor
             int dx = Math.abs(curr.x() - prev.x());
             int dy = Math.abs(curr.y() - prev.y());
 
@@ -71,36 +110,24 @@ public class PathStraightener {
                 candidate = new AbsoluteBendpointDto(curr.x(), prev.y());
             }
 
-            // If no snap from predecessor, check alignment with successor.
-            // Only snaps when prev and next share the same axis — meaning this
-            // is a kink in an otherwise straight run, not an L-turn corner.
-            // Example: (1165,131)→(640,131)→(640,119) — prev and curr share Y=131,
-            // curr and next share X=640 with 12px Y jog → snap Y to straighten.
             if (candidate == null) {
                 int dxNext = Math.abs(curr.x() - next.x());
                 int dyNext = Math.abs(curr.y() - next.y());
 
-                // Only snap to successor when it straightens a segment without
-                // removing an L-turn corner. Check that the resulting segment
-                // from prev to snapped point maintains the same primary direction.
                 if (dxNext > 0 && dxNext <= threshold && dyNext > dxNext) {
                     candidate = new AbsoluteBendpointDto(next.x(), curr.y());
                 } else if (dyNext > 0 && dyNext <= threshold && dxNext > dyNext) {
                     candidate = new AbsoluteBendpointDto(curr.x(), next.y());
                 } else if (dxNext == 0 && dyNext > 0 && dyNext <= threshold
                         && prev.y() != curr.y()) {
-                    // Same X, small Y jog — only snap if prev→curr is NOT horizontal
-                    // (horizontal prev→curr + vertical curr→next = valid L-turn, don't snap)
                     candidate = new AbsoluteBendpointDto(curr.x(), next.y());
                 } else if (dyNext == 0 && dxNext > 0 && dxNext <= threshold
                         && prev.x() != curr.x()) {
-                    // Same Y, small X jog — only snap if prev→curr is NOT vertical
                     candidate = new AbsoluteBendpointDto(next.x(), curr.y());
                 }
             }
 
             if (candidate != null) {
-                // Validate: new segments (prev→candidate and candidate→next) must be obstacle-free
                 if (!RoutingPipeline.segmentIntersectsAnyObstacle(
                         prev.x(), prev.y(), candidate.x(), candidate.y(), obstacles)
                         && !RoutingPipeline.segmentIntersectsAnyObstacle(
@@ -116,42 +143,63 @@ public class PathStraightener {
         }
     }
 
+    // ---------------------------------------------------------------------
+    // eliminateReversals
+    // ---------------------------------------------------------------------
+
     /**
      * Eliminates direction reversal patterns (overshoot-then-doubleback).
      *
-     * <p>Detects segments where the path moves away from the eventual
-     * direction, then reverses back. If the direct path from the start
-     * of the reversal to the end is obstacle-free, collapses the
-     * reversal to a direct connection.</p>
-     *
-     * <p>Only collapses reversals where the intermediate points are NOT
-     * terminal anchors (first/last points are preserved).</p>
-     *
-     * @param path      mutable list of bendpoints (modified in place)
-     * @param obstacles list of element rectangles to avoid
+     * <p>Legacy overload — runs the mutation without the B71 wrap.</p>
      */
     public static void eliminateReversals(List<AbsoluteBendpointDto> path,
             List<RoutingRect> obstacles) {
+        eliminateReversalsCore(path, obstacles);
+    }
+
+    /**
+     * B71 wrap-site overload. Replaces the B70 perimeter-terminal guard with
+     * the {@link TerminalAnchoring} predicate snapshot/rollback pattern.
+     *
+     * @param augmented see {@link #snapToStraight(List, int, List, RoutingRect,
+     *                  RoutingRect, int[], int[], TerminalAnchoring,
+     *                  TerminalAnchoring, boolean)}
+     */
+    public static void eliminateReversals(List<AbsoluteBendpointDto> path,
+            List<RoutingRect> obstacles,
+            RoutingRect source, RoutingRect target,
+            int[] sourceCenter, int[] targetCenter,
+            TerminalAnchoring sourceAnchoring, TerminalAnchoring targetAnchoring,
+            boolean augmented) {
+        List<AbsoluteBendpointDto> snapshot = new ArrayList<>(path);
+        eliminateReversalsCore(path, obstacles);
+        if (!checkAnchoringWrap(path, augmented,
+                sourceAnchoring, source, sourceCenter,
+                targetAnchoring, target, targetCenter)) {
+            path.clear();
+            path.addAll(snapshot);
+            logger.debug("eliminateReversals: rolled back — terminal anchoring violated");
+        }
+    }
+
+    private static void eliminateReversalsCore(List<AbsoluteBendpointDto> path,
+            List<RoutingRect> obstacles) {
         if (path.size() < 4) {
-            return; // Need at least 4 points for a reversal pattern
+            return;
         }
 
         boolean changed = true;
         int iterations = 0;
-        int maxIterations = path.size(); // Safety bound
+        int maxIterations = path.size();
 
         while (changed && iterations < maxIterations) {
             changed = false;
             iterations++;
 
-            // Scan for the largest reversal first (outermost)
-            // Terminal anchors protected by guard at i==0 && j+1==last (line below)
             for (int i = 0; i < path.size() - 3; i++) {
-                // Try to find farthest reversal partner for segment starting at i
                 for (int j = path.size() - 2; j > i; j--) {
-                    // Don't collapse if it would remove terminal anchors
                     if (i == 0 && j + 1 == path.size() - 1) {
-                        continue; // Would remove everything between terminals
+                        continue;
                     }
 
                     if (isReversal(path, i, j)) {
@@ -159,7 +207,6 @@ public class PathStraightener {
                         AbsoluteBendpointDto end = path.get(j + 1);
 
                         if (start.x() != end.x() && start.y() != end.y()) {
-                            // Need L-turn — try both orientations
                             AbsoluteBendpointDto mid = tryLTurn(start, end, obstacles);
                             if (mid != null) {
                                 for (int k = j; k > i; k--) {
@@ -172,7 +219,6 @@ public class PathStraightener {
                                 break;
                             }
                         } else {
-                            // Collinear — direct connection
                             if (!RoutingPipeline.segmentIntersectsAnyObstacle(
                                     start.x(), start.y(), end.x(), end.y(), obstacles)) {
                                 int removed = j - i;
@@ -187,31 +233,62 @@ public class PathStraightener {
                         }
                     }
                 }
-                if (changed) break; // Restart scan after modification
+                if (changed) break;
             }
         }
     }
+
+    // ---------------------------------------------------------------------
+    // collapseBends
+    // ---------------------------------------------------------------------
 
     /**
      * Collapses redundant intermediate bendpoints where a direct straight-line
      * connection is obstacle-free.
      *
-     * <p>Only removes collinear intermediate points (where all three points
-     * share a coordinate on the same axis). Does NOT attempt L-turn replacement
-     * to avoid disrupting intentional routing geometry.</p>
-     *
-     * @param path      mutable list of bendpoints (modified in place)
-     * @param obstacles list of element rectangles to avoid
+     * <p>Legacy overload — runs the mutation without the B71 wrap.</p>
      */
     public static void collapseBends(List<AbsoluteBendpointDto> path,
             List<RoutingRect> obstacles) {
+        collapseBendsCore(path, obstacles);
+    }
+
+    /**
+     * B71 wrap-site overload. Replaces the B70-a Mode A perimeter-midpoint
+     * guard with the {@link TerminalAnchoring} predicate snapshot/rollback
+     * pattern. This is the primary V4 API Gateway → Relationship Manager
+     * Portal slot 3/7 replay site (compose §10).
+     *
+     * @param augmented see {@link #snapToStraight(List, int, List, RoutingRect,
+     *                  RoutingRect, int[], int[], TerminalAnchoring,
+     *                  TerminalAnchoring, boolean)}
+     */
+    public static void collapseBends(List<AbsoluteBendpointDto> path,
+            List<RoutingRect> obstacles,
+            RoutingRect source, RoutingRect target,
+            int[] sourceCenter, int[] targetCenter,
+            TerminalAnchoring sourceAnchoring, TerminalAnchoring targetAnchoring,
+            boolean augmented) {
+        List<AbsoluteBendpointDto> snapshot = new ArrayList<>(path);
+        collapseBendsCore(path, obstacles);
+        if (!checkAnchoringWrap(path, augmented,
+                sourceAnchoring, source, sourceCenter,
+                targetAnchoring, target, targetCenter)) {
+            path.clear();
+            path.addAll(snapshot);
+            logger.debug("collapseBends: rolled back — terminal anchoring violated");
+        }
+    }
+
+    private static void collapseBendsCore(List<AbsoluteBendpointDto> path,
+            List<RoutingRect> obstacles) {
         if (path.size() < 4) {
-            return; // Need at least 4 points — 3-point paths are already minimal L-turns
+            return;
         }
 
         boolean changed = true;
         int totalRemoved = 0;
-        int maxIterations = path.size(); // Safety bound
+        int maxIterations = path.size();
 
         while (changed && maxIterations-- > 0) {
             changed = false;
@@ -222,8 +299,6 @@ public class PathStraightener {
                 AbsoluteBendpointDto mid = path.get(midIdx);
                 AbsoluteBendpointDto c = path.get(i + 2);
 
-                // Only collapse if a→mid→c forms a straight line (collinear)
-                // and the direct a→c is obstacle-free
                 boolean collinearX = (a.x() == mid.x() && mid.x() == c.x());
                 boolean collinearY = (a.y() == mid.y() && mid.y() == c.y());
 
@@ -233,7 +308,7 @@ public class PathStraightener {
                     path.remove(midIdx);
                     totalRemoved++;
                     changed = true;
-                    break; // Restart iteration
+                    break;
                 }
             }
         }
@@ -243,27 +318,47 @@ public class PathStraightener {
         }
     }
 
+    // ---------------------------------------------------------------------
+    // collapseStaircaseJogs
+    // ---------------------------------------------------------------------
+
     /**
      * Collapses staircase jog patterns where two parallel segments are connected
      * by a small perpendicular step within the snap threshold.
      *
-     * <p>Detects patterns like:
-     * <pre>
-     * a ──horizontal── b
-     *                  │ (small jog ≤ threshold)
-     *                  c ──horizontal── d
-     * </pre>
-     * and the vertical equivalent. Shifts point {@code a} to align with
-     * {@code d}'s axis, removing points {@code b} and {@code c}.</p>
-     *
-     * <p>Requires source/target centers at index 0 and last (prepended by
-     * the pipeline). Skips index 0 to preserve the source terminal.</p>
-     *
-     * @param path      mutable list of bendpoints (modified in place)
-     * @param threshold maximum pixel jog to collapse (e.g., 20)
-     * @param obstacles list of element rectangles to avoid
+     * <p>Legacy overload — runs the mutation without the B71 wrap.</p>
      */
     public static void collapseStaircaseJogs(List<AbsoluteBendpointDto> path, int threshold,
+            List<RoutingRect> obstacles) {
+        collapseStaircaseJogsCore(path, threshold, obstacles);
+    }
+
+    /**
+     * B71 wrap-site overload: runs {@link #collapseStaircaseJogs} with
+     * terminal anchoring rollback.
+     *
+     * @param augmented see {@link #snapToStraight(List, int, List, RoutingRect,
+     *                  RoutingRect, int[], int[], TerminalAnchoring,
+     *                  TerminalAnchoring, boolean)}
+     */
+    public static void collapseStaircaseJogs(List<AbsoluteBendpointDto> path, int threshold,
+            List<RoutingRect> obstacles,
+            RoutingRect source, RoutingRect target,
+            int[] sourceCenter, int[] targetCenter,
+            TerminalAnchoring sourceAnchoring, TerminalAnchoring targetAnchoring,
+            boolean augmented) {
+        List<AbsoluteBendpointDto> snapshot = new ArrayList<>(path);
+        collapseStaircaseJogsCore(path, threshold, obstacles);
+        if (!checkAnchoringWrap(path, augmented,
+                sourceAnchoring, source, sourceCenter,
+                targetAnchoring, target, targetCenter)) {
+            path.clear();
+            path.addAll(snapshot);
+            logger.debug("collapseStaircaseJogs: rolled back — terminal anchoring violated");
+        }
+    }
+
+    private static void collapseStaircaseJogsCore(List<AbsoluteBendpointDto> path, int threshold,
             List<RoutingRect> obstacles) {
         if (path.size() < 4) {
             return;
@@ -275,7 +370,6 @@ public class PathStraightener {
 
         while (changed && maxIterations-- > 0) {
             changed = false;
-            // Start at i=1 to protect source terminal at index 0
             for (int i = 1; i < path.size() - 3; i++) {
                 AbsoluteBendpointDto a = path.get(i);
                 AbsoluteBendpointDto b = path.get(i + 1);
@@ -284,15 +378,12 @@ public class PathStraightener {
 
                 AbsoluteBendpointDto newA = null;
 
-                // Pattern 1: horizontal-vertical(jog)-horizontal
                 if (a.y() == b.y() && b.x() == c.x() && c.y() == d.y()) {
                     int jog = Math.abs(a.y() - d.y());
                     if (jog > 0 && jog <= threshold) {
                         newA = new AbsoluteBendpointDto(a.x(), d.y());
                     }
-                }
-                // Pattern 2: vertical-horizontal(jog)-vertical
-                else if (a.x() == b.x() && b.y() == c.y() && c.x() == d.x()) {
+                } else if (a.x() == b.x() && b.y() == c.y() && c.x() == d.x()) {
                     int jog = Math.abs(a.x() - d.x());
                     if (jog > 0 && jog <= threshold) {
                         newA = new AbsoluteBendpointDto(d.x(), a.y());
@@ -300,7 +391,6 @@ public class PathStraightener {
                 }
 
                 if (newA != null) {
-                    // Validate: prev→newA and newA→d must be obstacle-free
                     AbsoluteBendpointDto prev = path.get(i - 1);
                     if (!RoutingPipeline.segmentIntersectsAnyObstacle(
                             prev.x(), prev.y(), newA.x(), newA.y(), obstacles)
@@ -323,24 +413,63 @@ public class PathStraightener {
         }
     }
 
+    // ---------------------------------------------------------------------
+    // shared helpers
+    // ---------------------------------------------------------------------
+
     /**
-     * Checks if segment[i] and segment[j] form a direction reversal.
-     * A reversal means moving in one direction then later reversing on the same axis.
+     * B71 wrap helper. Returns {@code true} iff
+     * {@link TerminalAnchoring#preservesEndpoints} reports both terminals
+     * intact post-mutation.
+     *
+     * <p>When {@code augmented} is true, the predicate is evaluated against
+     * an interior view that excludes index 0 and {@code path.size() - 1}
+     * (the temporary source/target center sentinels prepended/appended by
+     * {@code RoutingPipeline} stage 4.7i). An augmented path that enters a
+     * wrap site is always ≥ 4 BPs (sentinel + realSrc + realTgt + sentinel),
+     * so any post-mutation size below 4 means at least one real terminal
+     * has been collapsed out of the interior — REJECT. This is the
+     * load-bearing replacement for the B70 {@code containsPerimeterBP}
+     * guard that used to live inside the core mutators: it catches the
+     * slot-at-hub-center class (V4 API Gateway / Rel Mgr Portal) where a
+     * fully-collinear augmented path trivially collapses to
+     * {@code [sourceCenter, targetCenter]} under {@link #collapseBendsCore},
+     * wiping the perimeter terminals and leaving an empty BP list after
+     * stage 4.7i strips the sentinels.
      */
+    private static boolean checkAnchoringWrap(
+            List<AbsoluteBendpointDto> path, boolean augmented,
+            TerminalAnchoring sourceAnchoring, RoutingRect source, int[] sourceCenter,
+            TerminalAnchoring targetAnchoring, RoutingRect target, int[] targetCenter) {
+        List<AbsoluteBendpointDto> view;
+        if (augmented) {
+            if (path.size() < 4) {
+                // Inner view has < 2 BPs → at least one real terminal
+                // has been collapsed out of the augmented path. Reject so
+                // the wrap rolls back to the pre-mutation snapshot.
+                return false;
+            }
+            view = new ArrayList<>(path.subList(1, path.size() - 1));
+        } else {
+            view = path;
+        }
+        return TerminalAnchoring.preservesEndpoints(
+                sourceAnchoring, source, sourceCenter,
+                targetAnchoring, target, targetCenter, view);
+    }
+
     private static boolean isReversal(List<AbsoluteBendpointDto> path, int i, int j) {
         AbsoluteBendpointDto a1 = path.get(i);
         AbsoluteBendpointDto a2 = path.get(i + 1);
         AbsoluteBendpointDto b1 = path.get(j);
         AbsoluteBendpointDto b2 = path.get(j + 1);
 
-        // Check horizontal reversal: segment i goes left/right, segment j goes opposite
         int dxA = a2.x() - a1.x();
         int dxB = b2.x() - b1.x();
         if (dxA != 0 && dxB != 0 && Integer.signum(dxA) == -Integer.signum(dxB)) {
             return true;
         }
 
-        // Check vertical reversal: segment i goes up/down, segment j goes opposite
         int dyA = a2.y() - a1.y();
         int dyB = b2.y() - b1.y();
         if (dyA != 0 && dyB != 0 && Integer.signum(dyA) == -Integer.signum(dyB)) {
@@ -350,13 +479,8 @@ public class PathStraightener {
         return false;
     }
 
-    /**
-     * Attempts to create an L-turn midpoint between start and end.
-     * Tries horizontal-first, then vertical-first. Returns null if both blocked.
-     */
     private static AbsoluteBendpointDto tryLTurn(AbsoluteBendpointDto start,
             AbsoluteBendpointDto end, List<RoutingRect> obstacles) {
-        // Horizontal-first: (start.x, start.y) → (end.x, start.y) → (end.x, end.y)
         AbsoluteBendpointDto hMid = new AbsoluteBendpointDto(end.x(), start.y());
         if (!RoutingPipeline.segmentIntersectsAnyObstacle(
                 start.x(), start.y(), hMid.x(), hMid.y(), obstacles)
@@ -364,7 +488,6 @@ public class PathStraightener {
                         hMid.x(), hMid.y(), end.x(), end.y(), obstacles)) {
             return hMid;
         }
-        // Vertical-first: (start.x, start.y) → (start.x, end.y) → (end.x, end.y)
         AbsoluteBendpointDto vMid = new AbsoluteBendpointDto(start.x(), end.y());
         if (!RoutingPipeline.segmentIntersectsAnyObstacle(
                 start.x(), start.y(), vMid.x(), vMid.y(), obstacles)

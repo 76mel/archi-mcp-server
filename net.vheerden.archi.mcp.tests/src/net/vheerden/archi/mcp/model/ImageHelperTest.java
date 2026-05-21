@@ -1,8 +1,12 @@
 package net.vheerden.archi.mcp.model;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+
+import java.util.Collections;
+import java.util.List;
 
 import org.junit.Test;
 
@@ -114,5 +118,232 @@ public class ImageHelperTest {
     public void shouldThrow_whenInvalidShowIcon() {
         ImageParams params = new ImageParams(null, null, "invalid-icon");
         ImageHelper.validateImageParams(params);
+    }
+
+    // ---- Backlog W2 (story `backlog-cloud-icon-container-node-collision`):
+    // pure-geometry icon-band reservation tests. AC-8 test seam — no SWT,
+    // no EMF, callable headless. ----
+
+    // ---- reservedIconBandForCorner: 4 corners + 6 non-corners + enum coverage ----
+
+    @Test
+    public void w2_reservedIconBand_topLeftCornerReturns24() {
+        // Per ImageParams.positionToInt: top-left=0
+        assertEquals(24, ImageHelper.reservedIconBandForCorner(0, 16, 8));
+    }
+
+    @Test
+    public void w2_reservedIconBand_topRightCornerReturns24() {
+        // top-right=2 — pure geometry returns the band; accessor layer is the one
+        // that distinguishes "explicit top-right" from "Archi default".
+        assertEquals(24, ImageHelper.reservedIconBandForCorner(2, 16, 8));
+    }
+
+    @Test
+    public void w2_reservedIconBand_bottomLeftCornerReturns24() {
+        // bottom-left=6 — the W2 retail-bank bug case
+        assertEquals(24, ImageHelper.reservedIconBandForCorner(6, 16, 8));
+    }
+
+    @Test
+    public void w2_reservedIconBand_bottomRightCornerReturns24() {
+        // bottom-right=8
+        assertEquals(24, ImageHelper.reservedIconBandForCorner(8, 16, 8));
+    }
+
+    @Test
+    public void w2_reservedIconBand_nonCornersReturnZero() {
+        // Non-corner positions: 1 (top-centre), 3 (middle-left), 4 (middle-centre),
+        // 5 (middle-right), 7 (bottom-centre), 9 (fill) — none collide with children.
+        assertEquals(0, ImageHelper.reservedIconBandForCorner(1, 16, 8));
+        assertEquals(0, ImageHelper.reservedIconBandForCorner(3, 16, 8));
+        assertEquals(0, ImageHelper.reservedIconBandForCorner(4, 16, 8));
+        assertEquals(0, ImageHelper.reservedIconBandForCorner(5, 16, 8));
+        assertEquals(0, ImageHelper.reservedIconBandForCorner(7, 16, 8));
+        assertEquals(0, ImageHelper.reservedIconBandForCorner(9, 16, 8));
+    }
+
+    @Test
+    public void w2_reservedIconBand_enumCoverageAllTenPositions() {
+        // Future-proof pin: adding a new enum value to ImageParams must NOT
+        // silently introduce a regression. All 10 current positions (0..9)
+        // must map to a defined inset — corner→24, non-corner→0.
+        for (int pos = 0; pos <= 9; pos++) {
+            int expected;
+            if (pos == 0 || pos == 2 || pos == 6 || pos == 8) {
+                expected = 24;
+            } else {
+                expected = 0;
+            }
+            assertEquals("position " + pos + " inset",
+                    expected, ImageHelper.reservedIconBandForCorner(pos, 16, 8));
+        }
+    }
+
+    @Test
+    public void w2_reservedIconBand_unrecognisedIntReturnsZero() {
+        // Defensive: any int outside 0..9 (e.g. -1, 99) returns 0 — no NPE, no fire.
+        assertEquals(0, ImageHelper.reservedIconBandForCorner(-1, 16, 8));
+        assertEquals(0, ImageHelper.reservedIconBandForCorner(99, 16, 8));
+    }
+
+    @Test
+    public void w2_reservedIconBand_respectsCallerSuppliedIconAndMargin() {
+        // Helper does NOT hard-code 24 — caller supplies iconSize + margin.
+        assertEquals(32, ImageHelper.reservedIconBandForCorner(6, 24, 8));
+        assertEquals(20, ImageHelper.reservedIconBandForCorner(6, 16, 4));
+        assertEquals(16, ImageHelper.reservedIconBandForCorner(6, 16, 0));
+    }
+
+    // ---- anyChildOccupiesIconBand: 4 corners × {occupied / empty} = 8 cases
+    //      + AC-14 Case A (no children) + AC-14 Case B (corner empty pin) ----
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_bottomLeftWithChildInCornerReturnsTrue() {
+        // Parent 200×100. Bottom-left icon band: x=0..24, y=76..100.
+        // Child rect at (10, 80, 30, 15) — overlaps the band (the W2 retail-bank bug case).
+        List<int[]> rects = List.of(new int[] {10, 80, 30, 15});
+        assertTrue(ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 16, 8, rects));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_bottomLeftWithChildOnlyInTopHalfReturnsFalse() {
+        // AC-14 Case B byte-identical pin: container with bottom-left icon
+        // + child only in top half → corner empty → lever short-circuits.
+        // Parent 200×100. Bottom-left band: x=0..24, y=76..100.
+        // Child at (10, 10, 30, 30) — entirely in top half (y=10..40).
+        List<int[]> rects = List.of(new int[] {10, 10, 30, 30});
+        assertFalse(ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 16, 8, rects));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_topLeftWithChildInCornerReturnsTrue() {
+        // Parent 200×100. Top-left band: x=0..24, y=0..24.
+        // Child at (5, 5, 40, 40) — overlaps.
+        List<int[]> rects = List.of(new int[] {5, 5, 40, 40});
+        assertTrue(ImageHelper.anyChildOccupiesIconBand(200, 100, 0, 16, 8, rects));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_topLeftWithChildElsewhereReturnsFalse() {
+        // Parent 200×100. Top-left band: x=0..24, y=0..24.
+        // Child at (100, 50, 40, 40) — far from top-left.
+        List<int[]> rects = List.of(new int[] {100, 50, 40, 40});
+        assertFalse(ImageHelper.anyChildOccupiesIconBand(200, 100, 0, 16, 8, rects));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_topRightWithChildInCornerReturnsTrue() {
+        // Parent 200×100. Top-right band: x=176..200, y=0..24.
+        // Child at (180, 5, 40, 20) — overlaps.
+        List<int[]> rects = List.of(new int[] {180, 5, 40, 20});
+        assertTrue(ImageHelper.anyChildOccupiesIconBand(200, 100, 2, 16, 8, rects));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_topRightWithChildElsewhereReturnsFalse() {
+        List<int[]> rects = List.of(new int[] {10, 50, 40, 40});
+        assertFalse(ImageHelper.anyChildOccupiesIconBand(200, 100, 2, 16, 8, rects));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_bottomRightWithChildInCornerReturnsTrue() {
+        // Parent 200×100. Bottom-right band: x=176..200, y=76..100.
+        // Child at (180, 80, 30, 30) — overlaps.
+        List<int[]> rects = List.of(new int[] {180, 80, 30, 30});
+        assertTrue(ImageHelper.anyChildOccupiesIconBand(200, 100, 8, 16, 8, rects));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_bottomRightWithChildElsewhereReturnsFalse() {
+        List<int[]> rects = List.of(new int[] {10, 10, 40, 40});
+        assertFalse(ImageHelper.anyChildOccupiesIconBand(200, 100, 8, 16, 8, rects));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_partialOverlapStillCountsAsTrue() {
+        // A child rectangle that grazes the icon-band by a single pixel still counts.
+        // Parent 200×100, bottom-left band x=0..24, y=76..100.
+        // Child at (23, 76, 50, 1) — top-left of child grazes (23,76), inside band.
+        List<int[]> rects = List.of(new int[] {23, 76, 50, 1});
+        assertTrue(ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 16, 8, rects));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_touchingEdgeIsNotOverlap_halfOpenIntervalBoundaryPin() {
+        // Review finding L-2 (Sonnet 4.6 adversarial review, 2026-05-20): pin the
+        // half-open interval semantics — a child whose right edge exactly touches
+        // the band's left edge (cx + cw == bandX, zero shared pixels) returns FALSE.
+        // Parent 200×100, bottom-left band x=0..24, y=76..100.
+        // Child at (10, 76, 14, 24): cx+cw=24=bandX → strict touch on the right edge.
+        // Y range overlaps (76..100), X range touches but does not intrude (10..24
+        // ends at x=24, band starts at x=0 and ends at x=24 — touching x=24 is the
+        // half-open right boundary of the band).
+        List<int[]> touchingRight = List.of(new int[] {-14, 76, 14, 24});
+        assertFalse("Touching the band's left edge (cx+cw == bandX, zero shared pixels) is NOT overlap",
+                ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 16, 8, touchingRight));
+
+        // Symmetric: child top edge exactly at band bottom (cy+ch == bandY).
+        // Bottom-left band: y range 76..100. Child y range 60..76 touches at y=76.
+        List<int[]> touchingBottom = List.of(new int[] {0, 60, 24, 16});
+        assertFalse("Touching the band's top edge (cy+ch == bandY, zero shared pixels) is NOT overlap",
+                ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 16, 8, touchingBottom));
+
+        // Sanity: one-pixel deeper IS an overlap (1-px shared region).
+        List<int[]> intrudingOnePixel = List.of(new int[] {0, 60, 24, 17});  // cy+ch=77, into band
+        assertTrue("One pixel interior overlap (cy+ch = bandY + 1) IS overlap",
+                ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 16, 8, intrudingOnePixel));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_emptyChildListReturnsFalse() {
+        // Vacuous-empty case.
+        assertFalse(ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 16, 8, Collections.emptyList()));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_nullChildListReturnsFalse() {
+        // Defensive: null treated as empty.
+        assertFalse(ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 16, 8, null));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_nonCornerPositionReturnsFalse() {
+        // For non-corner positions the helper short-circuits to false even with
+        // a child in the box centre — the lever simply does not apply.
+        List<int[]> rects = List.of(new int[] {0, 0, 200, 100});
+        for (int nonCorner : new int[] {1, 3, 4, 5, 7, 9}) {
+            assertFalse("non-corner " + nonCorner,
+                    ImageHelper.anyChildOccupiesIconBand(200, 100, nonCorner, 16, 8, rects));
+        }
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_multipleChildrenAnyOneOverlapTriggers() {
+        // Two children: one in the icon corner, one elsewhere. Result is true.
+        List<int[]> rects = List.of(
+                new int[] {100, 10, 30, 20},  // top centre — does NOT overlap bottom-left band
+                new int[] {5, 80, 15, 15}     // bottom-left — OVERLAPS the band x=0..24, y=76..100
+        );
+        assertTrue(ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 16, 8, rects));
+    }
+
+    @Test
+    public void w2_anyChildOccupiesIconBand_iconBandSizeRespectsCallerArgs() {
+        // Pass icon=24, margin=8 → band=32 instead of 24.
+        // Parent 200×100, bottom-left band: x=0..32, y=68..100.
+        // Child at (30, 70, 5, 5) — within the (x=0..32, y=68..100) band.
+        List<int[]> rects = List.of(new int[] {30, 70, 5, 5});
+        assertTrue(ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 24, 8, rects));
+        // Same child at (30, 70, 5, 5) with icon=16, margin=0 → band=16, x=0..16, y=84..100
+        // → child is outside the band on both axes.
+        assertFalse(ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 16, 0, rects));
+    }
+
+    @Test
+    public void w2_ICON_BAND_HEIGHT_isParityWithGroupLabelHeight() {
+        // Sanity-pin the constant — must stay 16+8=24, by parity with
+        // GROUP_LABEL_HEIGHT=24 at ArchiModelAccessorImpl:8955.
+        assertEquals(24, ImageHelper.ICON_BAND_HEIGHT);
     }
 }

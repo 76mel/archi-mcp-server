@@ -15,8 +15,12 @@ import com.archimatetool.model.IArchimateElement;
 import com.archimatetool.model.IArchimateFactory;
 import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IDiagramModelArchimateObject;
+import com.archimatetool.model.IDiagramModelGroup;
 import com.archimatetool.model.IFontAttribute;
+import com.archimatetool.model.IGrouping;
 import com.archimatetool.model.ILineObject;
+import com.archimatetool.model.ITextAlignment;
+import com.archimatetool.model.ITextPosition;
 
 /**
  * Tests for {@link UpdateViewObjectCommand} (Story 7-8).
@@ -264,5 +268,177 @@ public class UpdateViewObjectCommandTest {
         assertEquals("#112233", cmd.getOldLineColor());
         assertEquals("#FF0000", cmd.getNewFillColor());
         assertEquals("#00FF00", cmd.getNewLineColor());
+    }
+
+    // ---- Story backlog-group-element-styling-surface: figureType + text alignment pins ----
+
+    @Test
+    public void shouldApplyTextAlignmentAndUndoRestores_AC4() {
+        // Capture initial state (centre = Archi default)
+        assertEquals(ITextAlignment.TEXT_ALIGNMENT_CENTER, diagramObject.getTextAlignment());
+
+        StylingParams styling = new StylingParams(
+                null, null, null, null, null, null, "left", null);
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, styling);
+
+        cmd.execute();
+        assertEquals(ITextAlignment.TEXT_ALIGNMENT_LEFT, diagramObject.getTextAlignment());
+
+        cmd.undo();
+        assertEquals(ITextAlignment.TEXT_ALIGNMENT_CENTER, diagramObject.getTextAlignment());
+    }
+
+    @Test
+    public void shouldApplyVerticalTextAlignmentAndUndoRestores_AC4_AC17() {
+        // TEXT_POSITION_TOP (0) is the EMF default for a freshly-created view object
+        // (label renders in a top "header band"). Apply CENTRE — a non-default — and round-trip.
+        assertEquals(ITextPosition.TEXT_POSITION_TOP, diagramObject.getTextPosition());
+
+        StylingParams styling = new StylingParams(
+                null, null, null, null, null, null, null, "centre");
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, styling);
+
+        cmd.execute();
+        assertEquals(ITextPosition.TEXT_POSITION_CENTRE, diagramObject.getTextPosition());
+
+        cmd.undo();
+        assertEquals(ITextPosition.TEXT_POSITION_TOP, diagramObject.getTextPosition());
+    }
+
+    @Test
+    public void shouldApplyFigureTypeOnGroupingElementAndUndoRestores_AC2_AC4() {
+        // Build a fresh Grouping element + diagramObject (the default setUp's diagramObject
+        // wraps an ApplicationComponent which is non-Grouping — figureType is silently ignored).
+        IArchimateModel m = IArchimateFactory.eINSTANCE.createArchimateModel();
+        m.setDefaults();
+        IArchimateElement grouping = IArchimateFactory.eINSTANCE.createGrouping();
+        m.getFolder(FolderType.OTHER).getElements().add(grouping);
+        IDiagramModelArchimateObject obj = IArchimateFactory.eINSTANCE.createDiagramModelArchimateObject();
+        obj.setArchimateElement(grouping);
+        obj.setBounds(0, 0, 100, 50);
+        assertTrue(obj.getArchimateElement() instanceof IGrouping);
+        assertEquals(0, obj.getType()); // tabbed = primary figure for Grouping
+
+        StylingParams styling = new StylingParams(
+                null, null, null, null, null, "rectangular", null, null);
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                obj, 0, 0, 100, 50, null, styling);
+
+        cmd.execute();
+        assertEquals(1, obj.getType());
+
+        cmd.undo();
+        assertEquals(0, obj.getType());
+    }
+
+    @Test
+    public void shouldSilentlyIgnoreFigureTypeOnNonGroupingElement_AC16() {
+        // diagramObject wraps an ApplicationComponent — not Grouping.
+        int beforeType = diagramObject.getType();
+
+        StylingParams styling = new StylingParams(
+                null, null, null, null, null, "rectangular", null, null);
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, styling);
+
+        cmd.execute();
+        assertEquals(beforeType, diagramObject.getType());
+
+        cmd.undo();
+        assertEquals(beforeType, diagramObject.getType());
+    }
+
+    @Test
+    public void shouldApplyFigureTypeOnNativeGroup_AC1() {
+        IDiagramModelGroup group = IArchimateFactory.eINSTANCE.createDiagramModelGroup();
+        group.setBounds(0, 0, 200, 200);
+        // BORDER_TABBED = 0 is the EMF default
+        assertEquals(IDiagramModelGroup.BORDER_TABBED, group.getBorderType());
+
+        StylingParams styling = new StylingParams(
+                null, null, null, null, null, "rectangular", null, null);
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                group, 0, 0, 200, 200, null, styling);
+
+        cmd.execute();
+        assertEquals(IDiagramModelGroup.BORDER_RECTANGLE, group.getBorderType());
+
+        cmd.undo();
+        assertEquals(IDiagramModelGroup.BORDER_TABBED, group.getBorderType());
+    }
+
+    @Test
+    public void shouldApplyAllThreeNewFieldsInOneCommand_AC4() {
+        // Single-undo-unit pin: one command captures and applies all three new fields together.
+        // Use CENTRE (non-default) for verticalTextAlignment since TOP is the EMF default.
+        IDiagramModelGroup group = IArchimateFactory.eINSTANCE.createDiagramModelGroup();
+        group.setBounds(0, 0, 200, 200);
+
+        StylingParams styling = new StylingParams(
+                null, null, null, null, null, "rectangular", "left", "centre");
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                group, 0, 0, 200, 200, null, styling);
+
+        cmd.execute();
+        assertEquals(IDiagramModelGroup.BORDER_RECTANGLE, group.getBorderType());
+        assertEquals(ITextAlignment.TEXT_ALIGNMENT_LEFT, group.getTextAlignment());
+        assertEquals(ITextPosition.TEXT_POSITION_CENTRE, group.getTextPosition());
+
+        cmd.undo();
+        assertEquals(IDiagramModelGroup.BORDER_TABBED, group.getBorderType());
+        assertEquals(ITextAlignment.TEXT_ALIGNMENT_CENTER, group.getTextAlignment());
+        assertEquals(ITextPosition.TEXT_POSITION_TOP, group.getTextPosition());
+    }
+
+    @Test
+    public void shouldBeIdempotentUnderRepeatedApply_AC15() {
+        // Run execute twice — captured "new" values are static at construction, so applyStyling
+        // is structurally idempotent (second execute is a no-op effect on the EMF state).
+        IDiagramModelGroup group = IArchimateFactory.eINSTANCE.createDiagramModelGroup();
+        group.setBounds(0, 0, 200, 200);
+
+        StylingParams styling = new StylingParams(
+                null, null, null, null, null, "rectangular", "right", "bottom");
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                group, 0, 0, 200, 200, null, styling);
+
+        cmd.execute();
+        assertEquals(IDiagramModelGroup.BORDER_RECTANGLE, group.getBorderType());
+        assertEquals(ITextAlignment.TEXT_ALIGNMENT_RIGHT, group.getTextAlignment());
+        assertEquals(ITextPosition.TEXT_POSITION_BOTTOM, group.getTextPosition());
+
+        cmd.execute(); // second apply — identical end state
+        assertEquals(IDiagramModelGroup.BORDER_RECTANGLE, group.getBorderType());
+        assertEquals(ITextAlignment.TEXT_ALIGNMENT_RIGHT, group.getTextAlignment());
+        assertEquals(ITextPosition.TEXT_POSITION_BOTTOM, group.getTextPosition());
+    }
+
+    @Test
+    public void shouldCaptureOldFigureTypeAtConstruction_AC4() {
+        // Capture-at-construction pin: pre-populate the group to a non-default border type,
+        // construct the command (capturing oldFigureType), then mutate the group directly,
+        // then undo and verify undo restored the captured-at-construction value (NOT the
+        // post-mutate value).
+        IDiagramModelGroup group = IArchimateFactory.eINSTANCE.createDiagramModelGroup();
+        group.setBounds(0, 0, 200, 200);
+        group.setBorderType(IDiagramModelGroup.BORDER_RECTANGLE);
+
+        StylingParams styling = new StylingParams(
+                null, null, null, null, null, "tabbed", null, null);
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                group, 0, 0, 200, 200, null, styling);
+
+        // After construction: oldFigureType = BORDER_RECTANGLE, newFigureType = BORDER_TABBED
+        assertEquals(Integer.valueOf(IDiagramModelGroup.BORDER_RECTANGLE), cmd.getOldFigureType());
+        assertEquals(Integer.valueOf(IDiagramModelGroup.BORDER_TABBED), cmd.getNewFigureType());
+
+        // Mutate the group bypass-style — execute then undo should restore the captured old value.
+        cmd.execute();
+        assertEquals(IDiagramModelGroup.BORDER_TABBED, group.getBorderType());
+
+        cmd.undo();
+        assertEquals(IDiagramModelGroup.BORDER_RECTANGLE, group.getBorderType());
     }
 }

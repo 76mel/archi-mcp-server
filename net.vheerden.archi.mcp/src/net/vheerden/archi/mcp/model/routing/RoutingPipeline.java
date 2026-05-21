@@ -46,15 +46,27 @@ public class RoutingPipeline {
     /** Default exterior perimeter margin in pixels (B36). */
     public static final int DEFAULT_PERIMETER_MARGIN = 50;
 
+    /** Default for the B69-B channel-global ordered nudging post-pass (Stage 4.7o). */
+    public static final boolean DEFAULT_ENABLE_CHANNEL_NUDGING = true;
+
     private final int bendPenalty;
     private final int margin;
     private final int perimeterMargin;
     private final double congestionWeight;
+    private final double occupancyWeight;
     private final PathOrderer pathOrderer;
     private final EdgeNudger edgeNudger;
     private final EdgeAttachmentCalculator edgeAttachmentCalculator;
     private final CoincidentSegmentDetector coincidentDetector;
     private final LabelPositionOptimizer labelPositionOptimizer;
+    /** H5 story — hub-perimeter routing stage (Axis 1 corridor-CHOICE + Axis 2 SPREAD). */
+    private final HubPerimeterRoutingStage hubPerimeterRoutingStage = new HubPerimeterRoutingStage();
+    /**
+     * Story {@code backlog-terminal-egress-corridor-aware-clearance} — corridor-aware
+     * terminal-egress clearance. Runs as the LAST geometry-mutating stage (4.7s, after 4.7r)
+     * so its M4/V_p10/HPQ/Tier-1 validation is a final-pipeline-state check.
+     */
+    private final TerminalEgressClearancePass terminalEgressClearancePass = new TerminalEgressClearancePass();
 
     public RoutingPipeline() {
         this(DEFAULT_BEND_PENALTY, DEFAULT_MARGIN);
@@ -69,13 +81,32 @@ public class RoutingPipeline {
     }
 
     public RoutingPipeline(int bendPenalty, int margin, double congestionWeight, int perimeterMargin) {
+        this(bendPenalty, margin, congestionWeight, perimeterMargin,
+                VisibilityGraphRouter.DEFAULT_OCCUPANCY_WEIGHT);
+    }
+
+    /**
+     * Creates a pipeline with all routing parameters including occupancy weight (B62-2).
+     *
+     * @param bendPenalty      penalty for direction changes in A* search
+     * @param margin           clearance margin around obstacles
+     * @param congestionWeight multiplier for local obstacle density
+     * @param perimeterMargin  exterior perimeter margin (B36)
+     * @param occupancyWeight  multiplicative penalty for occupied corridors (B47/B62-2)
+     */
+    public RoutingPipeline(int bendPenalty, int margin, double congestionWeight, int perimeterMargin,
+            double occupancyWeight) {
         if (perimeterMargin < 0) {
             throw new IllegalArgumentException("perimeterMargin must be >= 0, got " + perimeterMargin);
+        }
+        if (occupancyWeight < 0) {
+            throw new IllegalArgumentException("occupancyWeight must be >= 0, got " + occupancyWeight);
         }
         this.bendPenalty = bendPenalty;
         this.margin = margin;
         this.perimeterMargin = perimeterMargin;
         this.congestionWeight = congestionWeight;
+        this.occupancyWeight = occupancyWeight;
         this.pathOrderer = new PathOrderer();
         this.edgeNudger = new EdgeNudger(this.pathOrderer);
         this.edgeAttachmentCalculator = new EdgeAttachmentCalculator();
@@ -512,19 +543,104 @@ public class RoutingPipeline {
     public RoutingResult routeAllConnections(
             List<ConnectionEndpoints> connections, List<RoutingRect> allObstacles,
             Map<String, Set<String>> labelExcludeSets, int snapThreshold) {
+        return routeAllConnections(connections, allObstacles, labelExcludeSets,
+                snapThreshold, DEFAULT_ENABLE_CHANNEL_NUDGING);
+    }
+
+    /**
+     * Route all connections with the channel-global ordered nudging post-pass gate (B69-B).
+     *
+     * <p>When {@code enableChannelNudging} is true (default), the new Stage 4.7o runs between
+     * Stage 4.7n (final orthogonality safety net) and Stage 4.8 (label position optimization).
+     * When false, {@link ChannelNudgingPass} is neither constructed nor invoked — byte-identical
+     * output to the previous 4-arg overload.</p>
+     *
+     * @param connections          list of connection endpoints to route
+     * @param allObstacles         all element rectangles on the view
+     * @param labelExcludeSets     per-connection label exclusion sets (nullable)
+     * @param snapThreshold        snap-to-straight threshold (0 disables)
+     * @param enableChannelNudging when true, channel-global ordered nudging post-pass runs (B69-B)
+     * @return RoutingResult with routed connections and failed connections
+     */
+    public RoutingResult routeAllConnections(
+            List<ConnectionEndpoints> connections, List<RoutingRect> allObstacles,
+            Map<String, Set<String>> labelExcludeSets, int snapThreshold,
+            boolean enableChannelNudging) {
+        return routeAllConnections(connections, allObstacles, labelExcludeSets,
+                snapThreshold, enableChannelNudging, null);
+    }
+
+    /**
+     * Route all connections with an explicit connection processing-order override
+     * (story {@code backlog-routing-best-of-k-multi-start}, sprint-status row 762 —
+     * the best-of-K multi-start seam; Task-0 spike decision D1).
+     *
+     * <p><b>Purely additive — the narrowest possible seam.</b> When
+     * {@code processingOrderOverride == null} this method is <em>byte-identical to
+     * current {@code main}</em>: the pipeline computes its own unchanged
+     * {@link #buildConnectionRoutingOrder}. Every pre-existing overload delegates
+     * here with {@code null}, so all existing callers are unaffected. A non-null
+     * array is the exact order (indices into {@code connections}) in which
+     * connections are fed to the otherwise <em>entirely unchanged</em> pipeline —
+     * it changes ONLY the feed order: no stage in the 4.7a..4.7r sequence, no A*
+     * cost, no corridor-occupancy keying, no channel nudging, no edge attachment
+     * and no assessor behaviour is altered. The {@link BestOfKRoutingStrategy}
+     * outer wrapper supplies seeded permutations here and selects the best
+     * complete result by the ship-gate aggregate (run&nbsp;0 always uses
+     * {@code null} ⇒ never-worse-by-construction). A non-null override whose
+     * length does not match {@code connections.size()} is rejected defensively
+     * (falls back to {@link #buildConnectionRoutingOrder}) so a malformed override
+     * can never crash the pipeline or violate never-worse.</p>
+     *
+     * @param connections             list of connection endpoints to route
+     * @param allObstacles            all element rectangles on the view
+     * @param labelExcludeSets        per-connection label exclusion sets (nullable)
+     * @param snapThreshold           snap-to-straight threshold (0 disables)
+     * @param enableChannelNudging    when true, channel-global ordered nudging runs (B69-B)
+     * @param processingOrderOverride exact processing order (indices into
+     *        {@code connections}); {@code null} ⇒ the unchanged
+     *        {@link #buildConnectionRoutingOrder} (≡ current {@code main})
+     * @return RoutingResult with routed connections and failed connections
+     */
+    public RoutingResult routeAllConnections(
+            List<ConnectionEndpoints> connections, List<RoutingRect> allObstacles,
+            Map<String, Set<String>> labelExcludeSets, int snapThreshold,
+            boolean enableChannelNudging, Integer[] processingOrderOverride) {
         logger.info("Batch routing {} connections with path ordering and edge nudging",
                 connections.size());
 
         // B47: Sort connections by descending Manhattan distance (longest first).
         // Most constrained connections route first, getting best corridor selection.
         // Build index mapping to restore original order after routing.
-        Integer[] sortedIndices = buildConnectionRoutingOrder(connections);
+        // best-of-K (row 762): an explicit, length-matched processing-order
+        // override replaces the default order; null (every legacy caller) ⇒
+        // byte-identical to current main.
+        Integer[] sortedIndices;
+        if (processingOrderOverride != null
+                && processingOrderOverride.length == connections.size()) {
+            sortedIndices = processingOrderOverride;
+        } else {
+            if (processingOrderOverride != null) {
+                logger.warn("best-of-K: ignoring processingOrderOverride of length {} "
+                        + "(expected {}) — falling back to buildConnectionRoutingOrder",
+                        processingOrderOverride.length, connections.size());
+            }
+            sortedIndices = buildConnectionRoutingOrder(connections);
+        }
 
         // 1. Route each connection individually with corridor occupancy tracking (B47)
         List<String> connectionIds = new ArrayList<>(Collections.nCopies(connections.size(), null));
         List<List<AbsoluteBendpointDto>> bendpointLists = new ArrayList<>(Collections.nCopies(connections.size(), null));
         List<int[]> sourceCenters = new ArrayList<>(Collections.nCopies(connections.size(), null));
         List<int[]> targetCenters = new ArrayList<>(Collections.nCopies(connections.size(), null));
+        // B71: Parallel arrays for per-connection TerminalAnchoring records,
+        // populated by EdgeAttachmentCalculator.applyEdgeAttachments at stage 4.
+        // Consumed by the five wrap sites (4 in PathStraightener at stage 4.7i,
+        // 1 in CoincidentSegmentDetector.applyOffsets at stage 4.7h). Per
+        // Dev Notes §5.3, no new carrier type — just two more parallel arrays
+        // alongside sourceCenters / targetCenters.
+        List<TerminalAnchoring> sourceAnchorings = new ArrayList<>();
+        List<TerminalAnchoring> targetAnchorings = new ArrayList<>();
         CorridorOccupancyTracker occupancyTracker = new CorridorOccupancyTracker();
 
         for (int si = 0; si < sortedIndices.length; si++) {
@@ -565,6 +681,9 @@ public class RoutingPipeline {
                 edgeNudger.nudgePaths(connectionIds, orderedPaths, sourceCenters, targetCenters, allObstacles);
 
         // 3.5a. Coincident segment detection and offset (Story 11-23)
+        // B71: pre-attachment, anchorings are not yet populated — the legacy
+        // 3-arg overload is correct here (no terminal-anchoring wrap because
+        // no perimeter terminals exist yet).
         List<CoincidentSegmentDetector.CoincidentPair> coincidentPairs =
                 coincidentDetector.detect(connectionIds, nudgedPaths, sourceCenters, targetCenters);
         if (!coincidentPairs.isEmpty()) {
@@ -608,7 +727,11 @@ public class RoutingPipeline {
         }
 
         // 4. Apply edge attachments (terminal bendpoints at element faces)
-        edgeAttachmentCalculator.applyEdgeAttachments(connectionIds, nudgedPaths, connections);
+        // B71: 5-arg producer overload also fills sourceAnchorings / targetAnchorings
+        // for the five downstream wrap sites (stage 4.7h applyOffsets +
+        // stage 4.7i PathStraightener × 4).
+        edgeAttachmentCalculator.applyEdgeAttachments(connectionIds, nudgedPaths, connections,
+                sourceAnchorings, targetAnchorings);
 
         // Save terminal BP positions for post-cleanup restoration (Story 13-12)
         // Post-attachment stages (4.1–4.6a) can shift terminals via micro-jog removal,
@@ -838,8 +961,26 @@ public class RoutingPipeline {
         List<CoincidentSegmentDetector.CoincidentPair> postSimplifyPairs =
                 coincidentDetector.detect(connectionIds, nudgedPaths, sourceCenters, targetCenters);
         if (!postSimplifyPairs.isEmpty()) {
+            // B71 wrap site #5 (applyOffsets): build per-connection anchoring
+            // contexts from the parallel arrays produced by stage 4 and let
+            // CoincidentSegmentDetector roll back any segment offset that
+            // would violate TerminalAnchoring.preservesEndpoints. Replaces
+            // the B70-a Mode B touchesPerimeterAnchoredTerminal filter.
+            // Load-bearing for V4 Integration Architecture: pre-fix, the
+            // legacy offset dragged path[0] off hub LEFT perimeter and
+            // collapsed 3 of 7 API Gateway outbound terminals to the face
+            // midpoint.
+            Map<Integer, CoincidentSegmentDetector.AnchoringContext> anchoringContexts =
+                    new HashMap<>();
+            for (int ci = 0; ci < connections.size(); ci++) {
+                anchoringContexts.put(ci, new CoincidentSegmentDetector.AnchoringContext(
+                        connections.get(ci),
+                        sourceCenters.get(ci), targetCenters.get(ci),
+                        ci < sourceAnchorings.size() ? sourceAnchorings.get(ci) : null,
+                        ci < targetAnchorings.size() ? targetAnchorings.get(ci) : null));
+            }
             int coincidentResolved = coincidentDetector.applyOffsets(
-                    postSimplifyPairs, nudgedPaths, allObstacles);
+                    postSimplifyPairs, nudgedPaths, allObstacles, anchoringContexts);
             if (coincidentResolved > 0) {
                 logger.info("Coincident segment resolver: separated {} coincident segments", coincidentResolved);
                 for (int i = 0; i < nudgedPaths.size(); i++) {
@@ -876,10 +1017,29 @@ public class RoutingPipeline {
             path.add(new AbsoluteBendpointDto(tc[0], tc[1]));
 
             List<RoutingRect> connObstacles = connections.get(i).obstacles();
-            PathStraightener.snapToStraight(path, DEFAULT_SNAP_THRESHOLD, connObstacles);
-            PathStraightener.eliminateReversals(path, connObstacles);
-            PathStraightener.collapseStaircaseJogs(path, DEFAULT_SNAP_THRESHOLD, connObstacles);
-            PathStraightener.collapseBends(path, connObstacles);
+            // B71: all four PathStraightener mutators are wrap sites under the
+            // TerminalAnchoring.preservesEndpoints predicate. The new 8-arg
+            // overloads snapshot each path on entry, run the existing logic,
+            // and roll back on predicate violation at either terminal.
+            // Replaces the B70 / B70-a containsPerimeterBP guards inline at
+            // eliminateReversals and collapseBends respectively. The wrap also
+            // covers the two formerly-unguarded silent offenders (snapToStraight,
+            // collapseStaircaseJogs) per Q1 §1.3 finding #4 / Q4 §5.
+            RoutingRect connSource = connections.get(i).source();
+            RoutingRect connTarget = connections.get(i).target();
+            TerminalAnchoring srcAnchoring = (i < sourceAnchorings.size()) ? sourceAnchorings.get(i) : null;
+            TerminalAnchoring tgtAnchoring = (i < targetAnchorings.size()) ? targetAnchorings.get(i) : null;
+            // augmented=true: stage 4.7i prepends source center at index 0
+            // and appends target center at index size-1 — the wrap evaluates
+            // the predicate against the inner view (path[1] / path[size-2]).
+            PathStraightener.snapToStraight(path, DEFAULT_SNAP_THRESHOLD, connObstacles,
+                    connSource, connTarget, sc, tc, srcAnchoring, tgtAnchoring, true);
+            PathStraightener.eliminateReversals(path, connObstacles,
+                    connSource, connTarget, sc, tc, srcAnchoring, tgtAnchoring, true);
+            PathStraightener.collapseStaircaseJogs(path, DEFAULT_SNAP_THRESHOLD, connObstacles,
+                    connSource, connTarget, sc, tc, srcAnchoring, tgtAnchoring, true);
+            PathStraightener.collapseBends(path, connObstacles,
+                    connSource, connTarget, sc, tc, srcAnchoring, tgtAnchoring, true);
 
             // Strip the prepended/appended terminal anchors
             path.remove(path.size() - 1);
@@ -995,6 +1155,240 @@ public class RoutingPipeline {
         // This catches any remaining diagonals as a last resort before label optimization.
         for (int i = 0; i < nudgedPaths.size(); i++) {
             enforceOrthogonalPaths(nudgedPaths.get(i));
+        }
+
+        // 4.7o. Channel-global ordered nudging post-pass (B69-B)
+        // Groups all axis-aligned runs into obstacle-bounded channels (keyed by
+        // (axis, gapLow, gapHigh) via CoincidentSegmentDetector.computeCorridorGap), then
+        // walks channels (not connections) and allocates distinct tracks within each
+        // corridor's free zone. Single-occupant channels centre on slack midpoint;
+        // multi-occupant channels fan out evenly. Per-route monotone rollback guards
+        // terminal alignment, obstacle clearance, and new-coincident-pair invariants.
+        //
+        // Why this layer: routing quality is a global property of the route set, not a
+        // local property of individual edges or connections. B41 (clearance-weighted A*),
+        // B47 (CorridorOccupancyTracker), B66 (centerline symmetry pass, reverted), and
+        // B69-A (clearance balance term, falsified) all operated with local visibility
+        // and all hit the same wall. B69-B is the first pass to operate on routes with
+        // global visibility after A* has settled.
+        //
+        // Primary references: Wybrow, Marriott, Stuckey — Orthogonal Connector Routing,
+        // GD 2009 §4 "Ordering and Nudging"; Hegemann & Wolff — A Simple Pipeline for
+        // Orthogonal Graph Drawing, GD 2023 §3-§4; libavoid orthogonal.cpp nudgeOrthogonal*.
+        //
+        // Gate: when enableChannelNudging is false, ChannelNudgingPass is neither
+        // constructed nor invoked — byte-identical output to pre-B69-B behaviour.
+        if (enableChannelNudging) {
+            // B75: aggregate unique top-level group boundaries from all connections
+            // for inter-group corridor channel detection. A group is top-level if no
+            // other group in the set fully encloses it.
+            List<RoutingRect> topLevelGroupBounds = extractTopLevelGroupBounds(connections);
+
+            ChannelNudgingPass channelNudging = new ChannelNudgingPass();
+            int b69bNudges = channelNudging.run(connections, nudgedPaths, allObstacles,
+                    topLevelGroupBounds);
+            if (b69bNudges > 0 || channelNudging.getRollbackCount() > 0) {
+                logger.info("B69-B channel nudging: {} nudges applied, {} per-route rollbacks",
+                        b69bNudges, channelNudging.getRollbackCount());
+                // Defense-in-depth: re-apply terminal alignment and orthogonality after
+                // the pass (AC-8). Per-route rollback is the primary safety net; this
+                // second pass catches any micro-orthogonality drift from track assignment.
+                for (int i = 0; i < nudgedPaths.size(); i++) {
+                    alignTerminalsWithCenter(nudgedPaths.get(i), connections.get(i));
+                    enforceOrthogonalPaths(nudgedPaths.get(i));
+                }
+                for (int i = 0; i < nudgedPaths.size(); i++) {
+                    removeDuplicatePoints(nudgedPaths.get(i));
+                    removeCollinearPoints(nudgedPaths.get(i));
+                }
+            }
+        }
+
+        // 4.7m. H5 — Hub-Perimeter Routing Stage (story backlog-routing-pipeline-v4-hub-and-spoke-h5-hub-perimeter-routing-stage).
+        // AC-2.3 calls for insertion "between ChannelNudgingPass and PathStraightener". In the
+        // actual pipeline order PathStraightener (stage 4.7i) runs BEFORE ChannelNudgingPass
+        // (4.7o), so the operative interpretation is: after the global-nudging pass has assigned
+        // tracks across all corridors, run the hub-perimeter-aware refinement before the next
+        // post-processing stage (4.7p self-hug correction). Per AC-9.5, the stage runs ALONGSIDE
+        // ChannelNudgingPass — never mutates it; the divisor-7 width-aware cap stays at current
+        // calibration. Single field + single line per AC-2.3.
+        //
+        // Re-enabled 2026-05-14 (Task 15.1) after Tasks 12+13 closure shipped real
+        // verifyMetricMonotonicity() guard: before every Axis-1 / Axis-2 apply, the stage
+        // computes a MetricSnapshot and rejects any post-state that regresses M4 / V_p10 / HPQ
+        // (rollback-on-fail). Per AC-6.3, the stage can now only IMPROVE or no-op on the
+        // monotonicity-guarded metrics — the regressions Task 8 caught on HH (V_p10 6.4 → 5.8)
+        // and ST (M4 7 → 8) are now structurally impossible.
+        HubPerimeterRoutingStage.Result h5Result = hubPerimeterRoutingStage.apply(connections, nudgedPaths, allObstacles);
+        if (h5Result.axis1Applied() > 0 || h5Result.axis2Applied() > 0
+                || h5Result.axis1Rolled() > 0 || h5Result.axis2Rolled() > 0
+                || h5Result.migratorApplied() > 0 || h5Result.migratorRolled() > 0) {
+            logger.info("H5 hub-perimeter routing: {} cells, axis1 {}/{} applied/rolled, "
+                            + "axis2 {}/{} applied/rolled, axis3-migrator {}/{} applied/rolled",
+                    h5Result.cellsProcessed(),
+                    h5Result.axis1Applied(), h5Result.axis1Rolled(),
+                    h5Result.axis2Applied(), h5Result.axis2Rolled(),
+                    h5Result.migratorApplied(), h5Result.migratorRolled());
+        }
+
+        // 4.7p. Source/target self-hug correction (backlog-b72-a)
+        // Post-processing pass that detects face-parallel segments created by
+        // simplifyFinalPath's vertical-first L-turn fallback (which places midpoint
+        // at a.x = face line for LEFT/RIGHT faces) and redirects them into the
+        // nearest obstacle-free corridor. Runs after all post-processing stages
+        // (4.7h coincident resolver, 4.7i straightener, 4.7o channel nudging) to
+        // avoid cascading through coincident detection. Only modifies interior BPs.
+        int selfHugFixes = 0;
+        for (int i = 0; i < nudgedPaths.size(); i++) {
+            TerminalAnchoring srcAnch = (i < sourceAnchorings.size()) ? sourceAnchorings.get(i) : null;
+            TerminalAnchoring tgtAnch = (i < targetAnchorings.size()) ? targetAnchorings.get(i) : null;
+            if (srcAnch != null) {
+                if (correctSourceSelfHug(nudgedPaths.get(i), connections.get(i).obstacles(),
+                        srcAnch, connections.get(i).source())) {
+                    selfHugFixes++;
+                }
+            }
+            if (tgtAnch != null) {
+                if (correctTargetSelfHug(nudgedPaths.get(i), connections.get(i).obstacles(),
+                        tgtAnch, connections.get(i).target())) {
+                    selfHugFixes++;
+                }
+            }
+        }
+        if (selfHugFixes > 0) {
+            logger.info("Source/target self-hug correction: fixed {} face-hugging segments", selfHugFixes);
+            for (int i = 0; i < nudgedPaths.size(); i++) {
+                removeDuplicatePoints(nudgedPaths.get(i));
+                removeCollinearPoints(nudgedPaths.get(i));
+            }
+
+            // 4.7p+1. Re-run coincident segment resolver after face-hug correction.
+            // The correction at 4.7p may create new coincident segments that 4.7h
+            // couldn't anticipate. Reuses the same detector and anchoring contexts.
+            List<CoincidentSegmentDetector.CoincidentPair> postHugPairs =
+                    coincidentDetector.detect(connectionIds, nudgedPaths, sourceCenters, targetCenters);
+            if (!postHugPairs.isEmpty()) {
+                Map<Integer, CoincidentSegmentDetector.AnchoringContext> postHugAnchCtx =
+                        new HashMap<>();
+                for (int ci = 0; ci < connections.size(); ci++) {
+                    postHugAnchCtx.put(ci, new CoincidentSegmentDetector.AnchoringContext(
+                            connections.get(ci),
+                            sourceCenters.get(ci), targetCenters.get(ci),
+                            ci < sourceAnchorings.size() ? sourceAnchorings.get(ci) : null,
+                            ci < targetAnchorings.size() ? targetAnchorings.get(ci) : null));
+                }
+                int postHugResolved = coincidentDetector.applyOffsets(
+                        postHugPairs, nudgedPaths, allObstacles, postHugAnchCtx);
+                if (postHugResolved > 0) {
+                    logger.info("Post-hug-correction coincident resolver: separated {} segments",
+                            postHugResolved);
+                    for (int i = 0; i < nudgedPaths.size(); i++) {
+                        removeDuplicatePoints(nudgedPaths.get(i));
+                        removeCollinearPoints(nudgedPaths.get(i));
+                    }
+                }
+            }
+        }
+
+        // 4.7q. Approach-3 reconciliation pass for terminal-anchored coincident segments.
+        // Runs after the rollback-eligible applyOffsets sites (stage 4.7h post-
+        // edge-attach + stage 4.7p+1 post-hug — both invoke the 4-arg overload
+        // with anchoring contexts, so TerminalAnchoring rollback can fire).
+        // Stage 3.5a pre-attach uses the legacy 3-arg overload (Map.of() empty
+        // contexts, line ~628) because terminals aren't yet attached at that
+        // point, so 3.5a's applyOffsets has no rollback to reconcile from.
+        //
+        // For coincident segments stages 4.7h / 4.7p+1 couldn't separate
+        // (the simple perpendicular delta-shift would have moved a terminal
+        // BP off its face line — TerminalAnchoring rollback fires correctly,
+        // but the coincidence persists), this pass INSERTS two BPs to shift
+        // the corridor perpendicular while leaving the terminal BP itself on
+        // the face line. Resolves the V4 oracle current-pipeline regression
+        // (M5=12 corridor-perpendicular coincidences with parallel-axis-
+        // distinct terminals; see _bmad-output/implementation-artifacts/
+        // coincident-regression-surgical-fix-violator-classification-2026-
+        // 04-28.md). The B71 rollback path is unmodified — this stage adds
+        // a NEW resolution path that runs only when the rollback has fired.
+        List<CoincidentSegmentDetector.CoincidentPair> reconcilerPairs =
+                coincidentDetector.detect(connectionIds, nudgedPaths, sourceCenters, targetCenters);
+        if (!reconcilerPairs.isEmpty()) {
+            Map<Integer, CoincidentSegmentDetector.AnchoringContext> reconcilerAnchCtx =
+                    new HashMap<>();
+            for (int ci = 0; ci < connections.size(); ci++) {
+                reconcilerAnchCtx.put(ci, new CoincidentSegmentDetector.AnchoringContext(
+                        connections.get(ci),
+                        sourceCenters.get(ci), targetCenters.get(ci),
+                        ci < sourceAnchorings.size() ? sourceAnchorings.get(ci) : null,
+                        ci < targetAnchorings.size() ? targetAnchorings.get(ci) : null));
+            }
+            int reconciled = coincidentDetector.applyTerminalAnchoredReconciliation(
+                    connectionIds, nudgedPaths, sourceCenters, targetCenters,
+                    allObstacles, reconcilerAnchCtx);
+            if (reconciled > 0) {
+                logger.info("Terminal-anchored reconciliation: inserted drops for {} coincident segments",
+                        reconciled);
+                for (int i = 0; i < nudgedPaths.size(); i++) {
+                    removeDuplicatePoints(nudgedPaths.get(i));
+                    removeCollinearPoints(nudgedPaths.get(i));
+                }
+            }
+        }
+
+        // 4.7r. Final interior-BP safety net (B77)
+        // Stages 4.7n–4.7q (enforceOrthogonalPaths, alignTerminalsWithCenter,
+        // self-hug correction, coincident resolver, terminal-anchored reconciler)
+        // can introduce terminal BPs inside endpoint elements after
+        // fixInteriorTerminalBPs ran at 4.7m. This final pass catches any
+        // remaining interior terminals before label optimization and the final
+        // violation check.
+        int finalInteriorFixes = 0;
+        for (int i = 0; i < nudgedPaths.size(); i++) {
+            finalInteriorFixes += fixCenterTerminatedPath(nudgedPaths.get(i), connections.get(i));
+            finalInteriorFixes += fixInteriorTerminalBPs(nudgedPaths.get(i), connections.get(i));
+        }
+        if (finalInteriorFixes > 0) {
+            logger.info("B77 final interior-BP safety net: corrected {} BP(s) inside endpoint elements",
+                    finalInteriorFixes);
+            for (int i = 0; i < nudgedPaths.size(); i++) {
+                removeDuplicatePoints(nudgedPaths.get(i));
+                removeCollinearPoints(nudgedPaths.get(i));
+            }
+        }
+
+        // 4.7s. Terminal-egress corridor-aware clearance
+        // (story backlog-terminal-egress-corridor-aware-clearance — the W3 Lever-B successor).
+        // Eliminates the terminal-egress "edge-hug" (a connector that leaves a face, runs
+        // hard-parallel ~1px against that element's own edge, then bends 90°) on feasible/open
+        // views by lengthening the perpendicular egress stub into the clearance that exists
+        // beside it. Runs AS THE LAST geometry-mutating stage — after 4.7r — so its in-stage
+        // M4/V_p10/HPQ/Tier-1 validation is, by construction, a FINAL-pipeline-state validation:
+        // nothing downstream re-mutates bendpoints (4.8 only positions labels; stage 5 only
+        // classifies). This closes the downstream-guard blind spot that rejected the in-stage
+        // (HubPerimeterRoutingStage Axis-4) v1 — see rejection-finding + disposition in
+        // _bmad-output/implementation-artifacts/terminal-egress-{lever-b-rejection,corridor-aware-clearance-disposition}-2026-05-21.
+        //
+        // Safe on tight hub corridors (HH): a cheap view-level pre-gate skips the whole pass when
+        // the pre-pass V_p10 parallel-connection gap is already narrow (< MIN_CLEARANCE), and the
+        // per-proposal room search requires max(MIN_CLEARANCE, pre-pass V_p10) clearance to
+        // neighbouring co-axial connection segments — so a push can NEVER introduce a
+        // parallel-connection gap narrower than the view already had (the killer V_p10 4.0->3.4
+        // regression of v1 is structurally impossible). Terminal kept byte-identical (B71 by
+        // construction → hub slot preserved → HPQ cannot regress from the transform). Any push
+        // that does not net-improve the final M4 without regressing V_p10/HPQ/Tier-1 is rolled
+        // back byte-identical.
+        TerminalEgressClearancePass.Result egressResult =
+                terminalEgressClearancePass.run(connections, nudgedPaths, allObstacles);
+        if (egressResult.applied() > 0 || egressResult.rolled() > 0) {
+            logger.info("Terminal-egress corridor-aware clearance: {} applied, {} rolled back, "
+                            + "{} proposals evaluated",
+                    egressResult.applied(), egressResult.rolled(), egressResult.proposalsEvaluated());
+            for (int i = 0; i < nudgedPaths.size(); i++) {
+                removeDuplicatePoints(nudgedPaths.get(i));
+                removeCollinearPoints(nudgedPaths.get(i));
+            }
+        } else if (egressResult.skippedByPreGate()) {
+            logger.debug("Terminal-egress corridor-aware clearance: pre-gate skipped (view V_p10 < {})",
+                    (int) TerminalEgressClearancePass.PRE_GATE_VP10_PX);
         }
 
         // 4.8. Label position optimization pass (Story 11-31)
@@ -1373,6 +1767,23 @@ public class RoutingPipeline {
     }
 
     /**
+     * B70 guard helper: returns true iff {@code bp} is exactly on {@code elem}'s
+     * perimeter at the 1-px-outside offset produced by
+     * {@link EdgeAttachmentCalculator#computeAttachmentPoint}. Hub port
+     * distribution (B9) places terminals on the perimeter by construction;
+     * center-aligned BPs introduced by previous alignTerminalsWithCenter calls
+     * do not. Used to skip the center-alignment overwrite for already-perimeter-
+     * aligned distributed terminals so B9's hub distribution survives the full
+     * pipeline.
+     */
+    static boolean isOnElementPerimeter(AbsoluteBendpointDto bp, RoutingRect elem) {
+        return bp.x() == elem.x() - 1
+                || bp.x() == elem.x() + elem.width() + 1
+                || bp.y() == elem.y() - 1
+                || bp.y() == elem.y() + elem.height() + 1;
+    }
+
+    /**
      * Determines which element face a terminal bendpoint is on, based on its
      * position relative to the element boundary. Terminals are placed 1px outside
      * the element edge by {@link EdgeAttachmentCalculator#computeAttachmentPoint}.
@@ -1391,6 +1802,120 @@ public class RoutingPipeline {
         // Default: RIGHT — terminal is at or beyond the right edge (should not reach here
         // for terminals inside the element, as edge attachment always places them outside).
         return EdgeAttachmentCalculator.Face.RIGHT;
+    }
+
+    /**
+     * B61 — terminals-only rectification entry point. Pure geometry, no EMF.
+     *
+     * <p>Computes a new bendpoint list whose first and last segments are
+     * orthogonal (axis-aligned with the element centers) by prepending and/or
+     * appending at most one L-bend each, without touching any intermediate
+     * bendpoint. Returns {@code null} when no change is needed (terminal
+     * segments already within ≤5° of a cardinal axis).</p>
+     *
+     * <p>Algorithm: for each terminal, check if the center→firstRef (or
+     * lastRef→center) segment is within the 5° angular tolerance; if not,
+     * insert an L-bend whose position is chosen from the face that the
+     * element exits/enters. The L-bend shares an axis with the element
+     * center by construction, so Archi's center→firstBP segment is
+     * automatically orthogonal. Intermediate BPs are copied through
+     * verbatim — no post-processing helper (enforce, fixInterior,
+     * removeCollinear) is invoked, which would risk erasing a genuine
+     * intermediate BP when it lies on the same axis as the inserted L-bend.</p>
+     *
+     * @param source       source element rect
+     * @param target       target element rect
+     * @param existingAbs  current absolute bendpoints (Archi's storage form —
+     *                     does NOT include terminal anchors)
+     * @return new bendpoint list, or {@code null} when the connection's terminal
+     *         segments are already orthogonal and no change is needed
+     */
+    public static List<AbsoluteBendpointDto> terminalsOnlyRectify(
+            RoutingRect source, RoutingRect target,
+            List<AbsoluteBendpointDto> existingAbs) {
+
+        int srcCX = source.centerX();
+        int srcCY = source.centerY();
+        int tgtCX = target.centerX();
+        int tgtCY = target.centerY();
+
+        int firstRefX = existingAbs.isEmpty() ? tgtCX : existingAbs.get(0).x();
+        int firstRefY = existingAbs.isEmpty() ? tgtCY : existingAbs.get(0).y();
+        int lastRefX = existingAbs.isEmpty() ? srcCX
+                : existingAbs.get(existingAbs.size() - 1).x();
+        int lastRefY = existingAbs.isEmpty() ? srcCY
+                : existingAbs.get(existingAbs.size() - 1).y();
+
+        boolean srcOrtho = isWithinOrthogonalTolerance(srcCX, srcCY, firstRefX, firstRefY);
+        boolean tgtOrtho = isWithinOrthogonalTolerance(tgtCX, tgtCY, lastRefX, lastRefY);
+        if (srcOrtho && tgtOrtho) {
+            return null;
+        }
+
+        List<AbsoluteBendpointDto> result = new ArrayList<>(existingAbs.size() + 2);
+        result.addAll(existingAbs);
+
+        if (!srcOrtho) {
+            EdgeAttachmentCalculator.Face srcFace =
+                    EdgeAttachmentCalculator.determineFace(source, firstRefX, firstRefY);
+            AbsoluteBendpointDto lBend;
+            if (srcFace == EdgeAttachmentCalculator.Face.LEFT
+                    || srcFace == EdgeAttachmentCalculator.Face.RIGHT) {
+                // Horizontal exit: maintain source center Y
+                lBend = new AbsoluteBendpointDto(firstRefX, srcCY);
+            } else {
+                // Vertical exit: maintain source center X
+                lBend = new AbsoluteBendpointDto(srcCX, firstRefY);
+            }
+            // Avoid prepending a duplicate of what is already at position 0
+            if (result.isEmpty()
+                    || result.get(0).x() != lBend.x()
+                    || result.get(0).y() != lBend.y()) {
+                result.add(0, lBend);
+            }
+        }
+
+        // Re-evaluate target ortho against the list's new last ref. When the
+        // list was originally empty and we just prepended a src L-bend that
+        // happens to align with tgtCenter, the target is now orthogonal for
+        // free and no append is needed.
+        int newLastRefX = result.isEmpty() ? srcCX : result.get(result.size() - 1).x();
+        int newLastRefY = result.isEmpty() ? srcCY : result.get(result.size() - 1).y();
+        boolean tgtOrthoAfter =
+                isWithinOrthogonalTolerance(tgtCX, tgtCY, newLastRefX, newLastRefY);
+
+        if (!tgtOrthoAfter) {
+            EdgeAttachmentCalculator.Face tgtFace =
+                    EdgeAttachmentCalculator.determineFace(target, newLastRefX, newLastRefY);
+            AbsoluteBendpointDto lBend;
+            if (tgtFace == EdgeAttachmentCalculator.Face.LEFT
+                    || tgtFace == EdgeAttachmentCalculator.Face.RIGHT) {
+                // Horizontal entry: maintain target center Y
+                lBend = new AbsoluteBendpointDto(newLastRefX, tgtCY);
+            } else {
+                // Vertical entry: maintain target center X
+                lBend = new AbsoluteBendpointDto(tgtCX, newLastRefY);
+            }
+            AbsoluteBendpointDto tail =
+                    result.isEmpty() ? null : result.get(result.size() - 1);
+            if (tail == null || tail.x() != lBend.x() || tail.y() != lBend.y()) {
+                result.add(lBend);
+            }
+        }
+
+        if (result.equals(existingAbs)) {
+            return null;
+        }
+        return result;
+    }
+
+    private static boolean isWithinOrthogonalTolerance(int ax, int ay, int bx, int by) {
+        double dx = Math.abs(bx - ax);
+        double dy = Math.abs(by - ay);
+        if (dx < 1e-9 && dy < 1e-9) return true;
+        double angleDeg = Math.toDegrees(Math.atan2(dy, dx));
+        double deviation = Math.min(angleDeg, 90.0 - angleDeg);
+        return deviation <= 5.0;
     }
 
     /**
@@ -1463,19 +1988,27 @@ public class RoutingPipeline {
         int scx = source.centerX();
         int scy = source.centerY();
 
+        // B70 guard: when the terminal is already on the element perimeter at a
+        // position produced by EdgeAttachmentCalculator.computeAttachmentPoint,
+        // the line from element center to first BP already exits through the
+        // perimeter at (or within 1 px of) the distributed port coordinate.
+        // Prepending a center-aligned BP here collapses the visual exit onto
+        // the face midpoint and destroys B9 hub port distribution.
+        boolean sourceOnPerimeter = isOnElementPerimeter(first, source);
+
         EdgeAttachmentCalculator.Face sourceFace = determineFaceFromTerminal(
                 new int[]{first.x(), first.y()}, source);
 
         if (sourceFace == EdgeAttachmentCalculator.Face.LEFT
                 || sourceFace == EdgeAttachmentCalculator.Face.RIGHT) {
             // Horizontal exit — need same Y as center
-            if (first.y() != scy) {
+            if (first.y() != scy && !sourceOnPerimeter) {
                 path.add(0, new AbsoluteBendpointDto(first.x(), scy));
                 alignments++;
             }
         } else {
             // Vertical exit — need same X as center
-            if (first.x() != scx) {
+            if (first.x() != scx && !sourceOnPerimeter) {
                 path.add(0, new AbsoluteBendpointDto(scx, first.y()));
                 alignments++;
             }
@@ -1487,17 +2020,20 @@ public class RoutingPipeline {
         int tcx = target.centerX();
         int tcy = target.centerY();
 
+        // B70 guard (target side): same rationale as source side.
+        boolean targetOnPerimeter = isOnElementPerimeter(last, target);
+
         EdgeAttachmentCalculator.Face targetFace = determineFaceFromTerminal(
                 new int[]{last.x(), last.y()}, target);
 
         if (targetFace == EdgeAttachmentCalculator.Face.LEFT
                 || targetFace == EdgeAttachmentCalculator.Face.RIGHT) {
-            if (last.y() != tcy) {
+            if (last.y() != tcy && !targetOnPerimeter) {
                 path.add(new AbsoluteBendpointDto(last.x(), tcy));
                 alignments++;
             }
         } else {
-            if (last.x() != tcx) {
+            if (last.x() != tcx && !targetOnPerimeter) {
                 path.add(new AbsoluteBendpointDto(tcx, last.y()));
                 alignments++;
             }
@@ -2289,8 +2825,9 @@ public class RoutingPipeline {
 
     /**
      * Boolean convenience: checks if a line segment intersects any obstacle rectangle.
+     * Widened to {@code public} for B61 terminals-only obstacle veto reuse.
      */
-    static boolean segmentIntersectsAnyObstacle(int x1, int y1, int x2, int y2,
+    public static boolean segmentIntersectsAnyObstacle(int x1, int y1, int x2, int y2,
             List<RoutingRect> obstacles) {
         return findFirstIntersectedObstacle(x1, y1, x2, y2, obstacles) != null;
     }
@@ -2444,6 +2981,260 @@ public class RoutingPipeline {
     }
 
     /**
+     * Post-simplification correction for source-side face-hugging segments (B72-a).
+     *
+     * <p>Detects when {@code path[1]} shares the source face-line coordinate with
+     * {@code path[0]} (creating a segment that runs parallel to the source face
+     * instead of moving into a corridor) and redirects the interior BP to the
+     * midpoint of the nearest obstacle-free corridor.
+     *
+     * <p>Only modifies interior BPs — terminal anchors ({@code path[0]}) are untouched.
+     *
+     * @param path            mutable path list (at least 3 BPs for a hug to exist)
+     * @param obstacles       per-connection obstacle list
+     * @param sourceAnchoring the source terminal's face anchoring
+     * @param source          the source element rect
+     * @return true if a face-hug was corrected
+     */
+    static boolean correctSourceSelfHug(List<AbsoluteBendpointDto> path,
+            List<RoutingRect> obstacles, TerminalAnchoring sourceAnchoring,
+            RoutingRect source) {
+        if (path.size() < 3) {
+            return false;
+        }
+        int faceLine = sourceAnchoring.lineCoordinate(source);
+        AbsoluteBendpointDto bp0 = path.get(0);
+        AbsoluteBendpointDto bp1 = path.get(1);
+
+        boolean isHug;
+        int hugLength;
+        if (sourceAnchoring.face() == EdgeAttachmentCalculator.Face.LEFT
+                || sourceAnchoring.face() == EdgeAttachmentCalculator.Face.RIGHT) {
+            // Vertical face: hug when bp0.x == bp1.x == faceLine
+            isHug = bp0.x() == faceLine && bp1.x() == faceLine;
+            hugLength = Math.abs(bp1.y() - bp0.y());
+        } else {
+            // Horizontal face: hug when bp0.y == bp1.y == faceLine
+            isHug = bp0.y() == faceLine && bp1.y() == faceLine;
+            hugLength = Math.abs(bp1.x() - bp0.x());
+        }
+
+        // 20px threshold filters trivial 1-2px noise from rounding/snapping;
+        // genuine face-hugs are 58px+ (smallest exemplar: API Gateway→ATM).
+        if (!isHug || hugLength < 20) {
+            return false;
+        }
+
+        // Find corridor midpoint: scan obstacles to find the nearest boundary
+        // in the direction away from the source face, then place bp1 at the
+        // midpoint between face line and that boundary.
+        Integer corridorCoord = findCorridorMidpoint(faceLine, sourceAnchoring.face(),
+                obstacles);
+        if (corridorCoord == null) {
+            return false; // no clear corridor found
+        }
+
+        // Replace bp1's face-line coordinate with the corridor midpoint
+        AbsoluteBendpointDto corrected;
+        if (sourceAnchoring.face() == EdgeAttachmentCalculator.Face.LEFT
+                || sourceAnchoring.face() == EdgeAttachmentCalculator.Face.RIGHT) {
+            corrected = new AbsoluteBendpointDto(corridorCoord, bp1.y());
+        } else {
+            corrected = new AbsoluteBendpointDto(bp1.x(), corridorCoord);
+        }
+
+        // Insert corner BP to maintain orthogonality: bp0 -> new corner -> corrected bp1
+        // The corner is at (corridorCoord, bp0.y) for LEFT/RIGHT or (bp0.x, corridorCoord) for TOP/BOTTOM
+        AbsoluteBendpointDto corner;
+        if (sourceAnchoring.face() == EdgeAttachmentCalculator.Face.LEFT
+                || sourceAnchoring.face() == EdgeAttachmentCalculator.Face.RIGHT) {
+            corner = new AbsoluteBendpointDto(corridorCoord, bp0.y());
+        } else {
+            corner = new AbsoluteBendpointDto(bp0.x(), corridorCoord);
+        }
+
+        // Verify the two new orthogonal segments (bp0->corner and corner->corrected)
+        // are obstacle-free. The corrected->bp2 segment is not checked because the
+        // corridor midpoint is by construction between the face and the nearest
+        // obstacle, so the corrected position can only improve clearance vs the
+        // original face-hugging bp1 position.
+        if (segmentIntersectsAnyObstacle(bp0.x(), bp0.y(), corner.x(), corner.y(), obstacles)
+                || segmentIntersectsAnyObstacle(corner.x(), corner.y(), corrected.x(), corrected.y(), obstacles)) {
+            return false; // corridor blocked
+        }
+
+        // Replace bp1 with corner + corrected
+        path.set(1, corner);
+        path.add(2, corrected);
+
+        logger.debug("B72-a source self-hug corrected: face={}, faceLine={}, corridor={}",
+                sourceAnchoring.face(), faceLine, corridorCoord);
+        return true;
+    }
+
+    /**
+     * Symmetric target-side face-hug correction (B72-a AC-2).
+     *
+     * <p>Same logic as {@link #correctSourceSelfHug} but applied to the last
+     * interior BP ({@code path[last-1]}) when it shares the target face line
+     * with {@code path[last]}.
+     */
+    static boolean correctTargetSelfHug(List<AbsoluteBendpointDto> path,
+            List<RoutingRect> obstacles, TerminalAnchoring targetAnchoring,
+            RoutingRect target) {
+        if (path.size() < 3) {
+            return false;
+        }
+        int lastIdx = path.size() - 1;
+        int faceLine = targetAnchoring.lineCoordinate(target);
+        AbsoluteBendpointDto bpLast = path.get(lastIdx);
+        AbsoluteBendpointDto bpPrev = path.get(lastIdx - 1);
+
+        boolean isHug;
+        int hugLength;
+        if (targetAnchoring.face() == EdgeAttachmentCalculator.Face.LEFT
+                || targetAnchoring.face() == EdgeAttachmentCalculator.Face.RIGHT) {
+            isHug = bpLast.x() == faceLine && bpPrev.x() == faceLine;
+            hugLength = Math.abs(bpLast.y() - bpPrev.y());
+        } else {
+            isHug = bpLast.y() == faceLine && bpPrev.y() == faceLine;
+            hugLength = Math.abs(bpLast.x() - bpPrev.x());
+        }
+
+        // 20px threshold filters trivial 1-2px noise from rounding/snapping;
+        // genuine face-hugs are 58px+ (smallest exemplar: API Gateway→ATM).
+        if (!isHug || hugLength < 20) {
+            return false;
+        }
+
+        Integer corridorCoord = findCorridorMidpoint(faceLine, targetAnchoring.face(),
+                obstacles);
+        if (corridorCoord == null) {
+            return false;
+        }
+
+        AbsoluteBendpointDto corrected;
+        if (targetAnchoring.face() == EdgeAttachmentCalculator.Face.LEFT
+                || targetAnchoring.face() == EdgeAttachmentCalculator.Face.RIGHT) {
+            corrected = new AbsoluteBendpointDto(corridorCoord, bpPrev.y());
+        } else {
+            corrected = new AbsoluteBendpointDto(bpPrev.x(), corridorCoord);
+        }
+
+        // Insert corner BP for orthogonality
+        AbsoluteBendpointDto corner;
+        if (targetAnchoring.face() == EdgeAttachmentCalculator.Face.LEFT
+                || targetAnchoring.face() == EdgeAttachmentCalculator.Face.RIGHT) {
+            corner = new AbsoluteBendpointDto(corridorCoord, bpLast.y());
+        } else {
+            corner = new AbsoluteBendpointDto(bpLast.x(), corridorCoord);
+        }
+
+        // Verify the two new orthogonal segments are obstacle-free (same rationale
+        // as correctSourceSelfHug — corridor midpoint is between face and nearest
+        // obstacle by construction).
+        if (segmentIntersectsAnyObstacle(corrected.x(), corrected.y(), corner.x(), corner.y(), obstacles)
+                || segmentIntersectsAnyObstacle(corner.x(), corner.y(), bpLast.x(), bpLast.y(), obstacles)) {
+            return false;
+        }
+
+        // Replace bpPrev with corrected + corner
+        path.set(lastIdx - 1, corrected);
+        path.add(lastIdx, corner);
+
+        logger.debug("B72-a target self-hug corrected: face={}, faceLine={}, corridor={}",
+                targetAnchoring.face(), faceLine, corridorCoord);
+        return true;
+    }
+
+    /**
+     * Finds the midpoint of the nearest obstacle-free corridor perpendicular to
+     * the given face. Scans obstacles to find the nearest boundary in the outward
+     * direction from the face, then returns the midpoint between face line and
+     * that boundary.
+     *
+     * @param faceLine  the face-line coordinate (1px outside the element edge)
+     * @param face      which face the terminal is on
+     * @param obstacles per-connection obstacle list
+     * @return the corridor midpoint coordinate, or null if no clear corridor found
+     */
+    static Integer findCorridorMidpoint(int faceLine, EdgeAttachmentCalculator.Face face,
+            List<RoutingRect> obstacles) {
+        // Find the nearest obstacle boundary in the outward direction from the face.
+        // No parallel-range overlap check — any obstacle in the outward direction
+        // defines a conservative corridor boundary. This handles cases where the
+        // target's ancestor group (the natural corridor wall) is excluded from the
+        // per-connection obstacle list.
+        int nearestBoundary = Integer.MAX_VALUE;
+
+        for (RoutingRect obs : obstacles) {
+            int obsBoundary;
+
+            switch (face) {
+                case LEFT:
+                    obsBoundary = obs.x() + obs.width();
+                    if (obsBoundary < faceLine) {
+                        int gap = faceLine - obsBoundary;
+                        if (gap < nearestBoundary) {
+                            nearestBoundary = gap;
+                        }
+                    }
+                    break;
+                case RIGHT:
+                    obsBoundary = obs.x();
+                    if (obsBoundary > faceLine) {
+                        int gap = obsBoundary - faceLine;
+                        if (gap < nearestBoundary) {
+                            nearestBoundary = gap;
+                        }
+                    }
+                    break;
+                case TOP:
+                    obsBoundary = obs.y() + obs.height();
+                    if (obsBoundary < faceLine) {
+                        int gap = faceLine - obsBoundary;
+                        if (gap < nearestBoundary) {
+                            nearestBoundary = gap;
+                        }
+                    }
+                    break;
+                case BOTTOM:
+                    obsBoundary = obs.y();
+                    if (obsBoundary > faceLine) {
+                        int gap = obsBoundary - faceLine;
+                        if (gap < nearestBoundary) {
+                            nearestBoundary = gap;
+                        }
+                    }
+                    break;
+            }
+        }
+
+        if (nearestBoundary == Integer.MAX_VALUE || nearestBoundary < 150) {
+            // No clear corridor, or corridor too narrow for a meaningful redirect.
+            // Threshold 150px ensures the midpoint shift is at least 75px — below
+            // this, the correction adds corners to a clean perimeter-detour path
+            // without visible improvement (V7 BE→RelMgr at gap=118px is the
+            // archetypal case: 4-BP path inflated to 6 BPs with 59px jogs).
+            return null;
+        }
+
+        // Compute corridor midpoint
+        switch (face) {
+            case LEFT:
+                return faceLine - nearestBoundary / 2;
+            case RIGHT:
+                return faceLine + nearestBoundary / 2;
+            case TOP:
+                return faceLine - nearestBoundary / 2;
+            case BOTTOM:
+                return faceLine + nearestBoundary / 2;
+            default:
+                return null;
+        }
+    }
+
+    /**
      * Tests whether two points can be connected via an obstacle-free shortcut:
      * straight line (collinear), horizontal-first L-turn, or vertical-first L-turn.
      */
@@ -2501,7 +3292,7 @@ public class RoutingPipeline {
         VisibilityGraphRouter router = new VisibilityGraphRouter(bendPenalty, congestionWeight,
                 VisibilityGraphRouter.DEFAULT_CLEARANCE_WEIGHT,
                 VisibilityGraphRouter.DEFAULT_DIRECTIONALITY_WEIGHT,
-                groupBoundaries);
+                groupBoundaries, this.occupancyWeight);
         return router.findPath(graph, sourcePort, targetPort, occupancyTracker);
     }
 
@@ -3356,6 +4147,57 @@ public class RoutingPipeline {
         }
 
         return bestShift;
+    }
+
+    /**
+     * B75: Aggregates unique top-level group boundaries from all connections.
+     *
+     * <p>Each {@link ConnectionEndpoints} carries a per-connection {@code groupBoundaries}
+     * list (all groups minus ancestors of that connection's endpoints). This method
+     * deduplicates by group ID across all connections, then filters to top-level only:
+     * a group is top-level if no other group in the set fully encloses it.
+     *
+     * @param connections all connection endpoint records
+     * @return deduplicated list of top-level group rectangles
+     */
+    static List<RoutingRect> extractTopLevelGroupBounds(List<ConnectionEndpoints> connections) {
+        // Deduplicate group bounds by ID across all connections.
+        Map<String, RoutingRect> uniqueGroups = new LinkedHashMap<>();
+        for (ConnectionEndpoints conn : connections) {
+            if (conn.groupBoundaries() == null) continue;
+            for (RoutingRect group : conn.groupBoundaries()) {
+                if (group.id() != null && !uniqueGroups.containsKey(group.id())) {
+                    uniqueGroups.put(group.id(), group);
+                }
+            }
+        }
+
+        if (uniqueGroups.isEmpty()) {
+            return List.of();
+        }
+
+        // Filter to top-level only: exclude any group whose bounds are fully enclosed
+        // by another group's bounds (AC-4).
+        List<RoutingRect> all = new ArrayList<>(uniqueGroups.values());
+        List<RoutingRect> topLevel = new ArrayList<>();
+        for (RoutingRect candidate : all) {
+            boolean enclosed = false;
+            int cx = candidate.x(), cy = candidate.y();
+            int cRight = cx + candidate.width(), cBottom = cy + candidate.height();
+            for (RoutingRect other : all) {
+                if (java.util.Objects.equals(other.id(), candidate.id())) continue;
+                int ox = other.x(), oy = other.y();
+                int oRight = ox + other.width(), oBottom = oy + other.height();
+                if (ox <= cx && oy <= cy && oRight >= cRight && oBottom >= cBottom) {
+                    enclosed = true;
+                    break;
+                }
+            }
+            if (!enclosed) {
+                topLevel.add(candidate);
+            }
+        }
+        return topLevel;
     }
 
     /**

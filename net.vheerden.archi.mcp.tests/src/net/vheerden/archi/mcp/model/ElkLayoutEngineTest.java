@@ -740,6 +740,62 @@ public class ElkLayoutEngineTest {
 						"poor", "poor", 0, 0, 20.5, 20.0));
 	}
 
+	// --- B62-5: Factor-aware plateau detection ---
+
+	@Test
+	public void isFactorAwarePlateauReached_shouldReturnFalse_whenFactorShifts() {
+		// Factor shifted from crossings to pass-throughs — structural progress
+		assertFalse("Factor shift should prevent plateau",
+				ArchiModelAccessorImpl.isFactorAwarePlateauReached(
+						"passThroughs", "edgeCrossings",
+						2, 18, "fair", "fair"));
+	}
+
+	@Test
+	public void isFactorAwarePlateauReached_shouldReturnFalse_whenFactorCountImproves() {
+		// Same factor, count improved 18 → 14 — progress on bottleneck
+		assertFalse("Factor count improvement should prevent plateau",
+				ArchiModelAccessorImpl.isFactorAwarePlateauReached(
+						"edgeCrossings", "edgeCrossings",
+						14, 18, "fair", "fair"));
+	}
+
+	@Test
+	public void isFactorAwarePlateauReached_shouldReturnTrue_whenSameFactorSameCountSameRating() {
+		// Same factor, same count, same rating — true plateau
+		assertTrue("Same factor/count/rating should trigger plateau",
+				ArchiModelAccessorImpl.isFactorAwarePlateauReached(
+						"edgeCrossings", "edgeCrossings",
+						18, 18, "fair", "fair"));
+	}
+
+	@Test
+	public void isFactorAwarePlateauReached_shouldReturnFalse_whenPreviousFactorNull() {
+		// First iteration (null previous) — never a plateau
+		assertFalse("Null previous factor should prevent plateau",
+				ArchiModelAccessorImpl.isFactorAwarePlateauReached(
+						"edgeCrossings", null,
+						18, 0, "fair", null));
+	}
+
+	@Test
+	public void isFactorAwarePlateauReached_shouldReturnFalse_whenRatingImproves() {
+		// Same factor, same count, but rating improved — not a plateau
+		assertFalse("Rating improvement should prevent plateau",
+				ArchiModelAccessorImpl.isFactorAwarePlateauReached(
+						"edgeCrossings", "edgeCrossings",
+						18, 18, "fair", "poor"));
+	}
+
+	@Test
+	public void isFactorAwarePlateauReached_shouldReturnTrue_whenFactorCountRegresses() {
+		// Same factor, count worsened (14 → 18), same rating — plateau (remediation unhelpful)
+		assertTrue("Factor count regression with same rating should trigger plateau",
+				ArchiModelAccessorImpl.isFactorAwarePlateauReached(
+						"edgeCrossings", "edgeCrossings",
+						18, 14, "fair", "fair"));
+	}
+
 	// --- Bug fix: computeElkAbsoluteCenters correctness ---
 
 	@Test
@@ -980,6 +1036,62 @@ public class ElkLayoutEngineTest {
 		assertNoGroupOverlap(gLeft, gRight, "gLeft-gRight");
 		assertTrue("gLeft should remain left of or equal to gRight after correction",
 				gLeft.x() <= gRight.x());
+	}
+
+	// --- B56: connectionsRouted double-count fix ---
+
+	@Test
+	public void shouldNotDoubleCountConnectionsRouted_whenHierarchicalGraph() {
+		// True 3-level nested hierarchy: root > outerGroup > innerA/innerB > elements
+		// Plus a separate top-level group. Inter-group connections at depth 3 cross
+		// multiple hierarchy levels, maximising the chance that ELK's
+		// RecursiveGraphLayoutEngine exposes the same edge via getContainedEdges()
+		// at more than one ancestor level during recursive traversal.
+		List<LayoutNode> nodes = new ArrayList<>();
+		// Outer group containing two inner groups (depth 1)
+		nodes.add(new LayoutNode("outerGroup", 50, 50, 700, 400, null));
+		// Inner group A nested inside outerGroup (depth 2)
+		nodes.add(new LayoutNode("innerA", 10, 10, 300, 180, "outerGroup"));
+		nodes.add(new LayoutNode("a1", 10, 30, 120, 55, "innerA"));
+		nodes.add(new LayoutNode("a2", 10, 100, 120, 55, "innerA"));
+		// Inner group B nested inside outerGroup (depth 2)
+		nodes.add(new LayoutNode("innerB", 10, 210, 300, 180, "outerGroup"));
+		nodes.add(new LayoutNode("b1", 10, 30, 120, 55, "innerB"));
+		nodes.add(new LayoutNode("b2", 10, 100, 120, 55, "innerB"));
+		// Standalone top-level group (depth 1)
+		nodes.add(new LayoutNode("standalone", 850, 50, 300, 200, null));
+		nodes.add(new LayoutNode("s1", 10, 30, 120, 55, "standalone"));
+		nodes.add(new LayoutNode("s2", 10, 100, 120, 55, "standalone"));
+
+		// 4 connections crossing multiple hierarchy levels:
+		// a1→s1, a2→s2: depth-3 to depth-2, LCA = root (traversal crosses 3 levels)
+		// b1→s1: depth-3 to depth-2, LCA = root
+		// a1→b1: depth-3 to depth-3 within outerGroup, LCA = outerGroup
+		List<LayoutEdge> edges = List.of(
+				new LayoutEdge("a1", "s1", "conn-deep-1"),
+				new LayoutEdge("a2", "s2", "conn-deep-2"),
+				new LayoutEdge("b1", "s1", "conn-deep-3"),
+				new LayoutEdge("a1", "b1", "conn-inner"));
+
+		ElkLayoutResult result = engine.computeLayout(nodes, edges, "RIGHT", 50);
+
+		// AC-2: connectionsRouted must equal actual unique connections (4), not inflated
+		assertEquals("connectionsRouted should equal unique connection count",
+				4, result.connectionsRouted());
+
+		// AC-3: connectionBendpoints map size must match connectionsRouted
+		assertEquals("connectionBendpoints map size should match connectionsRouted",
+				4, result.connectionBendpoints().size());
+
+		// Verify all 4 connections are present in the map
+		assertTrue("conn-deep-1 should be routed",
+				result.connectionBendpoints().containsKey("conn-deep-1"));
+		assertTrue("conn-deep-2 should be routed",
+				result.connectionBendpoints().containsKey("conn-deep-2"));
+		assertTrue("conn-deep-3 should be routed",
+				result.connectionBendpoints().containsKey("conn-deep-3"));
+		assertTrue("conn-inner should be routed",
+				result.connectionBendpoints().containsKey("conn-inner"));
 	}
 
 	private void assertNoGroupOverlap(ViewPositionSpec a, ViewPositionSpec b, String label) {

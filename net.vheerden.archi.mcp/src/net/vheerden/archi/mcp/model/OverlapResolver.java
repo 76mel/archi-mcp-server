@@ -199,6 +199,37 @@ class OverlapResolver {
 	}
 
 	/**
+	 * Returns the IDs of the first-detected sibling overlap pair, or an empty list when no
+	 * overlapping pair exists (Story RoutingPreconditions.AutoRouteStructuredWarning, Row E).
+	 *
+	 * <p>Mirrors the {@link #hasOverlappingElements(List)} pair-comparison loop — same
+	 * group/note exclusions, same containment-pair exclusions, same short-circuit on
+	 * first-detected overlap. Returns the {@code [a.id(), b.id()]} pair so callers can
+	 * surface the offending element pair without an extra assessor round-trip.</p>
+	 *
+	 * <p>First-pair return shape (rather than all-pairs) keeps the structured warning
+	 * compact and gives the calling LLM a single remediation focus per response.</p>
+	 */
+	static List<String> findOverlappingElementIds(List<AssessmentNode> nodes) {
+		Set<String> containmentPairs = buildContainmentPairs(nodes);
+		int size = nodes.size();
+		for (int i = 0; i < size; i++) {
+			AssessmentNode a = nodes.get(i);
+			if (a.isGroup() || a.isNote()) continue;
+			for (int j = i + 1; j < size; j++) {
+				AssessmentNode b = nodes.get(j);
+				if (b.isGroup() || b.isNote()) continue;
+				if (isContainmentPair(a, b, containmentPairs)) continue;
+				if (rectsOverlap(a.x(), a.y(), a.width(), a.height(),
+						b.x(), b.y(), b.width(), b.height())) {
+					return List.of(a.id(), b.id());
+				}
+			}
+		}
+		return List.of();
+	}
+
+	/**
 	 * Builds transitive containment pairs from parentId chains.
 	 * Replicates the pattern from {@link LayoutQualityAssessor#buildContainmentPairs}.
 	 */

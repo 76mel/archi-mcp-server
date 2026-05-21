@@ -1,6 +1,7 @@
 package net.vheerden.archi.mcp.model;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -11,6 +12,7 @@ import java.util.Set;
 
 import net.vheerden.archi.mcp.model.geometry.GeometryUtils;
 import net.vheerden.archi.mcp.model.routing.CoincidentSegmentDetector;
+import net.vheerden.archi.mcp.model.routing.CoincidentSegmentDiagnostic;
 
 /**
  * Stateless pure-geometry computation for layout quality assessment (Story 9-2).
@@ -27,6 +29,19 @@ class LayoutQualityAssessor {
 
     private static final int MAX_DESCRIPTIONS = 10;
     private static final double ALIGNMENT_TOLERANCE = 5.0;
+    /** Angular threshold (degrees) for non-orthogonal terminal detection (B57). */
+    private static final double NON_ORTH_ANGLE_THRESHOLD = 5.0;
+    /**
+     * M1 visible-segment-length guard (story Calibration.M1ManualOracle21, 2026-04-27):
+     * when a candidate non-orthogonal terminal's visible (post-clip) segment length is
+     * below this threshold, the diagonal is sub-perceptible at typical Archi zoom levels
+     * and is silently skipped. Calibrated against the V4 manual oracle view
+     * (id-3b2665e3ff6840708dbed2b3d1415613): 20 of 21 violators were 1.0–1.3px visible,
+     * produced by Archi storing manually-routed BPs 1px off the perimeter face line.
+     * See {@code backlog-assessor-calibration-manual-oracle-non-orth-21.md}
+     * Dev Notes &sect; Threshold rationale.
+     */
+    static final double VISIBLE_DIAGONAL_MIN_PX = 3.0;
     private static final double OFF_CANVAS_THRESHOLD = 10000.0;
 
     // Suggestion thresholds (Finding #11: named constants with documented rationale)
@@ -44,7 +59,6 @@ class LayoutQualityAssessor {
     static final int GOOD_MAX_CROSSINGS = 20;
     static final double GOOD_MIN_SPACING = 15.0;
     static final int GOOD_MIN_ALIGNMENT = 30;
-    static final int FAIR_MAX_OVERLAPS = 3;
     static final int FAIR_MAX_CROSSINGS = 30;
     static final int FAIR_MAX_PASS_THROUGHS = 3;
 
@@ -73,11 +87,151 @@ class LayoutQualityAssessor {
     static final int GOOD_MAX_COINCIDENT = 3;
     static final int FAIR_MAX_COINCIDENT = 8;
 
-    // Non-orthogonal terminal thresholds (Story B38)
-    static final int FAIR_MAX_NON_ORTHOGONAL = 3;
+    // Non-orthogonal terminal density thresholds (B58)
+    /** Non-orth terminals per connection ratio: at or below this is "good" quality. */
+    static final double NON_ORTH_RATIO_GOOD = 0.10;
+    /** Non-orth terminals per connection ratio: at or below this is "fair" quality. */
+    static final double NON_ORTH_RATIO_FAIR = 0.30;
 
     /** Above this element count, add a performance warning to suggestions. */
     static final int LARGE_VIEW_WARNING_THRESHOLD = 500;
+
+    // ---- Assessor.Redesign (M1-M6) constants (2026-04-26) ----
+
+    /**
+     * Tolerance (px) for testing whether a bendpoint lies on an element's perimeter line (M1).
+     * Bendpoints stored by Archi are int-snapped, so 0.5px tolerance is sufficient and
+     * avoids float-equality fragility.
+     */
+    static final double PERIMETER_TOLERANCE_PX = 0.5;
+
+    /**
+     * Tolerance (px) for testing whether two bendpoints share an axis (M3 zigzag detection).
+     * Matches Archi's int-snapped storage.
+     */
+    static final double ZIGZAG_AXIS_TOLERANCE_PX = 1.0;
+
+    /**
+     * Minimum delta (px) magnitude for the two reversal arms of a zigzag triple (M3).
+     * Below this, the bendpoint sequence is treated as colinear (no reversal).
+     */
+    static final double ZIGZAG_MIN_DELTA_PX = 1.0;
+
+    /**
+     * Distance (px) within which a connection segment is considered coincident with a
+     * foreign element's edge line (M4). Per spec: 3px hugs the perimeter visibly.
+     */
+    static final double EDGE_COINCIDENCE_TOLERANCE_PX = 3.0;
+
+    /**
+     * Minimum overlap (px) of a connection segment's projected extent against a foreign
+     * element's edge extent for an M4 edge-coincidence flag.
+     */
+    static final double EDGE_COINCIDENCE_MIN_OVERLAP_PX = 10.0;
+
+    /**
+     * Public canonical hub-detection threshold (Story routing-preconditions, 2026-05-04).
+     * Elements with at or above this number of connections are CANDIDATE HUBS for the
+     * agent's pre-routing analysis. This is the single public number cited in
+     * {@code CLAUDE.md}, {@code README.md}, {@code archimate-view-patterns.md}, the
+     * {@code detect-hub-elements} tool description, and {@code docs/layout-engine.md}.
+     *
+     * <p>Distinct from two internal thresholds with different roles:
+     * <ul>
+     *   <li>{@link #M5_FACE_GUARD_MIN_CONNECTIONS} (4) — face-count guard for the M5
+     *       hub-port-quality metric (rating-internal, not public).
+     *   <li>{@code EdgeAttachmentCalculator.HUB_FACE_REDISTRIBUTION_THRESHOLD} (6) —
+     *       Phase 1.1 face-redistribution gate (router-internal, behavioural).
+     * </ul>
+     * The {@code detect-hub-elements} tool emits sizing suggestions when
+     * {@code connectionCount > HUB_DETECTION_THRESHOLD + 1} (i.e., {@code > 6}); the
+     * {@code +1} aligns with the dimension formula's growth term
+     * {@code 15 × (count − 6)} which is non-positive at exactly 5.
+     */
+    public static final int HUB_DETECTION_THRESHOLD = 5;
+
+    /**
+     * Internal threshold for the M5 hub-port-quality metric — minimum face-count to
+     * participate in M5 scoring. Below this the metric is vacuous (a single face is
+     * trivially balanced). Distinct from {@link #HUB_DETECTION_THRESHOLD} (public, 5).
+     * Renamed from {@code HUB_FACE_MIN_CONNECTIONS} in Story routing-preconditions, 2026-05-04.
+     */
+    static final int M5_FACE_GUARD_MIN_CONNECTIONS = 4;
+
+    /**
+     * Slot-equality tolerance (px) when computing distinct slot counts on a hub face (M5).
+     * Two terminal endpoints whose along-face coordinate differs by less than this are
+     * considered to share a slot.
+     */
+    static final double HUB_PORT_SLOT_TOLERANCE_PX = 1.0;
+
+    /**
+     * Hub-port quality threshold (M5). View-aggregate quality below this contributes to
+     * routing Tier 2R; at or above, the metric contributes "good" (no rating impact).
+     */
+    static final double HUB_PORT_QUALITY_FAIR_THRESHOLD = 0.5;
+
+    /** Hub-port quality at or above this is "good" (no rating impact under M5). */
+    static final double HUB_PORT_QUALITY_GOOD_THRESHOLD = 0.75;
+
+    /** Hub-port quality at or above this is treated as a clean signal (no defect). */
+    static final double HUB_PORT_QUALITY_PASS_THRESHOLD = 0.95;
+
+    /** M4 edge-coincidence count thresholds for breakdown rating. */
+    static final int EDGE_COINCIDENCE_GOOD_MAX = 2;
+    static final int EDGE_COINCIDENCE_FAIR_MAX = 5;
+
+    /**
+     * A-gated escalation threshold (story W3 backlog-terminal-egress-edge-hug-quality, 2026-05-21).
+     * M4 {@code connectionEdgeCoincidence} is normally Tier-2R (cap-fair). When the count reaches or
+     * exceeds this value the edge-hug is "egregious" and escalates to Tier-1R, so {@code overall}
+     * reads "poor" instead of being masked at "fair". Anchored at 7 = the Retail Bank View G count
+     * the owner flagged by eye (2026-05-19); the common 1-5 forced-hug case stays cap-fair. MUST be
+     * &gt; {@link #EDGE_COINCIDENCE_FAIR_MAX} for the escalation to be meaningful (below FAIR_MAX the
+     * breakdown rating is not yet "poor", so escalating it would not change overall). Owner-ratified
+     * via party-mode 2026-05-21 as the regression guardrail beside the Lever-B router fix; live
+     * geometry proved an egregious count is router-eliminable, not a topology floor.
+     */
+    static final int EDGE_COINCIDENCE_EGREGIOUS_MAX = 7;
+
+    // ---- Assessor.Redesign Successor D — parallelConnectionGap metric constants ----
+    // (Story backlog-assessor-add-parallelconnectiongap-metric, 2026-05-12)
+
+    /**
+     * Tolerance (px) for testing whether a bendpoint pair forms an axis-aligned segment
+     * (parallelConnectionGap V/H classification). Distinct from
+     * {@link #ZIGZAG_AXIS_TOLERANCE_PX} (1.0): that constant tests zigzag-triple axis
+     * membership; this constant tests parallel-gap segment classification.
+     *
+     * <p>Calibration-anchor value: the 4-view calibration workspace
+     * (compute_parallel_gap.py:70) used AXIS_TOL = 2 px and produced V4 manual gold
+     * V_p10 = 13.30 (perception-aligned). Tightening to 1.0 would drop borderline
+     * near-axis segments and shift V_p10 away from the gold anchor, breaking the
+     * JUnit pin.</p>
+     */
+    static final double PARALLEL_GAP_AXIS_TOLERANCE_PX = 2.0;
+
+    /**
+     * Narrow-gap count threshold (px) — T1 in the parallelConnectionGap metric family.
+     * Segments with {@code nearestParallelGap < T1} are counted in {@code narrowGapCount15}.
+     * See workspace {@code results.md} &sect; "Primary Metric Selection".
+     */
+    static final int PARALLEL_GAP_NARROW_T1_PX = 15;
+
+    /**
+     * Narrow-gap count threshold (px) — T2 in the parallelConnectionGap metric family.
+     * Primary calibration-validated narrow-count threshold (per workspace
+     * {@code results.md} &sect; "Primary Metric Selection"). Segments with
+     * {@code nearestParallelGap < T2} are counted in {@code narrowGapCount25} and
+     * contribute to the V-axis {@code violatorIds} set.
+     */
+    static final int PARALLEL_GAP_NARROW_T2_PX = 25;
+
+    /**
+     * Narrow-gap count threshold (px) — T3 in the parallelConnectionGap metric family.
+     * Segments with {@code nearestParallelGap < T3} are counted in {@code narrowGapCount40}.
+     */
+    static final int PARALLEL_GAP_NARROW_T3_PX = 40;
 
     private final CoincidentSegmentDetector coincidentDetector;
 
@@ -129,27 +283,64 @@ class LayoutQualityAssessor {
         CoincidentSegmentDetector.CoincidentSegmentResult coincidentResult =
                 coincidentDetector.detectCoincidentSegments(connections, includeViolatorIds);
         int coincidentSegmentCount = coincidentResult.count();
-        // B38: Non-orthogonal terminal detection (B55: optional violator IDs)
+        // B76-diag: optional categorization of coincident segments (gated by system property).
+        // Emits per-pair log with TERMINAL_APPROACH / GAP_CROSSING / WITHIN_GROUP tags.
+        // Zero cost when property unset.
+        if (Boolean.getBoolean("archi.mcp.diag.coincident") && !connections.isEmpty()) {
+            emitCoincidentDiagnostic(connections, layoutNodes);
+        }
+        // B38 + M1: Non-orthogonal terminal detection — post-clip visible segment.
+        // M1 correction: bendpoints on or inside source/target element bounds are
+        // not counted (Archi clips the rendered line at the perimeter).
         NonOrthogonalTerminalResult nonOrthResult =
-                countNonOrthogonalTerminals(connections, includeViolatorIds);
+                countNonOrthogonalTerminals(connections, layoutNodes, includeViolatorIds);
         int nonOrthogonalTerminalCount = nonOrthResult.count();
 
+        // Assessor.Redesign M2-M5: new perception-aligned metrics.
+        InteriorTerminationResult interiorResult =
+                countInteriorTerminations(connections, layoutNodes, includeViolatorIds);
+        ZigzagResult zigzagResult = countZigzags(connections, passThroughResult.violatorIds(), includeViolatorIds);
+        EdgeCoincidenceResult edgeCoincidenceResult =
+                countConnectionEdgeCoincidence(connections, layoutNodes, includeViolatorIds);
+        HubPortQualityResult hubPortResult =
+                computeHubPortQuality(connections, layoutNodes, includeViolatorIds);
+        // R8 Corridor Utilisation (Story WCU.RegressionTest, 2026-05-03).
+        R8CorridorUtilisationResult corridorUtilisationResult =
+                computeR8CorridorUtilisation(connections, layoutNodes, includeViolatorIds);
+        // Successor D parallelConnectionGap (Story backlog-assessor-add-parallelconnectiongap-metric,
+        // 2026-05-12). Informational only — does NOT contribute to rating/suggestions per AC-9/AC-10.
+        ParallelConnectionGapResult parallelGapResult =
+                computeParallelConnectionGap(connections, includeViolatorIds);
+
+        // B53: Informational detection (label truncation, parent label obscured, image sibling overlap).
+        // Hoisted above the rating call under M6 — these contribute to layoutRating (parentLabelObscured
+        // promoted Tier 1L) and routingRating (labelTruncation promoted Tier 2R).
+        LabelTruncationResult labelTruncResult = detectLabelTruncation(layoutNodes);
+        ParentLabelObscuredResult parentLabelResult = detectParentLabelObscuredByChild(layoutNodes);
+        ImageSiblingOverlapResult imageSiblingResult = detectImageSiblingOverlap(layoutNodes);
+
         // Rating and suggestions use sibling overlaps only (Story 9-0d)
-        // Story 11-19, B38: use breakdown-aware rating with grouped-view leniency and tiered model
+        // Story 11-19, B38, M6: two-dimensional rating (layout-tier × routing-tier × min combiner).
         // B54: Rating uses cross-element PT count only (self-element PTs don't penalise)
+        List<String> offCanvas = detectOffCanvas(layoutNodes);
         RatingResult ratingResult = computeRatingWithBreakdown(
                 overlapResult.siblingCount(), crossingCount, avgSpacing, alignment,
                 labelResult.count(), passThroughResult.crossElementCount(), coincidentSegmentCount,
-                nonOrthogonalTerminalCount, connections.size(), hasGroups);
+                nonOrthogonalTerminalCount, connections.size(), hasGroups,
+                boundaryResult.descriptions().size(), parentLabelResult.count(),
+                offCanvas.size(), labelTruncResult.count(),
+                interiorResult.count(), zigzagResult.count(),
+                edgeCoincidenceResult.count(), hubPortResult.viewAggregate());
         String rating = ratingResult.rating();
         Map<String, String> ratingBreakdown = ratingResult.breakdown();
-        List<String> offCanvas = detectOffCanvas(layoutNodes);
         List<String> suggestions = generateSuggestions(
                 overlapResult.siblingCount(), crossingCount, avgSpacing, alignment,
                 boundaryResult.descriptions().size(), offCanvas.size(), layoutNodes.size(),
                 labelResult.count(), hasGroups, connections.size(), coincidentSegmentCount,
                 nonOrthogonalTerminalCount, labelResult.shortSegmentCount(),
-                overlapResult.containmentCount());
+                overlapResult.containmentCount(), nonOrthResult.zeroBendpointCount(),
+                interiorResult.count(), zigzagResult.count(),
+                edgeCoincidenceResult.count(), hubPortResult.viewAggregate());
 
         // Story 11-12: density-aware crossing metric
         double crossingsPerConnection = connections.size() > 0
@@ -160,11 +351,6 @@ class LayoutQualityAssessor {
 
         // Story 11-29: Compute bounding box of ALL visual content (elements + groups + notes)
         ContentBounds contentBounds = computeContentBounds(nodes);
-
-        // B53: Informational detection (label truncation, parent label obscured, image sibling overlap)
-        LabelTruncationResult labelTruncResult = detectLabelTruncation(layoutNodes);
-        ParentLabelObscuredResult parentLabelResult = detectParentLabelObscuredByChild(layoutNodes);
-        ImageSiblingOverlapResult imageSiblingResult = detectImageSiblingOverlap(layoutNodes);
 
         // B55: Build violator IDs map (only when requested, omit empty metrics)
         Map<String, Set<String>> violatorIds = null;
@@ -194,6 +380,26 @@ class LayoutQualityAssessor {
             if (!boundaryResult.violatorIds().isEmpty()) {
                 violatorIds.put("boundaryViolations", boundaryResult.violatorIds());
             }
+            // Assessor.Redesign M2-M5: violator IDs for new metrics.
+            if (!interiorResult.violatorIds().isEmpty()) {
+                violatorIds.put("interiorTerminations", interiorResult.violatorIds());
+            }
+            if (!zigzagResult.violatorIds().isEmpty()) {
+                violatorIds.put("zigzags", zigzagResult.violatorIds());
+            }
+            if (!edgeCoincidenceResult.violatorIds().isEmpty()) {
+                violatorIds.put("edgeCoincidence", edgeCoincidenceResult.violatorIds());
+            }
+            if (!hubPortResult.lowQualityElementIds().isEmpty()) {
+                violatorIds.put("hubPortLowQuality", hubPortResult.lowQualityElementIds());
+            }
+            // Successor D parallelConnectionGap (per-axis V/H violator surfaces).
+            if (!parallelGapResult.vAxis().violatorIds().isEmpty()) {
+                violatorIds.put("parallelConnectionGapV", parallelGapResult.vAxis().violatorIds());
+            }
+            if (!parallelGapResult.hAxis().violatorIds().isEmpty()) {
+                violatorIds.put("parallelConnectionGapH", parallelGapResult.hAxis().violatorIds());
+            }
             if (violatorIds.isEmpty()) {
                 violatorIds = null;
             }
@@ -215,7 +421,41 @@ class LayoutQualityAssessor {
                 parentLabelResult.count(), parentLabelResult.descriptions(),
                 imageSiblingResult.count(), imageSiblingResult.descriptions(),
                 violatorIds,
-                suggestions);
+                suggestions,
+                // Assessor.Redesign M2-M6 (appended)
+                interiorResult.count(), interiorResult.descriptions(),
+                zigzagResult.count(), zigzagResult.descriptions(),
+                edgeCoincidenceResult.count(), edgeCoincidenceResult.descriptions(),
+                hubPortResult.viewAggregate(),
+                includeViolatorIds ? hubPortResult.perFaceDetails() : List.of(),
+                ratingResult.layoutRating(), ratingResult.routingRating(),
+                // R8 Corridor Utilisation (Story WCU.RegressionTest, 2026-05-03)
+                corridorUtilisationResult.viewAggregate(),
+                corridorUtilisationResult.perChannelDetails(),
+                // Successor D parallelConnectionGap (Story
+                // backlog-assessor-add-parallelconnectiongap-metric, 2026-05-12)
+                parallelGapResult.vAxis().p10(),
+                parallelGapResult.vAxis().narrowGapCount25(),
+                includeViolatorIds ? buildParallelGapDetail(parallelGapResult) : null);
+    }
+
+    /**
+     * Converts the internal {@link ParallelConnectionGapResult} to the public
+     * {@link LayoutAssessmentResult.ParallelConnectionGapDetail} record (per-axis,
+     * without the violator-id sets — those are surfaced in the result's top-level
+     * {@code violatorIds} map).
+     */
+    private LayoutAssessmentResult.ParallelConnectionGapDetail buildParallelGapDetail(
+            ParallelConnectionGapResult r) {
+        return new LayoutAssessmentResult.ParallelConnectionGapDetail(
+                toAxisDetail(r.vAxis()), toAxisDetail(r.hAxis()));
+    }
+
+    private LayoutAssessmentResult.ParallelConnectionGapAxisDetail toAxisDetail(
+            ParallelConnectionGapAxis a) {
+        return new LayoutAssessmentResult.ParallelConnectionGapAxisDetail(
+                a.qualifyingSegmentCount(), a.mean(), a.min(), a.p10(),
+                a.narrowGapCount15(), a.narrowGapCount25(), a.narrowGapCount40());
     }
 
     // ---- Containment relationship helpers (Story 9-0d: transitive closure) ----
@@ -534,14 +774,22 @@ class LayoutQualityAssessor {
         return ratingOrdinal(achieved) >= ratingOrdinal(target);
     }
 
-    // ---- Overall Rating (Finding #11: named constants) ----
+    // ---- Overall Rating (Finding #11: named constants; M6 two-dimensional rating) ----
 
-    /** Result of rating computation including per-metric breakdown (Story 11-19). */
-    record RatingResult(String rating, Map<String, String> breakdown) {}
+    /**
+     * Result of rating computation including per-metric breakdown (Story 11-19) and
+     * the two-dimensional layout/routing decomposition (Assessor.Redesign M6).
+     *
+     * <p>Under M6, {@code rating} is the worse of {@code layoutRating} and {@code routingRating}
+     * ("min" in human terms — `excellent < good < fair < poor` — i.e. worse-dimension dominates).</p>
+     */
+    record RatingResult(String rating, Map<String, String> breakdown,
+                         String layoutRating, String routingRating) {}
 
     /**
      * Computes the overall quality rating with per-metric breakdown (Story 11-19).
-     * Delegates to the breakdown-aware overload with {@code hasGroups=false}.
+     * Delegates to the breakdown-aware overload with {@code hasGroups=false} and
+     * zero values for the M2-M5 + L1-L3 inputs.
      *
      * @deprecated Use {@link #computeRatingWithBreakdown} to get both the rating
      *             and per-metric breakdown, and to enable grouped-view leniency.
@@ -557,12 +805,36 @@ class LayoutQualityAssessor {
     }
 
     /**
-     * Computes the overall quality rating with per-metric breakdown (Story 11-19, B38).
+     * Computes the overall quality rating with per-metric breakdown — M6 two-dimensional model.
      *
-     * <p>Each metric contributes an individual rating: "pass" (no issue),
-     * "excellent", "good", "fair", or "poor". The overall rating uses severity-tiered
-     * logic (B38): Tier 1 (critical) can produce "poor", Tier 2 (moderate) caps at "fair",
-     * Tier 3 (cosmetic) caps at "good".</p>
+     * <p>Backwards-compatible delegating overload (10-arg). Existing callers pass zeros for the
+     * M2-M5 + L1-L3 inputs; M6 promotions for parentLabelObscured and labelTruncation are then
+     * inactive (count = 0). Use the 18-arg expanded overload to exercise the full M6 model.</p>
+     */
+    RatingResult computeRatingWithBreakdown(int overlaps, int crossings,
+                                             double avgSpacing, int alignmentScore,
+                                             int labelOverlapCount, int passThroughCount,
+                                             int coincidentSegments, int nonOrthogonalTerminals,
+                                             int connectionCount, boolean hasGroups) {
+        return computeRatingWithBreakdown(overlaps, crossings, avgSpacing, alignmentScore,
+                labelOverlapCount, passThroughCount, coincidentSegments, nonOrthogonalTerminals,
+                connectionCount, hasGroups,
+                0, 0, 0, 0,           // boundaryViolation, parentLabelObscured, offCanvas, labelTruncation
+                0, 0, 0, 1.0);        // interior, zigzag, edgeCoincidence, hubPortQuality (1.0 = perfect)
+    }
+
+    /**
+     * Computes the overall quality rating with per-metric breakdown (Story 11-19, B38, M6).
+     *
+     * <p><b>M6 model (Assessor.Redesign 2026-04-26):</b> Each metric contributes an individual
+     * rating ("pass"/"excellent"/"good"/"fair"/"poor"). The overall rating uses a two-dimensional
+     * decomposition: a layout-tier rating (L1: overlaps, boundary, parentLabelObscured-promoted;
+     * L2 cap-fair: spacing, off-canvas; L3 cap-good: alignment) AND a routing-tier rating
+     * (R1: passThroughs, M2 interior, M3 zigzag, conn-vs-conn coincident; R2 cap-fair: M1 nonOrth,
+     * M4 edge-coincidence, M5 low hub-port quality, labelOverlap-promoted, labelTruncation-promoted;
+     * R3 cap-good: edge crossings). Combined {@code overall = worse(layoutRating, routingRating)}.
+     * Per spec, layout is the prerequisite — a view with sibling overlaps is broken regardless
+     * of routing quality.</p>
      *
      * @param hasGroups when true, crossing leniency applies if passThroughCount (cross-element only, B54) &lt;= FAIR_MAX_PASS_THROUGHS
      */
@@ -570,19 +842,22 @@ class LayoutQualityAssessor {
                                              double avgSpacing, int alignmentScore,
                                              int labelOverlapCount, int passThroughCount,
                                              int coincidentSegments, int nonOrthogonalTerminals,
-                                             int connectionCount, boolean hasGroups) {
+                                             int connectionCount, boolean hasGroups,
+                                             int boundaryViolationCount, int parentLabelObscuredCount,
+                                             int offCanvasCount, int labelTruncationCount,
+                                             int interiorTerminationCount, int zigzagCount,
+                                             int connectionEdgeCoincidenceCount,
+                                             double hubPortQualityScore) {
         Map<String, String> breakdown = new LinkedHashMap<>();
 
-        // 1. Overlaps rating
+        // 1. Overlaps rating (L1) — binary >0 → poor (sibling overlaps are tier-1L layout-severity)
         if (overlaps == 0) {
             breakdown.put("overlaps", "pass");
-        } else if (overlaps <= FAIR_MAX_OVERLAPS) {
-            breakdown.put("overlaps", "fair");
         } else {
             breakdown.put("overlaps", "poor");
         }
 
-        // 2. Edge crossings rating (density-aware — Stories 11-12, 11-22)
+        // 2. Edge crossings rating (R3 cap-good — density-aware, Stories 11-12 / 11-22)
         double crossingRatio = connectionCount > 0
                 ? (double) crossings / connectionCount : crossings;
         String crossingRating;
@@ -602,8 +877,9 @@ class LayoutQualityAssessor {
             crossingRating = "poor";
         }
         // Story 11-22, B38: grouped-view leniency — one-tier boost (not unconditional floor).
-        // Cross-group connections produce topologically unavoidable crossings.
-        // B38: relaxed gate from passThroughCount == 0 to passThroughCount <= FAIR_MAX_PASS_THROUGHS
+        // Under M6, crossings already cap at "good" (Tier 3R), but the leniency still applies
+        // to the breakdown rating for diagnostic clarity (a "fair"-rated breakdown with
+        // grouped-view conditions becomes "good").
         if (hasGroups && overlaps == 0 && passThroughCount <= FAIR_MAX_PASS_THROUGHS
                 && labelOverlapCount == 0 && alignmentScore > GOOD_MIN_ALIGNMENT
                 && avgSpacing > GOOD_MIN_SPACING
@@ -612,7 +888,7 @@ class LayoutQualityAssessor {
         }
         breakdown.put("edgeCrossings", crossingRating);
 
-        // 3. Spacing rating
+        // 3. Spacing rating (L2 cap-fair)
         if (avgSpacing > EXCELLENT_MIN_SPACING) {
             breakdown.put("spacing", "pass");
         } else if (avgSpacing > GOOD_MIN_SPACING) {
@@ -621,7 +897,7 @@ class LayoutQualityAssessor {
             breakdown.put("spacing", "fair");
         }
 
-        // 4. Alignment rating
+        // 4. Alignment rating (L3 cap-good)
         if (alignmentScore > EXCELLENT_MIN_ALIGNMENT) {
             breakdown.put("alignment", "pass");
         } else if (alignmentScore > GOOD_MIN_ALIGNMENT) {
@@ -630,7 +906,7 @@ class LayoutQualityAssessor {
             breakdown.put("alignment", "fair");
         }
 
-        // 5. Label overlaps rating
+        // 5. Label overlaps rating (R2 cap-fair — promoted from R3 under M6)
         if (labelOverlapCount == 0) {
             breakdown.put("labelOverlaps", "pass");
         } else if (labelOverlapCount <= 2) {
@@ -639,7 +915,7 @@ class LayoutQualityAssessor {
             breakdown.put("labelOverlaps", "fair");
         }
 
-        // 6. Pass-throughs rating
+        // 6. Pass-throughs rating (R1)
         if (passThroughCount == 0) {
             breakdown.put("passThroughs", "pass");
         } else if (passThroughCount <= FAIR_MAX_PASS_THROUGHS) {
@@ -648,7 +924,7 @@ class LayoutQualityAssessor {
             breakdown.put("passThroughs", "poor");
         }
 
-        // 7. Coincident segments rating (B38)
+        // 7. Coincident segments rating (R1 conn-vs-conn — B38)
         if (coincidentSegments == 0) {
             breakdown.put("coincidentSegments", "pass");
         } else if (coincidentSegments <= GOOD_MAX_COINCIDENT) {
@@ -659,56 +935,144 @@ class LayoutQualityAssessor {
             breakdown.put("coincidentSegments", "poor");
         }
 
-        // 8. Non-orthogonal terminals rating (B38)
+        // 8. Non-orthogonal terminals rating (R2 cap-fair — promoted from R3 under M6, density-aware B58).
+        // M1 corrected definition (visible post-clip segment) flows through `nonOrthogonalTerminals`.
         if (nonOrthogonalTerminals == 0) {
             breakdown.put("nonOrthogonalTerminals", "pass");
-        } else if (nonOrthogonalTerminals <= FAIR_MAX_NON_ORTHOGONAL) {
-            breakdown.put("nonOrthogonalTerminals", "fair");
+        } else if (connectionCount > 0) {
+            double nonOrthRatio = (double) nonOrthogonalTerminals / connectionCount;
+            if (nonOrthRatio <= NON_ORTH_RATIO_GOOD) {
+                breakdown.put("nonOrthogonalTerminals", "good");
+            } else if (nonOrthRatio <= NON_ORTH_RATIO_FAIR) {
+                breakdown.put("nonOrthogonalTerminals", "fair");
+            } else {
+                breakdown.put("nonOrthogonalTerminals", "poor");
+            }
         } else {
-            breakdown.put("nonOrthogonalTerminals", "poor");
+            // Zero connections but non-zero non-orth (edge case) — rate as fair
+            breakdown.put("nonOrthogonalTerminals", "fair");
         }
 
-        // Compute overall rating using severity-tiered model (B38)
-        String overall = computeTieredRating(breakdown);
+        // 9. Boundary violations (L1 — Assessor.Redesign promotion: any violation is layout-Tier-1L)
+        breakdown.put("boundaryViolations", boundaryViolationCount == 0 ? "pass" : "poor");
+
+        // 10. Parent label obscured (L1 — promoted from info per M6)
+        breakdown.put("parentLabelObscured", parentLabelObscuredCount == 0 ? "pass" : "poor");
+
+        // 11. Off-canvas (L2 cap-fair — was partial; explicit under M6)
+        breakdown.put("offCanvas", offCanvasCount == 0 ? "pass" : "fair");
+
+        // 12. Label truncation (R2 cap-fair — promoted from info per M6)
+        breakdown.put("labelTruncations", labelTruncationCount == 0 ? "pass" : "fair");
+
+        // 13. Interior terminations (R1 — M2)
+        breakdown.put("interiorTerminations", interiorTerminationCount == 0 ? "pass" : "poor");
+
+        // 14. Zigzags (R1 — M3)
+        breakdown.put("zigzags", zigzagCount == 0 ? "pass" : "poor");
+
+        // 15. Edge-coincidence (R2 cap-fair — M4; A-gated: Tier-1R escalation at
+        //     count >= EDGE_COINCIDENCE_EGREGIOUS_MAX, see computeRoutingTierLevel)
+        if (connectionEdgeCoincidenceCount == 0) {
+            breakdown.put("connectionEdgeCoincidence", "pass");
+        } else if (connectionEdgeCoincidenceCount <= EDGE_COINCIDENCE_GOOD_MAX) {
+            breakdown.put("connectionEdgeCoincidence", "good");
+        } else if (connectionEdgeCoincidenceCount <= EDGE_COINCIDENCE_FAIR_MAX) {
+            breakdown.put("connectionEdgeCoincidence", "fair");
+        } else {
+            breakdown.put("connectionEdgeCoincidence", "poor");
+        }
+
+        // 16. Hub-port quality (R2 cap-fair — M5; threshold quality < 0.5 contributes)
+        if (hubPortQualityScore >= HUB_PORT_QUALITY_PASS_THRESHOLD) {
+            breakdown.put("hubPortQuality", "pass");
+        } else if (hubPortQualityScore >= HUB_PORT_QUALITY_GOOD_THRESHOLD) {
+            breakdown.put("hubPortQuality", "good");
+        } else if (hubPortQualityScore >= HUB_PORT_QUALITY_FAIR_THRESHOLD) {
+            breakdown.put("hubPortQuality", "fair");
+        } else {
+            breakdown.put("hubPortQuality", "poor");
+        }
+
+        // M6: two-dimensional rating (layout-tier × routing-tier × worse combiner).
+        int layoutLevel = computeLayoutTierLevel(breakdown);
+        int routingLevel = computeRoutingTierLevel(breakdown, connectionEdgeCoincidenceCount);
+        int overallLevel = Math.max(layoutLevel, routingLevel);
+        String layoutRating = levelToRating(layoutLevel);
+        String routingRating = levelToRating(routingLevel);
+        String overall = levelToRating(overallLevel);
         breakdown.put("overall", overall);
 
-        return new RatingResult(overall, breakdown);
+        return new RatingResult(overall, breakdown, layoutRating, routingRating);
     }
 
     /**
-     * Severity-tiered overall rating (B38). Replaces pure worst-wins.
+     * Layout-tier level under M6 (worse contribution wins, with per-tier caps).
      * <ul>
-     *   <li>Tier 1 (critical): overlaps, passThroughs, coincidentSegments — can produce "poor"</li>
-     *   <li>Tier 2 (moderate): edgeCrossings, nonOrthogonalTerminals — caps at "fair"</li>
-     *   <li>Tier 3 (cosmetic): spacing, alignment, labelOverlaps — caps at "good"</li>
+     *   <li><b>Tier 1L</b> (critical, no cap): overlaps, boundaryViolations, parentLabelObscured (promoted)</li>
+     *   <li><b>Tier 2L</b> (cap fair=2): spacing, offCanvas</li>
+     *   <li><b>Tier 3L</b> (cap good=1): alignment</li>
      * </ul>
      */
-    private String computeTieredRating(Map<String, String> breakdown) {
-        // Tier 1: overlaps, passThroughs, coincidentSegments — drives overall directly
-        int worstTier1 = Math.max(Math.max(
+    private int computeLayoutTierLevel(Map<String, String> breakdown) {
+        int tier1 = Math.max(Math.max(
                 ratingLevel(breakdown.getOrDefault("overlaps", "pass")),
-                ratingLevel(breakdown.getOrDefault("passThroughs", "pass"))),
-                ratingLevel(breakdown.getOrDefault("coincidentSegments", "pass")));
-
-        // Tier 2: edgeCrossings, nonOrthogonalTerminals — cap contribution at "fair" (level 2)
-        int worstTier2 = Math.max(
-                ratingLevel(breakdown.getOrDefault("edgeCrossings", "pass")),
-                ratingLevel(breakdown.getOrDefault("nonOrthogonalTerminals", "pass")));
-
-        // Tier 3: spacing, alignment, labelOverlaps — cap contribution at "good" (level 1)
-        int worstTier3 = Math.max(Math.max(
+                ratingLevel(breakdown.getOrDefault("boundaryViolations", "pass"))),
+                ratingLevel(breakdown.getOrDefault("parentLabelObscured", "pass")));
+        int tier2 = Math.max(
                 ratingLevel(breakdown.getOrDefault("spacing", "pass")),
-                ratingLevel(breakdown.getOrDefault("alignment", "pass"))),
-                ratingLevel(breakdown.getOrDefault("labelOverlaps", "pass")));
+                ratingLevel(breakdown.getOrDefault("offCanvas", "pass")));
+        int tier3 = ratingLevel(breakdown.getOrDefault("alignment", "pass"));
 
-        // Tier 1 drives overall directly (can produce any rating including "poor")
-        int overall = worstTier1;
-        // Tier 2 can raise to at most "fair" (level 2)
-        overall = Math.max(overall, Math.min(worstTier2, 2));
-        // Tier 3 can raise to at most "good" (level 1)
-        overall = Math.max(overall, Math.min(worstTier3, 1));
+        int level = tier1;
+        level = Math.max(level, Math.min(tier2, 2));
+        level = Math.max(level, Math.min(tier3, 1));
+        return level;
+    }
 
-        return switch (overall) {
+    /**
+     * Routing-tier level under M6 (worse contribution wins, with per-tier caps).
+     * <ul>
+     *   <li><b>Tier 1R</b> (critical, no cap): passThroughs, M2 interior, M3 zigzag, conn-vs-conn coincident;
+     *       <b>plus M4 edge-coincidence when the count is egregious</b>
+     *       (&ge; {@link #EDGE_COINCIDENCE_EGREGIOUS_MAX} — A-gated escalation, story W3)</li>
+     *   <li><b>Tier 2R</b> (cap fair=2): M1 nonOrth, M4 edge-coincidence (count &lt; EGREGIOUS), M5 low
+     *       hub-port quality, labelOverlaps (promoted), labelTruncations (promoted)</li>
+     *   <li><b>Tier 3R</b> (cap good=1): edge crossings</li>
+     * </ul>
+     */
+    private int computeRoutingTierLevel(Map<String, String> breakdown, int edgeCoincidenceCount) {
+        int tier1 = Math.max(Math.max(Math.max(
+                ratingLevel(breakdown.getOrDefault("passThroughs", "pass")),
+                ratingLevel(breakdown.getOrDefault("interiorTerminations", "pass"))),
+                ratingLevel(breakdown.getOrDefault("zigzags", "pass"))),
+                ratingLevel(breakdown.getOrDefault("coincidentSegments", "pass")));
+        // A-gated escalation (story W3 backlog-terminal-egress-edge-hug-quality, 2026-05-21):
+        // M4 connectionEdgeCoincidence is normally Tier-2R (cap-fair, see tier2 below). An EGREGIOUS
+        // count escalates it to Tier-1R so an eye-obvious hug-storm drives overall="poor" instead of
+        // being masked at "fair". Spares the common 1-5 forced-hug case. M4 is intentionally also left
+        // in tier2 (harmless: tier2 caps at 2; the tier1 contribution dominates when this fires).
+        if (edgeCoincidenceCount >= EDGE_COINCIDENCE_EGREGIOUS_MAX) {
+            tier1 = Math.max(tier1,
+                    ratingLevel(breakdown.getOrDefault("connectionEdgeCoincidence", "pass")));
+        }
+        int tier2 = Math.max(Math.max(Math.max(Math.max(
+                ratingLevel(breakdown.getOrDefault("nonOrthogonalTerminals", "pass")),
+                ratingLevel(breakdown.getOrDefault("connectionEdgeCoincidence", "pass"))),
+                ratingLevel(breakdown.getOrDefault("hubPortQuality", "pass"))),
+                ratingLevel(breakdown.getOrDefault("labelOverlaps", "pass"))),
+                ratingLevel(breakdown.getOrDefault("labelTruncations", "pass")));
+        int tier3 = ratingLevel(breakdown.getOrDefault("edgeCrossings", "pass"));
+
+        int level = tier1;
+        level = Math.max(level, Math.min(tier2, 2));
+        level = Math.max(level, Math.min(tier3, 1));
+        return level;
+    }
+
+    /** Maps level (0..3) to rating string. 0 = excellent, 3 = poor. */
+    private static String levelToRating(int level) {
+        return switch (level) {
             case 0 -> "excellent";
             case 1 -> "good";
             case 2 -> "fair";
@@ -726,48 +1090,1057 @@ class LayoutQualityAssessor {
         };
     }
 
-    // ---- Non-Orthogonal Terminal Detection (B38) ----
+    // ---- Non-Orthogonal Terminal Detection (B38, M1 corrected post-clip) ----
+
+    /** Result of non-orthogonal terminal detection (B55: adds violator IDs, B60: adds zero-bendpoint count). */
+    record NonOrthogonalTerminalResult(int count, Set<String> violatorIds, int zeroBendpointCount) {}
+
+    /**
+     * Backwards-compatible delegating overload (no node lookup — falls back to geometric semantics).
+     * Tests that don't pass synthetic nodes get pre-M1 behaviour for their unchanged paths.
+     *
+     * @deprecated Prefer the 3-arg overload for M1 post-clip correctness.
+     */
+    @Deprecated
+    NonOrthogonalTerminalResult countNonOrthogonalTerminals(
+            List<AssessmentConnection> connections, boolean collectViolatorIds) {
+        return countNonOrthogonalTerminals(connections, List.of(), collectViolatorIds);
+    }
 
     /**
      * Counts connections with at least one non-orthogonal terminal segment.
-     * A terminal segment is non-orthogonal if the angle between the first two
-     * (or last two) path points is neither horizontal nor vertical (within tolerance).
-     * Counts per-connection, not per-segment, to avoid over-counting.
+     *
+     * <p><b>M1 corrected definition (Assessor.Redesign 2026-04-26):</b> the terminal segment is
+     * the portion of {@code [sourceAnchor → BP1]} (or {@code [BP_last → targetAnchor]}) that lies
+     * <i>outside</i> the source/target element bounds. Archi clips connection rendering at the
+     * perimeter; the geometric diagonal between an element-center sourceAnchor and an on-perimeter
+     * BP1 has zero visible length and is therefore <b>not</b> counted as non-orthogonal.</p>
+     *
+     * <p>Implementation: when {@code path[1]} (or {@code path[size-2]}) lies on the perimeter or
+     * strictly inside the source (or target) element rect, the visible segment is zero or
+     * invisible — skip the non-orth flag. Otherwise apply the existing geometric test on
+     * {@code [path[0], path[1]]}: the post-clip segment lies on the same line as the geometric
+     * one, so its orthogonality angle is invariant.</p>
+     *
+     * <p><b>M1 minimum-visible-length guard (story Calibration.M1ManualOracle21, 2026-04-27):</b>
+     * when the visible (post-clip) segment length is &lt; {@link #VISIBLE_DIAGONAL_MIN_PX}, the
+     * diagonal is sub-perceptible at typical Archi zoom levels and is silently skipped. This
+     * calibrates the metric against hand-routed views (manual oracle
+     * {@code id-3b2665e3ff6840708dbed2b3d1415613}) where Archi commonly stores manually-routed
+     * BPs 1px off the perimeter face line, producing a 1.0–1.3px visible diagonal that the
+     * geometric angle test would otherwise flag. The guard is purely additive — connections
+     * with longer visible diagonals (e.g. the V4 manual oracle's APIM→CorpBank case at 320px
+     * visible length) remain flagged because the diagonal IS visible to the user.</p>
+     *
+     * <p>When {@code layoutNodes} is empty or the source/target node cannot be resolved by ID,
+     * BOTH the M1 perimeter check AND the visible-length guard collapse to no-ops:
+     * {@link #isOnOrInsideElement} returns {@code false} for null elem (so the perimeter-skip
+     * never fires) and {@link #visibleSegmentLength} returns {@link Double#POSITIVE_INFINITY}
+     * for null elem (so the {@code >= VISIBLE_DIAGONAL_MIN_PX} guard always passes). The
+     * conjunction then collapses to the legacy geometric test path. This preserves
+     * backwards-compatibility for the @Deprecated 2-arg overload — note that the {@code +∞}
+     * return for {@code visibleSegmentLength(null elem)} is load-bearing: returning {@code 0}
+     * would make every legacy diagonal flag silently suppressed (round-1 regression on 9
+     * pre-existing b38/b55/b57/b60 tests, fixed in round-2 of Calibration.M1ManualOracle21).</p>
+     *
+     * @param connections      connection paths to evaluate
+     * @param layoutNodes      lookup for source/target rectangles (may be empty for legacy callers)
+     * @param collectViolatorIds when true, populates violator set
      */
-    /** Result of non-orthogonal terminal detection (B55: adds violator IDs). */
-    record NonOrthogonalTerminalResult(int count, Set<String> violatorIds) {}
-
     NonOrthogonalTerminalResult countNonOrthogonalTerminals(
-            List<AssessmentConnection> connections, boolean collectViolatorIds) {
+            List<AssessmentConnection> connections, List<AssessmentNode> layoutNodes,
+            boolean collectViolatorIds) {
+        Map<String, AssessmentNode> nodeById = new HashMap<>();
+        for (AssessmentNode n : layoutNodes) {
+            nodeById.put(n.id(), n);
+        }
         int count = 0;
+        int zeroBpCount = 0;
         Set<String> violatorIds = collectViolatorIds ? new HashSet<>() : Set.of();
         for (AssessmentConnection conn : connections) {
             List<double[]> path = conn.pathPoints();
             if (path.size() < 2) continue;
-            // Check source terminal (first two points)
-            if (isNonOrthogonal(path.get(0), path.get(1))) {
+            AssessmentNode source = nodeById.get(conn.sourceNodeId());
+            AssessmentNode target = nodeById.get(conn.targetNodeId());
+
+            // Source terminal — M1: skip when path[1] is on or inside source rect,
+            // OR (Calibration.M1ManualOracle21) when the visible post-clip segment
+            // is below the perceptibility threshold.
+            boolean sourceVisibleNonOrth = false;
+            if (!isOnOrInsideElement(path.get(1), source)
+                    && isNonOrthogonal(path.get(0), path.get(1))
+                    && visibleSegmentLength(path.get(0), path.get(1), source)
+                            >= VISIBLE_DIAGONAL_MIN_PX) {
+                sourceVisibleNonOrth = true;
+            }
+            if (sourceVisibleNonOrth) {
                 count++;
                 if (collectViolatorIds) {
                     violatorIds.add(conn.id());
+                }
+                // B60: zero-bendpoint = 2-point path (source center + target center, no intermediate BPs)
+                if (path.size() == 2) {
+                    zeroBpCount++;
                 }
                 continue;
             }
-            // Check target terminal (last two points)
-            if (isNonOrthogonal(path.get(path.size() - 2), path.get(path.size() - 1))) {
+            // Target terminal — M1: skip when path[size-2] is on or inside target rect,
+            // OR (Calibration.M1ManualOracle21) when the visible post-clip segment
+            // is below the perceptibility threshold. Note the helper's anchor argument
+            // is the target-side element-center (path[last]), bp is the outside BP
+            // (path[last - 1]) — the convention is anchor=inside, bp=outside.
+            int last = path.size() - 1;
+            if (!isOnOrInsideElement(path.get(last - 1), target)
+                    && isNonOrthogonal(path.get(last - 1), path.get(last))
+                    && visibleSegmentLength(path.get(last), path.get(last - 1), target)
+                            >= VISIBLE_DIAGONAL_MIN_PX) {
                 count++;
                 if (collectViolatorIds) {
                     violatorIds.add(conn.id());
                 }
+                // B60: 2-point paths are zero-bendpoint, but for 2-point paths source and target
+                // terminals are the same segment — already handled above via continue
             }
         }
-        return new NonOrthogonalTerminalResult(count, violatorIds);
+        return new NonOrthogonalTerminalResult(count, violatorIds, zeroBpCount);
+    }
+
+    /**
+     * M1 helper: returns true if the bendpoint lies on the perimeter line of the element
+     * (within {@link #PERIMETER_TOLERANCE_PX}px) or strictly inside the element's bounding rect.
+     * When {@code elem} is null, returns false (caller falls back to legacy geometric test).
+     *
+     * <p>The "perimeter line" is the literal element edge (LEFT: x=elem.x; RIGHT: x=elem.x+w;
+     * TOP: y=elem.y; BOTTOM: y=elem.y+h) — this matches the spec example where Archi stores
+     * a bendpoint at (641, 259) on an element whose LEFT face is x=641. {@code RoutingPipeline}
+     * uses a different 1px-offset convention internally (Layer 3 sub-package) — those are
+     * deliberately distinct under Task 2.2 design (inline duplicate, no Layer-3 cross-coupling).</p>
+     */
+    static boolean isOnOrInsideElement(double[] bp, AssessmentNode elem) {
+        if (elem == null) return false;
+        double x = bp[0];
+        double y = bp[1];
+        double left = elem.x();
+        double right = elem.x() + elem.width();
+        double top = elem.y();
+        double bottom = elem.y() + elem.height();
+        double tol = PERIMETER_TOLERANCE_PX;
+        return x >= left - tol && x <= right + tol
+                && y >= top - tol && y <= bottom + tol;
+    }
+
+    /**
+     * M1 helper (story Calibration.M1ManualOracle21, 2026-04-27): returns the Euclidean
+     * length of the visible (post-clip) portion of segment {@code [anchor, bp]} against
+     * {@code elem}. The visible portion runs from the perimeter clip-point to {@code bp}.
+     *
+     * <p>Convention: {@code anchor} is the element-center side of the terminal segment
+     * (always strictly inside {@code elem} for ChopboxAnchor source/target anchors);
+     * {@code bp} is the bendpoint outside the element. Caller already guards via
+     * {@link #isOnOrInsideElement} on {@code bp} — this helper short-circuits to 0
+     * when the guard's invariant ever fails (defense-in-depth).</p>
+     *
+     * <p><b>Null-elem semantics:</b> returns {@link Double#POSITIVE_INFINITY} when
+     * {@code elem} is null. This is the legacy 2-arg overload path (no node lookup
+     * available) — the +∞ return makes the {@code >= VISIBLE_DIAGONAL_MIN_PX} guard
+     * in {@code countNonOrthogonalTerminals} a no-op, correctly collapsing to the
+     * legacy geometric-only test. Returning 0 here would incorrectly suppress every
+     * legacy non-orth flag.</p>
+     *
+     * @param anchor inside-the-element endpoint of the segment (typically the element center)
+     * @param bp outside-the-element endpoint (typically the first/last bendpoint)
+     * @param elem the source/target element rect (may be null for legacy callers)
+     * @return visible segment length in pixels; {@code +∞} if elem null (legacy no-op);
+     *         0 if bp on/inside elem (defense-in-depth — caller already short-circuits)
+     */
+    static double visibleSegmentLength(double[] anchor, double[] bp, AssessmentNode elem) {
+        if (elem == null) return Double.POSITIVE_INFINITY;
+        if (isOnOrInsideElement(bp, elem)) return 0.0;
+        double[] clip = lineRectIntersection(anchor, bp, elem);
+        if (clip == null) {
+            // Degenerate fallback: anchor outside rect AND line misses rect entirely.
+            // Return full segment length so M1 still flags long diagonals — the visible
+            // segment, having no clip, IS the full segment.
+            return Math.hypot(bp[0] - anchor[0], bp[1] - anchor[1]);
+        }
+        return Math.hypot(bp[0] - clip[0], bp[1] - clip[1]);
+    }
+
+    /**
+     * M1 helper (story Calibration.M1ManualOracle21, 2026-04-27): returns the perimeter
+     * intersection point of segment {@code [a, b]} against rect {@code r}, or null if
+     * the segment does not cross the perimeter at any {@code t} in {@code (0, 1]}.
+     *
+     * <p>For the standard M1 use case ({@code a} = element center, strictly inside;
+     * {@code b} = outside), the segment crosses the perimeter exactly once and the
+     * smallest valid {@code t} identifies the clip point. Algorithm: parametrize as
+     * {@code P(t) = a + t * (b - a)}, intersect with each of the 4 face lines (skipping
+     * any line whose normal is parallel to the segment), accept only intersections that
+     * lie within the face's bounded extent, and return the smallest-{@code t} hit.</p>
+     */
+    static double[] lineRectIntersection(double[] a, double[] b, AssessmentNode r) {
+        if (r == null) return null;
+        double left = r.x();
+        double right = r.x() + r.width();
+        double top = r.y();
+        double bottom = r.y() + r.height();
+        double dx = b[0] - a[0];
+        double dy = b[1] - a[1];
+
+        double bestT = Double.POSITIVE_INFINITY;
+        double[] bestPoint = null;
+
+        // LEFT face: x = left
+        if (Math.abs(dx) > 1e-9) {
+            double t = (left - a[0]) / dx;
+            if (t > 1e-9 && t <= 1.0) {
+                double y = a[1] + t * dy;
+                if (y >= top && y <= bottom && t < bestT) {
+                    bestT = t;
+                    bestPoint = new double[]{left, y};
+                }
+            }
+        }
+        // RIGHT face: x = right
+        if (Math.abs(dx) > 1e-9) {
+            double t = (right - a[0]) / dx;
+            if (t > 1e-9 && t <= 1.0) {
+                double y = a[1] + t * dy;
+                if (y >= top && y <= bottom && t < bestT) {
+                    bestT = t;
+                    bestPoint = new double[]{right, y};
+                }
+            }
+        }
+        // TOP face: y = top
+        if (Math.abs(dy) > 1e-9) {
+            double t = (top - a[1]) / dy;
+            if (t > 1e-9 && t <= 1.0) {
+                double x = a[0] + t * dx;
+                if (x >= left && x <= right && t < bestT) {
+                    bestT = t;
+                    bestPoint = new double[]{x, top};
+                }
+            }
+        }
+        // BOTTOM face: y = bottom
+        if (Math.abs(dy) > 1e-9) {
+            double t = (bottom - a[1]) / dy;
+            if (t > 1e-9 && t <= 1.0) {
+                double x = a[0] + t * dx;
+                if (x >= left && x <= right && t < bestT) {
+                    bestT = t;
+                    bestPoint = new double[]{x, bottom};
+                }
+            }
+        }
+
+        return bestPoint;
+    }
+
+    /**
+     * M2 helper: returns true if the bendpoint lies <b>strictly inside</b> the element bounds —
+     * NOT on the perimeter line and NOT outside. Strict inequalities (with a small tolerance to
+     * exclude on-perimeter cases). When {@code elem} is null, returns false.
+     */
+    static boolean isStrictlyInside(double[] bp, AssessmentNode elem) {
+        if (elem == null) return false;
+        double tol = PERIMETER_TOLERANCE_PX;
+        return bp[0] > elem.x() + tol
+                && bp[0] < elem.x() + elem.width() - tol
+                && bp[1] > elem.y() + tol
+                && bp[1] < elem.y() + elem.height() - tol;
     }
 
     private boolean isNonOrthogonal(double[] p1, double[] p2) {
         double dx = Math.abs(p1[0] - p2[0]);
         double dy = Math.abs(p1[1] - p2[1]);
-        // Orthogonal = one of dx or dy is ~0
-        return dx > ALIGNMENT_TOLERANCE && dy > ALIGNMENT_TOLERANCE;
+        if (dx < 1e-9 && dy < 1e-9) return false; // zero-length or near-zero segment
+        // B57: Angular detection — angle in [0°, 90°] quadrant
+        double angleDeg = Math.toDegrees(Math.atan2(dy, dx));
+        // Deviation from nearest cardinal axis (0° or 90°)
+        double deviation = Math.min(angleDeg, 90.0 - angleDeg);
+        return deviation > NON_ORTH_ANGLE_THRESHOLD;
+    }
+
+    // ---- Assessor.Redesign M2: Interior-Termination Detection ----
+
+    /** Result of M2 interior-termination detection. */
+    record InteriorTerminationResult(int count, List<String> descriptions, Set<String> violatorIds) {}
+
+    /**
+     * Counts connections whose first or last bendpoint lies <b>strictly inside</b> the
+     * source/target element bounds (M2). Strict inequalities — bendpoints on the perimeter
+     * line do NOT count (those are handled by M1's post-clip definition). Connections with
+     * fewer than 2 path points are skipped.
+     *
+     * <p>Spec live example: a connection whose {@code BP_last} coordinates fall inside the
+     * target element rectangle indicates a routing failure where Archi's ChopboxAnchor face
+     * selection couldn't resolve the terminal correctly. Tier 1R severity (peer with
+     * passThroughs) per {@code feedback_visual_severity.md} v2.</p>
+     */
+    InteriorTerminationResult countInteriorTerminations(
+            List<AssessmentConnection> connections, List<AssessmentNode> layoutNodes,
+            boolean collectViolatorIds) {
+        Map<String, AssessmentNode> nodeById = new HashMap<>();
+        for (AssessmentNode n : layoutNodes) {
+            nodeById.put(n.id(), n);
+        }
+        int count = 0;
+        List<String> descriptions = new ArrayList<>();
+        Set<String> violatorIds = collectViolatorIds ? new HashSet<>() : Set.of();
+        for (AssessmentConnection conn : connections) {
+            List<double[]> path = conn.pathPoints();
+            // Need at least source-center + one BP + target-center to assess a terminal BP.
+            if (path.size() < 3) continue;
+            AssessmentNode source = nodeById.get(conn.sourceNodeId());
+            AssessmentNode target = nodeById.get(conn.targetNodeId());
+            // path.get(0) = sourceAnchor (element center), path.get(size-1) = targetAnchor (element center).
+            // The interior-termination signal is the FIRST BP after the source — path.get(1),
+            // and the LAST BP before the target — path.get(size-2).
+            boolean sourceInterior = isStrictlyInside(path.get(1), source);
+            boolean targetInterior = isStrictlyInside(path.get(path.size() - 2), target);
+            if (sourceInterior || targetInterior) {
+                count++;
+                String side = sourceInterior && targetInterior ? "source and target"
+                        : sourceInterior ? "source" : "target";
+                if (descriptions.size() < MAX_DESCRIPTIONS) {
+                    descriptions.add("Connection '" + conn.id() + "' " + conn.sourceNodeId()
+                            + " → " + conn.targetNodeId()
+                            + ": interior termination on " + side);
+                }
+                if (collectViolatorIds) {
+                    violatorIds.add(conn.id());
+                }
+            }
+        }
+        return new InteriorTerminationResult(count, descriptions, violatorIds);
+    }
+
+    // ---- Assessor.Redesign M3: Zigzag / Reversal Detection ----
+
+    /** Result of M3 zigzag detection. */
+    record ZigzagResult(int count, List<String> descriptions, Set<String> violatorIds) {}
+
+    /**
+     * Counts connections containing at least one zigzag triple (M3). A zigzag is three
+     * consecutive bendpoints {@code (bp_i, bp_{i+1}, bp_{i+2})} where either:
+     * <ul>
+     *   <li>all three share the same X within {@link #ZIGZAG_AXIS_TOLERANCE_PX} AND the Y-deltas
+     *       between consecutive pairs have opposite signs both > {@link #ZIGZAG_MIN_DELTA_PX} in
+     *       magnitude, OR</li>
+     *   <li>symmetric: all three share the same Y AND X-deltas have opposite signs.</li>
+     * </ul>
+     * Counted as a binary defect per connection — one or more zigzag triples → +1 to count.
+     *
+     * <p>Spec live example: connection {@code id-3795e46e72a049e596b618b1ce948441} (API Mgmt →
+     * Corporate Banking, Oracle C1) triple {@code (403,259) → (403,219) → (403,261)} flags
+     * (x=403 shared, Δy = -40 then +42 — opposite signs both > 1px). Tier 1R severity.</p>
+     *
+     * <p>Classification precedence: connections whose IDs appear in {@code passThroughViolatorIds}
+     * are skipped (passthrough takes precedence over zigzag) — the failed-detour-around-element
+     * pattern produces a small reversal because the detour failed and passed through, and the
+     * visually-correct label is passthrough-only.</p>
+     *
+     * @see #detectPassThroughs(List, List, boolean)
+     */
+    ZigzagResult countZigzags(List<AssessmentConnection> connections,
+                              Set<String> passThroughViolatorIds,
+                              boolean collectViolatorIds) {
+        Objects.requireNonNull(passThroughViolatorIds, "passThroughViolatorIds must not be null");
+        int count = 0;
+        List<String> descriptions = new ArrayList<>();
+        Set<String> violatorIds = collectViolatorIds ? new HashSet<>() : Set.of();
+        for (AssessmentConnection conn : connections) {
+            if (passThroughViolatorIds.contains(conn.id())) continue;
+            List<double[]> path = conn.pathPoints();
+            if (path.size() < 3) continue;
+            for (int i = 0; i < path.size() - 2; i++) {
+                double[] a = path.get(i);
+                double[] b = path.get(i + 1);
+                double[] c = path.get(i + 2);
+                if (isZigzagTriple(a, b, c)) {
+                    count++;
+                    if (descriptions.size() < MAX_DESCRIPTIONS) {
+                        descriptions.add("Connection '" + conn.id() + "' " + conn.sourceNodeId()
+                                + " → " + conn.targetNodeId() + ": zigzag/reversal at index " + i
+                                + " (" + formatPoint(a) + " → " + formatPoint(b)
+                                + " → " + formatPoint(c) + ")");
+                    }
+                    if (collectViolatorIds) {
+                        violatorIds.add(conn.id());
+                    }
+                    break; // binary defect per connection — one triple is enough
+                }
+            }
+        }
+        return new ZigzagResult(count, descriptions, violatorIds);
+    }
+
+    private static boolean isZigzagTriple(double[] a, double[] b, double[] c) {
+        double tol = ZIGZAG_AXIS_TOLERANCE_PX;
+        double minDelta = ZIGZAG_MIN_DELTA_PX;
+        // Shared-X variant: all three points within tol of the same X, opposite-sign Y deltas.
+        boolean sharedX = Math.abs(a[0] - b[0]) <= tol
+                && Math.abs(b[0] - c[0]) <= tol;
+        if (sharedX) {
+            double dy1 = b[1] - a[1];
+            double dy2 = c[1] - b[1];
+            if (Math.abs(dy1) > minDelta && Math.abs(dy2) > minDelta
+                    && Math.signum(dy1) != Math.signum(dy2)) {
+                return true;
+            }
+        }
+        // Shared-Y variant: symmetric.
+        boolean sharedY = Math.abs(a[1] - b[1]) <= tol
+                && Math.abs(b[1] - c[1]) <= tol;
+        if (sharedY) {
+            double dx1 = b[0] - a[0];
+            double dx2 = c[0] - b[0];
+            if (Math.abs(dx1) > minDelta && Math.abs(dx2) > minDelta
+                    && Math.signum(dx1) != Math.signum(dx2)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String formatPoint(double[] p) {
+        return "(" + Math.round(p[0]) + "," + Math.round(p[1]) + ")";
+    }
+
+    // ---- Assessor.Redesign M4: Connection-vs-Element-Edge Coincidence ----
+
+    /** Result of M4 edge-coincidence detection. */
+    record EdgeCoincidenceResult(int count, List<String> descriptions, Set<String> violatorIds) {}
+
+    /**
+     * Counts connection segments that "hug" an element's edge within
+     * {@link #EDGE_COINCIDENCE_TOLERANCE_PX}px (M4). For each segment, classified as
+     * horizontal or vertical (within 1px tolerance):
+     * <ul>
+     *   <li>Horizontal at {@code y_seg}: any element (including the connection's own
+     *       source/target) with TOP or BOTTOM edge within {@link #EDGE_COINCIDENCE_TOLERANCE_PX}
+     *       AND segment x-range overlapping element x-range by at least
+     *       {@link #EDGE_COINCIDENCE_MIN_OVERLAP_PX}.</li>
+     *   <li>Vertical: symmetric (any element with LEFT/RIGHT edges).</li>
+     * </ul>
+     * Includes the connection's own source/target faces — perpendicular terminal segments
+     * are silent by construction (orientation mismatch in classification at lines above), so
+     * any flag against source/target is a real parallel-coincident defect. Distinct from
+     * {@code coincidentSegmentCount} (R6) which is connection-vs-connection.
+     *
+     * <p>Spec live example: connection {@code id-74e3ee1e02a84721a3db682cb1b6fb24} (API Mgmt →
+     * Internet Banking) horizontal segment at y=150 vs Internet Banking BOTTOM at y=148 (gap
+     * 2px). Internet Banking IS the connection's target — under the post-removal rule
+     * (story M4.RemoveSelfExclusion 2026-04-27), this is in scope. Tier 2R severity (cap fair).</p>
+     */
+    EdgeCoincidenceResult countConnectionEdgeCoincidence(
+            List<AssessmentConnection> connections, List<AssessmentNode> layoutNodes,
+            boolean collectViolatorIds) {
+        int count = 0;
+        List<String> descriptions = new ArrayList<>();
+        Set<String> violatorIds = collectViolatorIds ? new HashSet<>() : Set.of();
+        for (AssessmentConnection conn : connections) {
+            List<double[]> path = conn.pathPoints();
+            if (path.size() < 2) continue;
+            boolean flagged = false;
+            for (int i = 0; i < path.size() - 1; i++) {
+                double[] s = path.get(i);
+                double[] e = path.get(i + 1);
+                boolean horizontal = Math.abs(s[1] - e[1]) <= ZIGZAG_AXIS_TOLERANCE_PX
+                        && Math.abs(s[0] - e[0]) > ZIGZAG_AXIS_TOLERANCE_PX;
+                boolean vertical = Math.abs(s[0] - e[0]) <= ZIGZAG_AXIS_TOLERANCE_PX
+                        && Math.abs(s[1] - e[1]) > ZIGZAG_AXIS_TOLERANCE_PX;
+                if (!horizontal && !vertical) continue;
+                for (AssessmentNode elem : layoutNodes) {
+                    if (horizontal && segmentHugsHorizontalEdge(s, e, elem)) {
+                        count++;
+                        if (descriptions.size() < MAX_DESCRIPTIONS) {
+                            descriptions.add("Connection '" + conn.id() + "' segment "
+                                    + formatPoint(s) + "→" + formatPoint(e)
+                                    + " hugs element '" + elem.id() + "' edge");
+                        }
+                        if (collectViolatorIds) {
+                            violatorIds.add(conn.id());
+                        }
+                        flagged = true;
+                        break;
+                    }
+                    if (vertical && segmentHugsVerticalEdge(s, e, elem)) {
+                        count++;
+                        if (descriptions.size() < MAX_DESCRIPTIONS) {
+                            descriptions.add("Connection '" + conn.id() + "' segment "
+                                    + formatPoint(s) + "→" + formatPoint(e)
+                                    + " hugs element '" + elem.id() + "' edge");
+                        }
+                        if (collectViolatorIds) {
+                            violatorIds.add(conn.id());
+                        }
+                        flagged = true;
+                        break;
+                    }
+                }
+                if (flagged) break;
+            }
+        }
+        return new EdgeCoincidenceResult(count, descriptions, violatorIds);
+    }
+
+    private static boolean segmentHugsHorizontalEdge(double[] s, double[] e, AssessmentNode elem) {
+        double y = (s[1] + e[1]) / 2.0;
+        double topEdge = elem.y();
+        double bottomEdge = elem.y() + elem.height();
+        boolean nearEdge = Math.abs(y - topEdge) <= EDGE_COINCIDENCE_TOLERANCE_PX
+                || Math.abs(y - bottomEdge) <= EDGE_COINCIDENCE_TOLERANCE_PX;
+        if (!nearEdge) return false;
+        double segLeft = Math.min(s[0], e[0]);
+        double segRight = Math.max(s[0], e[0]);
+        double overlap = Math.min(segRight, elem.x() + elem.width()) - Math.max(segLeft, elem.x());
+        return overlap >= EDGE_COINCIDENCE_MIN_OVERLAP_PX;
+    }
+
+    private static boolean segmentHugsVerticalEdge(double[] s, double[] e, AssessmentNode elem) {
+        double x = (s[0] + e[0]) / 2.0;
+        double leftEdge = elem.x();
+        double rightEdge = elem.x() + elem.width();
+        boolean nearEdge = Math.abs(x - leftEdge) <= EDGE_COINCIDENCE_TOLERANCE_PX
+                || Math.abs(x - rightEdge) <= EDGE_COINCIDENCE_TOLERANCE_PX;
+        if (!nearEdge) return false;
+        double segTop = Math.min(s[1], e[1]);
+        double segBottom = Math.max(s[1], e[1]);
+        double overlap = Math.min(segBottom, elem.y() + elem.height()) - Math.max(segTop, elem.y());
+        return overlap >= EDGE_COINCIDENCE_MIN_OVERLAP_PX;
+    }
+
+    // ---- Assessor.Redesign M5: Hub-Port Allocation Quality ----
+
+    /** Result of M5 hub-port quality computation. */
+    record HubPortQualityResult(double viewAggregate,
+                                List<LayoutAssessmentResult.HubFaceDetail> perFaceDetails,
+                                Set<String> lowQualityElementIds) {}
+
+    private enum Face {LEFT, RIGHT, TOP, BOTTOM}
+
+    /**
+     * Computes per-element-face hub-port allocation quality (M5). For each element, groups its
+     * incoming + outgoing connection terminal endpoints by face (LEFT/RIGHT/TOP/BOTTOM). Any
+     * face with at least {@link #M5_FACE_GUARD_MIN_CONNECTIONS} connections is a "hub face"; its
+     * quality is {@code distinctSlots / connectionsOnFace} (slot = Y for LEFT/RIGHT, X for
+     * TOP/BOTTOM, equality within {@link #HUB_PORT_SLOT_TOLERANCE_PX}px).
+     *
+     * <p>View aggregate is the mean of per-hub-face qualities. When no hub face exists, returns
+     * 1.0 (no defect signal). Per-face details are populated only when {@code includeViolatorIds}
+     * is true; otherwise the list is empty (avoids unnecessary allocation in the common path).</p>
+     *
+     * <p>Spec live example: API Mgmt BOTTOM face on Oracle view — 4 connections all at slot
+     * X=792 → 1 distinct slot / 4 connections = quality 0.25. Tier 2R severity (threshold 0.5).</p>
+     */
+    HubPortQualityResult computeHubPortQuality(
+            List<AssessmentConnection> connections, List<AssessmentNode> layoutNodes,
+            boolean includeViolatorIds) {
+        Map<String, AssessmentNode> nodeById = new HashMap<>();
+        for (AssessmentNode n : layoutNodes) {
+            nodeById.put(n.id(), n);
+        }
+        // Per-element-face: list of along-face slot coordinates.
+        Map<String, Map<Face, List<Double>>> facesByElement = new HashMap<>();
+        for (AssessmentConnection conn : connections) {
+            List<double[]> path = conn.pathPoints();
+            if (path.size() < 2) continue;
+            recordTerminal(facesByElement, nodeById.get(conn.sourceNodeId()),
+                    path.get(path.size() == 2 ? 0 : 1));
+            recordTerminal(facesByElement, nodeById.get(conn.targetNodeId()),
+                    path.get(path.size() == 2 ? path.size() - 1 : path.size() - 2));
+        }
+        List<Double> hubFaceQualities = new ArrayList<>();
+        List<LayoutAssessmentResult.HubFaceDetail> details = new ArrayList<>();
+        Set<String> lowQualityIds = new HashSet<>();
+        for (Map.Entry<String, Map<Face, List<Double>>> e : facesByElement.entrySet()) {
+            String elemId = e.getKey();
+            for (Map.Entry<Face, List<Double>> faceEntry : e.getValue().entrySet()) {
+                List<Double> slots = faceEntry.getValue();
+                if (slots.size() < M5_FACE_GUARD_MIN_CONNECTIONS) continue;
+                int distinct = countDistinctSlots(slots);
+                double quality = (double) distinct / slots.size();
+                hubFaceQualities.add(quality);
+                if (includeViolatorIds) {
+                    details.add(new LayoutAssessmentResult.HubFaceDetail(
+                            elemId, faceEntry.getKey().name(), slots.size(), distinct, quality));
+                }
+                if (quality < HUB_PORT_QUALITY_FAIR_THRESHOLD) {
+                    lowQualityIds.add(elemId);
+                }
+            }
+        }
+        double aggregate = hubFaceQualities.isEmpty() ? 1.0
+                : hubFaceQualities.stream().mapToDouble(Double::doubleValue).average().orElse(1.0);
+        return new HubPortQualityResult(aggregate,
+                includeViolatorIds ? details : List.of(),
+                lowQualityIds);
+    }
+
+    /** Face + along-face slot coordinate for a terminal contribution to hub-port quality (M5). */
+    private record TerminalSlot(Face face, double slot) {}
+
+    private static void recordTerminal(Map<String, Map<Face, List<Double>>> facesByElement,
+                                       AssessmentNode elem, double[] terminalBp) {
+        if (elem == null || terminalBp == null) return;
+        TerminalSlot ts = inferTerminalSlot(terminalBp, elem);
+        if (ts == null) return;
+        Map<Face, List<Double>> faces = facesByElement.computeIfAbsent(elem.id(), k -> new HashMap<>());
+        List<Double> slots = faces.computeIfAbsent(ts.face(), k -> new ArrayList<>());
+        slots.add(ts.slot());
+    }
+
+    /**
+     * Determines the face + along-face slot for a terminal bendpoint (M5).
+     *
+     * <p>Three cases (Assessor.Redesign code-review H3+M2 fix, 2026-04-27):
+     * <ul>
+     *   <li>BP on the element's perimeter line → use the BP coordinate directly as the slot.</li>
+     *   <li>BP strictly inside the element → return null (interior termination is an M2 defect;
+     *       the visible face is ambiguous so it should not contribute to face counts).</li>
+     *   <li>BP outside the element → compute the clip-point of the segment from element-center
+     *       to BP with the element's rect; the face that segment exits identifies the visible
+     *       face, and the clip-point's along-face coordinate is the slot. Without this, M5
+     *       would silently skip non-orthogonal terminals (M1-flagged), under-reporting hub
+     *       congestion on real models.</li>
+     * </ul>
+     * Returns null when the slot cannot be determined.</p>
+     */
+    static TerminalSlot inferTerminalSlot(double[] bp, AssessmentNode elem) {
+        Face face = inferFace(bp, elem);
+        if (face != null) {
+            double slot = (face == Face.LEFT || face == Face.RIGHT) ? bp[1] : bp[0];
+            return new TerminalSlot(face, slot);
+        }
+        if (isStrictlyInside(bp, elem)) {
+            return null; // Interior — face ambiguous; caller treats as non-contributor.
+        }
+        return clipSegmentToFace(elem, bp);
+    }
+
+    /**
+     * Determines which face a terminal bendpoint sits on, given the element rect. Returns
+     * null when the bendpoint is not on or within the element's perimeter band.
+     */
+    private static Face inferFace(double[] bp, AssessmentNode elem) {
+        double tol = PERIMETER_TOLERANCE_PX;
+        double left = elem.x();
+        double right = elem.x() + elem.width();
+        double top = elem.y();
+        double bottom = elem.y() + elem.height();
+        boolean onLeft = Math.abs(bp[0] - left) <= tol;
+        boolean onRight = Math.abs(bp[0] - right) <= tol;
+        boolean onTop = Math.abs(bp[1] - top) <= tol;
+        boolean onBottom = Math.abs(bp[1] - bottom) <= tol;
+        boolean withinHorizontal = bp[0] >= left - tol && bp[0] <= right + tol;
+        boolean withinVertical = bp[1] >= top - tol && bp[1] <= bottom + tol;
+        if (onLeft && withinVertical) return Face.LEFT;
+        if (onRight && withinVertical) return Face.RIGHT;
+        if (onTop && withinHorizontal) return Face.TOP;
+        if (onBottom && withinHorizontal) return Face.BOTTOM;
+        return null;
+    }
+
+    /**
+     * Computes the clip-point of the segment from the element's center to the (exterior) bendpoint,
+     * matching Archi's perimeter clipping behaviour. Returns the visible-face slot the segment
+     * exits through, or null if no valid intersection (degenerate case — center coincides with BP).
+     */
+    private static TerminalSlot clipSegmentToFace(AssessmentNode elem, double[] bp) {
+        double cx = elem.x() + elem.width() / 2.0;
+        double cy = elem.y() + elem.height() / 2.0;
+        double dx = bp[0] - cx;
+        double dy = bp[1] - cy;
+        if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return null;
+        double left = elem.x();
+        double right = elem.x() + elem.width();
+        double top = elem.y();
+        double bottom = elem.y() + elem.height();
+        Face bestFace = null;
+        double bestT = Double.POSITIVE_INFINITY;
+        double bestSlot = 0.0;
+        if (dx < -1e-9) {
+            double t = (left - cx) / dx;
+            double y = cy + t * dy;
+            if (t > 0 && t < bestT && y >= top - PERIMETER_TOLERANCE_PX
+                    && y <= bottom + PERIMETER_TOLERANCE_PX) {
+                bestT = t; bestFace = Face.LEFT; bestSlot = y;
+            }
+        }
+        if (dx > 1e-9) {
+            double t = (right - cx) / dx;
+            double y = cy + t * dy;
+            if (t > 0 && t < bestT && y >= top - PERIMETER_TOLERANCE_PX
+                    && y <= bottom + PERIMETER_TOLERANCE_PX) {
+                bestT = t; bestFace = Face.RIGHT; bestSlot = y;
+            }
+        }
+        if (dy < -1e-9) {
+            double t = (top - cy) / dy;
+            double x = cx + t * dx;
+            if (t > 0 && t < bestT && x >= left - PERIMETER_TOLERANCE_PX
+                    && x <= right + PERIMETER_TOLERANCE_PX) {
+                bestT = t; bestFace = Face.TOP; bestSlot = x;
+            }
+        }
+        if (dy > 1e-9) {
+            double t = (bottom - cy) / dy;
+            double x = cx + t * dx;
+            if (t > 0 && t < bestT && x >= left - PERIMETER_TOLERANCE_PX
+                    && x <= right + PERIMETER_TOLERANCE_PX) {
+                bestT = t; bestFace = Face.BOTTOM; bestSlot = x;
+            }
+        }
+        return bestFace == null ? null : new TerminalSlot(bestFace, bestSlot);
+    }
+
+    private static int countDistinctSlots(List<Double> slots) {
+        List<Double> sorted = new ArrayList<>(slots);
+        sorted.sort(Double::compare);
+        int distinct = 0;
+        Double last = null;
+        for (Double s : sorted) {
+            if (last == null || Math.abs(s - last) > HUB_PORT_SLOT_TOLERANCE_PX) {
+                distinct++;
+                last = s;
+            }
+        }
+        return distinct;
+    }
+
+    // ---- Assessor.Redesign R8: Corridor-Utilisation (Story WCU.RegressionTest, 2026-05-03) ----
+
+    /** R8: minimum parallel-segment length (px) to count as a corridor-traversal segment. */
+    static final double R8_MIN_PARALLEL_SEGMENT_LENGTH_PX = 30.0;
+
+    /** R8: clearance band (px) per side; mirrors {@code ChannelNudgingPass.MIN_CLEARANCE_PX}. */
+    static final double R8_MIN_CLEARANCE_PX = 10.0;
+
+    /** R8: axis-parallel tolerance (px); Archi int-snaps bendpoints so 1.0 is sufficient. */
+    static final double R8_AXIS_PARALLEL_TOLERANCE_PX = 1.0;
+
+    /** Result of R8 corridor-utilisation computation. */
+    record R8CorridorUtilisationResult(double viewAggregate,
+                                        List<LayoutAssessmentResult.CorridorUtilisationDetail> perChannelDetails) {}
+
+    /** Internal: one long parallel segment extracted from one connection's pathPoints. */
+    private record R8Segment(int axis, double sharedCoord, double parStart, double parEnd,
+                              String connectionId) {}
+
+    /** Internal: a wall pair bracketing one R8 segment in the perpendicular axis. */
+    private record R8WallPair(String lowId, String highId, double lowEdge, double highEdge) {}
+
+    /**
+     * Computes R8 corridor-utilisation score. Per-corridor
+     * {@code spread_ratio = span / available} where occupants are long parallel segments
+     * sharing the same wall pair; view aggregate is occupant-count-weighted mean. Returns
+     * {@code 1.0} vacuously when no multi-occupant channel exists (mirrors
+     * {@link #computeHubPortQuality}). Single-occupant channels and channels without
+     * obstacle-bounded walls are skipped.
+     */
+    R8CorridorUtilisationResult computeR8CorridorUtilisation(
+            List<AssessmentConnection> connections, List<AssessmentNode> layoutNodes,
+            boolean includeViolatorIds) {
+        // 1. Extract long parallel segments per connection (deterministic insertion order).
+        List<R8Segment> segments = new ArrayList<>();
+        for (AssessmentConnection conn : connections) {
+            extractLongParallelSegments(conn, segments);
+        }
+
+        // 2. Group segments by corridor identity (wall pair). LinkedHashMap preserves
+        // first-encounter order so per-channel detail emission and aggregate computation
+        // are deterministic across runs (per Story #5 spike § 5.8 lesson L1: pinned-test
+        // calibration requires deterministic algorithm output).
+        Map<String, List<R8Segment>> occupantsByCorridor = new LinkedHashMap<>();
+        Map<String, R8WallPair> wallsByCorridor = new HashMap<>();
+        for (R8Segment seg : segments) {
+            R8WallPair walls = findChannelWalls(seg, layoutNodes);
+            if (walls == null) continue;
+            String key = seg.axis() + "|" + walls.lowId() + "|" + walls.highId();
+            occupantsByCorridor.computeIfAbsent(key, k -> new ArrayList<>()).add(seg);
+            wallsByCorridor.putIfAbsent(key, walls);
+        }
+
+        // 3. Per-corridor spread_ratio + occupant-count-weighted view aggregate.
+        List<LayoutAssessmentResult.CorridorUtilisationDetail> details = new ArrayList<>();
+        double weightedSum = 0.0;
+        int totalOccupants = 0;
+        for (Map.Entry<String, List<R8Segment>> e : occupantsByCorridor.entrySet()) {
+            List<R8Segment> occupants = e.getValue();
+            if (occupants.size() < 2) continue;
+            R8WallPair walls = wallsByCorridor.get(e.getKey());
+            double available = walls.highEdge() - walls.lowEdge() - 2 * R8_MIN_CLEARANCE_PX;
+            if (available <= 0) continue; // Degenerate corridor — walls within clearance band.
+
+            double minCoord = Double.POSITIVE_INFINITY;
+            double maxCoord = Double.NEGATIVE_INFINITY;
+            for (R8Segment occ : occupants) {
+                minCoord = Math.min(minCoord, occ.sharedCoord());
+                maxCoord = Math.max(maxCoord, occ.sharedCoord());
+            }
+            double span = maxCoord - minCoord;
+            // Clamp to [0.0, 1.0]: occupants spread wider than the post-clearance band
+            // (span > available) indicates wall-hugging — already an M4 edge-coincidence
+            // signal; R8 caps at 1.0 to keep the metric within its documented range.
+            double spreadRatio = Math.min(span / available, 1.0);
+
+            weightedSum += spreadRatio * occupants.size();
+            totalOccupants += occupants.size();
+
+            if (includeViolatorIds) {
+                double occupantMidCoord = (minCoord + maxCoord) / 2.0;
+                details.add(new LayoutAssessmentResult.CorridorUtilisationDetail(
+                        occupants.get(0).axis(), occupantMidCoord,
+                        walls.lowId(), walls.highId(),
+                        occupants.size(), span, available, spreadRatio));
+            }
+        }
+        double aggregate = totalOccupants > 0 ? weightedSum / totalOccupants : 1.0;
+        return new R8CorridorUtilisationResult(aggregate, details);
+    }
+
+    /** axis = 0 for vertical (occupants share x), 1 for horizontal. */
+    private void extractLongParallelSegments(AssessmentConnection conn, List<R8Segment> into) {
+        List<double[]> path = conn.pathPoints();
+        if (path == null || path.size() < 2) return;
+        for (int i = 0; i < path.size() - 1; i++) {
+            double[] p = path.get(i);
+            double[] q = path.get(i + 1);
+            double dx = Math.abs(q[0] - p[0]);
+            double dy = Math.abs(q[1] - p[1]);
+            if (dx < R8_AXIS_PARALLEL_TOLERANCE_PX && dy >= R8_MIN_PARALLEL_SEGMENT_LENGTH_PX) {
+                into.add(new R8Segment(0, (p[0] + q[0]) / 2.0,
+                        Math.min(p[1], q[1]), Math.max(p[1], q[1]), conn.id()));
+            } else if (dy < R8_AXIS_PARALLEL_TOLERANCE_PX
+                    && dx >= R8_MIN_PARALLEL_SEGMENT_LENGTH_PX) {
+                into.add(new R8Segment(1, (p[1] + q[1]) / 2.0,
+                        Math.min(p[0], q[0]), Math.max(p[0], q[0]), conn.id()));
+            }
+        }
+    }
+
+    /** Two-pass: prefer group walls (corridors are gaps between groups); fall back to any rect. */
+    private R8WallPair findChannelWalls(R8Segment seg, List<AssessmentNode> layoutNodes) {
+        R8WallPair groupWalls = scanWalls(seg, layoutNodes, true);
+        if (groupWalls != null) return groupWalls;
+        return scanWalls(seg, layoutNodes, false);
+    }
+
+    /** Returns null when either wall is missing (segment perimeter-bound on one side). */
+    private R8WallPair scanWalls(R8Segment seg, List<AssessmentNode> layoutNodes,
+                                  boolean groupsOnly) {
+        String lowId = null, highId = null;
+        double lowEdge = Double.NEGATIVE_INFINITY, highEdge = Double.POSITIVE_INFINITY;
+        for (AssessmentNode n : layoutNodes) {
+            if (n.isNote()) continue;
+            if (groupsOnly && !n.isGroup()) continue;
+            double left = n.x(), right = n.x() + n.width();
+            double top = n.y(), bottom = n.y() + n.height();
+            if (seg.axis() == 0) {
+                // Vertical channel — walls are LEFT/RIGHT in x; perpendicular range is y.
+                double overlap = Math.min(seg.parEnd(), bottom) - Math.max(seg.parStart(), top);
+                if (overlap < 1.0) continue;
+                if (right < seg.sharedCoord() && right > lowEdge) {
+                    lowEdge = right;
+                    lowId = n.id();
+                }
+                if (left > seg.sharedCoord() && left < highEdge) {
+                    highEdge = left;
+                    highId = n.id();
+                }
+            } else {
+                // Horizontal channel — walls are TOP/BOTTOM in y; perpendicular range is x.
+                double overlap = Math.min(seg.parEnd(), right) - Math.max(seg.parStart(), left);
+                if (overlap < 1.0) continue;
+                if (bottom < seg.sharedCoord() && bottom > lowEdge) {
+                    lowEdge = bottom;
+                    lowId = n.id();
+                }
+                if (top > seg.sharedCoord() && top < highEdge) {
+                    highEdge = top;
+                    highId = n.id();
+                }
+            }
+        }
+        if (lowId != null && highId != null) {
+            return new R8WallPair(lowId, highId, lowEdge, highEdge);
+        }
+        return null;
+    }
+
+    // ---- Assessor.Redesign Successor D: parallelConnectionGap ----
+    // (Story backlog-assessor-add-parallelconnectiongap-metric, 2026-05-12.)
+
+    /**
+     * Per-axis aggregate of nearest-parallel-overlapping-neighbour gaps for the
+     * parallelConnectionGap metric. {@code mean / min / p10} are boxed because they
+     * are {@code null} when {@code qualifyingSegmentCount == 0} (no segment had any
+     * overlapping parallel neighbour in this axis). {@code violatorIds} is populated
+     * only when {@code includeViolatorIds = true}; empty {@code Set.of()} otherwise.
+     * A connection's id is added to {@code violatorIds} when at least one of its
+     * segments produced a qualifying gap less than {@link #PARALLEL_GAP_NARROW_T2_PX}.
+     */
+    record ParallelConnectionGapAxis(int qualifyingSegmentCount, Double mean, Double min, Double p10,
+                                      int narrowGapCount15, int narrowGapCount25, int narrowGapCount40,
+                                      Set<String> violatorIds) {}
+
+    /** Combined V (axis 0) + H (axis 1) result for {@link #computeParallelConnectionGap}. */
+    record ParallelConnectionGapResult(ParallelConnectionGapAxis vAxis, ParallelConnectionGapAxis hAxis) {}
+
+    /** Internal: one axis-aligned segment extracted from a connection's pathPoints. */
+    private record ParallelGapSegment(int axis, double fixedCoord, double spanLow, double spanHigh,
+                                       String connectionId) {}
+
+    /**
+     * Computes the parallelConnectionGap metric family (Successor D, 2026-05-12).
+     *
+     * <p>For each axis (V primary, H secondary): classify each bendpoint-pair segment
+     * as V (Δx &lt; {@link #PARALLEL_GAP_AXIS_TOLERANCE_PX}, Δy ≥ tolerance) or H
+     * (Δy &lt; tolerance, Δx ≥ tolerance), drop zero-length and diagonal pairs.
+     * For each segment, find the nearest co-axial parallel segment whose span overlaps
+     * (strict overlap &gt; 0); the gap is the perpendicular distance between fixed
+     * coordinates (or 0 when the two fixed coordinates are identical and spans overlap).
+     * Aggregate the per-segment gap list: arithmetic mean, min, 10th-percentile (linear
+     * interpolation per Python {@code numpy.percentile}-equivalent), and narrow-gap
+     * counts at thresholds 15/25/40 px.</p>
+     *
+     * <p>Calibration anchor: V4 manual gold view {@code id-3b2665e3ff6840708dbed2b3d1415613}
+     * produced {@code V_p10 = 13.30} under {@link #PARALLEL_GAP_AXIS_TOLERANCE_PX} = 2.0;
+     * monotonic owner-perception ordering on 4 reference views (V4 gold &gt; HH source
+     * &gt; ST source = PartyTest H2) validates the metric as perception-aligned (see
+     * {@code feedback_metric_calibration_methodology.md}).</p>
+     *
+     * <p><b>INFORMATIONAL ONLY</b> — this metric does NOT contribute to
+     * {@code computeRatingWithBreakdown} or {@code generateSuggestions} in this story
+     * (matches {@code corridorUtilisationScore} (R8) precedent). The narrow-corridor
+     * defect class (5th unmeasured class in {@code feedback_visual_severity.md} v2) is
+     * a structural-floor problem in the routing pipeline; rating-tying would mark all
+     * views below the floor as poor regardless of agent improvements. Rating-tying is
+     * deferred until Successor C (routing-pipeline narrow-corridor floor closure) ships.</p>
+     *
+     * @see #computeR8CorridorUtilisation closest sibling metric
+     */
+    ParallelConnectionGapResult computeParallelConnectionGap(
+            List<AssessmentConnection> connections, boolean includeViolatorIds) {
+        List<ParallelGapSegment> vSegs = new ArrayList<>();
+        List<ParallelGapSegment> hSegs = new ArrayList<>();
+        for (AssessmentConnection conn : connections) {
+            extractParallelGapSegments(conn, vSegs, hSegs);
+        }
+        ParallelConnectionGapAxis vAxis = computeAxisAggregates(vSegs, includeViolatorIds);
+        ParallelConnectionGapAxis hAxis = computeAxisAggregates(hSegs, includeViolatorIds);
+        return new ParallelConnectionGapResult(vAxis, hAxis);
+    }
+
+    /**
+     * Translates the Python reference {@code extract_segments} (compute_parallel_gap.py
+     * lines 75-102): classify each consecutive bendpoint pair as V or H per the axis
+     * tolerance and append to the appropriate per-axis list. Diagonal and zero-length
+     * pairs are dropped.
+     */
+    private void extractParallelGapSegments(AssessmentConnection conn,
+                                             List<ParallelGapSegment> vSegs,
+                                             List<ParallelGapSegment> hSegs) {
+        List<double[]> path = conn.pathPoints();
+        if (path == null || path.size() < 2) return;
+        double tol = PARALLEL_GAP_AXIS_TOLERANCE_PX;
+        for (int i = 0; i < path.size() - 1; i++) {
+            double[] p = path.get(i);
+            double[] q = path.get(i + 1);
+            double dx = Math.abs(q[0] - p[0]);
+            double dy = Math.abs(q[1] - p[1]);
+            if (dx < tol && dy < tol) continue;
+            if (dy < tol && dx >= tol) {
+                double fixedY = (p[1] + q[1]) / 2.0;
+                hSegs.add(new ParallelGapSegment(1, fixedY,
+                        Math.min(p[0], q[0]), Math.max(p[0], q[0]), conn.id()));
+            } else if (dx < tol && dy >= tol) {
+                double fixedX = (p[0] + q[0]) / 2.0;
+                vSegs.add(new ParallelGapSegment(0, fixedX,
+                        Math.min(p[1], q[1]), Math.max(p[1], q[1]), conn.id()));
+            }
+        }
+    }
+
+    /**
+     * Translates Python {@code nearest_parallel_gaps} (lines 105-134) +
+     * {@code percentile} (lines 137-149). For each segment, scan all other co-axial
+     * segments; if their spans overlap strictly, gap = |Δfixed| (or 0 when fixed
+     * coordinates coincide). Take the minimum across overlapping neighbours; segments
+     * with no overlapping neighbour are non-qualifying and contribute nothing.
+     */
+    private ParallelConnectionGapAxis computeAxisAggregates(List<ParallelGapSegment> segs,
+                                                              boolean includeViolatorIds) {
+        Set<String> violatorIds = includeViolatorIds ? new HashSet<>() : Set.of();
+        if (segs.isEmpty()) {
+            return new ParallelConnectionGapAxis(0, null, null, null, 0, 0, 0, violatorIds);
+        }
+        List<Double> gaps = new ArrayList<>();
+        // Parallel list: gaps.get(k) was produced by gapOwners.get(k); used for violator-id
+        // attribution (avoids re-deriving owner ids from minimum-gap during aggregation).
+        List<String> gapOwners = new ArrayList<>();
+        int n = segs.size();
+        for (int i = 0; i < n; i++) {
+            ParallelGapSegment s = segs.get(i);
+            Double bestGap = null;
+            for (int j = 0; j < n; j++) {
+                if (j == i) continue;
+                ParallelGapSegment s2 = segs.get(j);
+                double overlap = Math.min(s.spanHigh(), s2.spanHigh())
+                        - Math.max(s.spanLow(), s2.spanLow());
+                if (overlap <= 0.0) continue;
+                double gap = (s.fixedCoord() == s2.fixedCoord())
+                        ? 0.0
+                        : Math.abs(s.fixedCoord() - s2.fixedCoord());
+                if (bestGap == null || gap < bestGap) bestGap = gap;
+            }
+            if (bestGap == null) continue;
+            gaps.add(bestGap);
+            gapOwners.add(s.connectionId());
+        }
+        int m = gaps.size();
+        if (m == 0) {
+            return new ParallelConnectionGapAxis(0, null, null, null, 0, 0, 0, violatorIds);
+        }
+        double sum = 0.0;
+        double minV = Double.POSITIVE_INFINITY;
+        int n15 = 0, n25 = 0, n40 = 0;
+        for (int k = 0; k < m; k++) {
+            double g = gaps.get(k);
+            sum += g;
+            if (g < minV) minV = g;
+            if (g < PARALLEL_GAP_NARROW_T1_PX) n15++;
+            if (g < PARALLEL_GAP_NARROW_T2_PX) {
+                n25++;
+                if (includeViolatorIds) {
+                    violatorIds.add(gapOwners.get(k));
+                }
+            }
+            if (g < PARALLEL_GAP_NARROW_T3_PX) n40++;
+        }
+        double mean = sum / m;
+        double p10 = percentileP10(gaps);
+        return new ParallelConnectionGapAxis(m, mean, minV, p10, n15, n25, n40, violatorIds);
+    }
+
+    /**
+     * Linear-interpolation 10th-percentile matching Python {@code numpy.percentile}
+     * default ({@code linear}). For a single element returns that element. For n &ge; 2:
+     * {@code k = (n-1) × 0.10}; {@code f = floor(k)}; {@code c = min(f+1, n-1)};
+     * {@code result = xs[f] + (xs[c] − xs[f]) × (k − f)}.
+     */
+    private static double percentileP10(List<Double> values) {
+        List<Double> xs = new ArrayList<>(values);
+        Collections.sort(xs);
+        int n = xs.size();
+        if (n == 1) return xs.get(0);
+        double k = (n - 1) * 0.10;
+        int f = (int) Math.floor(k);
+        int c = Math.min(f + 1, n - 1);
+        return xs.get(f) + (xs.get(c) - xs.get(f)) * (k - f);
     }
 
     // ---- Boundary Violation Detection ----
@@ -820,6 +2193,23 @@ class LayoutQualityAssessor {
         int totalCount() { return descriptions.size(); }
     }
 
+    /**
+     * Detects cross-element and self-element pass-throughs for all connections.
+     *
+     * <p><strong>Note:</strong> Cross-element violator IDs are always collected
+     * unconditionally — {@code collectViolatorIds} is kept only for API compatibility
+     * and is ignored inside this method. Unconditional collection is required so the
+     * classification-precedence guard in {@link #countZigzags(List, Set, boolean)}
+     * works in rating-only paths ({@code includeViolatorIds == false}).</p>
+     *
+     * @param connections        connections to inspect
+     * @param nodes              all layout nodes (used to build ancestor/descendant exclusion sets)
+     * @param collectViolatorIds ignored — kept for API stability; cross-element violator IDs
+     *                           are always populated regardless of this flag
+     * @return pass-through result; {@link PassThroughResult#crossElementCount()} used for
+     *         rating; {@link PassThroughResult#violatorIds()} fed to
+     *         {@link #countZigzags(List, Set, boolean)} as the precedence-guard skip-set
+     */
     PassThroughResult detectPassThroughs(List<AssessmentConnection> connections,
                                      List<AssessmentNode> nodes,
                                      boolean collectViolatorIds) {
@@ -831,7 +2221,10 @@ class LayoutQualityAssessor {
 
         List<String> descriptions = new ArrayList<>();
         int crossElementCount = 0;
-        Set<String> violatorIds = collectViolatorIds ? new HashSet<>() : Set.of();
+        // Cross-element violator IDs are collected unconditionally so the classification
+        // precedence guard in countZigzags() works regardless of collectViolatorIds (which
+        // gates only the outer assess() enrichment block).
+        Set<String> violatorIds = new HashSet<>();
 
         for (AssessmentConnection conn : connections) {
             boolean descriptionsCapped = descriptions.size() >= MAX_DESCRIPTIONS;
@@ -865,22 +2258,25 @@ class LayoutQualityAssessor {
                                 + "' passes through element '" + node.id() + "'");
                     }
                     crossElementCount++;
-                    if (collectViolatorIds) {
-                        violatorIds.add(conn.id());
-                    }
+                    violatorIds.add(conn.id());
                     break; // Only report each connection once per element
                 }
             }
 
-            // Story 13-4 Feature B: Self-element pass-through detection.
-            // Check if any non-terminal segment of the clipped path passes through
-            // the connection's own source or target element. Terminal segments naturally
-            // touch the endpoints, but intermediate segments should not cross them.
-            // B54: Self-element PTs are tracked in descriptions but NOT counted as cross-element.
+            // Self-element pass-through detection: track in descriptions but NOT count
+            // as cross-element. Two complementary checks:
+            //   nonTerminalPassesThroughNode — clipped path, intermediate segments only
+            //     (terminal segments naturally touch the endpoints by design).
+            //   terminalSegmentOverPenetrates — unclipped path, terminal point only
+            //     (stored final/first bendpoints past element center are pathological
+            //      and missed by nonTerminalPassesThroughNode, which excludes the
+            //      terminal segment from its loop window).
             if (!descriptionsCapped && clippedPath.size() >= 3) {
                 AssessmentNode tgtNode = nodeMap.get(conn.targetNodeId());
                 if (tgtNode != null && !tgtNode.isGroup()) {
-                    if (nonTerminalPassesThroughNode(clippedPath, tgtNode, true)) {
+                    boolean tgtNonTermHit = nonTerminalPassesThroughNode(clippedPath, tgtNode, true);
+                    boolean tgtOverPenetrate = terminalSegmentOverPenetrates(conn.pathPoints(), tgtNode, true);
+                    if (tgtNonTermHit || tgtOverPenetrate) {
                         descriptions.add("Connection '" + conn.id()
                                 + "' routes through its own target element '" + tgtNode.id() + "'");
                     }
@@ -889,7 +2285,9 @@ class LayoutQualityAssessor {
                 AssessmentNode srcNode = nodeMap.get(conn.sourceNodeId());
                 if (srcNode != null && !srcNode.isGroup()
                         && descriptions.size() < MAX_DESCRIPTIONS) {
-                    if (nonTerminalPassesThroughNode(clippedPath, srcNode, false)) {
+                    boolean srcNonTermHit = nonTerminalPassesThroughNode(clippedPath, srcNode, false);
+                    boolean srcOverPenetrate = terminalSegmentOverPenetrates(conn.pathPoints(), srcNode, false);
+                    if (srcNonTermHit || srcOverPenetrate) {
                         descriptions.add("Connection '" + conn.id()
                                 + "' routes through its own source element '" + srcNode.id() + "'");
                     }
@@ -932,6 +2330,72 @@ class LayoutQualityAssessor {
             }
         }
         return false;
+    }
+
+    /**
+     * Returns true if the connection's stored (pre-clip) path penetrates its own
+     * source or target element body STRICTLY past the element's center along the
+     * dominant entry axis. This catches terminal-segment over-penetration that
+     * {@link #nonTerminalPassesThroughNode} misses because that method excludes
+     * the terminal segment from its loop window (a natural-approach optimisation
+     * that incorrectly suppresses detection when the stored terminal point sits
+     * deep inside the element body).
+     *
+     * <p>For target-side checks ({@code isTarget=true}), the predicate fires when
+     * the stored final point is inside the target body and lies STRICTLY past target
+     * center along the segment's dominant entry axis. For source-side checks
+     * ({@code isTarget=false}), it fires when the stored first point is inside the
+     * source body and lies STRICTLY past source center along the segment's
+     * dominant exit axis.
+     *
+     * <p>Strictness ({@code >} / {@code <}, not {@code >=} / {@code <=}) is required
+     * because the universal Archi connection-anchor convention places the stored
+     * first/last bendpoint AT the element center ({@link #clipPathToVisualEdges}
+     * later transforms these to element edges for visual rendering). A non-strict
+     * comparison would over-trigger on every center-anchored 3+ point path. The
+     * detected pattern is therefore "terminal point past center" — i.e. the stored
+     * bendpoint sits in the element's far half relative to the entry/exit direction,
+     * which is pathological (no natural routing produces a stored bendpoint past
+     * element center on the wrong side of the connection's natural anchor).
+     *
+     * @param unclippedPath stored path points (pre-clip — clipPathToVisualEdges NOT applied)
+     * @param node          the source or target element to check
+     * @param isTarget      true if checking target element (final point), false if source (first point)
+     * @return true if the terminal point over-penetrates the element body past center
+     */
+    boolean terminalSegmentOverPenetrates(List<double[]> unclippedPath, AssessmentNode node,
+                                          boolean isTarget) {
+        if (unclippedPath.size() < 2) return false;
+        double[] terminalPoint = isTarget
+                ? unclippedPath.get(unclippedPath.size() - 1)
+                : unclippedPath.get(0);
+        double[] otherPoint = isTarget
+                ? unclippedPath.get(unclippedPath.size() - 2)
+                : unclippedPath.get(1);
+        double tx = terminalPoint[0];
+        double ty = terminalPoint[1];
+        double minX = node.x();
+        double maxX = node.x() + node.width();
+        double minY = node.y();
+        double maxY = node.y() + node.height();
+        // Terminal must be inside element body (boundary inclusive)
+        if (tx < minX || tx > maxX || ty < minY || ty > maxY) return false;
+        double centerX = node.x() + node.width() / 2.0;
+        double centerY = node.y() + node.height() / 2.0;
+        double dx = Math.abs(tx - otherPoint[0]);
+        double dy = Math.abs(ty - otherPoint[1]);
+        // Over-penetration: terminal lies STRICTLY past element center along
+        // the dominant entry axis. Strict inequalities preserve the
+        // center-anchor convention (terminal AT center → not detected).
+        if (dx >= dy) {
+            // Horizontal-dominant. If approaching from west of terminal
+            // (otherPoint.x < tx), over-penetration iff tx > centerX.
+            // If approaching from east (otherPoint.x > tx), iff tx < centerX.
+            return otherPoint[0] < tx ? tx > centerX : tx < centerX;
+        } else {
+            // Vertical-dominant.
+            return otherPoint[1] < ty ? ty > centerY : ty < centerY;
+        }
     }
 
     private boolean pathPassesThroughNode(List<double[]> path, AssessmentNode node) {
@@ -1656,7 +3120,12 @@ class LayoutQualityAssessor {
                                               int coincidentSegmentCount,
                                               int nonOrthogonalTerminalCount,
                                               int shortSegmentCount,
-                                              int containmentOverlapCount) {
+                                              int containmentOverlapCount,
+                                              int zeroBendpointNonOrthCount,
+                                              int interiorTerminationCount,
+                                              int zigzagCount,
+                                              int connectionEdgeCoincidenceCount,
+                                              double hubPortQualityScore) {
         List<String> suggestions = new ArrayList<>();
 
         // Finding #7: performance warning for large views
@@ -1686,8 +3155,9 @@ class LayoutQualityAssessor {
             }
             if (avgSpacing < SPACING_SUGGESTION_THRESHOLD && overlaps == 0) {
                 suggestions.add("Average spacing is only " + Math.round(avgSpacing)
-                        + "px — use layout-within-group with increased spacing"
-                        + " for more breathing room, then re-run auto-route-connections");
+                        + "px — use adjust-view-spacing to increase gaps and improve"
+                        + " routing quality, or manually increase spacing with"
+                        + " layout-within-group then re-run auto-route-connections");
             }
         } else {
             // Flat or containment view: suggest layout-flat-view / auto-route / auto-layout-and-route
@@ -1748,18 +3218,39 @@ class LayoutQualityAssessor {
                     + " — increase element spacing");
         }
 
-        // B38: non-orthogonal terminal suggestion
+        // B38/B60/B61: non-orthogonal terminal suggestion with ELK-aware text
         if (nonOrthogonalTerminalCount > 0) {
-            suggestions.add(nonOrthogonalTerminalCount + " connections have diagonal terminal segments"
-                    + " — re-run auto-route-connections to improve orthogonality");
+            String elkSuffix = " — these are straight-line connections typical of ELK layout;"
+                    + " a full re-route would likely increase crossings."
+                    + " Run auto-route-connections with mode='terminals-only' to rectify"
+                    + " terminal segments without touching the routed body";
+            if (zeroBendpointNonOrthCount == nonOrthogonalTerminalCount) {
+                // All non-orth connections are zero-bendpoint (ELK straight-line signature)
+                suggestions.add(nonOrthogonalTerminalCount + " connections have diagonal terminal segments"
+                        + elkSuffix);
+            } else if (zeroBendpointNonOrthCount > 0) {
+                // Mixed: some zero-BP (ELK), some routed
+                int routedCount = nonOrthogonalTerminalCount - zeroBendpointNonOrthCount;
+                suggestions.add(zeroBendpointNonOrthCount + " connections have diagonal terminal segments"
+                        + elkSuffix);
+                suggestions.add(routedCount + " connections have diagonal terminal segments"
+                        + " — re-run auto-route-connections (or use mode='terminals-only'"
+                        + " to preserve the routed body) to improve orthogonality");
+            } else {
+                // No zero-BP: all are routed connections
+                suggestions.add(nonOrthogonalTerminalCount + " connections have diagonal terminal segments"
+                        + " — re-run auto-route-connections (or use mode='terminals-only'"
+                        + " to preserve the routed body) to improve orthogonality");
+            }
         }
 
-        // Story 11-23: coincident segment suggestion
+        // Story 11-23 / B68: coincident segment suggestion
         if (coincidentSegmentCount > 0) {
             if (hasGroups) {
                 suggestions.add(coincidentSegmentCount + " overlapping connection segments detected"
-                        + " — increase spacing within groups using layout-within-group"
-                        + " and re-run auto-route-connections to separate coincident paths");
+                        + " — use adjust-view-spacing to increase element spacing and re-route"
+                        + " in a single call, or manually increase spacing with"
+                        + " layout-within-group then re-run auto-route-connections");
             } else {
                 suggestions.add(coincidentSegmentCount + " overlapping connection segments detected"
                         + " — increase element spacing or use auto-layout-and-route"
@@ -1775,10 +3266,75 @@ class LayoutQualityAssessor {
                     + " overlaps from elements inside groups, not layout problems). No action needed.");
         }
 
+        // Assessor.Redesign M2: interior terminations.
+        if (interiorTerminationCount > 0) {
+            suggestions.add(interiorTerminationCount
+                    + " connections terminate inside element bounds — check ChopboxAnchor"
+                    + " face selection and re-run auto-route-connections");
+        }
+
+        // Assessor.Redesign M3: zigzag/reversal patterns.
+        if (zigzagCount > 0) {
+            suggestions.add(zigzagCount
+                    + " connections have zigzag/reversal patterns — re-run"
+                    + " auto-route-connections; PathStraightener.eliminateReversals or"
+                    + " removeCollinearPoints may need investigation");
+        }
+
+        // Assessor.Redesign M4: connection-vs-element-edge coincidence.
+        if (connectionEdgeCoincidenceCount > 0) {
+            suggestions.add(connectionEdgeCoincidenceCount
+                    + " connection segments hug element edges within "
+                    + (int) EDGE_COINCIDENCE_TOLERANCE_PX
+                    + "px — consider channel offset or increased element spacing");
+        }
+
+        // Assessor.Redesign M5: hub-port allocation quality.
+        if (hubPortQualityScore < HUB_PORT_QUALITY_FAIR_THRESHOLD) {
+            suggestions.add("Hub-port allocation quality is "
+                    + String.format("%.2f", hubPortQualityScore)
+                    + " (below " + HUB_PORT_QUALITY_FAIR_THRESHOLD
+                    + ") — terminal allocator failing to distribute connections across face slots;"
+                    + " inspect violatorIds.hubPortLowQuality for affected elements");
+        }
+
         if (suggestions.isEmpty()) {
             suggestions.add("Layout quality is good — no immediate improvements needed.");
         }
 
         return suggestions;
+    }
+
+    /**
+     * B76-diag: builds element/group context from {@code layoutNodes} and
+     * invokes {@link CoincidentSegmentDiagnostic#emit} to log a per-pair
+     * categorization. Called only when {@code -Darchi.mcp.diag.coincident=true}.
+     */
+    private void emitCoincidentDiagnostic(List<AssessmentConnection> connections,
+                                          List<AssessmentNode> layoutNodes) {
+        // Lookup: node id → rect.
+        Map<String, CoincidentSegmentDiagnostic.ElementRect> rectById = new HashMap<>();
+        List<CoincidentSegmentDiagnostic.GroupRect> topLevelGroups = new ArrayList<>();
+        for (AssessmentNode n : layoutNodes) {
+            rectById.put(n.id(), new CoincidentSegmentDiagnostic.ElementRect(
+                    n.id(), n.x(), n.y(), n.width(), n.height()));
+            if (n.isGroup() && n.parentId() == null) {
+                topLevelGroups.add(new CoincidentSegmentDiagnostic.GroupRect(
+                        n.id(), n.x(), n.y(), n.width(), n.height()));
+            }
+        }
+
+        Map<Integer, String> connIds = new HashMap<>();
+        Map<Integer, CoincidentSegmentDiagnostic.ElementRect> sources = new HashMap<>();
+        Map<Integer, CoincidentSegmentDiagnostic.ElementRect> targets = new HashMap<>();
+        for (int i = 0; i < connections.size(); i++) {
+            AssessmentConnection c = connections.get(i);
+            connIds.put(i, c.id());
+            sources.put(i, rectById.get(c.sourceNodeId()));
+            targets.put(i, rectById.get(c.targetNodeId()));
+        }
+
+        CoincidentSegmentDiagnostic.emit(coincidentDetector, connections,
+                connIds, sources, targets, topLevelGroups);
     }
 }

@@ -1,6 +1,7 @@
 package net.vheerden.archi.mcp.model;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -196,6 +197,218 @@ class GroupLayoutCalculator {
         int newWidth = maxRight + padding;
         int newHeight = maxBottom + padding;
         return new int[]{newWidth, newHeight};
+    }
+
+    // ---- Spacing detection methods (B68) ----
+
+    /** Height reserved for group label text in the top area of a group. */
+    static final int GROUP_LABEL_HEIGHT = 24;
+
+    /** Default spacing returned when detection is not possible (e.g., single element). */
+    static final int DEFAULT_DETECTED_SPACING = 40;
+
+    /** Default padding returned when detection is not possible. */
+    static final int DEFAULT_DETECTED_PADDING = 10;
+
+    /**
+     * Detects the inter-element spacing from existing child positions within a group.
+     * Uses the arrangement type to determine which axis to measure gaps on.
+     *
+     * @param positions   list of [x, y, w, h] per element (relative to group origin)
+     * @param arrangement "row", "column", or "grid"
+     * @return detected spacing in pixels (minimum gap between adjacent elements),
+     *         or {@link #DEFAULT_DETECTED_SPACING} if detection is not possible
+     */
+    static int detectSpacingFromPositions(List<int[]> positions, String arrangement) {
+        if (positions.size() < 2) {
+            return DEFAULT_DETECTED_SPACING;
+        }
+        if ("row".equals(arrangement)) {
+            return detectMinGapOnAxis(positions, true);
+        } else if ("column".equals(arrangement)) {
+            return detectMinGapOnAxis(positions, false);
+        } else {
+            // Grid: compute min gap on both axes, return the smaller
+            int hGap = detectMinGapOnAxis(positions, true);
+            int vGap = detectMinGapOnAxis(positions, false);
+            return Math.min(hGap, vGap);
+        }
+    }
+
+    /**
+     * Detects the minimum gap between consecutive elements along one axis.
+     *
+     * @param positions  list of [x, y, w, h] per element
+     * @param horizontal true for x-axis (row), false for y-axis (column)
+     * @return minimum gap in pixels, or DEFAULT_DETECTED_SPACING if < 2 elements
+     */
+    private static int detectMinGapOnAxis(List<int[]> positions, boolean horizontal) {
+        int posIdx = horizontal ? 0 : 1;   // x or y
+        int sizeIdx = horizontal ? 2 : 3;  // w or h
+
+        List<int[]> sorted = new ArrayList<>(positions);
+        sorted.sort(Comparator.comparingInt(a -> a[posIdx]));
+
+        int minGap = Integer.MAX_VALUE;
+        for (int i = 0; i < sorted.size() - 1; i++) {
+            int rightEdge = sorted.get(i)[posIdx] + sorted.get(i)[sizeIdx];
+            int nextLeftEdge = sorted.get(i + 1)[posIdx];
+            int gap = nextLeftEdge - rightEdge;
+            if (gap >= 0) {
+                minGap = Math.min(minGap, gap);
+            }
+        }
+        return minGap == Integer.MAX_VALUE ? DEFAULT_DETECTED_SPACING : Math.max(0, minGap);
+    }
+
+    /**
+     * Detects the padding between a group's boundary and its child elements.
+     * Accounts for {@link #GROUP_LABEL_HEIGHT} on the top edge.
+     *
+     * @param positions   list of [x, y, w, h] per element (relative to group origin)
+     * @param groupWidth  the group's width
+     * @param groupHeight the group's height
+     * @return detected padding in pixels (minimum of left and adjusted-top padding),
+     *         or {@link #DEFAULT_DETECTED_PADDING} if detection is not possible
+     */
+    static int detectPaddingFromPositions(List<int[]> positions, int groupWidth, int groupHeight) {
+        if (positions.isEmpty()) {
+            return DEFAULT_DETECTED_PADDING;
+        }
+        int minX = Integer.MAX_VALUE;
+        int minY = Integer.MAX_VALUE;
+        int maxRight = 0;
+        int maxBottom = 0;
+        for (int[] pos : positions) {
+            minX = Math.min(minX, pos[0]);
+            minY = Math.min(minY, pos[1]);
+            maxRight = Math.max(maxRight, pos[0] + pos[2]);
+            maxBottom = Math.max(maxBottom, pos[1] + pos[3]);
+        }
+        int leftPadding = minX;
+        int topPadding = minY - GROUP_LABEL_HEIGHT;
+        int rightPadding = groupWidth - maxRight;
+        int bottomPadding = groupHeight - maxBottom;
+        // Return the minimum positive padding found
+        int padding = Integer.MAX_VALUE;
+        if (leftPadding >= 0) padding = Math.min(padding, leftPadding);
+        if (topPadding >= 0) padding = Math.min(padding, topPadding);
+        if (rightPadding >= 0) padding = Math.min(padding, rightPadding);
+        if (bottomPadding >= 0) padding = Math.min(padding, bottomPadding);
+        return padding == Integer.MAX_VALUE ? DEFAULT_DETECTED_PADDING : padding;
+    }
+
+    /**
+     * Detects the inter-group spacing from existing top-level group rectangles
+     * — the MIN gap between adjacent groups along the dominant axis (most-tight
+     * pair wins, aligns with visual-severity hierarchy where edge-coincident
+     * routing forms in the tightest inter-group corridor).
+     *
+     * <p>Dominant axis selection mirrors {@link #computeInterGroupShifts}:
+     * compare horizontal spread vs vertical spread; the axis with greater
+     * spread is dominant. Groups are sorted along the dominant axis, then
+     * the gap between each adjacent pair (right-edge to left-edge for
+     * horizontal; bottom-edge to top-edge for vertical) is measured. Returns
+     * the minimum across adjacent pairs.</p>
+     *
+     * <p>This is the inter-group counterpart to
+     * {@link #detectSpacingFromPositions(List, String)} — same single-source-
+     * of-truth pattern. Both the {@code apply-group-spacing-recommendations}
+     * convenience tool AND any future caller that needs current inter-group
+     * spacing as a reading should call this utility, not measure independently.</p>
+     *
+     * @param groupRects list of [x, y, w, h] per top-level group; expected to
+     *                   be the bounds of each top-level diagram-model group
+     *                   (in the view's coordinate system — absolute positions)
+     * @return MIN gap between adjacent groups in pixels along the dominant
+     *         axis; returns {@link #DEFAULT_DETECTED_SPACING} when fewer than
+     *         2 groups (degenerate input — no inter-group concept exists)
+     *         OR when all adjacent pairs along the dominant axis have
+     *         negative gaps (full overlap on the dominant axis — sibling-
+     *         symmetric with {@link #detectSpacingFromPositions(List, String)},
+     *         which uses the same {@code detectMinGapOnAxis} primitive that
+     *         skips negative gaps and falls through to DEFAULT). Top-level
+     *         group overlap is rare in practice — Archi's UI does not
+     *         auto-produce overlapping top-level groups, and the convenience
+     *         tool's heuristic relies on valid layouts; the
+     *         {@code DEFAULT_DETECTED_SPACING} reading on the degenerate path
+     *         is benign because the tool's delta math (clamped to ≥ 0) still
+     *         produces a positive delta against any tier target ≥ 40.
+     */
+    static int detectInterGroupSpacing(List<int[]> groupRects) {
+        if (groupRects.size() < 2) {
+            return DEFAULT_DETECTED_SPACING;
+        }
+
+        // Detect dominant axis (mirrors computeInterGroupShifts)
+        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+        int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
+        for (int[] gp : groupRects) {
+            minX = Math.min(minX, gp[0]);
+            maxX = Math.max(maxX, gp[0] + gp[2]);
+            minY = Math.min(minY, gp[1]);
+            maxY = Math.max(maxY, gp[1] + gp[3]);
+        }
+        boolean horizontal = (maxX - minX) >= (maxY - minY);
+
+        // Reuse detectMinGapOnAxis — same MIN-gap-along-axis logic as
+        // intra-group element spacing. The semantics line up: gap means
+        // right-edge-to-left-edge (horizontal) or bottom-edge-to-top-edge
+        // (vertical), measured between adjacent pairs sorted along the
+        // chosen axis, with negative gaps clamped to 0 (overlapping groups).
+        return detectMinGapOnAxis(groupRects, horizontal);
+    }
+
+    /**
+     * Computes new group positions after adding an inter-group spacing delta.
+     * Detects the dominant axis (horizontal or vertical spread) and shifts
+     * each group beyond the first by {@code i * interGroupDelta} on that axis.
+     *
+     * <p>Groups are sorted by position on the dominant axis. The first group
+     * stays in place; subsequent groups accumulate the delta.
+     *
+     * @param groupPositions  list of [x, y, w, h] per group
+     * @param interGroupDelta pixels to add between each pair of adjacent groups
+     * @return list of [x, y, w, h] with updated positions (dimensions preserved)
+     */
+    static List<int[]> computeInterGroupShifts(List<int[]> groupPositions, int interGroupDelta) {
+        if (groupPositions.size() < 2 || interGroupDelta == 0) {
+            // Return copies with unchanged positions
+            List<int[]> result = new ArrayList<>();
+            for (int[] gp : groupPositions) {
+                result.add(new int[]{gp[0], gp[1], gp[2], gp[3]});
+            }
+            return result;
+        }
+
+        // Detect dominant axis: compare spread in x vs y
+        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+        int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
+        for (int[] gp : groupPositions) {
+            minX = Math.min(minX, gp[0]);
+            maxX = Math.max(maxX, gp[0] + gp[2]);
+            minY = Math.min(minY, gp[1]);
+            maxY = Math.max(maxY, gp[1] + gp[3]);
+        }
+        boolean horizontal = (maxX - minX) >= (maxY - minY);
+        int posIdx = horizontal ? 0 : 1;
+
+        // Build index array sorted by dominant axis
+        Integer[] indices = new Integer[groupPositions.size()];
+        for (int i = 0; i < indices.length; i++) indices[i] = i;
+        java.util.Arrays.sort(indices, Comparator.comparingInt(i -> groupPositions.get(i)[posIdx]));
+
+        // Compute shifts: group at index[0] stays, each subsequent shifts by i * delta
+        List<int[]> result = new ArrayList<>();
+        for (int[] gp : groupPositions) {
+            result.add(new int[]{gp[0], gp[1], gp[2], gp[3]});
+        }
+        for (int rank = 0; rank < indices.length; rank++) {
+            int origIdx = indices[rank];
+            int shift = rank * interGroupDelta;
+            result.get(origIdx)[posIdx] += shift;
+        }
+        return result;
     }
 
     /**

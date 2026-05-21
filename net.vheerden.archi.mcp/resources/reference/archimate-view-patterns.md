@@ -2,7 +2,7 @@
 
 ## Recommended LLM Model Size
 
-This MCP server exposes 65 tools for ArchiMate model manipulation. Model size impacts reliability:
+This MCP server exposes 69 tools for ArchiMate model manipulation. Model size impacts reliability:
 
 - **8B+ parameters (minimum):** Handles basic queries (get-element, search-elements, get-views). May struggle with multi-step workflows or complex tool sequences.
 - **14B+ parameters (recommended):** Reliable tool calling, multi-tool workflows, view composition, and layout operations. Handles complex sequences like create-view → add elements → layout → assess → refine.
@@ -40,6 +40,33 @@ Pass the `viewpoint` param value to `create-view` to set the formal ArchiMate vi
 | Capability map | `grid` | `compact` | Regular grid. Use groups to represent capability domains. |
 | Specialization hierarchy | `tree` | `hierarchical` | Abstract parent at top, concrete specializations below. Use `SpecializationRelationship` for the IS-A edges. Pair with the inline `specialization` param on `create-element` to also tag elements with the catalog vocabulary. |
 
+## ArchiMate Modelling & Aesthetic Best Practices
+
+These are the established ArchiMate diagramming conventions an LLM agent should apply **when setting up a view, before routing**. They come from the two most widely-cited practitioner sources — the *ArchiMate Cookbook* (Hosiaisluoma) and *Mastering ArchiMate* (Wierda); see "Sources" below. Each rule here is one an agent can act on with this server's tools. Following them improves perceived aesthetics far more than re-running the router, because most aesthetic problems are decided by element placement, sizing, and grouping — not by route geometry.
+
+### Apply these before routing
+
+1. **Layer top-to-bottom (strongest rule).** Stack layers vertically in the conventional ArchiMate order: customers/actors at the very top, then Business, then Application, then Technology at the bottom. Strategy/Motivation sit above Business when present. Use one group per layer and arrange them in a column: `arrange-groups` with `arrangement: "column"` (or `"topology"`), or `auto-layout-and-route` with a top-down direction. This single convention does more for readability than any other.
+2. **Put the primary flow on the top band.** For process / customer-journey / service-design views, place the journey or process flow on the topmost band and the supporting applications on the bottom band, with performers on either side of the process. This keeps the "outside-in" reading order an architect expects.
+3. **Draw hubs and swimlanes large, and nest their members.** A role/actor/component that owns many children is a swimlane: size it large and nest its members inside it (`add-to-view` / `add-group-to-view` with `parentViewObjectId`). The Cookbook is explicit that this "saves space and minimizes crossing lines." This is the same instinct as the hub-sizing precondition — large containers give the router more perimeter and remove visible connectors.
+4. **Nest a part inside its parent — do NOT draw the structural relationship.** When an element is part of another (`CompositionRelationship` / `AggregationRelationship`), or an actor/role/collaboration owns or performs it (`AssignmentRelationship` from a team/role/collaboration to the element), show that by **visual containment** — `add-to-view` / `add-group-to-view` with `parentViewObjectId` — and **exclude that relationship type from the `auto-connect-view` filter**. Drawing a Composition, Aggregation, or Assignment connector between a parent and its own nested part is an **error**: containment already states it, and the duplicate connector clutters the view. Caveat (Wierda): nesting is *ambiguous in general* — a bare box-in-box does not reveal which structural relationship it implies — so for a cross-structure relationship whose *type* the reader must see, keep the explicit connector. The parent→part case is **not** ambiguous: nest it, never draw it (see "Adding Connections").
+5. **Use whitespace to express structure.** Negative space communicates grouping and layering without extra connectors. This is exactly what the inter-element vs inter-group spacing precondition operationalizes — wider inter-group corridors read as "different layer/domain"; tighter intra-group spacing reads as "belongs together." Let the spacing heuristics (Pre-Layout Planning §2) set these.
+6. **Cluster with the Grouping element and route one connector to the group.** When several elements share a relationship to an external element, group them and connect the group once instead of drawing N parallel connectors. Fewer connectors is the single biggest lever on crossing count.
+7. **Use the conventional layer colors; avoid custom element colors.** ArchiMate's de-facto palette is yellow for Business, light blue/turquoise for Application, light green for Technology. These colors carry built-in meaning; custom per-element colors dilute it. Reserve color for a deliberate signal (e.g. red for an at-risk flow), applied sparingly.
+8. **Select only the viewpoint's element subset.** Each diagram type prescribes which elements belong on it (the Cookbook's "80% rule"). Placing fewer, viewpoint-relevant elements lowers density *before* routing — the most reliable way to avoid the narrow-corridor floor. Use the `relationshipTypes` / `elementIds` filters on `auto-connect-view` and split overloaded views.
+9. **Align to a grid and to each other.** Grid and mutual alignment make a diagram read as deliberate. The layout tools (`layout-within-group`, `arrange-groups`, ELK) already grid-align — prefer them over hand-placed coordinates.
+10. **Minimize line crossings.** Both sources name this as an explicit objective. It is the routing engine's job, but the agent enables it by doing 1–8 first; `optimize-group-order` then reduces residual inter-group crossings.
+
+### Modelling semantics — good practice, but not a layout/routing concern
+
+These matter for a correct model but are **not** something this server's layout or routing tools act on; do not expect the router to enforce them: correct relationship-type choice (Composition vs Aggregation vs Assignment; Flow vs Trigger vs Access) and derivation rules; naming conventions (plural for collections, `<<stereotype>>` for abstractions); which viewpoint to model for a given stakeholder concern; line-width/line-color used to encode integration volume or mechanism; repository coherence and governance. Apply these when *creating* model content, not when laying a view out.
+
+### Sources
+
+- *ArchiMate® Cookbook — Patterns & Examples*, Eero Hosiaisluoma. Free PDF: <http://www.hosiaisluoma.fi/ArchiMate-Cookbook.pdf>. Companion blog: <https://www.hosiaisluoma.fi/blog/archimate/>. The source of the top-down layering, swimlane-nesting, Grouping-element, and layer-color conventions above.
+- *Mastering ArchiMate* (Edition 3.x), Gerben Wierda. Book site: <https://ea.rna.nl/the-book/>. The source of the minimize-crossings, grid-alignment, whitespace-for-structure, and nesting-ambiguity guidance above (paraphrased — the book is paid).
+- See `docs/bibliography.md` references [17] and [18] for the full citations and scope note.
+
 ## Layout Algorithm Reference
 
 | Algorithm | Style | Best For |
@@ -75,7 +102,7 @@ For clean orthogonal routing, use `auto-route-connections` after placing element
 3. Run `assess-layout` to check for pass-throughs and violations
 4. If pass-throughs persist: increase element spacing (re-run `layout-within-group` with larger `elementSpacing`, e.g., 60-80px, or `layout-flat-view` with larger `spacing`) and/or reposition groups with `apply-positions`
 5. Re-run `auto-route-connections` and `assess-layout`
-6. Repeat until pass-throughs are eliminated. Note: edge crossings (connections crossing each other, not through elements) are often structurally unavoidable in dense many-to-many views — the severity-tiered rating caps their impact at "fair" so they do not mask structural quality.
+6. Repeat until pass-throughs are eliminated. Note: edge crossings (connections crossing each other, not through elements) are often structurally unavoidable in dense many-to-many views — the severity-tiered rating caps their impact at "fair" (Tier 2) so they do not mask structural quality. Non-orthogonal terminals (diagonal source/target entries on connections) sit in Tier 3 (cosmetic, caps at "good") and, below ~20°, are typically invisible to the human eye — **do not iterate on them once the view is otherwise clean**. Density-aware thresholds mean wider element spacing is the fix, not re-routing.
 
 **Key insight:** `auto-route-connections` works correctly with groups. When routing quality is poor, the issue is element/group positioning (tight spacing, overlapping bounding boxes), not the presence of groups. Give the router space to work — dense layouts produce poor routes.
 
@@ -83,8 +110,10 @@ For clean orthogonal routing, use `auto-route-connections` after placing element
 
 | Approach | Use When |
 |----------|----------|
-| `auto-route-connections` | **PRIMARY** — any connected view (flat or grouped) needing clean orthogonal paths |
-| `auto-layout-and-route` (ELK) | You want the algorithm to control element positions in one step. Best for flat views. **For grouped views:** ELK positions elements well but inter-group connection routing may produce diagonal/non-orthogonal paths — follow up with `auto-route-connections` to fix routing. |
+| `auto-route-connections` (default `mode: "full"`) | **PRIMARY** — any connected view (flat or grouped) needing clean orthogonal paths. Re-routes whole connections via visibility-graph A*. |
+| `auto-route-connections` with `mode: "terminals-only"` | **After ELK on grouped views** when `assess-layout` reports `nonOrthogonalTerminals` but routing is otherwise good. Preserves all intermediate bendpoints and element positions; only rectifies the first and/or last bendpoint of each connection to make terminal segments orthogonal. Avoids the ~3× crossing inflation a full re-route causes on ELK-laid-out views. Each rectification is gated by an obstacle + crossing veto — connections whose L-bend would add a pass-through, element crossing, or new edge crossing are left unchanged and counted in `connectionsSkipped`. Mutually exclusive with `strategy: "clear"` and `autoNudge: true`. |
+| `auto-layout-and-route` (ELK) | You want the algorithm to control element positions in one step. Best for flat views. **For grouped views:** ELK positions elements well but inter-group connection routing may produce diagonal terminal entries — follow up with `auto-route-connections` `mode: "terminals-only"` to rectify terminals without crossing inflation. |
+| `adjust-view-spacing` | An existing view is correctly laid out but visually cramped. Inflates inter-element and inter-group spacing on the view, then re-routes in a single atomic operation. Use this instead of re-running ELK from scratch when the manual placement intent should be preserved. |
 | Manhattan (`connectionRouterType: "manhattan"`) | **CAUTION** — only for ≤5 connections on simple structure views with no inter-group routing. Produces pass-throughs on dense views. |
 
 ## Adding Connections
@@ -103,7 +132,7 @@ Use `add-connection-to-view` as a **fallback** for individual connections — e.
 
 **Anti-pattern:** Do NOT use `bulk-mutate` with repeated `add-connection-to-view` operations when `auto-connect-view` can do it in one call.
 
-**Composition relationships and visual nesting:** When elements are visually nested inside parent elements or groups (e.g., availability zones inside a cloud region), the visual containment already communicates the composition. Do NOT create visual connections for `CompositionRelationship` on such views — use the `relationshipTypes` filter on `auto-connect-view` to exclude them (e.g., `relationshipTypes: ["ServingRelationship", "FlowRelationship", "AssignmentRelationship"]`). Showing composition arrows on top of visual nesting is redundant and clutters the diagram.
+**Nesting implies the structural relationship — exclude it from the filter:** When an element is visually nested inside its parent element or group (e.g., a part-component inside its component, a process inside its performing role's swimlane, availability zones inside a cloud region), the containment **already states** the `CompositionRelationship` / `AggregationRelationship` / owner-`AssignmentRelationship`. Do NOT also draw a connector for it: pass an `auto-connect-view` `relationshipTypes` filter that lists only the relationships that carry information beyond containment (e.g. `relationshipTypes: ["ServingRelationship", "FlowRelationship"]`), and leave Composition/Aggregation/owner-Assignment out of that list. Drawing the structural arrow on top of the nesting is an error — it duplicates the containment and clutters the diagram.
 
 **Deployment/topology views:** For views where visual nesting (groups within groups) conveys the deployment structure, consider whether connections add value. If the view's purpose is to show deployment topology (regions, zones, tiers), the nested group structure may be sufficient without any connections. Only add connections if they convey information beyond what containment shows (e.g., replication flows, network traffic).
 
@@ -160,7 +189,7 @@ Child coordinates are **relative** to their parent's top-left corner. When you r
 
 **This means you only need to position top-level containers.** Children inside groups do not need individual repositioning when moving the group. This dramatically reduces coordinate computations.
 
-Elements contained inside groups or other elements should have a **composition relationship** to the parent. This is standard ArchiMate modelling practice and reinforces the visual containment in the model.
+An element nested inside another element (not a Grouping) may have a `CompositionRelationship` to its parent **in the model** — that is standard ArchiMate modelling practice. This is a *model*-level statement only: do **not** draw that relationship as a connector on the view (the nesting already conveys it — see best-practice rule 4 and "Adding Connections"). Grouping elements are visual containers and need no model relationship to their members.
 
 ## Pre-Layout Planning Checklist
 
@@ -169,17 +198,27 @@ Before calling any layout or routing tools, complete this analysis. Skipping the
 ### 1. Hub Identification
 
 1. Count connections per element from the model (use `get-relationships` or `detect-hub-elements` after adding elements to the view)
-2. Elements with 5+ connections are **hubs** — they need 2-3x the default spacing
+2. **Hub thresholds:**
+   - `≥ 5 connections` — hub candidate (`LayoutQualityAssessor.HUB_DETECTION_THRESHOLD`, public canonical; needs 2-3× default spacing)
+   - `> 6 connections` — `detect-hub-elements` emits an explicit sizing suggestion (`HUB_DETECTION_THRESHOLD + 1`; the formula's growth term `15 × (count − 6)` is non-positive at exactly 5, so suggestions only emit one above the candidacy threshold)
+   - `> 12 connections` — `detect-hub-elements` also surfaces a 2D-resize suggestion alongside the 1D suggestion (`width += 15 × ⌈excess/2⌉`, `height += 15 × ⌊excess/2⌋`) so the calling agent can distribute ports across all four edges instead of just two
+   - The assessor's internal `M5_FACE_GUARD_MIN_CONNECTIONS = 4` is a separate per-face guard for the M5 hub-port-quality metric, not a hub-detection threshold
 3. Place hubs near the geometric center of the view or their group
-4. Resize hubs before routing: `height = baseDimension + 15px × (connectionCount - 6)` for elements with >6 connections
+4. Resize hubs before routing: `height = baseDimension + 15px × (connectionCount - 6)` for elements with > 6 connections; for elements with > 12 connections, prefer the 2D suggestion from `detect-hub-elements` so connections spread across all four faces. **Use `update-view-object` for the resize — `resize-elements-to-fit` is label-driven only and is the wrong tool for connection-fan-out.**
 
 ### 2. Spacing Heuristics
 
 | Total connections on view | Element spacing | Group spacing (connected) | Group spacing (unconnected) |
 |--------------------------|----------------|--------------------------|----------------------------|
-| ≤15 | 60px | 80px | 40px |
-| 16–30 | 80px | 100px | 40px |
-| 30+ | 100px | 120px | 60px |
+| ≤15 | 60px (80px if large hubs) | 80px (100px if large hubs) | 40px |
+| 16–30 | 80px (100px if large hubs) | 100px (140px if large hubs) | 40px |
+| > 30 | 100px (120px if large hubs) | 120px (160px if large hubs) | 60px |
+
+> **Large hubs** = any element on the view with **> 6 connections** (the canonical hub-candidate threshold per § 1 above). The hub-aware tier values account for the corridor space that formula-resized hubs consume — without them, the heuristic UNDERSHOOTS post-hub-resize and coincSeg residuals persist. The convenience tools (`apply-element-spacing-recommendations` and `apply-group-spacing-recommendations`) automatically detect large hubs and apply the hub-aware tier; if you call `adjust-view-spacing` directly with explicit `interElementDelta` or `interGroupDelta`, you must factor in hub size manually. The unconnected column (40/40/60) is hub-agnostic — there are no inter-group corridors to widen.
+
+> **Stop signal — let the control loop decide.** The convenience tools self-terminate honestly: they stop and report `terminationReason: density_floor_reflow_required` when the view is provably too dense for spacing to fix, and revert any degrading step. You do **not** need to manually count spacing-tool invocations. Prefer one `apply-spacing-recommendations(scope=both)` call (two coordinated control loops, per-iteration step caps of +80px element / +100px inter-group) over manually iterating single-shot `adjust-view-spacing` — driving the single-shot primitive in a loop bypasses the loop's self-termination protection and the sound infeasibility certificate. When a convenience tool returns `density_floor_reflow_required`, do not loop: surface its `densityFloorDiagnosis` and reflow offer to the user and wait for consent (see `archimate://prompts/routing-preconditions-checklist`, "When a spacing tool says the view needs a structural reflow").
+
+> **Footnote — control-loop semantics inside the convenience tools.** The three convenience tools (`apply-element-spacing-recommendations`, `apply-group-spacing-recommendations`, `apply-spacing-recommendations`) embed an **observe → decide → density-aware-terminate control loop**. Per iteration they take a small `+10 px`-per-step monotone increment (a larger step when escalating), re-run `assess-layout`, and classify on a 2×2 of *aggregate-trend* × *spacing-regime-position*: still climbing → **CONTINUE**; stalled and below the prescribed ~100–124 px / fan-out-sized-hub regime → **ESCALATE** (large steps toward the ~112 px mid-band plus a one-shot hub-resize); stalled and already in-regime → **PASS-HONEST** (more spacing cannot help — stop and report). A degrading step is always reverted; all accepted iterations wrap in one compound command (one call = one undo entry). The +80px element / +100px inter-group constants are **per-iteration step caps**, not per-call total clamps. `iterationBudget` defaults to 5 (single-arm) / 8 (composed), range [1, 20]; `dryRun: true` previews without mutating. `terminationReason` names exactly one of **eight branches** (seven in-loop + one pre-loop dryRun guard): (a) `goal_reached_at_iteration_N`; (b) `budget_exhausted_after_N_iterations`; (c) `aggregate_threshold_regressed_at_iteration_N_reverted_to_iteration_M`; (d) `structural_no_change_<reason>`; (e) `heuristic_already_met_no_change`; (f) `dry_run_recommendation_not_applied`; (g) `iteration_apply_failed_at_iteration_N_reverted_after_M_accepted_iterations` (a contained mutation threw mid-application; best-effort rollback applied, prior accepted iterations preserved); (h) `density_floor_reflow_required` — **PASS-HONEST**: a sound pre-routing infeasibility certificate fired (average spacing already in the 100–124 px band and the hub sized for its connection count, but aggregate quality stalled). The tool stops without degrading the view, returns a `densityFloorDiagnosis` string, and **offers** a structural reflow as an explicit user-consentable next step — it never auto-reflows. On `density_floor_reflow_required`, surface the diagnosis and reflow offer to the user and wait for consent; do not loop the spacing tools.
 
 ### 3. Group Composition
 
@@ -194,6 +233,16 @@ Before calling any layout or routing tools, complete this analysis. Skipping the
 2. Fewer connections = better routing quality; prefer 20-30 connections per view
 3. If a view needs 40+ connections, consider splitting into multiple focused views
 4. Each additional relationship type increases crossing pressure multiplicatively
+
+## Routing Preconditions Checklist
+
+A condensed three-precondition checklist. The canonical form lives at `archimate://prompts/routing-preconditions-checklist` — fetch that for the full decision tree, structured-warning handling, and narrow-corridor floor guidance. Verify each precondition before calling `auto-route-connections` or `auto-layout-and-route` on any non-trivial view. The routing pipeline cannot recover from missing preconditions — it can only route the geometry the LLM agent has set up.
+
+- [ ] **Hub elements (≥ 5 connections, `HUB_DETECTION_THRESHOLD`) sized for connection fan-out.** Use `detect-hub-elements` + `update-view-object` (NOT `resize-elements-to-fit` — that one is label-legibility only). For elements with > 12 connections, prefer the 2D-resize suggestion that `detect-hub-elements` emits alongside the 1D one.
+- [ ] **Inter-element spacing inflated to match connection density.** Use `apply-spacing-recommendations(scope=both)` (composed, two coordinated control loops with per-iteration step caps) when BOTH element and inter-group spacing need adjustment — the response DTO surfaces per-arm `terminationReason` + `iterationCount` + `appliedDeltas[]` plus the legacy `elementKneeClampApplied` / `groupKneeClampApplied` flags (still emitted when an arm's per-iteration cap fires). Use the single-arm siblings (`apply-element-spacing-recommendations` / `apply-group-spacing-recommendations`) or `adjust-view-spacing` for single-axis changes. Heuristics: see Pre-Layout Planning §2 above (with hub-aware tier when `detect-hub-elements` returns candidates). See the §2 footnote for the control-loop semantics that now sit inside each convenience-tool call.
+- [ ] **Group arrangement set with topology + corridor-friendly spacing** (grouped views only). Use `arrange-groups` with `arrangement: "topology"` and `spacing >= 80`. If element-order changes are needed, `optimize-group-order` then re-`arrange-groups` (reordering can change group sizes).
+
+When `assess-layout` `nextSteps[]` already names a precondition tool with violator IDs, act on that entry directly — the heuristics and IDs are already attached. If `auto-route-connections` returns a `structuredWarnings[]` entry with `code: AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP`, run `layout-within-group` on the parent of `remediationViolatorIds` before re-routing — the skip is a hard gate that the pipeline cannot resolve on its own.
 
 ## Which `get-view-contents` Format to Use
 
@@ -348,7 +397,13 @@ Let the ELK algorithm control element positioning. Use this when **no specific l
 
 **Quality target (recommended):** Use `targetRating` on `auto-layout-and-route` to automate the quality iteration loop. The tool internally runs `assess-layout` and iterates with increasing spacing until the target rating is achieved (up to 5 attempts). This eliminates the need for manual assess → adjust → re-layout loops. Use `targetRating: "good"` for most views, or `"excellent"` for presentation-quality diagrams.
 
-**IMPORTANT — ELK routing limitation on grouped views:** ELK positions elements well in hierarchical layouts, but its inter-group connection routing operates at the group boundary level — it does not see individual elements inside groups as obstacles. This produces diagonal (non-orthogonal) connections that pass through elements. **Follow ELK with `auto-route-connections`** on grouped views to get clean orthogonal paths with element-aware obstacle avoidance. For flat views, ELK routing is generally adequate on its own. **However:** after running `auto-route-connections`, always run `assess-layout` to check if crossings improved — in some cases (dense hub-and-spoke topologies), the obstacle-aware router produces *more* crossings than ELK's simpler routing. If crossings increased, `undo` the auto-route and keep ELK's routing.
+**IMPORTANT — ELK routing limitation on grouped views:** ELK positions elements well in hierarchical layouts, but its inter-group connection routing operates at the group boundary level — it does not see individual elements inside groups as obstacles. This produces diagonal terminal entries and, in some cases, connections that pass through elements.
+
+**Preferred fix — `auto-route-connections` with `mode: "terminals-only"`:** rectifies the first/last bendpoint of each connection without re-routing the body, eliminating diagonal terminal entries while preserving ELK's overall path structure. This avoids the ~3× crossing inflation a full re-route causes on ELK views. Use this as the default follow-up step after `auto-layout-and-route` on grouped views.
+
+**Full re-route — `auto-route-connections` (default `mode: "full"`):** only use if terminals-only leaves significant routing problems in the body of connections (e.g. genuine pass-throughs that ELK produced). **Always run `assess-layout` afterwards** — in dense hub-and-spoke topologies the obstacle-aware router may produce *more* crossings than ELK's simpler routing. If crossings increased, `undo` and either accept the residual non-orthogonal terminals (Tier 3, cosmetic) or increase element spacing and retry.
+
+For flat views, ELK routing is generally adequate on its own and neither follow-up is needed unless `assess-layout` flags real structural issues.
 
 **When to use Branch 3 (ELK) vs Branch 2 (manual):** Choose based on **structural intent**, not connection count alone. Use **Branch 2** when the LLM needs a specific layout structure (layered groups, directional flows like producer→middleware→consumer, specific group positioning). Use **Branch 3 (ELK)** when no specific structure is required and you want the best quality score — ELK achieves "good" in 1-2 iterations on dense views. Connection count is a secondary heuristic: dense views (>15 connections) are harder to achieve good quality on with Branch 2, so iterate more aggressively on spacing/sizing rather than abandoning the structural intent. For grouped views, both branches require `auto-route-connections` as the final routing step.
 
@@ -404,6 +459,8 @@ Elements placed at default size (120x55) may truncate long names. Use auto-sizin
 - **Routing before hub sizing:** Always detect and resize hub elements before routing. Post-resize routing produces significantly cleaner paths because the router has more attachment point options on larger element perimeters.
 - **Title note at (10,10) before layout:** Use `add-note-to-view` with `position: "above-content"` after layout is complete. This automatically computes coordinates from the content bounding box, eliminating note-element overlaps. Do NOT place notes at hardcoded coordinates (e.g., x=10, y=10) before layout — ELK and other algorithms will reposition elements into the note's space.
 - **Too many relationship types on one view:** Filter `auto-connect-view` to 2-3 relationship types per view. Each additional type increases crossing pressure multiplicatively. If you need to show all relationship types, use separate views per type.
+- **Iterating spacing past the narrow-corridor floor:** `assess-layout` reports `parallelConnectionGap.vAxisParallelGapP10` as an informational signal. When this value is persistently low (below ~6 px on a view that has already had 2-3 spacing inflations), the view is in the narrow-corridor regime — convenience spacing tools cannot mitigate further because the structural floor is determined by topology, not by router input. Stop at the current `fair` rating, or redesign topology (split the view, reduce hub fan-out) or apply manual bendpoint surgery via `update-view-connection`.
+- **Ignoring `structuredWarnings[]` from `auto-route-connections`:** when the response carries `code: AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP`, the autoNudge phase was a hard gate skip. Re-running `auto-route-connections` without first calling `layout-within-group` on the parent of `remediationViolatorIds` will reproduce the same skip.
 
 ## Title Notes
 

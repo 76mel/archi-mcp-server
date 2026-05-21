@@ -32,8 +32,31 @@ public record ViewObjectDto(
     String imagePosition,
     String showIcon,
     Double imageCoveragePercent,
-    String imageCoverageWarning
+    String imageCoverageWarning,
+    String figureType,
+    String textAlignment,
+    String verticalTextAlignment
 ) {
+
+    /**
+     * Constructor matching the pre-{@code backlog-group-element-styling-surface} 18-field shape
+     * (styling + image fields, no figureType/textAlignment/verticalTextAlignment). Delegates to the
+     * canonical 21-field constructor with three trailing nulls.
+     */
+    public ViewObjectDto(
+            String viewObjectId, String elementId, String elementName, String elementType,
+            int x, int y, int width, int height,
+            String fillColor, String lineColor, String fontColor,
+            Integer opacity, Integer lineWidth,
+            String imagePath, String imagePosition, String showIcon,
+            Double imageCoveragePercent, String imageCoverageWarning) {
+        this(viewObjectId, elementId, elementName, elementType,
+                x, y, width, height,
+                fillColor, lineColor, fontColor, opacity, lineWidth,
+                imagePath, imagePosition, showIcon,
+                imageCoveragePercent, imageCoverageWarning,
+                null, null, null);
+    }
 
     /**
      * Constructor with styling but no image fields (backward compat).

@@ -28,8 +28,31 @@ public record ViewNoteDto(
     String note,
     String imagePath,
     String imagePosition,
-    String showIcon
+    String showIcon,
+    String textAlignment,
+    String verticalTextAlignment
 ) {
+
+    /**
+     * Constructor matching the pre-{@code backlog-group-element-styling-surface} 16-field shape
+     * (styling + note + image fields, no textAlignment/verticalTextAlignment). Delegates to the
+     * canonical 18-field constructor with two trailing nulls. (Notes do not surface figureType per
+     * Task-2.3 disposition — notes use {@code IBorderType} dogear/rectangle/none semantics that
+     * are out of scope for this story.)
+     */
+    public ViewNoteDto(
+            String viewObjectId, String content,
+            int x, int y, int width, int height,
+            String parentViewObjectId,
+            String fillColor, String lineColor, String fontColor,
+            Integer opacity, Integer lineWidth,
+            String note, String imagePath, String imagePosition, String showIcon) {
+        this(viewObjectId, content, x, y, width, height,
+                parentViewObjectId,
+                fillColor, lineColor, fontColor, opacity, lineWidth,
+                note, imagePath, imagePosition, showIcon,
+                null, null);
+    }
 
     /**
      * Full constructor without image fields (backward compat with styling + note).

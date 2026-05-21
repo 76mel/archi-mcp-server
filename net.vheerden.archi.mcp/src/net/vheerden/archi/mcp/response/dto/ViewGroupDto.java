@@ -31,8 +31,30 @@ public record ViewGroupDto(
     Integer lineWidth,
     String imagePath,
     String imagePosition,
-    String showIcon
+    String showIcon,
+    String figureType,
+    String textAlignment,
+    String verticalTextAlignment
 ) {
+
+    /**
+     * Constructor matching the pre-{@code backlog-group-element-styling-surface} 16-field shape
+     * (styling + image fields, no figureType/textAlignment/verticalTextAlignment). Delegates to the
+     * canonical 19-field constructor with three trailing nulls.
+     */
+    public ViewGroupDto(
+            String viewObjectId, String label,
+            int x, int y, int width, int height,
+            String parentViewObjectId, List<String> childViewObjectIds,
+            String fillColor, String lineColor, String fontColor,
+            Integer opacity, Integer lineWidth,
+            String imagePath, String imagePosition, String showIcon) {
+        this(viewObjectId, label, x, y, width, height,
+                parentViewObjectId, childViewObjectIds,
+                fillColor, lineColor, fontColor, opacity, lineWidth,
+                imagePath, imagePosition, showIcon,
+                null, null, null);
+    }
 
     /**
      * Constructor with styling but no image fields (backward compat).

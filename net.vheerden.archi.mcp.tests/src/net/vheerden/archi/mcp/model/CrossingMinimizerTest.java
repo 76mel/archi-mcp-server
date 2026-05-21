@@ -136,60 +136,7 @@ public class CrossingMinimizerTest {
 
     @Test
     public void shouldNeverIncreaseCrossings_withRandomInputs() {
-        Random rng = new Random(42); // Fixed seed for reproducibility
-
-        for (int trial = 0; trial < 50; trial++) {
-            // Generate 2-4 groups with 2-6 elements each
-            int numGroups = 2 + rng.nextInt(3);
-            List<CrossingMinimizer.GroupInfo> groups = new ArrayList<>();
-            List<CrossingMinimizer.InterGroupEdge> edges = new ArrayList<>();
-
-            List<String> allGroupIds = new ArrayList<>();
-            List<List<String>> allElementIds = new ArrayList<>();
-
-            for (int g = 0; g < numGroups; g++) {
-                String groupId = "g" + g;
-                allGroupIds.add(groupId);
-                int numElements = 2 + rng.nextInt(5);
-                List<String> elemIds = new ArrayList<>();
-                List<int[]> centers = new ArrayList<>();
-
-                for (int e = 0; e < numElements; e++) {
-                    String elemId = "g" + g + "e" + e;
-                    elemIds.add(elemId);
-                    centers.add(new int[]{
-                            g * 300 + rng.nextInt(200),
-                            e * 80 + rng.nextInt(40)});
-                }
-                groups.add(new CrossingMinimizer.GroupInfo(groupId, elemIds, centers));
-                allElementIds.add(elemIds);
-            }
-
-            // Generate random inter-group edges
-            int numEdges = 3 + rng.nextInt(8);
-            for (int i = 0; i < numEdges; i++) {
-                int srcGroupIdx = rng.nextInt(numGroups);
-                int tgtGroupIdx = rng.nextInt(numGroups);
-                if (srcGroupIdx == tgtGroupIdx) {
-                    tgtGroupIdx = (tgtGroupIdx + 1) % numGroups;
-                }
-                String srcElem = allElementIds.get(srcGroupIdx)
-                        .get(rng.nextInt(allElementIds.get(srcGroupIdx).size()));
-                String tgtElem = allElementIds.get(tgtGroupIdx)
-                        .get(rng.nextInt(allElementIds.get(tgtGroupIdx).size()));
-                edges.add(new CrossingMinimizer.InterGroupEdge(
-                        srcElem, allGroupIds.get(srcGroupIdx),
-                        tgtElem, allGroupIds.get(tgtGroupIdx)));
-            }
-
-            CrossingMinimizer.OptimizationResult result =
-                    minimizer.optimize(groups, edges);
-
-            assertTrue("Trial " + trial + ": crossings should not increase "
-                    + "(before=" + result.crossingsBefore()
-                    + ", after=" + result.crossingsAfter() + ")",
-                    result.crossingsAfter() <= result.crossingsBefore());
-        }
+        assertNeverIncreaseCrossings(false, 42);
     }
 
     // ---- Task 4.5: Empty/null inputs ----
@@ -504,6 +451,107 @@ public class CrossingMinimizerTest {
                 result.crossingsAfter() <= result.crossingsBefore());
     }
 
+    // ---- B62-3: Reverse-sweep tests ----
+
+    @Test
+    public void shouldProduceDifferentOrdering_whenReverseSweepOnAsymmetricTopology() {
+        // 3 groups with asymmetric connectivity:
+        // A→B has 3 crossed edges, B→C has 1 parallel edge.
+        // Forward sweep (A→B→C): B's barycenters depend on A's ordering.
+        // Reverse sweep (C→B→A): B's barycenters depend on C's ordering.
+        // Different dependency → different local optimum.
+        CrossingMinimizer.GroupInfo groupA = new CrossingMinimizer.GroupInfo(
+                "gA",
+                List.of("A1", "A2", "A3"),
+                List.of(new int[]{50, 50}, new int[]{50, 150}, new int[]{50, 250}));
+
+        CrossingMinimizer.GroupInfo groupB = new CrossingMinimizer.GroupInfo(
+                "gB",
+                List.of("B1", "B2", "B3"),
+                List.of(new int[]{250, 50}, new int[]{250, 150}, new int[]{250, 250}));
+
+        CrossingMinimizer.GroupInfo groupC = new CrossingMinimizer.GroupInfo(
+                "gC",
+                List.of("C1", "C2", "C3"),
+                List.of(new int[]{450, 50}, new int[]{450, 150}, new int[]{450, 250}));
+
+        // Heavy A→B crossings, light B→C (asymmetric)
+        List<CrossingMinimizer.InterGroupEdge> edges = List.of(
+                new CrossingMinimizer.InterGroupEdge("A1", "gA", "B3", "gB"),
+                new CrossingMinimizer.InterGroupEdge("A2", "gA", "B1", "gB"),
+                new CrossingMinimizer.InterGroupEdge("A3", "gA", "B2", "gB"),
+                new CrossingMinimizer.InterGroupEdge("B1", "gB", "C1", "gC"));
+
+        List<CrossingMinimizer.GroupInfo> groupList = List.of(groupA, groupB, groupC);
+
+        CrossingMinimizer.OptimizationResult forwardResult =
+                minimizer.optimize(groupList, edges, false);
+        CrossingMinimizer.OptimizationResult reverseResult =
+                minimizer.optimize(groupList, edges, true);
+
+        // At least one group should have a different ordering between forward and reverse
+        boolean anyDifferent = false;
+        for (String gId : List.of("gA", "gB", "gC")) {
+            List<String> fwd = forwardResult.newOrderByGroup().get(gId);
+            List<String> rev = reverseResult.newOrderByGroup().get(gId);
+            if (fwd != null && rev != null && !fwd.equals(rev)) {
+                anyDifferent = true;
+                break;
+            }
+        }
+        assertTrue("Reverse sweep should produce different ordering on asymmetric topology",
+                anyDifferent);
+    }
+
+    @Test
+    public void shouldNeverIncreaseCrossings_withReverseSweepAndRandomInputs() {
+        assertNeverIncreaseCrossings(true, 99);
+    }
+
+    @Test
+    public void shouldProduceBestResult_whenBothSweepDirectionsTried() {
+        // 3 groups with asymmetric crossings — trying both directions should
+        // yield a result at least as good as forward alone
+        CrossingMinimizer.GroupInfo groupA = new CrossingMinimizer.GroupInfo(
+                "gA",
+                List.of("A1", "A2", "A3", "A4"),
+                List.of(new int[]{50, 50}, new int[]{50, 130}, new int[]{50, 210}, new int[]{50, 290}));
+
+        CrossingMinimizer.GroupInfo groupB = new CrossingMinimizer.GroupInfo(
+                "gB",
+                List.of("B1", "B2", "B3", "B4"),
+                List.of(new int[]{250, 50}, new int[]{250, 130}, new int[]{250, 210}, new int[]{250, 290}));
+
+        CrossingMinimizer.GroupInfo groupC = new CrossingMinimizer.GroupInfo(
+                "gC",
+                List.of("C1", "C2", "C3"),
+                List.of(new int[]{450, 50}, new int[]{450, 150}, new int[]{450, 250}));
+
+        List<CrossingMinimizer.InterGroupEdge> edges = List.of(
+                new CrossingMinimizer.InterGroupEdge("A1", "gA", "B4", "gB"),
+                new CrossingMinimizer.InterGroupEdge("A4", "gA", "B1", "gB"),
+                new CrossingMinimizer.InterGroupEdge("A2", "gA", "B3", "gB"),
+                new CrossingMinimizer.InterGroupEdge("B1", "gB", "C3", "gC"),
+                new CrossingMinimizer.InterGroupEdge("B4", "gB", "C1", "gC"),
+                new CrossingMinimizer.InterGroupEdge("A1", "gA", "C1", "gC"));
+
+        List<CrossingMinimizer.GroupInfo> groupList = List.of(groupA, groupB, groupC);
+
+        CrossingMinimizer.OptimizationResult forwardResult =
+                minimizer.optimize(groupList, edges, false);
+        CrossingMinimizer.OptimizationResult reverseResult =
+                minimizer.optimize(groupList, edges, true);
+
+        int bestOfBoth = Math.min(forwardResult.crossingsAfter(),
+                reverseResult.crossingsAfter());
+
+        assertTrue("At least one sweep direction should reduce crossings",
+                bestOfBoth < forwardResult.crossingsBefore());
+        assertTrue("Both results should not increase crossings",
+                forwardResult.crossingsAfter() <= forwardResult.crossingsBefore()
+                        && reverseResult.crossingsAfter() <= reverseResult.crossingsBefore());
+    }
+
     @Test
     public void shouldReportCorrectElementMoves() {
         // Simple case: 2 groups, 2 elements each, 1 crossing
@@ -525,5 +573,63 @@ public class CrossingMinimizerTest {
                 minimizer.optimize(List.of(groupA, groupB), edges);
 
         assertTrue("Should have element moves", result.elementMoves() > 0);
+    }
+
+    // ---- Shared helper for random property tests ----
+
+    private void assertNeverIncreaseCrossings(boolean reverseSweep, long seed) {
+        Random rng = new Random(seed);
+
+        for (int trial = 0; trial < 50; trial++) {
+            int numGroups = 2 + rng.nextInt(3);
+            List<CrossingMinimizer.GroupInfo> groups = new ArrayList<>();
+            List<CrossingMinimizer.InterGroupEdge> edges = new ArrayList<>();
+
+            List<String> allGroupIds = new ArrayList<>();
+            List<List<String>> allElementIds = new ArrayList<>();
+
+            for (int g = 0; g < numGroups; g++) {
+                String groupId = "g" + g;
+                allGroupIds.add(groupId);
+                int numElements = 2 + rng.nextInt(5);
+                List<String> elemIds = new ArrayList<>();
+                List<int[]> centers = new ArrayList<>();
+
+                for (int e = 0; e < numElements; e++) {
+                    String elemId = "g" + g + "e" + e;
+                    elemIds.add(elemId);
+                    centers.add(new int[]{
+                            g * 300 + rng.nextInt(200),
+                            e * 80 + rng.nextInt(40)});
+                }
+                groups.add(new CrossingMinimizer.GroupInfo(groupId, elemIds, centers));
+                allElementIds.add(elemIds);
+            }
+
+            int numEdges = 3 + rng.nextInt(8);
+            for (int i = 0; i < numEdges; i++) {
+                int srcGroupIdx = rng.nextInt(numGroups);
+                int tgtGroupIdx = rng.nextInt(numGroups);
+                if (srcGroupIdx == tgtGroupIdx) {
+                    tgtGroupIdx = (tgtGroupIdx + 1) % numGroups;
+                }
+                String srcElem = allElementIds.get(srcGroupIdx)
+                        .get(rng.nextInt(allElementIds.get(srcGroupIdx).size()));
+                String tgtElem = allElementIds.get(tgtGroupIdx)
+                        .get(rng.nextInt(allElementIds.get(tgtGroupIdx).size()));
+                edges.add(new CrossingMinimizer.InterGroupEdge(
+                        srcElem, allGroupIds.get(srcGroupIdx),
+                        tgtElem, allGroupIds.get(tgtGroupIdx)));
+            }
+
+            CrossingMinimizer.OptimizationResult result =
+                    minimizer.optimize(groups, edges, reverseSweep);
+
+            String label = reverseSweep ? "reverse sweep" : "forward sweep";
+            assertTrue("Trial " + trial + ": " + label + " should not increase crossings "
+                    + "(before=" + result.crossingsBefore()
+                    + ", after=" + result.crossingsAfter() + ")",
+                    result.crossingsAfter() <= result.crossingsBefore());
+        }
     }
 }

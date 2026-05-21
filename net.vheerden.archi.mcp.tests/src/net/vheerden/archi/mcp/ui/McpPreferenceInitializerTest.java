@@ -22,8 +22,23 @@ public class McpPreferenceInitializerTest {
 
     @Before
     public void setUp() {
+        // DefaultScope/ConfigurationPreferences only initialise under the Eclipse
+        // PDE JUnit Plug-in Test runtime (OSGi). Run the net.vheerden.archi.mcp.tests
+        // fragment as a JUnit Plug-in Test.
+        org.junit.Assume.assumeTrue(
+                "Requires OSGi runtime (run as JUnit Plug-in Test)",
+                isEclipseRuntimeRunning());
         initializer = new McpPreferenceInitializer();
         defaults = DefaultScope.INSTANCE.getNode(McpPlugin.PLUGIN_ID);
+    }
+
+    /** True only under the Eclipse PDE JUnit Plug-in Test runtime (OSGi up). */
+    private static boolean isEclipseRuntimeRunning() {
+        try {
+            return org.eclipse.core.runtime.Platform.isRunning();
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     @Test

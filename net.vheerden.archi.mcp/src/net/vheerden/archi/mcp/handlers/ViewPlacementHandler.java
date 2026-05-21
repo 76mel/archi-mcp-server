@@ -2,10 +2,12 @@ package net.vheerden.archi.mcp.handlers;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +33,10 @@ import net.vheerden.archi.mcp.response.dto.ArrangeGroupsResultDto;
 import net.vheerden.archi.mcp.response.dto.ApplyViewLayoutResultDto;
 import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoConnectResultDto;
+import net.vheerden.archi.mcp.response.dto.AdjustViewSpacingResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplyElementSpacingRecommendationsResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplyGroupSpacingRecommendationsResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplySpacingRecommendationsResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoLayoutAndRouteResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoRouteResultDto;
 import net.vheerden.archi.mcp.response.dto.BendpointDto;
@@ -56,7 +62,7 @@ import net.vheerden.archi.mcp.session.SessionManager;
  * update-view-object, update-view-connection, remove-from-view, clear-view,
  * apply-positions, compute-layout, assess-layout, auto-route-connections,
  * auto-connect-view, layout-within-group, auto-layout-and-route, arrange-groups,
- * optimize-group-order, detect-hub-elements, layout-flat-view.
+ * optimize-group-order, detect-hub-elements, layout-flat-view, adjust-view-spacing.
  *
  * <p>Places, updates, and removes visual elements and connections on ArchiMate
  * diagram views. Supports auto-placement, auto-connect, partial bounds update,
@@ -93,7 +99,7 @@ public class ViewPlacementHandler {
      * assess-layout, auto-route-connections, auto-connect-view,
      * layout-within-group, auto-layout-and-route, arrange-groups,
      * optimize-group-order, detect-hub-elements,
-     * layout-flat-view.
+     * layout-flat-view, adjust-view-spacing.
      */
     public void registerTools() {
         registry.registerTool(buildAddToViewSpec());
@@ -116,6 +122,10 @@ public class ViewPlacementHandler {
         registry.registerTool(buildDetectHubElementsSpec());
         registry.registerTool(buildLayoutFlatViewSpec());
         registry.registerTool(buildResizeElementsToFitSpec());
+        registry.registerTool(buildAdjustViewSpacingSpec());
+        registry.registerTool(buildApplyElementSpacingRecommendationsSpec());
+        registry.registerTool(buildApplyGroupSpacingRecommendationsSpec());
+        registry.registerTool(buildApplySpacingRecommendationsSpec());
     }
 
     // ---- add-to-view ----
@@ -207,7 +217,12 @@ public class ViewPlacementHandler {
                         + "Requires viewId and elementId. Optional: x, y (both or neither for "
                         + "auto-placement), width, height (default 120x55), "
                         + "autoSize (auto-size to fit label — recommended for flat views), "
-                        + "autoConnect (auto-create connections to elements already on the view). "
+                        + "autoConnect (auto-create connections to elements already on the view), "
+                        + "fillColor, lineColor, fontColor (#RRGGBB hex), opacity (0-255), lineWidth "
+                        + "(1-3), figureType ('rectangular' or 'tabbed' — applies to ArchiMate Grouping "
+                        + "element only; silently ignored on other element classes), textAlignment ('left' / 'centre' / "
+                        + "'right' — horizontal label alignment), verticalTextAlignment ('top' / "
+                        + "'centre' / 'bottom' — vertical label position within the figure). "
                         + "Related: get-view-contents (inspect view), get-views (list views), "
                         + "auto-connect-view (batch connections), "
                         + "add-connection-to-view (individual connections), create-view (create new view).")
@@ -367,7 +382,12 @@ public class ViewPlacementHandler {
                         + "Use groups to visually organize elements on a diagram. After creating a group, "
                         + "use add-to-view with parentViewObjectId to nest elements inside it. "
                         + "Requires viewId and label. Optional: x, y (both or neither for auto-placement), "
-                        + "width, height (default 300x200). "
+                        + "width, height (default 300x200), "
+                        + "fillColor, lineColor, fontColor (#RRGGBB hex), opacity (0-255), lineWidth "
+                        + "(1-3), figureType ('rectangular' = flat, or 'tabbed' = folder-tab — Archi default), "
+                        + "textAlignment ('left' / 'centre' / 'right' — horizontal label alignment), "
+                        + "verticalTextAlignment ('top' / 'centre' / 'bottom' — vertical label position within "
+                        + "the figure). "
                         + "NOTE: Groups constrain element positioning and reduce connection "
                         + "routing quality. Prefer groups on structure/overview views only. "
                         + "For views needing clean routed connections, use flat layout without groups. "
@@ -529,7 +549,12 @@ public class ViewPlacementHandler {
                         + "Requires viewId and content. Use position='above-content' for title notes "
                         + "(recommended — automatically places above diagram content after layout). "
                         + "Optional: x, y (both or neither for auto-placement), width, height "
-                        + "(default 185x80). "
+                        + "(default 185x80), "
+                        + "fillColor, lineColor, fontColor (#RRGGBB hex), opacity (0-255), lineWidth "
+                        + "(1-3), textAlignment ('left' / 'centre' / 'right' — horizontal label alignment), "
+                        + "verticalTextAlignment ('top' / 'centre' / 'bottom' — vertical label position within "
+                        + "the note). NOTE: figureType is silently ignored on notes (notes use a separate "
+                        + "border-type semantics — dogear / rectangle / none — out of scope for this surface). "
                         + "Related: get-view-contents (inspect view notes), "
                         + "update-view-object (edit note text or resize).")
                 .inputSchema(inputSchema)
@@ -938,10 +963,16 @@ public class ViewPlacementHandler {
                         + "— new size; text (string) — new label for groups or content for notes "
                         + "(rejected for elements); fillColor, lineColor, fontColor (#RRGGBB hex or empty "
                         + "to clear), opacity (0-255), lineWidth (1-3) — visual styling; "
+                        + "figureType ('rectangular' or 'tabbed' — applies to native groups and the "
+                        + "ArchiMate Grouping element only; silently ignored on notes and other "
+                        + "ArchiMate element classes), textAlignment ('left' / "
+                        + "'centre' / 'right' — horizontal label alignment), verticalTextAlignment "
+                        + "('top' / 'centre' / 'bottom' — vertical label position within the figure); "
                         + "imagePath (string — from add-image-to-model, empty to remove), "
                         + "imagePosition (string — e.g. bottom-left), showIcon (string — if-no-image/always/never) "
                         + "— custom image on element/group/note. "
-                        + "Respects approval mode (set-approval-mode). "
+                        + "Respects approval mode (set-approval-mode). All changes (including figureType + "
+                        + "textAlignment + verticalTextAlignment) execute as a single undo unit. "
                         + "Related: get-view-contents (inspect view + get viewObjectIds), "
                         + "add-to-view (place elements), add-image-to-model (import images).")
                 .inputSchema(inputSchema)
@@ -1778,7 +1809,8 @@ public class ViewPlacementHandler {
                         + "unsatisfied → adjust parameters → retry. This is the recommended "
                         + "way to 'preview' layout or routing changes without needing a dry-run. "
                         + "Related: compute-layout (automatic layout), auto-route-connections "
-                        + "(routing), undo (roll back if unsatisfied), get-view-contents "
+                        + "(routing), adjust-view-spacing (inflate spacing and re-route in "
+                        + "one call), undo (roll back if unsatisfied), get-view-contents "
                         + "(inspect elements), export-view (visual verification).\n\n"
                         + "Overlap metrics distinguish between `overlapCount` (sibling overlaps "
                         + "— genuine layout problems where unrelated elements overlap) and "
@@ -1787,8 +1819,8 @@ public class ViewPlacementHandler {
                         + "affect the quality rating and trigger suggestions.\n\n"
                         + "The overall rating uses a severity-tiered model: "
                         + "Tier 1 (critical: overlaps, passThroughs, coincidentSegments) can produce 'poor'; "
-                        + "Tier 2 (moderate: edgeCrossings, nonOrthogonalTerminals) caps at 'fair'; "
-                        + "Tier 3 (cosmetic: spacing, alignment, labelOverlaps) caps at 'good'. "
+                        + "Tier 2 (moderate: edgeCrossings) caps at 'fair'; "
+                        + "Tier 3 (cosmetic: spacing, alignment, labelOverlaps, nonOrthogonalTerminals) caps at 'good'. "
                         + "The `ratingBreakdown` map shows per-metric ratings including "
                         + "`coincidentSegments` and `nonOrthogonalTerminals`.\n\n"
                         + "Edge crossing rating is lenient for grouped views: when groups with "
@@ -1799,6 +1831,40 @@ public class ViewPlacementHandler {
                         + "— connections sharing identical path segments that visually overlap. "
                         + "Rated as a Tier 1 (critical) metric in the quality breakdown. "
                         + "Increase element spacing or re-run auto-route-connections to fix.\n\n"
+                        + "PERCEPTION-ALIGNED METRICS (supplements to the legacy 8-metric set above): "
+                        + "`interiorTerminationCount` (M2) flags connections terminating inside an "
+                        + "element body rather than on its perimeter face. "
+                        + "`zigzagCount` (M3) flags route shapes that backtrack or zigzag along an axis. "
+                        + "`connectionEdgeCoincidenceCount` (M4) flags connection-vs-element-edge "
+                        + "coincidence (separate from the legacy connection-vs-connection "
+                        + "`coincidentSegmentCount`). "
+                        + "`hubPortQualityScore` (M5) is a 0–1 score measuring port distribution "
+                        + "evenness across hub-element faces (1.0 = perfectly distributed, "
+                        + "0.18 = catastrophic 1-slot-for-7-connections). When this score is below "
+                        + "0.5, run detect-hub-elements and resize the violating hubs via "
+                        + "update-view-object. "
+                        + "`corridorUtilisationScore` (R8) is a 0–1 score measuring how well wide "
+                        + "corridors are used. "
+                        + "M1 (`nonOrthogonalTerminalCount`) uses a visible-segment-length guard "
+                        + "so clipped diagonals invisible to the human eye no longer over-report. "
+                        + "M6 reports a two-dimensional `(layoutTier, routingTier)` rating that "
+                        + "decouples layout quality from routing quality so a poor-routing fix "
+                        + "doesn't drag a strong-layout view's tier. "
+                        + "`parallelConnectionGap` is the 5th perception-aligned metric — it "
+                        + "measures how close together parallel connection segments are at the "
+                        + "worst tail of the per-axis distribution. The primary signal "
+                        + "`vAxisParallelGapP10` (10th-percentile V-axis parallel gap in pixels) "
+                        + "anchors against an ArchiMate manual-routed reference at 13.30 ± 0.5; "
+                        + "the secondary signal `vAxisParallelGapNarrow25Count` counts V-axis "
+                        + "segments below 25 px gap (more = worse). Currently INFORMATIONAL "
+                        + "(no rating impact) — narrow-corridor regressions show up as "
+                        + "`vAxisParallelGapP10` drops vs the baseline. Convenience spacing "
+                        + "tools cannot mitigate a narrow-corridor floor; if `vAxisParallelGapP10` "
+                        + "is persistently low, redesign topology (reduce hub fan-out / split the "
+                        + "view) or apply manual bendpoint surgery via update-view-connection. "
+                        + "Full per-axis detail (mean/min/p10/narrowGapCount@{15,25,40} for V and "
+                        + "H axes) is in `parallelConnectionGapDetail` when "
+                        + "`includeViolatorIds=true`.\n\n"
                         + "`contentBounds` returns the axis-aligned bounding box ({x, y, width, height}) "
                         + "of all visual content (elements, groups, notes) in absolute canvas coordinates. "
                         + "Use this for safe placement calculations — e.g., place a title note at "
@@ -1821,8 +1887,13 @@ public class ViewPlacementHandler {
                         + "Metrics: overlaps (both element IDs from each pair), passThroughs "
                         + "(connection IDs, cross-element only), coincidentSegments (connection "
                         + "IDs), nonOrthogonalTerminals (connection IDs), boundaryViolations "
-                        + "(child element IDs). Crossings excluded — use auto-route-connections "
-                        + "for crossing reduction. Empty metrics omitted from map.")
+                        + "(child element IDs), interiorTerminations (connection IDs), "
+                        + "zigzags (connection IDs), edgeCoincidence (connection IDs), "
+                        + "hubPortLowQuality (element IDs), parallelConnectionGapV "
+                        + "(connection IDs with V-axis gap < 25 px), parallelConnectionGapH "
+                        + "(connection IDs with H-axis gap < 25 px). Crossings excluded — "
+                        + "use auto-route-connections for crossing reduction. Empty metrics "
+                        + "omitted from map.")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -1870,16 +1941,31 @@ public class ViewPlacementHandler {
     // with adequate spacing should only get routing advice, not layout rearrangement.
     private static final double GOOD_SPACING_FIX_THRESHOLD = 40.0;
     private static final int GOOD_ALIGNMENT_FIX_THRESHOLD = 70;
+    // Mirrors LayoutQualityAssessor.HUB_PORT_QUALITY_PASS_THRESHOLD (0.95) — anything below
+    // is a routing-attributable hub-distribution defect for next-steps purposes.
+    private static final double HUB_PORT_QUALITY_NEXTSTEPS_THRESHOLD = 0.95;
 
-    private List<String> buildAssessLayoutNextSteps(AssessLayoutResultDto dto) {
+    // Package-private for direct unit testing (Assessor.Redesign code-review H1, 2026-04-27).
+    List<String> buildAssessLayoutNextSteps(AssessLayoutResultDto dto) {
         List<String> steps = new ArrayList<>();
         String rating = dto.overallRating();
         boolean hasGroups = dto.hasGroups();
         boolean hasConnections = dto.connectionCount() > 0;
         int passThroughCount = dto.connectionPassThroughs() != null
                 ? dto.connectionPassThroughs().size() : 0;
+        // Assessor.Redesign M6: M2-M5 metrics (interior, zigzag, edge-coincidence, hub-port
+        // quality) can drive a view to fair/poor without any crossings or PTs. Treat any
+        // non-zero M2-M5 signal as a routing issue so next-steps route to auto-route-connections
+        // rather than to auto-layout-and-route (which re-positions elements unnecessarily).
+        boolean hasPerceptionRoutingDefect = dto.zigzagCount() > 0
+                || dto.interiorTerminationCount() > 0
+                || dto.connectionEdgeCoincidenceCount() > 0
+                || dto.hubPortQualityScore() < HUB_PORT_QUALITY_NEXTSTEPS_THRESHOLD
+                || dto.coincidentSegmentCount() > 0
+                || dto.nonOrthogonalTerminalCount() > 0;
         boolean hasRoutingIssues = hasConnections
-                && (dto.edgeCrossingCount() > 0 || passThroughCount > 0);
+                && (dto.edgeCrossingCount() > 0 || passThroughCount > 0
+                        || hasPerceptionRoutingDefect);
         boolean passThroughDominated = passThroughCount >= 3;
 
         // Orphaned connection guidance — always first when present (unchanged)
@@ -1887,6 +1973,96 @@ public class ViewPlacementHandler {
             steps.add("Found " + dto.orphanedConnections()
                     + " orphaned connection(s) referencing missing view objects."
                     + " Use clear-view to rebuild the view cleanly.");
+        }
+
+        // AC-4 (Story routing-preconditions, 2026-05-04): precondition-class nextSteps wired
+        // to remediation tools by name with violator IDs. Surfaced BEFORE the rating-switch
+        // advice so an LLM agent acts on hub/spacing preconditions first.
+
+        // AC-4 #1: Hub-port quality below 0.5 → name detect-hub-elements + violator hub IDs.
+        // Violator IDs require includeViolatorIds=true at the call site (LayoutQualityAssessor
+        // populates hubPortQualityFaces only when includeViolatorIds=true to save allocation in
+        // the default path). When IDs are unavailable, point the agent at includeViolatorIds=true
+        // for the IDs — the prose guidance still surfaces independently.
+        double hpq = dto.hubPortQualityScore();
+        if (hpq < 0.5) {
+            String violatorClause;
+            if (dto.hubPortQualityFaces() != null && !dto.hubPortQualityFaces().isEmpty()) {
+                Set<String> hubElemIds = new LinkedHashSet<>();
+                for (AssessLayoutResultDto.HubFaceDetailDto face : dto.hubPortQualityFaces()) {
+                    hubElemIds.add(face.elementId());
+                }
+                violatorClause = " (violator hubs: " + String.join(", ", hubElemIds) + ")";
+            } else {
+                violatorClause = " (re-run assess-layout with includeViolatorIds=true to list "
+                        + "violator hubs)";
+            }
+            steps.add(String.format(
+                    "Hub-port quality %.2f (below 0.5) — hubs may be undersized for "
+                    + "connection fan-out. Run detect-hub-elements%s, then update-view-object "
+                    + "to size each hub for its connection count "
+                    + "(formula: dimension = 55 + 15 × (count − 6)). Re-run layout-within-group "
+                    + "on affected groups, then auto-route-connections.",
+                    hpq, violatorClause));
+        }
+
+        // AC-4 #2: Spacing tightness — name the right inflation tool for the view's shape.
+        // adjust-view-spacing requires a grouped view (per ArchiModelAccessorImpl.adjustViewSpacing
+        // runtime guard); flat views need layout-flat-view with increased spacing instead.
+        if (dto.coincidentSegmentCount() > 2
+                || dto.connectionEdgeCoincidenceCount() > 4) {
+            String spacingTool = hasGroups
+                    ? "adjust-view-spacing with interElementDelta and/or interGroupDelta "
+                            + "(inflate + re-route in a single undo step)"
+                    : "layout-flat-view with increased spacing then auto-route-connections "
+                            + "(adjust-view-spacing is unavailable on flat views — it requires groups)";
+            steps.add("Spacing tightness flagged (coincidentSegments="
+                    + dto.coincidentSegmentCount() + ", connectionEdgeCoincidence="
+                    + dto.connectionEdgeCoincidenceCount() + ") — use " + spacingTool
+                    + ". Heuristics in archimate://reference/archimate-view-patterns "
+                    + "Pre-Layout Planning §2: connections ≤15 → 60px element / 80px group; "
+                    + "16-30 → 80/100; 30+ → 100/120.");
+        }
+
+        // AC-4 #3: High inter-group crossing density on a grouped view → name arrange-groups
+        // (topology) and optimize-group-order.
+        if (hasGroups && hasConnections && dto.crossingsPerConnection() > 4.0) {
+            steps.add(String.format(
+                    "High inter-group crossing density (%.1f crossings per connection on a "
+                    + "grouped view) — consider arrange-groups with arrangement='topology' and "
+                    + "spacing>=80 (creates routing corridors that auto-route-connections uses "
+                    + "for cleaner orthogonal paths) and/or optimize-group-order if groups have "
+                    + "not been reordered for the current layout. After reorder, ALWAYS re-run "
+                    + "arrange-groups to fix any group-on-group overlaps the reorder introduced.",
+                    dto.crossingsPerConnection()));
+        }
+
+        // Fires regardless of overall rating: structural boundary fix always precedes
+        // rating-graduated advice. Row F (v1.5+ deferred) is the single-undo successor.
+        if (dto.boundaryViolations() != null && !dto.boundaryViolations().isEmpty()) {
+            int violationCount = dto.boundaryViolations().size();
+            String violatorClause;
+            if (dto.violatorIds() != null
+                    && dto.violatorIds().get("boundaryViolations") != null
+                    && !dto.violatorIds().get("boundaryViolations").isEmpty()) {
+                List<String> violatorElemIds = dto.violatorIds().get("boundaryViolations");
+                violatorClause = " (violator elements: " + String.join(", ", violatorElemIds) + ")";
+            } else {
+                violatorClause = " (re-run assess-layout with includeViolatorIds=true to list "
+                        + "violator elements)";
+            }
+            steps.add(String.format(
+                    "Found %d boundary violation(s) — child element(s) positioned outside their "
+                    + "parent group's bounds%s. Composite recovery: "
+                    + "(1) use update-view-object to resize the affected parent group(s) to enclose "
+                    + "all child elements, "
+                    + "(2) re-run layout-within-group on the resized parent group(s) to re-position "
+                    + "siblings, "
+                    + "(3) re-run auto-route-connections to refresh routes after the layout changes. "
+                    + "This sequence is undoable as multiple steps; if a single-undo composition is "
+                    + "needed, the convenience tool covering this case is queued for a future release "
+                    + "(Row F — apply-spacing-recommendations / apply-hub-sizing-recommendations).",
+                    violationCount, violatorClause));
         }
 
         switch (rating) {
@@ -1943,6 +2119,17 @@ public class ViewPlacementHandler {
                             + " connections around elements.");
                     steps.add("If pass-throughs persist, use auto-layout-and-route"
                             + " (ELK) with targetRating for automated quality iteration.");
+                } else if (dto.overlapCount() == 0 && hasPerceptionRoutingDefect) {
+                    // M6: routing-only poor (M2/M3/M4/M5 dominated) — try re-routing
+                    // before falling back to ELK layout, which would unnecessarily
+                    // reposition elements that are already well-placed.
+                    steps.add("Use auto-route-connections to re-route connections"
+                            + " — element positions are clean; the routing defects"
+                            + " (zigzags / interior terminations / edge-coincidence /"
+                            + " hub-port distribution) are the rating-driver.");
+                    steps.add("If routing alone doesn't clear the defects, use"
+                            + " auto-layout-and-route (ELK) with targetRating for"
+                            + " automated quality iteration.");
                 } else {
                     steps.add("Use auto-layout-and-route (ELK) with targetRating"
                             + " for automated group-aware layout and routing iteration.");
@@ -2027,6 +2214,28 @@ public class ViewPlacementHandler {
                 + "many connections fail to find orthogonal paths. Decrease if exterior "
                 + "routes are too far from content.");
 
+        Map<String, Object> modeProp = new LinkedHashMap<>();
+        modeProp.put("type", "string");
+        modeProp.put("description",
+                "Routing scope (B61). 'full' (default) re-routes whole connections "
+                + "via visibility-graph A*. 'terminals-only' leaves all intermediate "
+                + "bendpoints unchanged and only modifies the first and/or last "
+                + "bendpoint to make terminal segments orthogonal. Use terminals-only "
+                + "to fix diagonal terminal entries/exits on ELK-laid-out views without "
+                + "the crossing inflation that a full re-route causes (assess-layout "
+                + "reports zero-bendpoint connections as the signature). terminals-only "
+                + "is mutually exclusive with strategy='clear' and autoNudge=true.");
+
+        Map<String, Object> enableChannelNudgingProp = new LinkedHashMap<>();
+        enableChannelNudgingProp.put("type", "boolean");
+        enableChannelNudgingProp.put("description",
+                "When true (default), routes are post-processed by a channel-global "
+                + "ordered nudging pass that centres single-occupant routes in their "
+                + "corridors and fans out parallel runs sharing a corridor. Set false "
+                + "to disable channel nudging and reproduce the pre-nudging routing "
+                + "output (useful for before/after comparison).");
+        enableChannelNudgingProp.put("default", true);
+
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("viewId", viewIdProp);
         properties.put("connectionIds", connectionIdsProp);
@@ -2035,6 +2244,8 @@ public class ViewPlacementHandler {
         properties.put("autoNudge", autoNudgeProp);
         properties.put("snapThreshold", snapThresholdProp);
         properties.put("perimeterMargin", perimeterMarginProp);
+        properties.put("mode", modeProp);
+        properties.put("enableChannelNudging", enableChannelNudgingProp);
 
         McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
                 "object", properties, List.of("viewId"), null, null, null);
@@ -2069,9 +2280,54 @@ public class ViewPlacementHandler {
                         + "Supports batch and approval modes. SPECULATIVE EXECUTION: "
                         + "To preview routing quality, apply routing → assess-layout → "
                         + "undo if unsatisfied. No dry-run needed — undo is cheap and instant. "
+                        + "TERMINALS-ONLY MODE: pass mode='terminals-only' to fix "
+                        + "diagonal source/target entries on ELK-laid-out views without "
+                        + "re-routing the body. Preserves all intermediate bendpoints and "
+                        + "element positions; only the first/last bendpoint of each "
+                        + "connection may change. Use when assess-layout reports "
+                        + "non-orthogonal terminals on a view with otherwise good routing — "
+                        + "a full re-route would inflate crossings on ELK views (~3x measured). "
+                        + "Each rectification is gated by an obstacle + crossing veto — "
+                        + "connections whose L-bend would add a pass-through, an element "
+                        + "crossing, or a new edge crossing with another connection are "
+                        + "left unchanged and counted in connectionsSkipped (with "
+                        + "vetoedByObstacle and vetoedByCrossing sub-counts). This preserves "
+                        + "the rating tier but means dense ELK views (high non-orth rate) "
+                        + "may see only a small number of connections actually modified. "
+                        + "Most effective on sparse-to-moderate layouts; on very dense "
+                        + "views, accept the residual non-orth count as cosmetic or "
+                        + "increase element spacing first. Pass force=true to bypass the "
+                        + "obstacle + crossing veto and force-apply every L-bend (matches "
+                        + "force semantics on the orthogonal strategy). "
+                        + "terminals-only is mutually exclusive with strategy='clear' and "
+                        + "autoNudge=true. "
                         + "Related: compute-layout (position elements first), assess-layout "
-                        + "(evaluate quality after routing), undo (roll back if unsatisfied), "
-                        + "export-view (visual verification).")
+                        + "(evaluate quality after routing), adjust-view-spacing (inflate "
+                        + "spacing and re-route in one call), apply-element-spacing-recommendations "
+                        + "and apply-group-spacing-recommendations (precondition convenience tools), "
+                        + "detect-hub-elements (hub-fan-out precondition), undo (roll back if "
+                        + "unsatisfied), export-view (visual verification). "
+                        + "PRECONDITION CHECKLIST: fetch "
+                        + "archimate://prompts/routing-preconditions-checklist before invoking "
+                        + "this tool on any non-trivial view. The pipeline cannot recover from "
+                        + "missing preconditions (hub sizing, inter-element spacing, inter-group "
+                        + "spacing) — it can only route the geometry the agent has set up. "
+                        + "STRUCTURED WARNINGS: in addition to the free-text "
+                        + "warnings: List<String> field, the response carries a parallel "
+                        + "structuredWarnings: List<StructuredWarningDto> field with "
+                        + "machine-parseable {code, message, remediationTool, remediationViolatorIds} "
+                        + "entries for deterministic LLM iteration. When invoked with autoNudge=true "
+                        + "on a view with overlapping sibling elements, the autoNudge phase is "
+                        + "skipped and a structuredWarnings entry is emitted with "
+                        + "code=AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP, "
+                        + "remediationTool=\"layout-within-group\" and remediationViolatorIds "
+                        + "naming the offending sibling pair. RECOMMENDED ITERATION: when "
+                        + "structuredWarnings[].code == AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP, "
+                        + "invoke layout-within-group on the parent of remediationViolatorIds "
+                        + "BEFORE re-running auto-route-connections — the autoNudge skip is a "
+                        + "hard gate driven by degenerate geometry that the routing pipeline "
+                        + "cannot resolve, so re-running without first separating the siblings "
+                        + "will reproduce the same skip.")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -2113,9 +2369,19 @@ public class ViewPlacementHandler {
             int perimeterMargin = perimeterMarginObj != null
                     ? Math.max(10, Math.min(200, perimeterMarginObj)) : 50;
 
+            // Extract optional mode parameter (B61: terminals-only routing)
+            String mode = HandlerUtils.optionalStringParam(args, "mode");
+
+            // Extract optional enableChannelNudging parameter (B69-B, AC-11).
+            // Default true — channel-global ordered nudging post-pass runs unless
+            // explicitly disabled.
+            boolean enableChannelNudging =
+                    HandlerUtils.optionalBooleanParam(args, "enableChannelNudging", true);
+
             MutationResult<AutoRouteResultDto> result =
                     accessor.autoRouteConnections(sessionId, viewId, connectionIds, strategy,
-                            force, autoNudge, snapThreshold, perimeterMargin);
+                            force, autoNudge, snapThreshold, perimeterMargin, mode,
+                            enableChannelNudging);
 
             return HandlerUtils.formatMutationResponse(result.entity(), result,
                     buildAutoRouteNextSteps(result), accessor, formatter);
@@ -2191,6 +2457,35 @@ public class ViewPlacementHandler {
                     + "overall quality.");
             steps.add("For higher quality, move elements per the violation details "
                     + "and re-route without force.");
+        }
+        if (result.entity() != null && result.entity().connectionsSkipped() > 0) {
+            AutoRouteResultDto entity = result.entity();
+            int obstacle = entity.vetoedByObstacle();
+            int crossing = entity.vetoedByCrossing();
+            int alreadyOrtho = entity.connectionsSkipped() - obstacle - crossing;
+            StringBuilder msg = new StringBuilder();
+            msg.append(entity.connectionsSkipped())
+                    .append(" connection(s) left unchanged (terminals-only mode):");
+            boolean first = true;
+            if (alreadyOrtho > 0) {
+                msg.append(' ').append(alreadyOrtho).append(" already orthogonal");
+                first = false;
+            }
+            if (obstacle > 0) {
+                msg.append(first ? ' ' : ", ").append(obstacle)
+                        .append(" vetoed (L-bend would cross an unrelated element)");
+                first = false;
+            }
+            if (crossing > 0) {
+                msg.append(first ? ' ' : ", ").append(crossing)
+                        .append(" vetoed (L-bend would add edge crossings)");
+            }
+            msg.append('.');
+            if (obstacle > 0 || crossing > 0) {
+                msg.append(" To force-apply the vetoed rectifications, re-run with "
+                        + "force=true, or increase element spacing first.");
+            }
+            steps.add(msg.toString());
         }
         if (result.entity() != null && !result.entity().nudgedElements().isEmpty()) {
             steps.add(result.entity().nudgedElements().size()
@@ -2598,6 +2893,12 @@ public class ViewPlacementHandler {
                         + "Use targetRating to automate quality iteration — "
                         + "iterates with increasing spacing (up to 5 attempts) "
                         + "until the target rating is achieved. "
+                        + "PRECONDITION CHECKLIST: fetch "
+                        + "archimate://prompts/routing-preconditions-checklist "
+                        + "before invoking this tool on any non-trivial view "
+                        + "— the routing pipeline cannot recover from missing "
+                        + "preconditions (hub sizing, inter-element spacing, "
+                        + "inter-group spacing). "
                         + "See archimate-view-patterns resource for guidance on "
                         + "which mode to use.")
                 .inputSchema(inputSchema)
@@ -2755,8 +3056,20 @@ public class ViewPlacementHandler {
         Map<String, Object> spacingProp = new LinkedHashMap<>();
         spacingProp.put("type", "integer");
         spacingProp.put("description",
-                "Gap in pixels between groups (default: 40). Groups are larger than elements, "
-                + "so 40px is recommended minimum.");
+                "Gap in pixels between groups (static default: 40). Groups are larger than "
+                + "elements, so 40px is recommended minimum. "
+                + "When `spacing` is OMITTED (parameter not provided) AND the view has "
+                + "inter-group connections, the tool derives a heuristic-driven default "
+                + "from the view's connection count instead of using 40. "
+                + "Heuristic targets per connection count (connected views): ≤15 → 80 px; "
+                + "16-30 → 100 px; >30 → 120 px "
+                + "(`archimate://reference/archimate-view-patterns` Pre-Layout Planning §2). "
+                + "Pass an explicit `spacing` value (including 0 or 40) to suppress "
+                + "default-resolution. "
+                + "The response DTO's `defaultResolutionReason` field reports whether "
+                + "default-resolution fired and which heuristic tier produced the value. "
+                + "(Applies to direct `arrange-groups` invocations only — internal compound "
+                + "flows that use the static 40 default are unaffected.)");
 
         Map<String, Object> directionProp = new LinkedHashMap<>();
         directionProp.put("type", "string");
@@ -2790,7 +3103,8 @@ public class ViewPlacementHandler {
 
         McpSchema.Tool tool = McpSchema.Tool.builder()
                 .name("arrange-groups")
-                .description("[Mutation] Positions top-level groups relative to each other in a grid, row, or column layout. "
+                .description("[Mutation] Positions top-level groups and qualifying standalone elements relative to each other "
+                        + "in a grid, row, or column layout. "
                         + "Use AFTER creating and populating groups with elements (via add-group-to-view + "
                         + "add-to-view), BEFORE routing connections.\n\n"
                         + "**Recommended workflow for grouped views:**\n"
@@ -2802,7 +3116,25 @@ public class ViewPlacementHandler {
                         + "- For positioning elements inside groups → use layout-within-group\n"
                         + "- For full automatic layout of flat (non-grouped) views → use auto-layout-and-route\n"
                         + "- For one-step grouped layout without fine-grained control → use auto-layout-and-route (ELK handles groups natively)\n\n"
-                        + "Only repositions groups — preserves each group's current width and height.")
+                        + "Repositions groups (preserves each group's current width and height) and, "
+                        + "for `arrangement: \"topology\"` with a 1D layout (row or column — NOT a "
+                        + "topology+columns grid), also repositions qualifying standalone "
+                        + "top-level elements: a `Node`, `Device`, `Path`, or `CommunicationNetwork` "
+                        + "that connects to elements in ≥ 2 of the arranged target groups is auto-placed "
+                        + "in a reserved inter-group lane between its connected groups (centred "
+                        + "vertically + horizontally). "
+                        + "This matches the recipe topology promise (`archimate://recipes/application-integration` "
+                        + "hub-and-spoke + `archimate://recipes/technology-deployment` zones-with-Path). "
+                        + "If no qualifier exists, output is unchanged from direct row/column/grid behaviour. "
+                        + "The qualifier predicate is automatic — there is no opt-in parameter. The "
+                        + "`groupIds` parameter still constrains the arranged set; qualifier qualification "
+                        + "is computed against the constrained set.\n\n"
+                        + "**Related:**\n"
+                        + "- `apply-group-spacing-recommendations` is the explicit-opt-in convenience-tool "
+                        + "surface for the same heuristic; useful when you want a `dryRun` preview, "
+                        + "post-routing application, or the full before/after metrics envelope.\n"
+                        + "- `adjust-view-spacing` is for inflating spacing on an EXISTING layout without "
+                        + "re-positioning groups.")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -2979,7 +3311,8 @@ public class ViewPlacementHandler {
                         + "group sizes — always follow with arrange-groups to prevent "
                         + "group-on-group overlaps. Typical workflow: add elements → "
                         + "layout-within-group → optimize-group-order → arrange-groups → "
-                        + "auto-route-connections → assess-layout. Related: layout-within-group "
+                        + "auto-route-connections → assess-layout → adjust-view-spacing "
+                        + "(if spacing too tight). Related: layout-within-group "
                         + "(initial arrangement), arrange-groups (fix group positions after "
                         + "reorder), auto-route-connections (route after optimization), "
                         + "assess-layout (evaluate result), undo (roll back if unsatisfied).")
@@ -3077,9 +3410,15 @@ public class ViewPlacementHandler {
     // ---- Styling helper methods (Story 11-2) ----
 
     /**
-     * Adds styling property definitions (fillColor, lineColor, fontColor, opacity, lineWidth)
-     * to a tool spec properties map. Used by add-to-view, add-group-to-view, add-note-to-view,
-     * and update-view-object.
+     * Adds styling property definitions (fillColor, lineColor, fontColor, opacity, lineWidth,
+     * figureType, textAlignment, verticalTextAlignment) to a tool spec properties map.
+     * Used by add-to-view, add-group-to-view, add-note-to-view, and update-view-object.
+     *
+     * <p>{@code figureType} is supported on objects that have alternate figures (native
+     * groups via {@code IBorderType.setBorderType()}, ArchiMate elements via
+     * {@code IDiagramModelArchimateObject.setType()}); silently ignored on notes which
+     * use {@code IBorderType} with different semantics (dogear/rectangle/none — out of
+     * scope for this story).</p>
      */
     private void addStylingProperties(Map<String, Object> properties) {
         Map<String, Object> fillColorProp = new LinkedHashMap<>();
@@ -3111,11 +3450,50 @@ public class ViewPlacementHandler {
         lineWidthProp.put("description",
                 "Line width from 1 to 3. Default is 1. Omit to leave unchanged.");
 
+        Map<String, Object> figureTypeProp = new LinkedHashMap<>();
+        figureTypeProp.put("type", "string");
+        figureTypeProp.put("enum", java.util.List.of("rectangular", "tabbed"));
+        figureTypeProp.put("description",
+                "Figure type. Values: 'rectangular' (flat) or 'tabbed' (folder-tab — Archi default). "
+                + "Applies ONLY to native groups (add-group-to-view) and the ArchiMate Grouping "
+                + "element (add-to-view with type='Grouping') — these are the only targets where the "
+                + "'tabbed/rectangular' vocabulary is meaningful. Other ArchiMate elements (Actor, "
+                + "Component, Node, etc.) also have alternate figures via setType, but their "
+                + "alternates are element-specific (stick-vs-box, 3D-vs-flat, etc.) and not exposed "
+                + "through this surface; figureType is silently ignored on those targets. Notes "
+                + "use a separate border-type semantics (dogear/rectangle/none) — also out of scope. "
+                + "Omit to leave the per-type default unchanged. Example: 'rectangular' to flatten "
+                + "a Group's folder-tab figure.");
+
+        Map<String, Object> textAlignmentProp = new LinkedHashMap<>();
+        textAlignmentProp.put("type", "string");
+        textAlignmentProp.put("enum", java.util.List.of("left", "centre", "center", "right"));
+        textAlignmentProp.put("description",
+                "Horizontal text alignment for the element/group/note label. Values: 'left', "
+                + "'centre' (UK) / 'center' (US — accepted as a synonym), or 'right'. Applies to "
+                + "all view objects (groups, ArchiMate elements, notes — every IDiagramModelObject "
+                + "implements ITextAlignment). Omit to leave the per-type default unchanged "
+                + "(centre — Archi's default). Example: 'left' to left-align a group label.");
+
+        Map<String, Object> verticalTextAlignmentProp = new LinkedHashMap<>();
+        verticalTextAlignmentProp.put("type", "string");
+        verticalTextAlignmentProp.put("enum", java.util.List.of("top", "centre", "center", "bottom"));
+        verticalTextAlignmentProp.put("description",
+                "Vertical position of the label inside the figure. Values: 'top', 'centre' (UK) / "
+                + "'center' (US — accepted as a synonym), or 'bottom'. Applies to groups, notes, "
+                + "and ArchiMate elements (each implements ITextPosition). Omit to leave the "
+                + "per-type default unchanged (top — Archi's default; labels render in the top "
+                + "header band of the figure). Example: 'centre' to vertically centre a group "
+                + "label inside the group's bounding rectangle.");
+
         properties.put("fillColor", fillColorProp);
         properties.put("lineColor", lineColorProp);
         properties.put("fontColor", fontColorProp);
         properties.put("opacity", opacityProp);
         properties.put("lineWidth", lineWidthProp);
+        properties.put("figureType", figureTypeProp);
+        properties.put("textAlignment", textAlignmentProp);
+        properties.put("verticalTextAlignment", verticalTextAlignmentProp);
     }
 
     /**
@@ -3168,12 +3546,19 @@ public class ViewPlacementHandler {
         String fontColor = HandlerUtils.optionalStringParamAllowEmpty(args, "fontColor");
         Integer opacity = HandlerUtils.optionalIntegerParam(args, "opacity");
         Integer lineWidth = HandlerUtils.optionalIntegerParam(args, "lineWidth");
+        // AC-11: empty string for the three new fields is treated as null ("unchanged")
+        // — they have no symmetric "clear" semantics like colours do.
+        String figureType = HandlerUtils.optionalStringParam(args, "figureType");
+        String textAlignment = HandlerUtils.optionalStringParam(args, "textAlignment");
+        String verticalTextAlignment = HandlerUtils.optionalStringParam(args, "verticalTextAlignment");
 
         if (fillColor == null && lineColor == null && fontColor == null
-                && opacity == null && lineWidth == null) {
+                && opacity == null && lineWidth == null
+                && figureType == null && textAlignment == null && verticalTextAlignment == null) {
             return null;
         }
-        return new StylingParams(fillColor, lineColor, fontColor, opacity, lineWidth);
+        return new StylingParams(fillColor, lineColor, fontColor, opacity, lineWidth,
+                figureType, textAlignment, verticalTextAlignment);
     }
 
     // ---- Image helper methods (Story C4) ----
@@ -3241,14 +3626,26 @@ public class ViewPlacementHandler {
                 .description("Identify hub elements on a view by counting visual connections "
                         + "per element, sorted descending. Returns each element's viewObjectId, "
                         + "name, type, connection count, current dimensions, and maxLabelWidth "
-                        + "(estimated pixel width of the longest connection label). Elements with "
-                        + ">6 connections include sizing suggestions based on the hub element "
-                        + "formula (baseDimension + 15px \u00d7 (connectionCount \u2212 6)), "
-                        + "adjusted for label widths when labels require more space. "
+                        + "(estimated pixel width of the longest connection label).\n\n"
+                        + "Hub thresholds: "
+                        + ">=5 connections is a hub candidate; "
+                        + ">6 connections receives an explicit sizing suggestion based on the "
+                        + "hub element formula (baseDimension + 15px \u00d7 (connectionCount \u2212 6)), "
+                        + "adjusted for label widths when labels require more space.\n\n"
+                        + "For high-fan-out hubs (> 12 connections), the response also surfaces a "
+                        + "2D-resize suggestion (width += 15 \u00d7 \u2308excess/2\u2309, height += 15 \u00d7 \u230aexcess/2\u230b) "
+                        + "alongside the 1D pair, so the calling agent can pick 2D inflation when "
+                        + "the connection fan-out warrants distributing ports across all four edges "
+                        + "(~N/4 connections per edge).\n\n"
                         + "Use after layout and before auto-route-connections to optimise hub "
                         + "element sizes for better connection routing.\n\n"
-                        + "Related: update-view-object (resize hubs), auto-route-connections "
-                        + "(re-route after resizing), assess-layout (verify quality improvement).")
+                        + "Note: assess-layout's M5 hub-port-quality metric uses a separate "
+                        + "internal M5_FACE_GUARD_MIN_CONNECTIONS=4 per-face guard that is unrelated "
+                        + "to the >6 sizing-suggestion threshold here.\n\n"
+                        + "Related: update-view-object (resize hubs \u2014 preferred over "
+                        + "resize-elements-to-fit which is label-driven and not aware of connection "
+                        + "fan-out), auto-route-connections (re-route after resizing), "
+                        + "assess-layout (verify hubPortQualityScore improvement).")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -3494,7 +3891,13 @@ public class ViewPlacementHandler {
 
         McpSchema.Tool tool = McpSchema.Tool.builder()
                 .name("resize-elements-to-fit")
-                .description("[Mutation] Resize elements on a view to fit their label text. "
+                .description("[Mutation] **Sizes for label legibility only — not for connection fan-out.** "
+                        + "For hub elements (≥ 5 connections, the canonical "
+                        + "HUB_DETECTION_THRESHOLD) where the issue is connection-port congestion "
+                        + "rather than label clipping, use detect-hub-elements plus update-view-object "
+                        + "instead. This tool optimizes for a 1.5:1 label-aware aspect ratio and "
+                        + "ignores connection count.\n\n"
+                        + "Resize elements on a view to fit their label text. "
                         + "Uses SWT font metrics and aspect-ratio-aware sizing "
                         + "(target 1.5:1 width:height, range [1.2:1, 2.5:1]). "
                         + "Short names (<=15 chars) keep Archi defaults (120x55). "
@@ -3503,6 +3906,7 @@ public class ViewPlacementHandler {
                         + "Recommended after placing elements on flat views to prevent label truncation. "
                         + "Related: add-to-view with autoSize (size at placement time), "
                         + "layout-flat-view (reposition elements), "
+                        + "detect-hub-elements + update-view-object (size hubs for connection fan-out), "
                         + "auto-route-connections (route after resizing).")
                 .inputSchema(inputSchema)
                 .build();
@@ -3567,5 +3971,1266 @@ public class ViewPlacementHandler {
                         + "after element resizing.",
                 "Use assess-layout to evaluate the layout quality.",
                 "Use undo to roll back if the sizes are unsatisfactory.");
+    }
+
+    // ---- adjust-view-spacing (B68) ----
+
+    private McpServerFeatures.SyncToolSpecification buildAdjustViewSpacingSpec() {
+        Map<String, Object> viewIdProp = new LinkedHashMap<>();
+        viewIdProp.put("type", "string");
+        viewIdProp.put("description", "ID of the view to adjust spacing on");
+
+        Map<String, Object> interElementDeltaProp = new LinkedHashMap<>();
+        interElementDeltaProp.put("type", "integer");
+        interElementDeltaProp.put("description",
+                "Pixels to add between elements within each group. Positive values "
+                + "increase spacing, negative values decrease. The delta is added to "
+                + "the current detected spacing. Default 0 (no change).");
+
+        Map<String, Object> paddingDeltaProp = new LinkedHashMap<>();
+        paddingDeltaProp.put("type", "integer");
+        paddingDeltaProp.put("description",
+                "Pixels to add to group edge padding (gap between group boundary "
+                + "and its children). Positive values increase padding. Default 0.");
+
+        Map<String, Object> interGroupDeltaProp = new LinkedHashMap<>();
+        interGroupDeltaProp.put("type", "integer");
+        interGroupDeltaProp.put("description",
+                "Pixels to add between each pair of adjacent groups. Groups are "
+                + "pushed apart along their dominant axis (horizontal or vertical). "
+                + "Default 0.");
+
+        Map<String, Object> recursiveProp = new LinkedHashMap<>();
+        recursiveProp.put("type", "boolean");
+        recursiveProp.put("description",
+                "When true (default), inflates nested subgroups too — elements "
+                + "inside subgroups are repositioned with the same deltas, and "
+                + "subgroups resize to fit. Set false to inflate only top-level "
+                + "groups (nested subgroup internals remain unchanged).");
+        recursiveProp.put("default", true);
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("viewId", viewIdProp);
+        properties.put("interElementDelta", interElementDeltaProp);
+        properties.put("paddingDelta", paddingDeltaProp);
+        properties.put("interGroupDelta", interGroupDeltaProp);
+        properties.put("recursive", recursiveProp);
+
+        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
+                "object", properties, List.of("viewId"), null, null, null);
+
+        McpSchema.Tool tool = McpSchema.Tool.builder()
+                .name("adjust-view-spacing")
+                .description("[Mutation] Increase spacing between elements within groups, "
+                        + "group padding, and inter-group gaps while preserving layout "
+                        + "topology. Automatically re-routes connections after inflation "
+                        + "(if any exist — works on views with or without connections). "
+                        + "Use when assess-layout reports coincident segments or tight "
+                        + "spacing on a grouped view, or when elements are too tightly "
+                        + "packed for visual clarity. All three deltas are additive — "
+                        + "specify only the dimensions you want to inflate. Set "
+                        + "recursive=false to inflate only top-level groups (default "
+                        + "true inflates nested subgroups too). The entire operation "
+                        + "(inflate + re-route) is a single undo step. "
+                        + "When `interElementDelta` is OMITTED (parameter not provided) "
+                        + "AND the view has a problematic spacing-related metric "
+                        + "(`coincidentSegmentCount > 2` OR `connectionEdgeCoincidenceCount > 4`), "
+                        + "the tool derives a heuristic-driven default from the view's "
+                        + "connection count instead of using 0. "
+                        + "Heuristic targets per connection count: ≤15 → 60 px element "
+                        + "spacing; 16-30 → 80 px; >30 → 100 px "
+                        + "(`archimate://reference/archimate-view-patterns` Pre-Layout "
+                        + "Planning §2). "
+                        + "Pass `interElementDelta: 0` explicitly to suppress "
+                        + "default-resolution. "
+                        + "The response DTO's `defaultResolutionReason` field reports "
+                        + "whether default-resolution fired and which trigger metric "
+                        + "and heuristic tier produced the value. "
+                        + "Related: assess-layout (diagnose spacing issues), "
+                        + "optimize-group-order (reorder elements to reduce crossings), "
+                        + "auto-route-connections (route-only without spacing change), "
+                        + "apply-element-spacing-recommendations (the explicit-opt-in "
+                        + "convenience-tool surface for the same heuristic; useful when "
+                        + "you want a `dryRun` preview or the full before/after envelope).")
+                .inputSchema(inputSchema)
+                .build();
+
+        return McpServerFeatures.SyncToolSpecification.builder()
+                .tool(tool)
+                .callHandler(this::handleAdjustViewSpacing)
+                .build();
+    }
+
+    McpSchema.CallToolResult handleAdjustViewSpacing(
+            McpSyncServerExchange exchange, McpSchema.CallToolRequest request) {
+        logger.info("Handling adjust-view-spacing request");
+        try {
+            HandlerUtils.requireModelLoaded(accessor);
+            String sessionId = HandlerUtils.extractSessionId(sessionManager, exchange);
+
+            Map<String, Object> args = request.arguments();
+            String viewId = HandlerUtils.requireStringParam(args, "viewId");
+
+            Integer interElementDelta = HandlerUtils.optionalIntegerParam(args,
+                    "interElementDelta");
+            Integer paddingDelta = HandlerUtils.optionalIntegerParam(args,
+                    "paddingDelta");
+            Integer interGroupDelta = HandlerUtils.optionalIntegerParam(args,
+                    "interGroupDelta");
+            boolean recursive = HandlerUtils.optionalBooleanParam(args,
+                    "recursive", true);
+
+            MutationResult<AdjustViewSpacingResultDto> result =
+                    accessor.adjustViewSpacing(sessionId, viewId,
+                            interElementDelta, paddingDelta,
+                            interGroupDelta, recursive);
+
+            return HandlerUtils.formatMutationResponse(result.entity(), result,
+                    buildAdjustViewSpacingNextSteps(result), accessor, formatter);
+
+        } catch (NoModelLoadedException e) {
+            return HandlerUtils.buildModelNotLoadedError(formatter, e);
+        } catch (ModelAccessException e) {
+            return HandlerUtils.buildModelAccessError(formatter, e);
+        } catch (MutationException e) {
+            return HandlerUtils.buildMutationError(formatter, e);
+        } catch (Exception e) {
+            logger.error("Unexpected error handling adjust-view-spacing", e);
+            return HandlerUtils.buildInternalError(formatter, e.getMessage());
+        }
+    }
+
+    private List<String> buildAdjustViewSpacingNextSteps(
+            MutationResult<AdjustViewSpacingResultDto> result) {
+        if (result.isBatched()) {
+            return List.of(
+                    "Mutation queued as operation #" + result.batchSequenceNumber()
+                            + " in current batch",
+                    "Use get-batch-status to check batch progress",
+                    "Use end-batch to commit all queued mutations");
+        }
+        AdjustViewSpacingResultDto dto = result.entity();
+        List<String> steps = new ArrayList<>();
+        steps.add("Use assess-layout to verify the quality improvement.");
+        if (dto.coincidentSegmentCount() > 0) {
+            steps.add("Coincident segments remain — try a larger interElementDelta.");
+        }
+        steps.add("Use undo to roll back if the result is unsatisfactory.");
+        return steps;
+    }
+
+    // ---- apply-element-spacing-recommendations
+    //      (RoutingPreconditions.InterElement) ----
+
+    private McpServerFeatures.SyncToolSpecification
+            buildApplyElementSpacingRecommendationsSpec() {
+        Map<String, Object> viewIdProp = new LinkedHashMap<>();
+        viewIdProp.put("type", "string");
+        viewIdProp.put("description",
+                "ID of the view to read and (when not dryRun) inflate spacing on");
+
+        Map<String, Object> dryRunProp = new LinkedHashMap<>();
+        dryRunProp.put("type", "boolean");
+        dryRunProp.put("description",
+                "When true, computes the recommendation (current spacing, "
+                + "current connection count, target spacing, recommended "
+                + "interElementDelta) and returns the before-snapshot only "
+                + "WITHOUT mutating. Use to preview before committing. "
+                + "Default false (apply the inflation).");
+        dryRunProp.put("default", false);
+
+        Map<String, Object> targetSpacingProp = new LinkedHashMap<>();
+        targetSpacingProp.put("type", "integer");
+        targetSpacingProp.put("description",
+                "Optional explicit target element spacing in pixels. When "
+                + "omitted, the heuristic from "
+                + "archimate://reference/archimate-view-patterns Pre-Layout "
+                + "Planning §2 is used (≤15 connections → 60px, 16-30 → 80px, "
+                + ">30 → 100px). When provided, this overrides the heuristic; "
+                + "the response still reports heuristicRecommendation for "
+                + "transparency.");
+
+        Map<String, Object> iterationBudgetProp = new LinkedHashMap<>();
+        iterationBudgetProp.put("type", "integer");
+        iterationBudgetProp.put("description",
+                "Optional cap on the embedded observe→decide→back-off control "
+                + "loop's iteration count. Range [1, 20]; default 5. Each "
+                + "iteration applies a small spacing step (+10/step monotone "
+                + "ladder from currentSpacing toward targetSpacing) then "
+                + "re-runs assess-layout; the loop ACCEPTS the step if "
+                + "aggregate thresholds_met holds or grows, REVERTS the step "
+                + "and HALTS if aggregate thresholds_met regresses (per-metric "
+                + "monotonicity is NOT used). Returned terminationReason in "
+                + "the response DTO names which of the six in-loop branches "
+                + "fired (goal_reached / budget_exhausted / aggregate_threshold_"
+                + "regressed / iteration_apply_failed / structural_no_change / "
+                + "heuristic_already_met). The THREE pre-loop guards "
+                + "(dry_run_recommendation_not_applied, "
+                + "reroute_degraded_input_baseline, "
+                + "density_precondition_infeasible_reflow_required) also "
+                + "surface via terminationReason; see the parent tool "
+                + "description for the full ten-branch enumeration. "
+                + "Out-of-range values raise invalid_argument.");
+        iterationBudgetProp.put("minimum", 1);
+        iterationBudgetProp.put("maximum", 20);
+        iterationBudgetProp.put("default", 5);
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("viewId", viewIdProp);
+        properties.put("dryRun", dryRunProp);
+        properties.put("targetSpacing", targetSpacingProp);
+        properties.put("iterationBudget", iterationBudgetProp);
+
+        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
+                "object", properties, List.of("viewId"), null, null, null);
+
+        McpSchema.Tool tool = McpSchema.Tool.builder()
+                .name("apply-element-spacing-recommendations")
+                .description("[Mutation] Convenience tool that runs an "
+                        + "embedded observe → decide → density-aware "
+                        + "3-state-termination control loop to inflate "
+                        + "inter-element spacing on a grouped view until the "
+                        + "view reaches strict quality, is honestly flagged "
+                        + "as needing a structural reflow, or the iteration "
+                        + "budget is exhausted. Per iteration: read the "
+                        + "view's current connection count + per-group "
+                        + "element spacing → consult the inter-element "
+                        + "heuristics table → take a spacing step (a "
+                        + "+10/step monotone ladder while progressing; a "
+                        + "LARGE step when escalating) → re-run assess-layout "
+                        + "→ classify on a 2×2 of aggregate-trend × "
+                        + "spacing-regime-position: (1) aggregate still "
+                        + "climbing → CONTINUE; (2) aggregate stalled AND "
+                        + "the view is BELOW the prescribed ~100–124px "
+                        + "average-spacing / fan-out-sized-hub regime → "
+                        + "ESCALATE (inflate toward the ~112px mid-band in a "
+                        + "few large steps + a one-shot hub-resize toward "
+                        + "the fan-out-sized hub dimension); (3) "
+                        + "aggregate stalled AND the view is already "
+                        + "AT/ABOVE the prescribed regime → PASS-HONEST: "
+                        + "more spacing cannot help, so the loop STOPS, "
+                        + "preserves the best (never-degraded) state, and "
+                        + "surfaces an actionable reflow-required diagnosis "
+                        + "(see densityFloorDiagnosis below). A degrading "
+                        + "step is always reverted; the loop never presents "
+                        + "a silently-degraded view. "
+                        + "Single tool call = single undo-stack entry "
+                        + "regardless of iteration count (accepted iterations "
+                        + "wrap in one NonNotifyingCompoundCommand). "
+                        + "Heuristic: ≤15 connections → 60px, 16-30 → 80px, "
+                        + ">30 → 100px (source-of-truth: "
+                        + "archimate://reference/archimate-view-patterns "
+                        + "Pre-Layout Planning §2). "
+                        + "For views with one or more large hubs (any "
+                        + "element with > 6 connections, the canonical "
+                        + "hub-candidate threshold), the heuristic returns "
+                        + "the hub-aware tier instead: ≤15 → 80px, 16-30 → "
+                        + "100px, >30 → 120px (+20px per tier). The "
+                        + "hub-aware tier accounts for the corridor space "
+                        + "that formula-resized hubs consume — without it, "
+                        + "the heuristic UNDERSHOOTS post-hub-resize and "
+                        + "coincSeg residuals persist. "
+                        + "Termination contract — the loop terminates on "
+                        + "exactly ONE of ten branches (seven in-loop "
+                        + "branches + THREE pre-loop guards: dryRun + "
+                        + "reroute-degraded + density-precondition-"
+                        + "infeasible), surfaced in "
+                        + "response DTO via terminationReason + "
+                        + "iterationCount + appliedDeltas: "
+                        + "(a) goal_reached_at_iteration_N (target envelope "
+                        + "met); (b) budget_exhausted_after_N_iterations "
+                        + "(iterationBudget cap hit, last accepted step "
+                        + "commits); (c) aggregate_threshold_regressed_at_"
+                        + "iteration_N_reverted_to_iteration_M (back-off "
+                        + "fired, last accepted step commits); "
+                        + "(d) structural_no_change_<reason> (no groups / "
+                        + "no groups with 2+ children / no connections); "
+                        + "(e) heuristic_already_met_no_change "
+                        + "(currentSpacing ≥ targetSpacing at iteration 0); "
+                        + "(f) dry_run_recommendation_not_applied (dryRun="
+                        + "true entry-guard short-circuit; no mutation; "
+                        + "iterationCount=0; appliedDeltas=[]); "
+                        + "(g) iteration_apply_failed_at_iteration_N_"
+                        + "reverted_after_M_accepted_iterations (a contained "
+                        + "mutation — typically a route command — threw "
+                        + "mid-application; best-effort rollback applied + "
+                        + "prior M accepted iterations preserved for the "
+                        + "outer compound dispatch); "
+                        + "(h) density_floor_reflow_required (IN-LOOP "
+                        + "PASS-HONEST: the loop ran, reached an in-regime "
+                        + "density floor — more spacing cannot help. The "
+                        + "loop STOPS without degrading the view; the "
+                        + "response carries a densityFloorDiagnosis string "
+                        + "naming the violated precondition: measured "
+                        + "average spacing vs the 100–124px band, and the "
+                        + "hub WxH vs its connection count. The loop NEVER "
+                        + "auto-reflows — a structural reflow moves "
+                        + "user-placed elements, so it instead OFFERS the "
+                        + "reflow as an explicit user-consentable next step: "
+                        + "surface + offer + wait for consent, never "
+                        + "surface + act); "
+                        + "(i) reroute_degraded_input_baseline (PRE-LOOP "
+                        + "accessor-layer safety net, sibling to "
+                        + "dry_run_recommendation_not_applied: the tool's "
+                        + "internal pre-loop reroute pass scored a strictly "
+                        + "lower aggregate thresholdsMet than the bare input "
+                        + "baseline, indicating the reroute would have "
+                        + "degraded the input. The bare input is returned "
+                        + "UNTOUCHED — iterationCount=0, appliedDeltas=[], "
+                        + "no mutation, no view damage. NOT evidence that "
+                        + "the prescribed spacing-then-route order is wrong; "
+                        + "see archimate://prompts/routing-preconditions-"
+                        + "checklist § \"When a spacing tool says it would "
+                        + "have degraded the input\" for the correct "
+                        + "response); "
+                        + "(j) density_precondition_infeasible_reflow_required "
+                        + "(PRE-LOOP SOUND infeasibility certificate, "
+                        + "honestly DISTINCT from (h): the SOUND one-sided "
+                        + "closed-form test idealUniformAvg = "
+                        + "sqrt(unionArea/N) − avgBox < 100 proved the input "
+                        + "precondition is infeasible on the current canvas; "
+                        + "the loop was NEVER entered. Zero false-positives "
+                        + "by construction. The view is returned UNTOUCHED "
+                        + "— iterationCount=0, appliedDeltas=[], no "
+                        + "mutation, no view damage. The DTO carries a "
+                        + "densityFloorDiagnosis + a consent-gated reflow "
+                        + "OFFER; act on it the SAME way as (h) — see "
+                        + "archimate://prompts/routing-preconditions-"
+                        + "checklist § \"When a spacing tool says the view "
+                        + "needs a structural reflow\"). "
+                        + "The loop objective is the aggregate thresholds_met "
+                        + "scalar ONLY (per-metric monotonicity rules are NOT "
+                        + "used; they spuriously stop on net-positive "
+                        + "mutations); escalate changes the step + target, "
+                        + "not the objective. "
+                        + "iterationBudget defaults to 5 (caller-tunable, "
+                        + "[1, 20]); appliedDeltas[] reports each accepted "
+                        + "iteration's spacing step in pixels. "
+                        + "Set dryRun=true to preview the recommendation "
+                        + "without mutation; default false runs the loop. "
+                        + "Returns before/after assess-layout snapshots in "
+                        + "one envelope so the visual-quality impact is "
+                        + "visible immediately. Use after assess-layout "
+                        + "reports M4 > 4 OR coincidentSegments > 2 on a "
+                        + "grouped view, when you want one-call inflation-"
+                        + "and-re-route with internal back-off. For surgical "
+                        + "spacing edits between specific element pairs, use "
+                        + "update-view-object directly. "
+                        + "Best results occur when invoked AFTER hub resizing "
+                        + "(use detect-hub-elements + update-view-object first "
+                        + "when assess-layout reports hubPortQualityScore < "
+                        + "0.5) AND PAIRED WITH inter-group spacing widening "
+                        + "(use the sibling tool "
+                        + "apply-group-spacing-recommendations on grouped "
+                        + "views with inter-group connections, or "
+                        + "arrange-groups / adjust-view-spacing with "
+                        + "interGroupDelta as manual alternatives). This "
+                        + "tool inflates within-group element spacing only — "
+                        + "it does NOT widen group-vs-group corridors, so "
+                        + "residual edge-coincidence between groups will "
+                        + "persist until inter-group spacing is also "
+                        + "addressed. "
+                        + "If you want the inflation-knee guard "
+                        + "enforced (per-call clamp of NO MORE than "
+                        + "+80px element / +100px inter-group from "
+                        + "current spacing, preventing cumulative "
+                        + "inflation past the knee where additional "
+                        + "spacing introduces NEW defects rather "
+                        + "than reducing residual ones), use the "
+                        + "composed tool "
+                        + "`apply-spacing-recommendations(scope=both)` "
+                        + "instead — it bundles BOTH heuristics in a "
+                        + "single transactional call with the knee "
+                        + "guard built in. "
+                        + "Related: adjust-view-spacing (the underlying "
+                        + "primitive — call directly when you want explicit "
+                        + "deltas including paddingDelta + interGroupDelta), "
+                        + "apply-group-spacing-recommendations (sibling — "
+                        + "inter-group corridor widening), "
+                        + "detect-hub-elements + update-view-object (hub "
+                        + "resize precondition), arrange-groups (inter-group "
+                        + "corridor widening), assess-layout (diagnose "
+                        + "spacing issues first), auto-route-connections "
+                        + "(route-only without spacing change). "
+                        + "See archimate://prompts/"
+                        + "routing-preconditions-checklist for the canonical "
+                        + "LLM-facing precondition playbook.")
+                .inputSchema(inputSchema)
+                .build();
+
+        return McpServerFeatures.SyncToolSpecification.builder()
+                .tool(tool)
+                .callHandler(this::handleApplyElementSpacingRecommendations)
+                .build();
+    }
+
+    McpSchema.CallToolResult handleApplyElementSpacingRecommendations(
+            McpSyncServerExchange exchange, McpSchema.CallToolRequest request) {
+        logger.info("Handling apply-element-spacing-recommendations request");
+        try {
+            HandlerUtils.requireModelLoaded(accessor);
+            String sessionId = HandlerUtils.extractSessionId(sessionManager, exchange);
+
+            Map<String, Object> args = request.arguments();
+            String viewId = HandlerUtils.requireStringParam(args, "viewId");
+            boolean dryRun = HandlerUtils.optionalBooleanParam(args,
+                    "dryRun", false);
+            Integer targetSpacing = HandlerUtils.optionalIntegerParam(args,
+                    "targetSpacing");
+            Integer iterationBudget = HandlerUtils.optionalIntegerParam(args,
+                    "iterationBudget");
+
+            MutationResult<ApplyElementSpacingRecommendationsResultDto> result =
+                    accessor.applyElementSpacingRecommendations(sessionId, viewId,
+                            dryRun, targetSpacing, iterationBudget);
+
+            return HandlerUtils.formatMutationResponse(result.entity(), result,
+                    buildApplyElementSpacingRecommendationsNextSteps(result),
+                    accessor, formatter);
+
+        } catch (NoModelLoadedException e) {
+            return HandlerUtils.buildModelNotLoadedError(formatter, e);
+        } catch (ModelAccessException e) {
+            return HandlerUtils.buildModelAccessError(formatter, e);
+        } catch (MutationException e) {
+            return HandlerUtils.buildMutationError(formatter, e);
+        } catch (Exception e) {
+            logger.error("Unexpected error handling "
+                    + "apply-element-spacing-recommendations", e);
+            return HandlerUtils.buildInternalError(formatter, e.getMessage());
+        }
+    }
+
+    private List<String> buildApplyElementSpacingRecommendationsNextSteps(
+            MutationResult<ApplyElementSpacingRecommendationsResultDto> result) {
+        if (result.isBatched()) {
+            return List.of(
+                    "Mutation queued as operation #" + result.batchSequenceNumber()
+                            + " in current batch",
+                    "Use get-batch-status to check batch progress",
+                    "Use end-batch to commit all queued mutations");
+        }
+        ApplyElementSpacingRecommendationsResultDto dto = result.entity();
+        List<String> steps = new ArrayList<>();
+        if (dto.noChangeReason() != null) {
+            steps.add("No change applied: " + dto.noChangeReason());
+            if (dto.connectionCount() == 0) {
+                steps.add("Add connections to the view, then re-run this tool.");
+            }
+            return steps;
+        }
+        if (dto.dryRun()) {
+            steps.add("Recommendation: inflate by interElementDelta="
+                    + dto.interElementDelta() + "px to reach target "
+                    + dto.targetSpacingPx() + "px (current "
+                    + dto.currentSpacingPx() + "px, "
+                    + dto.connectionCount() + " connections).");
+            steps.add("Re-run with dryRun=false to apply.");
+            return steps;
+        }
+        steps.add("Inflated by " + dto.interElementDelta() + "px (current "
+                + dto.currentSpacingPx() + " → target "
+                + dto.targetSpacingPx() + ").");
+        if (dto.after() != null && dto.before() != null) {
+            int beforeM4 = dto.before().connectionEdgeCoincidenceCount();
+            int afterM4 = dto.after().connectionEdgeCoincidenceCount();
+            int beforeCoinc = dto.before().coincidentSegmentCount();
+            int afterCoinc = dto.after().coincidentSegmentCount();
+            steps.add("M4 (edge-coincidence): " + beforeM4 + " → " + afterM4
+                    + ". Coincident segments: " + beforeCoinc + " → "
+                    + afterCoinc + ".");
+            // When residual remains AND view has groups, the most likely
+            // cause on multi-group views is tight inter-group corridors —
+            // element-spacing inflation alone cannot widen group-vs-group
+            // gaps. Prompt the agent toward the next precondition in the
+            // three-tool triad (hub resize, element spacing, inter-group
+            // spacing).
+            if ((afterCoinc > 2 || afterM4 > 4) && dto.after().hasGroups()) {
+                steps.add("Inter-group corridors may be tight — call "
+                        + "apply-group-spacing-recommendations to widen "
+                        + "group-vs-group gaps using the same heuristic "
+                        + "table, or arrange-groups / adjust-view-spacing "
+                        + "with interGroupDelta as manual alternatives. "
+                        + "Element-spacing inflation alone cannot widen "
+                        + "inter-group corridors.");
+            }
+            if (dto.after().hubPortQualityScore() < 0.5) {
+                steps.add("hubPortQualityScore is "
+                        + dto.after().hubPortQualityScore()
+                        + " (< 0.5) — hub elements may be undersized. Use "
+                        + "detect-hub-elements + update-view-object to "
+                        + "resize hubs before re-running this tool.");
+            }
+            if (afterCoinc > 0 || afterM4 > 0) {
+                steps.add("If residual coincidence remains AFTER inter-group "
+                        + "spacing widening + hub resizing, consider larger "
+                        + "targetSpacing or surgical update-view-object "
+                        + "edits as a last resort.");
+            }
+        }
+        steps.add("Use assess-layout to re-verify quality. Use undo to roll "
+                + "back if unsatisfactory.");
+        return steps;
+    }
+
+    // ---- apply-group-spacing-recommendations
+    //      (RoutingPreconditions.InterGroup) ----
+
+    private McpServerFeatures.SyncToolSpecification
+            buildApplyGroupSpacingRecommendationsSpec() {
+        Map<String, Object> viewIdProp = new LinkedHashMap<>();
+        viewIdProp.put("type", "string");
+        viewIdProp.put("description",
+                "ID of the view to read and (when not dryRun) widen "
+                + "inter-group corridors on");
+
+        Map<String, Object> dryRunProp = new LinkedHashMap<>();
+        dryRunProp.put("type", "boolean");
+        dryRunProp.put("description",
+                "When true, computes the recommendation (current group "
+                + "spacing, total + inter-group connection counts, target "
+                + "group spacing, recommended interGroupDelta) and returns "
+                + "the before-snapshot only WITHOUT mutating. Use to preview "
+                + "before committing. Default false (apply the inflation).");
+        dryRunProp.put("default", false);
+
+        Map<String, Object> targetSpacingProp = new LinkedHashMap<>();
+        targetSpacingProp.put("type", "integer");
+        targetSpacingProp.put("description",
+                "Optional explicit target inter-group spacing in pixels. "
+                + "When omitted, the heuristic from "
+                + "archimate://reference/archimate-view-patterns Pre-Layout "
+                + "Planning §2 is used (≤15 connections → 80px connected / "
+                + "40px unconnected, 16-30 → 100px/40px, >30 → 120px/60px). "
+                + "When provided, this overrides the heuristic; the response "
+                + "still reports heuristicRecommendation for transparency.");
+
+        Map<String, Object> iterationBudgetProp = new LinkedHashMap<>();
+        iterationBudgetProp.put("type", "integer");
+        iterationBudgetProp.put("description",
+                "Optional cap on the embedded observe→decide→back-off control "
+                + "loop's iteration count. Range [1, 20]; default 5. Each "
+                + "iteration applies a small inter-group spacing step "
+                + "(+10/step monotone ladder from currentSpacing toward "
+                + "targetSpacing) then re-runs assess-layout; the loop "
+                + "ACCEPTS the step if aggregate thresholds_met holds or "
+                + "grows, REVERTS the step and HALTS if aggregate "
+                + "thresholds_met regresses (per-metric monotonicity is NOT "
+                + "used). Returned terminationReason in the response DTO "
+                + "names which of the six in-loop branches fired "
+                + "(goal_reached / budget_exhausted / "
+                + "aggregate_threshold_regressed / iteration_apply_failed / "
+                + "structural_no_change / heuristic_already_met). The THREE "
+                + "pre-loop guards (dry_run_recommendation_not_applied, "
+                + "reroute_degraded_input_baseline, "
+                + "density_precondition_infeasible_reflow_required) also "
+                + "surface via terminationReason; see the parent tool "
+                + "description for the full ten-branch enumeration. Out-of-"
+                + "range values raise invalid_argument.");
+        iterationBudgetProp.put("minimum", 1);
+        iterationBudgetProp.put("maximum", 20);
+        iterationBudgetProp.put("default", 5);
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("viewId", viewIdProp);
+        properties.put("dryRun", dryRunProp);
+        properties.put("targetSpacing", targetSpacingProp);
+        properties.put("iterationBudget", iterationBudgetProp);
+
+        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
+                "object", properties, List.of("viewId"), null, null, null);
+
+        McpSchema.Tool tool = McpSchema.Tool.builder()
+                .name("apply-group-spacing-recommendations")
+                .description("[Mutation] Convenience tool that runs an "
+                        + "embedded observe → decide → density-aware "
+                        + "3-state-termination control loop to widen "
+                        + "inter-group corridors on a multi-group view until "
+                        + "the view reaches strict quality, is honestly "
+                        + "flagged as needing a structural reflow, or the "
+                        + "iteration budget is exhausted. Per iteration: "
+                        + "read the view's current connection count + "
+                        + "inter-group connection count + current MIN "
+                        + "inter-group spacing → consult the inter-group "
+                        + "heuristics table → take a spacing step (a "
+                        + "+10/step monotone ladder while progressing; a "
+                        + "LARGE step when escalating) → re-run assess-layout "
+                        + "→ classify on a 2×2 of aggregate-trend × "
+                        + "spacing-regime-position: aggregate still climbing "
+                        + "→ CONTINUE; aggregate stalled AND below the "
+                        + "prescribed ~100–124px / fan-out-sized-hub regime "
+                        + "→ ESCALATE (large spacing steps toward the "
+                        + "~112px mid-band + a one-shot hub-resize; the fix "
+                        + "for the old too-early back-off); aggregate "
+                        + "stalled AND already in-regime → PASS-HONEST "
+                        + "(more spacing cannot help — STOP, preserve the "
+                        + "best non-degraded state, surface an actionable "
+                        + "reflow-required diagnosis). A degrading step is "
+                        + "always reverted; never a silently-degraded view. "
+                        + "Single tool call = "
+                        + "single undo-stack entry regardless of iteration "
+                        + "count (accepted iterations wrap in one "
+                        + "NonNotifyingCompoundCommand). "
+                        + "Heuristic: ≤15 connections → 80px connected / "
+                        + "40px unconnected, 16-30 → 100px/40px, >30 → "
+                        + "120px/60px (source-of-truth: "
+                        + "archimate://reference/archimate-view-patterns "
+                        + "Pre-Layout Planning §2). "
+                        + "For views with one or more large hubs (any "
+                        + "element with > 6 connections, the canonical "
+                        + "hub-candidate threshold), the connected-column "
+                        + "heuristic returns the hub-aware tier instead: "
+                        + "≤15 → 100px, 16-30 → 140px, >30 → 160px "
+                        + "(+20-40px per tier). The hub-aware tier "
+                        + "accounts for the corridor space that "
+                        + "formula-resized hubs consume — without it, "
+                        + "inter-group corridors stay too narrow and "
+                        + "coincSeg residuals persist on inter-group "
+                        + "connections. The unconnected column "
+                        + "(40/40/60) is hub-agnostic and unchanged. "
+                        + "Termination contract — the loop terminates on "
+                        + "exactly ONE of ten branches (seven in-loop "
+                        + "branches + THREE pre-loop guards: dryRun + "
+                        + "reroute-degraded + density-precondition-"
+                        + "infeasible), surfaced in "
+                        + "response DTO via terminationReason + "
+                        + "iterationCount + appliedDeltas: "
+                        + "(a) goal_reached_at_iteration_N (target envelope "
+                        + "met); (b) budget_exhausted_after_N_iterations "
+                        + "(iterationBudget cap hit, last accepted step "
+                        + "commits); (c) aggregate_threshold_regressed_at_"
+                        + "iteration_N_reverted_to_iteration_M (back-off "
+                        + "fired, last accepted step commits); "
+                        + "(d) structural_no_change_<reason> (no groups / "
+                        + "fewer than 2 top-level groups / no inter-group "
+                        + "connections); (e) heuristic_already_met_no_change "
+                        + "(currentSpacing ≥ targetSpacing at iteration 0); "
+                        + "(f) dry_run_recommendation_not_applied (dryRun="
+                        + "true entry-guard short-circuit; no mutation; "
+                        + "iterationCount=0; appliedDeltas=[]); "
+                        + "(g) iteration_apply_failed_at_iteration_N_"
+                        + "reverted_after_M_accepted_iterations (a contained "
+                        + "mutation — typically a route command — threw "
+                        + "mid-application; best-effort rollback applied + "
+                        + "prior M accepted iterations preserved for the "
+                        + "outer compound dispatch); "
+                        + "(h) density_floor_reflow_required (IN-LOOP "
+                        + "PASS-HONEST: the loop ran, reached an in-regime "
+                        + "density floor — more spacing cannot help. The "
+                        + "loop STOPS without degrading the view; the "
+                        + "response carries a densityFloorDiagnosis string "
+                        + "naming the violated precondition: measured "
+                        + "average spacing vs the 100–124px band, and the "
+                        + "hub WxH vs its connection count. The loop NEVER "
+                        + "auto-reflows — a structural reflow moves "
+                        + "user-placed elements, so it instead OFFERS the "
+                        + "reflow as an explicit user-consentable next step: "
+                        + "surface + offer + wait for consent, never "
+                        + "surface + act); "
+                        + "(i) reroute_degraded_input_baseline (PRE-LOOP "
+                        + "accessor-layer safety net, sibling to "
+                        + "dry_run_recommendation_not_applied: the tool's "
+                        + "internal pre-loop reroute pass scored a strictly "
+                        + "lower aggregate thresholdsMet than the bare input "
+                        + "baseline, indicating the reroute would have "
+                        + "degraded the input. The bare input is returned "
+                        + "UNTOUCHED — iterationCount=0, appliedDeltas=[], "
+                        + "no mutation, no view damage. NOT evidence that "
+                        + "the prescribed spacing-then-route order is wrong; "
+                        + "see archimate://prompts/routing-preconditions-"
+                        + "checklist § \"When a spacing tool says it would "
+                        + "have degraded the input\" for the correct "
+                        + "response); "
+                        + "(j) density_precondition_infeasible_reflow_required "
+                        + "(PRE-LOOP SOUND infeasibility certificate, "
+                        + "honestly DISTINCT from (h): the SOUND one-sided "
+                        + "closed-form test idealUniformAvg = "
+                        + "sqrt(unionArea/N) − avgBox < 100 proved the input "
+                        + "precondition is infeasible on the current canvas; "
+                        + "the loop was NEVER entered. Zero false-positives "
+                        + "by construction. The view is returned UNTOUCHED "
+                        + "— iterationCount=0, appliedDeltas=[], no "
+                        + "mutation, no view damage. The DTO carries a "
+                        + "densityFloorDiagnosis + a consent-gated reflow "
+                        + "OFFER; act on it the SAME way as (h) — see "
+                        + "archimate://prompts/routing-preconditions-"
+                        + "checklist § \"When a spacing tool says the view "
+                        + "needs a structural reflow\"). "
+                        + "The loop objective is the aggregate thresholds_met "
+                        + "scalar ONLY (per-metric monotonicity rules are NOT "
+                        + "used; they spuriously stop on net-positive "
+                        + "mutations); escalate changes the step + target, "
+                        + "not the objective. "
+                        + "iterationBudget defaults to 5 (caller-tunable, "
+                        + "[1, 20]); appliedDeltas[] reports each accepted "
+                        + "iteration's spacing step in pixels. "
+                        + "Set dryRun=true to preview the recommendation "
+                        + "without mutation; default false runs the loop. "
+                        + "Preserves your current group ordering and "
+                        + "topology — only widens inter-group corridors "
+                        + "(strategy: inflate-only, single-undo, sibling-"
+                        + "symmetric with apply-element-spacing-"
+                        + "recommendations). Returns before/after "
+                        + "assess-layout snapshots in one envelope so the "
+                        + "visual-quality impact (especially "
+                        + "connectionEdgeCoincidenceCount on inter-group "
+                        + "connections) is visible immediately. "
+                        + "Use after assess-layout reports M4 > 4 OR "
+                        + "coincidentSegmentCount > 2 on a grouped view "
+                        + "AND the view has inter-group connections that "
+                        + "need wider routing corridors. For surgical "
+                        + "group-position edits, use update-view-object "
+                        + "directly. For full topology-driven re-layout, "
+                        + "use auto-layout-and-route with mode='grouped'. "
+                        + "Completes the routing-preconditions triad "
+                        + "(hub sizing + inter-element spacing + "
+                        + "inter-group spacing). For best results, invoke "
+                        + "AFTER hub resizing AND PAIRED WITH "
+                        + "apply-element-spacing-recommendations on grouped "
+                        + "views with inter-group connections. "
+                        + "If you want the inflation-knee guard "
+                        + "enforced (per-call clamp of NO MORE than "
+                        + "+80px element / +100px inter-group from "
+                        + "current spacing, preventing cumulative "
+                        + "inflation past the knee where additional "
+                        + "spacing introduces NEW defects rather "
+                        + "than reducing residual ones), use the "
+                        + "composed tool "
+                        + "`apply-spacing-recommendations(scope=both)` "
+                        + "instead — it bundles BOTH heuristics in a "
+                        + "single transactional call with the knee "
+                        + "guard built in. "
+                        + "Related: adjust-view-spacing (the underlying "
+                        + "primitive — call directly when you want explicit "
+                        + "deltas including interElementDelta + "
+                        + "paddingDelta), apply-element-spacing-"
+                        + "recommendations (sibling — within-group spacing), "
+                        + "detect-hub-elements + update-view-object (hub "
+                        + "resize precondition), assess-layout (diagnose "
+                        + "spacing issues first), auto-route-connections "
+                        + "(route-only without spacing change), "
+                        + "arrange-groups + optimize-group-order (full "
+                        + "topology re-layout primitives).")
+                .inputSchema(inputSchema)
+                .build();
+
+        return McpServerFeatures.SyncToolSpecification.builder()
+                .tool(tool)
+                .callHandler(this::handleApplyGroupSpacingRecommendations)
+                .build();
+    }
+
+    McpSchema.CallToolResult handleApplyGroupSpacingRecommendations(
+            McpSyncServerExchange exchange, McpSchema.CallToolRequest request) {
+        logger.info("Handling apply-group-spacing-recommendations request");
+        try {
+            HandlerUtils.requireModelLoaded(accessor);
+            String sessionId = HandlerUtils.extractSessionId(sessionManager, exchange);
+
+            Map<String, Object> args = request.arguments();
+            String viewId = HandlerUtils.requireStringParam(args, "viewId");
+            boolean dryRun = HandlerUtils.optionalBooleanParam(args,
+                    "dryRun", false);
+            Integer targetSpacing = HandlerUtils.optionalIntegerParam(args,
+                    "targetSpacing");
+            Integer iterationBudget = HandlerUtils.optionalIntegerParam(args,
+                    "iterationBudget");
+
+            MutationResult<ApplyGroupSpacingRecommendationsResultDto> result =
+                    accessor.applyGroupSpacingRecommendations(sessionId, viewId,
+                            dryRun, targetSpacing, iterationBudget);
+
+            return HandlerUtils.formatMutationResponse(result.entity(), result,
+                    buildApplyGroupSpacingRecommendationsNextSteps(result),
+                    accessor, formatter);
+
+        } catch (NoModelLoadedException e) {
+            return HandlerUtils.buildModelNotLoadedError(formatter, e);
+        } catch (ModelAccessException e) {
+            return HandlerUtils.buildModelAccessError(formatter, e);
+        } catch (MutationException e) {
+            return HandlerUtils.buildMutationError(formatter, e);
+        } catch (Exception e) {
+            logger.error("Unexpected error handling "
+                    + "apply-group-spacing-recommendations", e);
+            return HandlerUtils.buildInternalError(formatter, e.getMessage());
+        }
+    }
+
+    private List<String> buildApplyGroupSpacingRecommendationsNextSteps(
+            MutationResult<ApplyGroupSpacingRecommendationsResultDto> result) {
+        if (result.isBatched()) {
+            return List.of(
+                    "Mutation queued as operation #" + result.batchSequenceNumber()
+                            + " in current batch",
+                    "Use get-batch-status to check batch progress",
+                    "Use end-batch to commit all queued mutations");
+        }
+        ApplyGroupSpacingRecommendationsResultDto dto = result.entity();
+        List<String> steps = new ArrayList<>();
+        if (dto.noChangeReason() != null) {
+            steps.add("No change applied: " + dto.noChangeReason());
+            return steps;
+        }
+        if (dto.dryRun()) {
+            steps.add("Recommendation: widen inter-group corridors by "
+                    + "interGroupDelta=" + dto.interGroupDelta()
+                    + "px to reach target " + dto.targetSpacingPx()
+                    + "px (current " + dto.currentSpacingPx() + "px, "
+                    + dto.totalConnectionCount() + " total connections / "
+                    + dto.interGroupConnectionCount()
+                    + " inter-group, "
+                    + (dto.isConnected() ? "connected" : "unconnected")
+                    + " column).");
+            steps.add("Re-run with dryRun=false to apply.");
+            return steps;
+        }
+        steps.add("Widened inter-group corridors by "
+                + dto.interGroupDelta() + "px (current "
+                + dto.currentSpacingPx() + " → target "
+                + dto.targetSpacingPx() + ", "
+                + (dto.isConnected() ? "connected" : "unconnected")
+                + " column).");
+        if (dto.after() != null && dto.before() != null) {
+            int beforeM4 = dto.before().connectionEdgeCoincidenceCount();
+            int afterM4 = dto.after().connectionEdgeCoincidenceCount();
+            int beforeCoinc = dto.before().coincidentSegmentCount();
+            int afterCoinc = dto.after().coincidentSegmentCount();
+            steps.add("M4 (edge-coincidence): " + beforeM4 + " → " + afterM4
+                    + ". Coincident segments: " + beforeCoinc + " → "
+                    + afterCoinc + ".");
+            if (dto.after().hubPortQualityScore() < 0.5) {
+                steps.add("hubPortQualityScore is "
+                        + dto.after().hubPortQualityScore()
+                        + " (< 0.5) — hub elements may be undersized. Use "
+                        + "detect-hub-elements + update-view-object to "
+                        + "resize hubs before re-running this tool.");
+            }
+            if ((afterCoinc > 2 || afterM4 > 4)
+                    && dto.after().hasGroups()) {
+                steps.add("Residual coincidence remains — consider also "
+                        + "running apply-element-spacing-recommendations to "
+                        + "widen within-group element spacing (the inter-"
+                        + "group corridor widening this tool applies does "
+                        + "not address tight intra-group element spacing). "
+                        + "Together they form the routing-preconditions "
+                        + "triad with hub resizing.");
+            }
+            if (afterCoinc > 0 || afterM4 > 0) {
+                steps.add("If residual coincidence remains AFTER element "
+                        + "spacing widening + hub resizing, consider larger "
+                        + "targetSpacing or surgical update-view-object "
+                        + "edits as a last resort.");
+            }
+        }
+        steps.add("Use assess-layout to re-verify quality. Use undo to roll "
+                + "back if unsatisfactory.");
+        return steps;
+    }
+
+    // ---- apply-spacing-recommendations
+    //      (composed; RoutingPreconditions.Composed) ----
+
+    private McpServerFeatures.SyncToolSpecification
+            buildApplySpacingRecommendationsSpec() {
+        Map<String, Object> viewIdProp = new LinkedHashMap<>();
+        viewIdProp.put("type", "string");
+        viewIdProp.put("description",
+                "ID of the view to read and (when not dryRun) inflate "
+                + "spacing on");
+
+        Map<String, Object> scopeProp = new LinkedHashMap<>();
+        scopeProp.put("type", "string");
+        scopeProp.put("description",
+                "Which spacing arm(s) to compute and apply. 'both' (default) "
+                + "computes element + inter-group deltas and passes both to a "
+                + "single adjust-view-spacing call. 'element' computes only "
+                + "the element delta (equivalent to "
+                + "apply-element-spacing-recommendations plus the knee-clamp "
+                + "guard). 'group' computes only the inter-group delta "
+                + "(equivalent to apply-group-spacing-recommendations plus "
+                + "the knee-clamp guard). Any other value returns an "
+                + "invalid_parameter error.");
+        scopeProp.put("enum", List.of("both", "element", "group"));
+        scopeProp.put("default", "both");
+
+        Map<String, Object> dryRunProp = new LinkedHashMap<>();
+        dryRunProp.put("type", "boolean");
+        dryRunProp.put("description",
+                "When true, computes the recommendation (current spacings, "
+                + "connection counts, target spacings, proposed deltas, "
+                + "clamped deltas, knee-clamp flags) and returns the "
+                + "before-snapshot only WITHOUT mutating. Use to preview "
+                + "before committing. Default false (apply the inflation).");
+        dryRunProp.put("default", false);
+
+        Map<String, Object> elementTargetProp = new LinkedHashMap<>();
+        elementTargetProp.put("type", "integer");
+        elementTargetProp.put("description",
+                "Optional explicit target element spacing in pixels. When "
+                + "omitted, the inter-element heuristic from "
+                + "archimate://reference/archimate-view-patterns Pre-Layout "
+                + "Planning §2 is used. When provided, overrides the "
+                + "heuristic for the element arm; the knee-clamp still "
+                + "applies on top of the override.");
+
+        Map<String, Object> groupTargetProp = new LinkedHashMap<>();
+        groupTargetProp.put("type", "integer");
+        groupTargetProp.put("description",
+                "Optional explicit target inter-group spacing in pixels. "
+                + "When omitted, the inter-group heuristic from "
+                + "archimate://reference/archimate-view-patterns Pre-Layout "
+                + "Planning §2 is used. When provided, overrides the "
+                + "heuristic for the group arm; the knee-clamp still "
+                + "applies on top of the override.");
+
+        Map<String, Object> iterationBudgetProp = new LinkedHashMap<>();
+        iterationBudgetProp.put("type", "integer");
+        iterationBudgetProp.put("description",
+                "Optional cap on the embedded observe→decide→back-off control "
+                + "loop's TOTAL iteration count across both arms. Range "
+                + "[1, 20]; default 8 (split floor(N/2) for element arm + "
+                + "ceil(N/2) for group arm; 4+4 at default). Each arm runs "
+                + "an independent control loop with its own per-iteration "
+                + "step cap (element +80px max per step; inter-group +100px "
+                + "max per step; the ELEMENT_KNEE_LIMIT_PX / "
+                + "GROUP_KNEE_LIMIT_PX constants are reinterpreted as "
+                + "per-iteration step caps in the composer, NOT per-call "
+                + "total caps). Per-arm terminationReason fields surface "
+                + "in the response DTO (elementTerminationReason / "
+                + "groupTerminationReason) and name which of the six "
+                + "in-loop branches fired on that arm (goal_reached / "
+                + "budget_exhausted / aggregate_threshold_regressed / "
+                + "iteration_apply_failed / structural_no_change / "
+                + "heuristic_already_met). The THREE pre-loop guards "
+                + "(dry_run_recommendation_not_applied, "
+                + "reroute_degraded_input_baseline, "
+                + "density_precondition_infeasible_reflow_required) also "
+                + "surface via the per-arm terminationReason fields; see "
+                + "the parent tool description for the full ten-branch "
+                + "enumeration. "
+                + "Out-of-range values raise invalid_argument.");
+        iterationBudgetProp.put("minimum", 1);
+        iterationBudgetProp.put("maximum", 20);
+        iterationBudgetProp.put("default", 8);
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("viewId", viewIdProp);
+        properties.put("scope", scopeProp);
+        properties.put("dryRun", dryRunProp);
+        properties.put("elementTargetSpacing", elementTargetProp);
+        properties.put("groupTargetSpacing", groupTargetProp);
+        properties.put("iterationBudget", iterationBudgetProp);
+
+        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
+                "object", properties, List.of("viewId"), null, null, null);
+
+        McpSchema.Tool tool = McpSchema.Tool.builder()
+                .name("apply-spacing-recommendations")
+                .description("[Mutation] Composed convenience tool that runs "
+                        + "TWO coordinated observe → decide → density-aware "
+                        + "3-state-termination control loops (element arm "
+                        + "first, inter-group arm second) to inflate BOTH "
+                        + "element and inter-group spacing on a multi-group "
+                        + "view, with the inflation-knee constants "
+                        + "reinterpreted as PER-ITERATION step caps inside "
+                        + "each loop. Each arm classifies on a 2×2 of "
+                        + "aggregate-trend × spacing-regime-position: "
+                        + "climbing → CONTINUE; stalled + below the "
+                        + "~100–124px / fan-out-sized-hub regime → ESCALATE "
+                        + "(large steps toward the ~112px mid-band + a "
+                        + "one-shot hub-resize — the fix for the old "
+                        + "too-early back-off); stalled + already in-regime "
+                        + "→ PASS-HONEST (more spacing cannot help — STOP, "
+                        + "preserve the best non-degraded state, surface an "
+                        + "actionable reflow-required diagnosis). A degrading "
+                        + "step is always reverted; never a silently-"
+                        + "degraded view. Single tool call = single "
+                        + "undo-stack entry across both arms (all accepted "
+                        + "iterations from both loops wrap in one outer "
+                        + "NonNotifyingCompoundCommand). "
+                        + "Heuristics (source-of-truth: "
+                        + "archimate://reference/archimate-view-patterns "
+                        + "Pre-Layout Planning §2): element column "
+                        + "60/80/100px (hub-aware 80/100/120px); inter-group "
+                        + "connected column 80/100/120px (hub-aware "
+                        + "100/140/160px); inter-group unconnected column "
+                        + "40/40/60px. "
+                        + "The `scope` parameter ('both' fires both arms; "
+                        + "'element' fires the element arm only; 'group' "
+                        + "fires the group arm only; default 'both') "
+                        + "selects which loops run. "
+                        + "Set dryRun=true to preview the recommendation "
+                        + "without mutation; default false runs the loops. "
+                        + "Each iteration applies a small spacing step "
+                        + "(+10/step monotone ladder), capped per step by "
+                        + "+80px (element arm) / +100px (inter-group arm) "
+                        + "— the same constants previously used as per-call "
+                        + "total clamps are now per-iteration caps, "
+                        + "preventing the cumulative-inflation-past-the-knee "
+                        + "failure mode (stacked spacing calls pushing past "
+                        + "the narrow-corridor structural floor; see "
+                        + "archimate://reference/archimate-view-patterns "
+                        + "§ Pre-Layout Planning Checklist). The legacy "
+                        + "elementKneeClampApplied / groupKneeClampApplied "
+                        + "DTO fields continue to surface when a clamp "
+                        + "fires inside an arm's loop. "
+                        + "Termination contract — each arm terminates on "
+                        + "exactly ONE of ten branches (seven in-loop "
+                        + "branches + THREE pre-loop guards: dryRun + "
+                        + "reroute-degraded + density-precondition-"
+                        + "infeasible), surfaced in "
+                        + "response DTO via per-arm "
+                        + "elementTerminationReason / groupTerminationReason "
+                        + "+ elementIterationCount / groupIterationCount + "
+                        + "elementAppliedDeltas[] / groupAppliedDeltas[]: "
+                        + "(a) goal_reached_at_iteration_N; "
+                        + "(b) budget_exhausted_after_N_iterations; "
+                        + "(c) aggregate_threshold_regressed_at_iteration_N_"
+                        + "reverted_to_iteration_M; "
+                        + "(d) structural_no_change_<reason>; "
+                        + "(e) heuristic_already_met_no_change; "
+                        + "(f) dry_run_recommendation_not_applied (dryRun="
+                        + "true entry-guard short-circuit; no mutation); "
+                        + "(g) iteration_apply_failed_at_iteration_N_"
+                        + "reverted_after_M_accepted_iterations (a contained "
+                        + "mutation — typically a route command — threw "
+                        + "mid-application on that arm; best-effort rollback "
+                        + "applied + prior M accepted iterations preserved "
+                        + "for the outer compound dispatch); "
+                        + "(h) density_floor_reflow_required (IN-LOOP "
+                        + "PASS-HONEST, per-arm: the arm's loop ran and "
+                        + "reached an in-regime density floor — more "
+                        + "spacing cannot help. The arm STOPS without "
+                        + "degrading the view; the response carries a "
+                        + "per-arm elementDensityFloorDiagnosis / "
+                        + "groupDensityFloorDiagnosis string naming the "
+                        + "violated precondition: measured average spacing "
+                        + "vs the 100–124px band, and the hub WxH vs its "
+                        + "connection count. The loop NEVER auto-reflows — a "
+                        + "structural reflow moves user-placed elements, so "
+                        + "it instead OFFERS the reflow as an explicit "
+                        + "user-consentable next step: surface + offer + "
+                        + "wait for consent, never surface + act); "
+                        + "(i) reroute_degraded_input_baseline (PRE-LOOP "
+                        + "accessor-layer safety net, per-arm — each arm runs "
+                        + "its own routeNormalizedBaseline check before the "
+                        + "loop: the arm's internal pre-loop reroute pass "
+                        + "scored a strictly lower aggregate thresholdsMet "
+                        + "than the bare input baseline. The arm contributes "
+                        + "no commands — iterationCount=0, appliedDeltas=[], "
+                        + "no mutation, no view damage. When one arm "
+                        + "short-circuits and the other proceeds, the DTO "
+                        + "carries the per-arm reasons distinctly. NOT "
+                        + "evidence that the prescribed spacing-then-route "
+                        + "order is wrong; see archimate://prompts/routing-"
+                        + "preconditions-checklist § \"When a spacing tool "
+                        + "says it would have degraded the input\" for the "
+                        + "correct response); "
+                        + "(j) density_precondition_infeasible_reflow_required "
+                        + "(PRE-LOOP SOUND infeasibility certificate, "
+                        + "per-arm — honestly DISTINCT from (h): the SOUND "
+                        + "one-sided closed-form test idealUniformAvg = "
+                        + "sqrt(unionArea/N) − avgBox < 100 proved the "
+                        + "arm's input precondition is infeasible on the "
+                        + "current canvas; the arm's loop was NEVER entered. "
+                        + "Zero false-positives by construction. The view is "
+                        + "returned UNTOUCHED on that arm. Both composer "
+                        + "arms see the same per-view geometry ⇒ both arms "
+                        + "typically short-circuit identically with "
+                        + "totalAcceptedCount=0 / after==before. Act on it "
+                        + "the SAME way as (h) — see archimate://prompts/"
+                        + "routing-preconditions-checklist § \"When a "
+                        + "spacing tool says the view needs a structural "
+                        + "reflow\"). "
+                        + "The loop objective is the aggregate thresholds_met "
+                        + "scalar ONLY (per-metric monotonicity rules are NOT "
+                        + "used); escalate changes the step + target, not "
+                        + "the objective. "
+                        + "iterationBudget defaults to 8 (split 4+4 across "
+                        + "arms by default; caller-tunable, [1, 20]). "
+                        + "Use this composed tool when you want both element "
+                        + "and inter-group spacing inflated in a single "
+                        + "transactional call with knee-enforcement built "
+                        + "in. For single-axis inflation without the knee "
+                        + "guard (legacy behaviour), use the sibling tools "
+                        + "apply-element-spacing-recommendations or "
+                        + "apply-group-spacing-recommendations directly. For "
+                        + "surgical edits to a specific element/group pair, "
+                        + "use update-view-object directly. "
+                        + "If assess-layout reports the "
+                        + "parallelConnectionGap_V_p10 metric below its "
+                        + "calibration-fair threshold (narrow-corridor "
+                        + "regime), THIS TOOL CANNOT MITIGATE — the "
+                        + "narrow-corridor floor is structural / algorithmic "
+                        + "and convenience spacing surfaces cannot break it. "
+                        + "In that case the only paths are (a) topology "
+                        + "redesign (reduce hub fan-out / split the view) "
+                        + "or (b) manual bendpoint surgery via "
+                        + "update-view-connection. "
+                        + "Returns before/after assess-layout snapshots in "
+                        + "one envelope plus both deltas + clamp flags + "
+                        + "connection counts + hub-detection. "
+                        + "Related: adjust-view-spacing (the underlying "
+                        + "primitive — call directly when you want explicit "
+                        + "deltas without the knee guard, including "
+                        + "paddingDelta), apply-element-spacing-"
+                        + "recommendations (sibling — single-arm element "
+                        + "spacing without knee guard), "
+                        + "apply-group-spacing-recommendations (sibling — "
+                        + "single-arm inter-group spacing without knee "
+                        + "guard), detect-hub-elements + update-view-object "
+                        + "(hub-resize precondition), assess-layout "
+                        + "(diagnose spacing issues first).")
+                .inputSchema(inputSchema)
+                .build();
+
+        return McpServerFeatures.SyncToolSpecification.builder()
+                .tool(tool)
+                .callHandler(this::handleApplySpacingRecommendations)
+                .build();
+    }
+
+    McpSchema.CallToolResult handleApplySpacingRecommendations(
+            McpSyncServerExchange exchange, McpSchema.CallToolRequest request) {
+        logger.info("Handling apply-spacing-recommendations request");
+        try {
+            HandlerUtils.requireModelLoaded(accessor);
+            String sessionId = HandlerUtils.extractSessionId(sessionManager, exchange);
+
+            Map<String, Object> args = request.arguments();
+            String viewId = HandlerUtils.requireStringParam(args, "viewId");
+            String scope = HandlerUtils.optionalStringParam(args, "scope");
+            if (scope == null) scope = "both";
+            boolean dryRun = HandlerUtils.optionalBooleanParam(args,
+                    "dryRun", false);
+            Integer elementTargetSpacing = HandlerUtils.optionalIntegerParam(
+                    args, "elementTargetSpacing");
+            Integer groupTargetSpacing = HandlerUtils.optionalIntegerParam(
+                    args, "groupTargetSpacing");
+            Integer iterationBudget = HandlerUtils.optionalIntegerParam(
+                    args, "iterationBudget");
+
+            MutationResult<ApplySpacingRecommendationsResultDto> result =
+                    accessor.applySpacingRecommendations(sessionId, viewId,
+                            scope, dryRun, elementTargetSpacing,
+                            groupTargetSpacing, iterationBudget);
+
+            return HandlerUtils.formatMutationResponse(result.entity(), result,
+                    buildApplySpacingRecommendationsNextSteps(result),
+                    accessor, formatter);
+
+        } catch (NoModelLoadedException e) {
+            return HandlerUtils.buildModelNotLoadedError(formatter, e);
+        } catch (ModelAccessException e) {
+            return HandlerUtils.buildModelAccessError(formatter, e);
+        } catch (MutationException e) {
+            return HandlerUtils.buildMutationError(formatter, e);
+        } catch (Exception e) {
+            logger.error("Unexpected error handling "
+                    + "apply-spacing-recommendations", e);
+            return HandlerUtils.buildInternalError(formatter, e.getMessage());
+        }
+    }
+
+    private List<String> buildApplySpacingRecommendationsNextSteps(
+            MutationResult<ApplySpacingRecommendationsResultDto> result) {
+        if (result.isBatched()) {
+            return List.of(
+                    "Mutation queued as operation #" + result.batchSequenceNumber()
+                            + " in current batch",
+                    "Use get-batch-status to check batch progress",
+                    "Use end-batch to commit all queued mutations");
+        }
+        ApplySpacingRecommendationsResultDto dto = result.entity();
+        List<String> steps = new ArrayList<>();
+        if (dto.noChangeReason() != null) {
+            steps.add("No change applied: " + dto.noChangeReason());
+            return steps;
+        }
+        if (dto.dryRun()) {
+            StringBuilder rec = new StringBuilder("Recommendation (scope=");
+            rec.append(dto.scope()).append("): ");
+            if (dto.interElementDelta() > 0) {
+                rec.append("inflate element spacing by ")
+                        .append(dto.interElementDelta())
+                        .append("px (current ").append(dto.currentElementSpacingPx())
+                        .append(" → target ").append(dto.elementTargetSpacingPx())
+                        .append(")");
+                if (dto.elementKneeClampApplied()) {
+                    rec.append(" [clamped from proposed ")
+                            .append(dto.proposedElementDelta()).append("px]");
+                }
+                rec.append("; ");
+            }
+            if (dto.interGroupDelta() > 0) {
+                rec.append("widen inter-group corridors by ")
+                        .append(dto.interGroupDelta())
+                        .append("px (current ").append(dto.currentGroupSpacingPx())
+                        .append(" → target ").append(dto.groupTargetSpacingPx())
+                        .append(")");
+                if (dto.groupKneeClampApplied()) {
+                    rec.append(" [clamped from proposed ")
+                            .append(dto.proposedGroupDelta()).append("px]");
+                }
+                rec.append("; ");
+            }
+            rec.append(dto.connectionCount()).append(" total connections / ")
+                    .append(dto.interGroupConnectionCount())
+                    .append(" inter-group.");
+            steps.add(rec.toString());
+            steps.add("Re-run with dryRun=false to apply.");
+            return steps;
+        }
+        StringBuilder applied = new StringBuilder("Applied (scope=");
+        applied.append(dto.scope()).append("): ");
+        if (dto.interElementDelta() > 0) {
+            applied.append("element +").append(dto.interElementDelta())
+                    .append("px");
+            if (dto.elementKneeClampApplied()) {
+                applied.append(" (knee-clamped from +")
+                        .append(dto.proposedElementDelta()).append(")");
+            }
+            applied.append("; ");
+        }
+        if (dto.interGroupDelta() > 0) {
+            applied.append("inter-group +").append(dto.interGroupDelta())
+                    .append("px");
+            if (dto.groupKneeClampApplied()) {
+                applied.append(" (knee-clamped from +")
+                        .append(dto.proposedGroupDelta()).append(")");
+            }
+            applied.append("; ");
+        }
+        steps.add(applied.toString());
+        if (dto.after() != null && dto.before() != null) {
+            int beforeM4 = dto.before().connectionEdgeCoincidenceCount();
+            int afterM4 = dto.after().connectionEdgeCoincidenceCount();
+            int beforeCoinc = dto.before().coincidentSegmentCount();
+            int afterCoinc = dto.after().coincidentSegmentCount();
+            steps.add("M4 (edge-coincidence): " + beforeM4 + " → " + afterM4
+                    + ". Coincident segments: " + beforeCoinc + " → "
+                    + afterCoinc + ".");
+            if (dto.elementKneeClampApplied() || dto.groupKneeClampApplied()) {
+                steps.add("Inflation knee-clamp fired — at least one delta "
+                        + "was capped to stay within the +80px element / "
+                        + "+100px inter-group cumulative-from-current knee. "
+                        + "Past-knee inflation regresses passThroughs / "
+                        + "nonOrthogonalTerminals / xings-per-connection. If "
+                        + "residual coincidence remains, prefer surgical "
+                        + "update-view-object edits or algorithmic routing-"
+                        + "pipeline successors over further inflation.");
+            }
+            if (dto.after().hubPortQualityScore() < 0.5) {
+                steps.add("hubPortQualityScore is "
+                        + dto.after().hubPortQualityScore()
+                        + " (< 0.5) — hub elements may be undersized. Use "
+                        + "detect-hub-elements + update-view-object to "
+                        + "resize hubs before re-running this tool.");
+            }
+        }
+        steps.add("Use assess-layout to re-verify quality. Use undo to roll "
+                + "back if unsatisfactory.");
+        return steps;
     }
 }

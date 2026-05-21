@@ -13,6 +13,7 @@ This document describes the layout and quality assessment systems, including Zes
 - [Element Auto-Sizing](#element-auto-sizing)
 - [Layout Quality Assessment](#layout-quality-assessment)
 - [Auto-Layout-and-Route with Target Rating](#auto-layout-and-route-with-target-rating)
+- [View Spacing Adjustment](#view-spacing-adjustment)
 - [Configuration Constants](#configuration-constants)
 
 ## Layout Algorithms (Zest)
@@ -23,12 +24,14 @@ The `LayoutEngine` computes element positions using Eclipse Zest graph layout al
 
 | Algorithm | Description | Best For |
 |-----------|-------------|----------|
-| `tree` | Top-down hierarchical tree | Hierarchical relationships |
-| `spring` | Force-directed/spring-based | Organic clustering |
-| `directed` | Sugiyama-style layered hierarchy | Complex directed graphs |
+| `tree` | Top-down hierarchical tree (in the family of [15]) | Hierarchical relationships |
+| `spring` | Force-directed/spring-based (in the family of [13], [14]) | Organic clustering |
+| `directed` | Sugiyama-style layered hierarchy [7] | Complex directed graphs |
 | `radial` | Concentric circles | Hub/network views |
 | `grid` | Regular grid arrangement | Information-dense layouts |
-| `horizontal-tree` | Left-to-right tree | Horizontal hierarchies |
+| `horizontal-tree` | Left-to-right tree (in the family of [15]) | Horizontal hierarchies |
+
+The `radial` and `grid` presets are empirical project heuristics with no specific academic provenance. See [bibliography.md](bibliography.md) for the cited references and a confidence note on the Zest preset family attributions.
 
 ### Computation Pipeline
 
@@ -55,7 +58,7 @@ After Zest completes, the `OverlapResolver` eliminates sibling overlaps:
 
 ## ELK Layered Algorithm
 
-The `ElkLayoutEngine` uses the ELK (Eclipse Layout Kernel) Layered algorithm, a production-quality Sugiyama-style hierarchical layout that computes **both positions and connection routes** in a single operation.
+The `ElkLayoutEngine` uses the ELK (Eclipse Layout Kernel) Layered algorithm [10], a production-quality Sugiyama-style hierarchical layout [7] that computes **both positions and connection routes** in a single operation. ELK Layered uses Brandes–Köpf horizontal coordinate assignment [11] internally; the project consumes ELK output rather than calling the algorithm directly.
 
 ### Key Characteristics
 
@@ -187,7 +190,7 @@ Groups not in `groupIds` remain at their current positions.
 
 ### optimize-group-order
 
-Reorders elements within groups to minimize inter-group edge crossings using the barycentric heuristic.
+Reorders elements within groups to minimize inter-group edge crossings using the barycentric heuristic [7].
 
 **Algorithm:**
 
@@ -230,6 +233,19 @@ Reorders elements within groups to minimize inter-group edge crossings using the
 
 The `detect-hub-elements` tool identifies high-connectivity elements on a view — elements that act as hubs in hub-and-spoke topologies (e.g., API gateways, ESBs, shared databases). These hubs cause **port congestion** where many connections compete for attachment points on a small perimeter, producing bundled overlapping paths.
 
+### Canonical Hub Thresholds
+
+The codebase carries four distinct connection-count thresholds with different roles. They are **not interchangeable**:
+
+| Threshold | Constant / Source | Role |
+|-----------|-------------------|------|
+| ≥ 5 connections | `LayoutQualityAssessor.HUB_DETECTION_THRESHOLD` (public canonical) | Hub *candidate* signal for the LLM ("this element is worth examining") |
+| > 6 connections | `LayoutQualityAssessor.HUB_DETECTION_THRESHOLD + 1` (the `detect-hub-elements` 1D-suggestion-emit gate) — derived from the candidacy threshold; the formula's growth term `15 × (count − 6)` is non-positive at exactly 5, so suggestions only emit one above candidacy. Note: `EdgeAttachmentCalculator.HUB_FACE_REDISTRIBUTION_THRESHOLD = 6` shares this value but is a separate Phase-1.1 routing-internal redistribution gate, NOT the suggestion-emit threshold. | *1D sizing-suggestion* trigger — `detect-hub-elements` emits resize suggestions for the perimeter perpendicular to the connection flow |
+| > 12 connections | `LayoutQualityAssessor.HUB_2D_RESIZE_THRESHOLD` | *2D sizing-suggestion* trigger — for very high-fan-out hubs, `detect-hub-elements` additionally surfaces a 2D-resize suggestion (`width += 15 × ⌈excess/2⌉`, `height += 15 × ⌊excess/2⌋`) so connections can spread across all four faces |
+| ≥ 4 connections per face | `LayoutQualityAssessor.M5_FACE_GUARD_MIN_CONNECTIONS` | M5 *hub-port-quality* face-count guard — a separate per-face metric, not a hub-detection threshold |
+
+For a deeper LLM-agent walkthrough of when each threshold applies, when to use `detect-hub-elements` vs `resize-elements-to-fit`, and the gaps to be aware of, see [Hub Identification and Sizing Advisory](../_bmad-output/implementation-artifacts/hub-identification-and-sizing-advisory-2026-05-03.md).
+
 ### Connection Counting
 
 The tool traverses all visual elements and connections on a view, counting connections per `viewObjectId`:
@@ -246,16 +262,28 @@ Elements with zero connections are excluded from the result.
 
 ### Hub Sizing Suggestions
 
-Elements exceeding the hub threshold (>6 connections) receive sizing suggestions based on the hub element formula:
+Elements exceeding the hub threshold (>6 connections) receive sizing suggestions based on the hub element formula. The Kandinsky orthogonal-layout model [8] is the relevant background reference for treating high-degree vertices specially; the formula itself is empirical (project contribution, not paper-derived):
+
+**1D suggestion (>6 connections):**
 
 ```text
 suggestedDimension = baseDimension + 15px × (connectionCount - 6)
 ```
 
 Suggestions are flow-direction-aware:
+
 - **Horizontal layouts** (left-to-right groups): increase **height** for more vertical perimeter
 - **Vertical layouts** (top-to-bottom groups): increase **width** for more horizontal perimeter
 - **True hubs** (connections from all directions): increase **both**
+
+**2D suggestion (>12 connections, additional):**
+
+```text
+width  += 15 × ⌈(connectionCount - 12) / 2⌉
+height += 15 × ⌊(connectionCount - 12) / 2⌋
+```
+
+Surfaced alongside the 1D pair so the calling agent can pick 2D inflation when the connection fan-out warrants distributing ports across all four edges (~N/4 connections per edge). The 2D formula keeps the resize aspect-ratio-neutral by splitting the growth term between width and height.
 
 ### Response Structure
 
@@ -407,7 +435,7 @@ Estimates label bounding boxes from text length and path position. Uses 10px ins
 
 #### Pass-Throughs
 
-Detects connections that cross through element rectangles. Clips connection paths from element centers to perimeter (using Archi's OrthogonalAnchor model). Excludes ancestors, descendants, and groups (transparent containers). Uses 10px inset to absorb corner-arc imprecision.
+Detects connections that cross through element rectangles. Clips connection paths from element centers to perimeter (using Archi's OrthogonalAnchor model) and tests segment-vs-rectangle intersection using the Liang–Barsky line-clipping algorithm [16]. Excludes ancestors, descendants, and groups (transparent containers). Uses 10px inset to absorb corner-arc imprecision.
 
 Also detects **self-element pass-throughs** — cases where non-terminal segments of a connection's route pass through the connection's own source or target element body (using 5px inset). This catches routes that enter endpoint elements through interior points rather than approaching cleanly from an edge.
 
@@ -425,6 +453,54 @@ Counts connections whose terminal segments (first two or last two points) form d
 
 **Rating:** 0 = "pass", 1-3 = "fair", 4+ = "poor"
 
+### Assessor Redesign
+
+The assessor redesign introduces five perception-aligned metrics (M1 corrected, M2–M5 new), a corridor-utilisation metric (R8), an informational narrow-corridor signal (`parallelConnectionGap_V_p10`), and a two-dimensional overall rating (M6) that decouples layout quality from routing quality. The redesign was driven by ArchiMate manual-routed reference calibration and visual-severity owner sign-off that pre-redesign metrics misaligned with user perception.
+
+| Metric | Field | Definition |
+|--------|-------|------------|
+| **M1** (corrected) | `nonOrthogonalTerminalCount` | Visible-segment-length guard. Pre-redesign, the metric over-reported clipped diagonals — bendpoints inside the source/target element bounds were counted as if visible. The corrected M1 ignores Archi-clipped diagonals (post-clip visible segment only) and was calibrated against the V4 manual oracle (manual = 21). |
+| **M2** | `interiorTerminatingCount` | Connections whose terminal bendpoint lands inside the source or target element bounds. Routing Tier 1R. Previously unmeasured. |
+| **M3** | `zigzagCount` | Reversal patterns where two consecutive segments meet at a shared axis (zigzag triple). Routing Tier 1R. Previously unmeasured. M3 **skips connections already classified as pass-throughs** by `detectPassThroughs` (classification-precedence guard at `LayoutQualityAssessor.countZigzags()`): for the failed-detour-around-element pattern the visually-correct label is passthrough-only — the small reversal is a consequence of the failed detour, not an independent defect. Pinned by `RoutingClassificationPrecedenceTest`. |
+| **M4** | `connectionEdgeCoincidenceCount` | Connection segments running parallel to and within `EDGE_COINCIDENCE_TOLERANCE_PX` (3px) of a foreign element's edge line. Routing Tier 1R with thresholds `EDGE_COINCIDENCE_GOOD_MAX = 2` and `EDGE_COINCIDENCE_FAIR_MAX = 5`. Pre-redesign only conn-vs-conn coincidence was measured (B45 self-exclusion). The self-exclusion guard removal makes M4 always flag parallel-coincident segments. **v1.3 oracle baseline corrected to M4 = 12** (previously documented as 2 — the discrepancy was a measurement artefact, not a routing change). **Topology-bound floor caveat:** on hub-and-spoke layouts at hub-port-quality-fixed hub sizes, M4 has a structural floor that does not respond to spacing inflation. M4 above the floor reflects routable congestion; M4 at the floor reflects topology. |
+| **M5** | `hubPortQualityScore`, `hubPortQualityFaces` | View-aggregate mean of per-hub-face distinct-slot ratios for any element face with ≥ 4 connections. Catastrophic example pre-redesign: 1 face slot for 7 connections (HPQ 0.18). v1.3 oracle HPQ measured 0.18 (catastrophic, invisible to old assessor); current pipeline preserves 0.77 — roughly five times better. Thresholds: `pass` ≥ 0.95, `good` ≥ 0.75, `fair` ≥ 0.5, `poor` < 0.5. |
+| **R8** | `corridorUtilisation`, `corridorUtilisationDetails` | Wide-corridor utilisation — measures how well wide corridors carry connections in proportion to their width. Pinned ≥ 0.25 on the V4 oracle by `V4OracleCorridorUtilisationRegressionTest`. |
+| **`parallelConnectionGap_V_p10`** | `vAxisParallelGapP10`, `vAxisParallelGapNarrow25Count`, `parallelConnectionGapDetail` | Informational narrow-corridor signal. The primary value is the 10th-percentile pairwise parallel gap on the V axis (in pixels); the ArchiMate manual-routed reference anchors at 13.30 ± 0.5. The secondary `vAxisParallelGapNarrow25Count` counts V-axis segments below 25 px gap (more = worse). Calibration validated against an ordered reference set of four views (gold > hub-heavy-source > standard-source > narrow-corridor regime — monotonic by owner perception). **Currently no rating impact** — surfaces the structural narrow-corridor floor so an LLM agent can recognise when convenience spacing tools cannot mitigate further. Full per-axis detail (mean / min / p10 / narrowGapCount@{15,25,40} for V and H axes) returned in `parallelConnectionGapDetail` when `includeViolatorIds: true`. Pinned by `ParallelConnectionGapMetricTest`. |
+
+#### Rating Re-Anchors
+
+Two cut-points were re-anchored to align with the visual-severity hierarchy:
+
+- **`overlapCount` → binary `>0 → poor`** (Tier 1L). Any sibling overlap caps the layout tier at `poor`. Previously rated `fair / poor` with a count-based cut-point that under-rated views with isolated overlaps. Aligns with the user's perceptual gate that any visible overlap reads as a broken layout.
+- **`parentLabelObscuredCount` → Tier 1L binary `>0 → poor`** (promoted from informational). When a parent element's label is obscured by a child, the diagram fails its primary purpose — reading the element's name. Promoted into the layout-tier rating via M6.
+
+#### M6 — Two-Dimensional Overall Rating
+
+M6 replaces B38's single-tier overall rating with two independently computed tier indices: a **layout tier** (driven by element-level metrics) and a **routing tier** (driven by connection-level metrics including M2/M3/M4 routing-tier promotions and M5 hub-port quality). The overall rating is the worse of the two:
+
+```text
+overallRating = levelToRating(max(layoutLevel, routingLevel))
+```
+
+This decouples layout quality from routing quality so a poor-routing fix does not drag a strong-layout view's tier and vice versa. `parentLabelObscuredCount` and `labelTruncationCount` (B53 informational detections) are promoted into the layout tier under M6.
+
+### JUnit-Protected Release-Gate Metrics
+
+Every quality threshold introduced by the assessor redesign ships with a JUnit regression test pinning the metric on the ArchiMate manual-routed reference oracle. This codifies the project convention that every routing or layout improvement ships with a test pinning the new threshold — wins were lost repeatedly in prior cycles because nothing protected them.
+
+| Bound | Threshold | Test |
+|------|-----------|------|
+| `hubPortQualityScore` (M5) | ≥ 0.70 | `V4OracleQualityRegressionTest` |
+| `coincidentSegmentCount` (legacy parallel-coincident metric) | ≤ 3 | `V4OracleQualityRegressionTest` |
+| `nonOrthogonalTerminalCount` (M1) | ≤ 5 | `V4OracleQualityRegressionTest` |
+| `corridorUtilisationScore` (R8) | ≥ 0.25 | `V4OracleCorridorUtilisationRegressionTest` |
+| `vAxisParallelGapP10` (`parallelConnectionGap_V_p10`) | ≥ 13.30 ± 0.5 | `ParallelConnectionGapMetricTest` |
+| Zigzag↔passthrough classification precedence | Failed-detour fixture: zigzag count after guard = 0 | `RoutingClassificationPrecedenceTest` |
+| Post-autoNudge parent-group bounds | All children remain within parent group bounds after `auto-route-connections(autoNudge=true)` | `AutoNudgeGroupBoundsFollowupTest` (15 tests) |
+| Post-spacing-tool parent-group bounds | All children remain within parent group bounds after `apply-spacing-recommendations` / `apply-element-spacing-recommendations` / `apply-group-spacing-recommendations` / `adjust-view-spacing` | `SpacingToolParentBoundsTest` (12 tests) |
+
+A future routing or spacing change that regresses any of these thresholds fails the protected test rather than silently shipping. The middle row of `V4OracleQualityRegressionTest` is bounded by a constant the test names `M5_CEILING`; the name reflects the constant's release-gate slot, not the M5 hub-port-quality metric (which is bounded by `HPQ_FLOOR` on the first row). The bound applies to the legacy `coincidentSegmentCount` getter, not the new M4 `connectionEdgeCoincidenceCount`.
+
 ### Overall Rating (Severity-Tiered)
 
 The overall rating uses a **three-tier severity system** instead of simple worst-metric-wins. Each tier has a cap on how much it can degrade the overall rating:
@@ -432,8 +508,8 @@ The overall rating uses a **three-tier severity system** instead of simple worst
 | Tier | Severity | Metrics | Cap |
 |------|----------|---------|-----|
 | **Tier 1** | Critical | overlaps, passThroughs, coincidentSegments | No cap — drives overall rating directly |
-| **Tier 2** | Moderate | edgeCrossings, nonOrthogonalTerminals | Capped at "fair" |
-| **Tier 3** | Cosmetic | spacing, alignment, labelOverlaps | Capped at "good" |
+| **Tier 2** | Moderate | edgeCrossings | Capped at "fair" |
+| **Tier 3** | Cosmetic | spacing, alignment, labelOverlaps, nonOrthogonalTerminals | Capped at "good" |
 
 ```text
 Rating levels: pass/excellent = 0, good = 1, fair = 2, poor = 3
@@ -565,7 +641,16 @@ Run layout once (ELK in `auto` mode, or the orchestrated workflow in `grouped` m
 
 ### With targetRating
 
-Multi-iteration quality loop (max 5 attempts):
+Multi-iteration quality loop (max 5 attempts). The v1.4 **smart iteration strategy** (B62) replaces the earlier monotonic spacing-bump loop with a factor-aware iteration over four orthogonal levers: spacing, corridor diversity (`occupancyWeight` bumped up to 4× the default), reverse-sweep crossing minimisation (`CrossingMinimizer.reverseSweep = true`), and a tier-weighted score with a Tier-1 veto. Plateau detection short-circuits once successive iterations stop improving. Iteration helpers consume the M6 layout-tier × routing-tier model so a stuck factor in one dimension can still unlock progress in the other.
+
+```text
+B62-1: factor-aware iteration loop (spacing, occupancy, sweep, score)
+B62-2: parameterized corridor diversity (occupancyWeight scaling)
+B62-3: reverse-sweep crossing minimizer
+B62-4: tier-weighted score + Tier-1 veto (consumes M6 tiers)
+B62-5: factor-aware plateau detection
+B62-6: end-to-end validation
+```
 
 ```mermaid
 flowchart TD
@@ -587,6 +672,123 @@ ELK generates orthogonal bendpoints. The view's connection router is automatical
 ### Limitation
 
 ELK does not see elements inside groups as obstacles for inter-group connections. Inter-group edges may clip through internal elements. Workaround: follow ELK with `auto-route-connections` for element-aware obstacle routing.
+
+## View Spacing Adjustment
+
+The `adjust-view-spacing` tool (B68, v1.4) inflates the inter-element and inter-group spacing on an existing view and re-routes connections in a single atomic operation. It is the targeted alternative to re-running ELK from scratch when an existing arrangement only needs more breathing room.
+
+### When to Use
+
+| Scenario | Tool |
+|----------|------|
+| View needs more breathing room without changing element positions or group order | `adjust-view-spacing` |
+| Apply density heuristic to within-group element spacing in one call | `apply-element-spacing-recommendations` |
+| Apply density heuristic to inter-group corridor spacing in one call | `apply-group-spacing-recommendations` |
+| Apply both heuristics in one call with the inflation-knee guard | `apply-spacing-recommendations(scope=both)` |
+| View needs full re-layout from scratch | `auto-layout-and-route` (mode `auto` or `grouped`) |
+| Specific elements need resizing for label fit | `resize-elements-to-fit` |
+| Hub elements need port-fanout sizing | `detect-hub-elements` → `update-view-object` |
+
+### Behavior
+
+- Scales current element positions outward by a uniform factor while preserving relative ordering and parent-child containment.
+- Resizes parent groups to accommodate the new child positions.
+- Runs `auto-route-connections` after the spacing adjustment so connections re-route through the larger corridors.
+- Runs a post-pass overflow-detection check that catches any child element whose new position pushes it outside its parent group's bounds and resizes the parent. The pass shares an extracted `childExceedsParentBounds` predicate and `resizeParentGroupIfNeeded` helper with the `auto-route-connections` autoNudge path so the rule is computed in exactly one place. Pinned by `SpacingToolParentBoundsTest`.
+- All mutations bundled in a single compound command (atomic undo).
+
+### Density-Aware Default (v1.4)
+
+When `interElementDelta` is omitted on a view that already has a problematic spacing-related metric (`coincidentSegmentCount > 2` OR `connectionEdgeCoincidenceCount > 4`), `adjust-view-spacing` derives a heuristic-driven default from the view's connection count instead of using 0:
+
+| Total connections on view | Target element spacing |
+|---|---|
+| ≤ 15 | 60 px |
+| 16–30 | 80 px |
+| > 30 | 100 px |
+
+Pass `interElementDelta: 0` explicitly to suppress default-resolution. The response DTO's `defaultResolutionReason` field reports whether the tool resolved a default and which trigger metric and tier it used.
+
+The same heuristic table is the source-of-truth for `apply-element-spacing-recommendations` (see below) and is published to LLM agents via `archimate://reference/archimate-view-patterns` Pre-Layout Planning §2.
+
+### Convenience Tools (Routing Preconditions)
+
+Three convenience tools bundle "read view's current geometry → consult heuristics table → call `adjust-view-spacing` with the computed delta" into a single transactional call. They expose the same heuristic the density-aware default uses, but with explicit opt-in semantics, a `dryRun` preview mode, and before/after `assess-layout` snapshots in one envelope.
+
+| Tool | Inflates | Knee guard | Heuristic source-of-truth |
+|---|---|---|---|
+| `apply-element-spacing-recommendations` | `interElementDelta` (within-group element spacing) | No | `archimate://reference/archimate-view-patterns` Pre-Layout Planning §2, intra-group tiers |
+| `apply-group-spacing-recommendations` | `interGroupDelta` (inter-group corridor widening) | No | `archimate://reference/archimate-view-patterns` Pre-Layout Planning §2, inter-group tiers |
+| `apply-spacing-recommendations` (composed) | Both, selected via `scope: "both" / "element" / "group"` | **Yes** — per-iteration step caps of +80 px (element) / +100 px (inter-group) inside each loop | Same source-of-truth, both tiers |
+
+All three tools:
+
+- Compute `delta = max(0, target - current)` from the heuristic so they never shrink existing spacing.
+- Use the MIN current spacing across the view (most-tight wins) so a single tight pair triggers inflation.
+- Select the hub-aware tier (element: 80/100/120 px; inter-group connected: 100/140/160 px) automatically when `detect-hub-elements` reports one or more hub candidates on the view. The hub-aware tier accounts for the corridor space formula-resized hubs consume — without it, the heuristic UNDERSHOOTS post-hub-resize and coincident-segment residuals persist.
+- Return the before/after `assess-layout` snapshot in one envelope so the visual-quality impact is visible immediately.
+- Are no-ops when the view has no connections (or no inter-group connections, for the group sibling).
+- Combine with hub sizing (`detect-hub-elements` + `update-view-object`) to form the routing-preconditions triad. The triad is the canonical pre-routing setup for non-trivial views — see `archimate://prompts/routing-preconditions-checklist`.
+
+The composed tool's inflation-knee guard prevents the **cumulative-inflation-past-the-knee** failure mode — spacing pushed past the narrow-corridor structural floor, which introduces zigzags and pass-throughs faster than it removes residual defects. When a per-iteration step cap fires, the response surfaces `elementKneeClampApplied` / `groupKneeClampApplied = true` plus the proposed-vs-clamped delta values. All three convenience tools run the control loop described next; the composed tool additionally enforces the per-iteration step caps.
+
+### Embedded Control Loop and Density-Aware Termination
+
+The three convenience tools do not apply one spacing delta and return. Each embeds an **observe → decide → density-aware-terminate** control loop (`SpacingControlLoop`; the composed tool drives two arms in sequence via `ComposerSpeculativeReplay`). The caller makes one tool call; the loop iterates internally and reports what it did.
+
+Per iteration the loop:
+
+1. Takes a spacing step — a `+10 px`-per-step monotone ladder while the view is improving; a larger step when escalating.
+2. Applies the step and re-runs `auto-route-connections` + `assess-layout`.
+3. Classifies the result on a 2×2 of *aggregate-quality trend* × *spacing-regime position*:
+
+| Aggregate trend | Below the prescribed ~100–124 px / fan-out-sized-hub regime | Already at/above the prescribed regime |
+|---|---|---|
+| Still climbing | **CONTINUE** (monotone step) | **CONTINUE** (monotone step) |
+| Stalled | **ESCALATE** — large steps toward the ~112 px mid-band plus a one-shot hub-resize | **PASS-HONEST** — more spacing cannot help; stop |
+
+A degrading step is always reverted, so the loop never presents a silently-degraded view. All accepted iterations from a single call wrap in one `NonNotifyingCompoundCommand`, so one tool call is always one undo-stack entry. The loop's objective is the aggregate `thresholds_met` scalar only — per-metric monotonicity is deliberately not used because it spuriously stops on net-positive mutations. `iterationBudget` defaults to 5 (single-arm) / 8 (composed, split across arms), caller-tunable in `[1, 20]`.
+
+The response DTO reports `terminationReason` (exactly one of eight branches), `iterationCount`, and `appliedDeltas[]` (per arm for the composed tool):
+
+| `terminationReason` | Meaning |
+|---|---|
+| `goal_reached_at_iteration_N` | Target quality envelope met. |
+| `budget_exhausted_after_N_iterations` | `iterationBudget` cap hit; last accepted step commits. |
+| `aggregate_threshold_regressed_at_iteration_N_reverted_to_iteration_M` | Back-off fired; reverted to the best non-degraded state. |
+| `structural_no_change_<reason>` | Nothing to inflate (no groups / no groups with 2+ children / no connections). |
+| `heuristic_already_met_no_change` | Current spacing already ≥ target at iteration 0. |
+| `dry_run_recommendation_not_applied` | `dryRun: true` short-circuit; no mutation; `iterationCount = 0`. |
+| `iteration_apply_failed_at_iteration_N_reverted_after_M_accepted_iterations` | A contained mutation threw mid-application; best-effort rollback, prior accepted iterations preserved. |
+| `density_floor_reflow_required` | PASS-HONEST: sound infeasibility certificate fired (see below). |
+
+### Sound Pre-Routing Infeasibility Certificate
+
+`SpacingPreconditionInfeasibilityCertificate` is a pure-geometry, zero-false-positive predicate evaluated from the view's measured geometry before the loop commits more spacing. It fires when the average element spacing is already in the prescribed 100–124 px band and the hub is sized for its connection count, yet aggregate quality has stalled. In that state more spacing *physically cannot* satisfy the precondition — the elements are too many for the view's area.
+
+This is the engine's principled response to a strategic finding: the residual quality ceiling on dense hub-and-spoke views is an **infeasible-input-geometry / layout-precondition failure, not a routing-algorithm limit**. The router can refine routes; it cannot manufacture the area a dense view needs. The certificate makes that distinction explicit and tells the calling agent *which* views need structural change instead of leaving it to iterate spacing tools indefinitely.
+
+When the certificate fires the loop:
+
+- Stops without degrading the view (the best non-degraded state is preserved — pre-existing manual placement and pins are untouched).
+- Returns `terminationReason: density_floor_reflow_required` and a `densityFloorDiagnosis` string naming the violated precondition (measured average spacing vs the 100–124 px band; hub W×H vs connection count). The composed tool returns this per arm.
+- **Never auto-reflows.** A structural reflow moves user-placed elements, so the tool surfaces the reflow as an explicit user-consentable next step — *surface + offer + wait for consent, never surface + act*. The decision to discard manual placement intent belongs to the user, not the tool.
+
+The certificate is implemented as a standalone predicate with a thin caller at each spacing-tool request-build site, sibling-symmetric with the routing-not-beneficial degraded path; the control-loop body itself is unchanged, so the certificate's soundness (zero false positives on feasible views) is the property that lets it coexist with the loop without disturbing the preserved-state guarantees. It is the authoritative stop signal; the informational `parallelConnectionGap.vAxisParallelGapP10` narrow-corridor indicator points at the same remedy class but is heuristic, not a certificate.
+
+### Density-Aware Default in `arrange-groups`
+
+`arrange-groups` carries a sibling-symmetric density-aware default for its `spacing` parameter. When `spacing` is omitted on a view that has inter-group connections, the tool derives a heuristic-driven default from the connection count instead of using the static 40 px:
+
+| Total connections on view | Inter-group spacing default |
+|---|---|
+| ≤ 15 | 80 px |
+| 16–30 | 100 px |
+| > 30 | 120 px |
+
+Pass an explicit `spacing` value (including 0 or 40) to suppress default-resolution. Applies to direct `arrange-groups` invocations only — internal compound flows that pass the static 40 default are unaffected.
+
+**Source:** `handlers/ViewPlacementHandler.java`, `model/ArchiModelAccessorImpl.java`, `layout/SpacingControlLoop.java`, `layout/SpacingPreconditionInfeasibilityCertificate.java`, `layout/ComposerSpeculativeReplay.java`, `layout/SpacingIterationDecision.java`, `layout/SpacingIterationStep.java`, `response/dto/AdjustViewSpacingResultDto.java`, `response/dto/ApplyElementSpacingRecommendationsResultDto.java`, `response/dto/ApplyGroupSpacingRecommendationsResultDto.java`
 
 ## Configuration Constants
 
@@ -621,7 +823,8 @@ ELK does not see elements inside groups as obstacles for inter-group connections
 | `FAIR_MAX_CROSSINGS` | 30 | Crossing threshold for "fair" |
 | `FAIR_MAX_COINCIDENT` | 8 | Coincident segment threshold for "fair" |
 | `FAIR_MAX_PASS_THROUGHS` | 3 | Pass-through threshold for "fair" (also leniency gate) |
-| `FAIR_MAX_NON_ORTHOGONAL` | 3 | Non-orthogonal terminal threshold for "fair" |
+| `NON_ORTH_RATIO_GOOD` | 0.10 | Non-orth terminals/connections ratio for "good" |
+| `NON_ORTH_RATIO_FAIR` | 0.30 | Non-orth terminals/connections ratio for "fair" |
 | `CROSSING_RATIO_GOOD` | 1.5 | crossings/connections for "good" |
 | `CROSSING_RATIO_MODERATE` | 4.0 | crossings/connections for "fair" |
 | `ALIGNMENT_TOLERANCE` | 5.0px | Edge alignment detection tolerance |
@@ -630,6 +833,19 @@ ELK does not see elements inside groups as obstacles for inter-group connections
 | `PASS_THROUGH_INSET` | 10.0px | Obstacle inset for pass-through detection |
 | `SELF_ELEMENT_INSET` | 5.0px | Inset for self-element pass-through detection |
 
+## References
+
+[7]: bibliography.md#ref-7
+[8]: bibliography.md#ref-8
+[10]: bibliography.md#ref-10
+[11]: bibliography.md#ref-11
+[13]: bibliography.md#ref-13
+[14]: bibliography.md#ref-14
+[15]: bibliography.md#ref-15
+[16]: bibliography.md#ref-16
+
+Inline citations above (e.g. `[7]`) link to the entry of the same number in [bibliography.md](bibliography.md).
+
 ---
 
-**See also:** [Routing Pipeline](routing-pipeline.md) | [Coordinate Model](coordinate-model.md) | [Architecture Overview](architecture.md)
+**See also:** [Routing Pipeline](routing-pipeline.md) | [Bibliography](bibliography.md) | [Coordinate Model](coordinate-model.md) | [Architecture Overview](architecture.md)

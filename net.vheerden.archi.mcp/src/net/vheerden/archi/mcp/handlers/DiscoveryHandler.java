@@ -311,6 +311,8 @@ public class DiscoveryHandler {
                 .description("[Discovery] Search for existing elements and create one if none found. "
                         + "Searches first using the query; if results are found, returns them "
                         + "without creating. If no results, creates the specified element automatically. "
+                        + "If unsure which createType to use, consult the concept-to-element-type "
+                        + "decision aid in archimate://reference/archimate-layers. "
                         + "Required: query, createType, createName. Optional: type (search filter), "
                         + "createDocumentation, createProperties, createFolderId. "
                         + "Related: search-elements (search only), create-element (create only).")

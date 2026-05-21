@@ -4,6 +4,52 @@
 
 ArchiMate organises architecture into layers that represent different levels of abstraction. Elements belong to exactly one layer based on their type.
 
+## Choosing the Right Element Type (Decision Aid)
+
+Picking the wrong element type is the most common modelling mistake. Before calling `create-element` or `search-and-create`, map the plain-English concept to a type by asking the disambiguating question for the pair it most resembles. The rule of thumb across every layer: **active structure** = *who/what performs* (Actor, Role, Component, Node); **behaviour** = *what is done* (Process, Function, Service); **passive structure** = *what is acted on* (BusinessObject, DataObject, Artifact).
+
+### Component vs. Service
+
+| | A **Component / active-structure thing** | A **Service (behaviour)** |
+|---|---|---|
+| Ask | "Is it a deployable, identifiable *thing that does the work*?" | "Is it the *exposed capability* offered to a consumer, named by its outcome?" |
+| Looks like | `LoanApp`, `ESB`, `Payment Gateway` | `Loan Scoring Service`, `Payment API`, `Customer Notification` |
+| Type | `ApplicationComponent` (Business: `BusinessRole`/`BusinessActor`; Technology: `Node`/`SystemSoftware`) | `ApplicationService` / `BusinessService` / `TechnologyService` |
+
+A component **realizes** a service; the service is *what other elements depend on*. Pick the one the diagram's concern needs: an integration/cooperation view shows **components**; a capability/contract view shows **services**.
+
+### Process vs. Function
+
+| | A **Process** | A **Function** |
+|---|---|---|
+| Ask | "Is it a *sequence with a trigger, a flow, and a specific end result*?" | "Is it *ongoing behaviour grouped by required skill/capability*, with no inherent end?" |
+| Looks like | `Assess Application`, `Ship Order`, `Onboard Customer` (verb + object) | `Claims Management`, `Marketing`, `Risk Analysis` (a capability area) |
+| Type | `BusinessProcess` / `ApplicationProcess` / `TechnologyProcess` | `BusinessFunction` / `ApplicationFunction` / `TechnologyFunction` |
+
+Triggering / Flow relationships chain **processes**; a **function** is what an organizational unit is *responsible for*, not a step in a flow.
+
+### Node vs. ApplicationComponent
+
+| | A **Node** | An **ApplicationComponent** |
+|---|---|---|
+| Ask | "Is it *infrastructure that hosts or runs* software (where it runs)?" | "Is it the *software that runs on* infrastructure (what runs)?" |
+| Looks like | `AppServer`, `Kubernetes Cluster`, `Database Server` | `LoanApp`, `RulesEngine`, `CustomerPortal` |
+| Type | `Node` (Technology layer) | `ApplicationComponent` (Application layer) |
+
+A component is **deployed on** a node. An OS / middleware / runtime (e.g. `JBoss`, Linux) is `SystemSoftware`, nested inside its `Node`.
+
+### Actor vs. Role
+
+| | A **BusinessActor** | A **BusinessRole** |
+|---|---|---|
+| Ask | "Is it the *concrete entity, person, or org unit* (the who)?" | "Is it the *capacity or responsibility* an actor acts in (the as-what)?" |
+| Looks like | `Acme Bank`, `Finance Department`, `Jane Smith` | `Loan Officer`, `Approver`, `Customer` |
+| Type | `BusinessActor` | `BusinessRole` |
+
+An **actor is assigned to a role**; the **role performs the process**. On a process / swimlane view the swimlane is usually the **role** (the responsibility), not the actor.
+
+> When a concept is genuinely a *part of* a larger element (a sub-component, a module), it is still the **same type as its parent** (e.g. a sub-`ApplicationComponent`). Convey the part-of by **nesting it in the view**, not by drawing a Composition/Assignment connector — see `archimate://reference/archimate-view-patterns`, best-practice rule 4.
+
 ## Strategy Layer
 
 Strategic elements that model the enterprise's direction and capabilities.

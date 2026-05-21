@@ -653,7 +653,7 @@ public class ViewHandler {
                         + "Set dryRun=true to get a cost estimate without returning results. "
                         + "Set format=tree for a compact containment hierarchy showing groups and their children — "
                         + "ideal first step for grouped view workflows (discover viewObjectIds for "
-                        + "layout-within-group, arrange-groups, optimize-group-order). "
+                        + "layout-within-group, arrange-groups, optimize-group-order, adjust-view-spacing). "
                         + "Set format=graph for deduplicated node/edge structure, format=summary for condensed text overview. "
                         + "Elements in results include specialization field showing the primary specialization name (null if none). "
                         + "Related: get-element (full element details), "

@@ -153,6 +153,10 @@ public class ElementCreationHandler {
         McpSchema.Tool tool = McpSchema.Tool.builder()
                 .name("create-element")
                 .description("[Mutation] Create a new ArchiMate element. "
+                        + "Picking the right element type matters — if unsure, consult the "
+                        + "concept-to-element-type decision aid in "
+                        + "archimate://reference/archimate-layers (Component vs Service, "
+                        + "Process vs Function, Node vs Component, Actor vs Role). "
                         + "Checks for potential duplicates of the same type before creating "
                         + "— if similar elements are found, returns them for review instead of "
                         + "creating. Use force: true to skip duplicate detection. "
@@ -165,6 +169,9 @@ public class ElementCreationHandler {
                         + "auto-created on first use and reused (case-insensitive) thereafter. "
                         + "Two elements with the same name but different specializations are "
                         + "NOT considered duplicates. "
+                        + "NOTE: visual styling (figureType, textAlignment, verticalTextAlignment, "
+                        + "colours) is placement-time, not creation-time — set it on the subsequent "
+                        + "add-to-view call. "
                         + "Related: get-or-create-element (idempotent creation), "
                         + "search-elements (find existing), get-folders (discover folder IDs), "
                         + "create-relationship (connect elements), list-specializations.")

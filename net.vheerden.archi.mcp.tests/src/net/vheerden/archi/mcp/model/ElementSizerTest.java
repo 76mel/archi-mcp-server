@@ -281,4 +281,174 @@ public class ElementSizerTest {
         // Single line: 1 * 14 + 6 + 5 = 25
         assertEquals(25, height);
     }
+
+    // --- fitTextBoxHeightToContent (notes + group label-band) -----------------------------
+    //
+    // backlog-view-title-note-autosize — Task-3.1 pure-unit coverage.
+    // Pattern mirrors computeLabelHeight tests above: fixed FontMetrics records (no SWT).
+    //
+    // Constants used by callers:
+    //   notes:  minHeight = DEFAULT_NOTE_HEIGHT (80),   maxHeight = MAX_NOTE_HEIGHT (600)
+    //   groups: minHeight = DEFAULT_GROUP_HEIGHT (200), maxHeight = MAX_GROUP_LABEL_BAND (800)
+    //   padding = LABEL_VERTICAL_PADDING (6)
+    //   lineHeight in test metrics = 14 (matches the production SWT system font reasonably)
+
+    private static final int NOTE_MIN = 80;    // mirrors DEFAULT_NOTE_HEIGHT
+    private static final int NOTE_MAX = 600;   // mirrors MAX_NOTE_HEIGHT
+    private static final int GROUP_MIN = 200;  // mirrors DEFAULT_GROUP_HEIGHT
+    private static final int GROUP_MAX = 800;  // mirrors MAX_GROUP_LABEL_BAND
+    private static final int PADDING = 6;      // mirrors LABEL_VERTICAL_PADDING
+
+    @Test
+    public void fitTextBoxHeight_emptyText_returnsMinHeight_note() {
+        // AC-3: empty content → note height ≈ DEFAULT_NOTE_HEIGHT
+        int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                "", 185, metricsFor(""), PADDING, NOTE_MIN, NOTE_MAX);
+        assertEquals(NOTE_MIN, h);
+    }
+
+    @Test
+    public void fitTextBoxHeight_nullText_returnsMinHeight() {
+        int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                null, 185, metricsFor("ignored", 0), PADDING, NOTE_MIN, NOTE_MAX);
+        assertEquals(NOTE_MIN, h);
+    }
+
+    @Test
+    public void fitTextBoxHeight_nullMetrics_returnsMinHeight() {
+        // Defensive: pure-geometry overload must not NPE on null metrics
+        int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                "Some text", 185, null, PADDING, NOTE_MIN, NOTE_MAX);
+        assertEquals(NOTE_MIN, h);
+    }
+
+    @Test
+    public void fitTextBoxHeight_zeroWidth_returnsMinHeight() {
+        int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                "Some text", 0, metricsFor("Some text", 50, 28), PADDING, NOTE_MIN, NOTE_MAX);
+        assertEquals(NOTE_MIN, h);
+    }
+
+    @Test
+    public void fitTextBoxHeight_negativeWidth_returnsMinHeight() {
+        int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                "Some text", -10, metricsFor("Some text", 50, 28), PADDING, NOTE_MIN, NOTE_MAX);
+        assertEquals(NOTE_MIN, h);
+    }
+
+    @Test
+    public void fitTextBoxHeight_oneLine_clampsUpToMinHeight() {
+        // AC-3: 1-line content → returns minHeight (floor preserved, no shrink below default)
+        // lineCount=1, lineHeight=14, padding=6 → raw height = 20 → clamp up to NOTE_MIN (80)
+        String text = "Title";
+        ElementSizer.FontMetrics metrics = metricsFor(text, 35);
+        int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                text, 185, metrics, PADDING, NOTE_MIN, NOTE_MAX);
+        assertEquals(NOTE_MIN, h);
+    }
+
+    @Test
+    public void fitTextBoxHeight_sixLineWrap_growsBeyondMinHeight_retailBankTitle() {
+        // AC-1: the Retail Bank prompt's title note ("A — Business Architecture: …banking products")
+        // when rendered at DEFAULT_NOTE_WIDTH (185) wraps to ~6 lines and should grow past
+        // DEFAULT_NOTE_HEIGHT (80).
+        //
+        // We synthesize 6 wraps at width=185 by giving 6 wordWidths of 170 each:
+        //   line 1: word(170) fits in 185 → next word 170+4+170=344>185 → wrap
+        //   ...repeated 6 times → 6 lines
+        String text = "Word1 Word2 Word3 Word4 Word5 Word6";
+        ElementSizer.FontMetrics metrics = metricsFor(text, 170, 170, 170, 170, 170, 170);
+
+        int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                text, 185, metrics, PADDING, NOTE_MIN, NOTE_MAX);
+        // Expected: 6 lines × 14 + 6 padding = 90  (> NOTE_MIN=80)
+        assertEquals(90, h);
+        assertTrue("6-line wrapped title height should exceed NOTE_MIN: " + h, h > NOTE_MIN);
+    }
+
+    @Test
+    public void fitTextBoxHeight_pathologicalLong_clampsToMaxHeight() {
+        // AC-4: pathological wall-of-text degrades to maxHeight (not the canvas blowing up).
+        // 100 wordWidths of 170 each → 100 lines → raw 100*14 + 6 = 1406, clamp to NOTE_MAX (600)
+        StringBuilder text = new StringBuilder();
+        int[] wordWidths = new int[100];
+        for (int i = 0; i < 100; i++) {
+            text.append("Word").append(i).append(' ');
+            wordWidths[i] = 170;
+        }
+        ElementSizer.FontMetrics metrics = metricsFor(text.toString().trim(), wordWidths);
+
+        int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                text.toString().trim(), 185, metrics, PADDING, NOTE_MIN, NOTE_MAX);
+        assertEquals(NOTE_MAX, h);
+    }
+
+    @Test
+    public void fitTextBoxHeight_groupShortLabel_returnsGroupMinHeight() {
+        // AC-15 helper-side analog: short group label at width=300 should clamp up to
+        // DEFAULT_GROUP_HEIGHT (200), not return 200+ε. The accessor caller then
+        // short-circuits to DEFAULT_GROUP_HEIGHT literally — this test pins the floor.
+        String label = "Banking Products";
+        ElementSizer.FontMetrics metrics = metricsFor(label, 56, 56);  // fits in 1 line at 300
+
+        int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                label, 300, metrics, PADDING, GROUP_MIN, GROUP_MAX);
+        // Raw height: 1*14 + 6 = 20, clamps up to GROUP_MIN (200). Must be exactly 200.
+        assertEquals(GROUP_MIN, h);
+    }
+
+    @Test
+    public void fitTextBoxHeight_groupLongLabel_growsBeyondGroupMinHeight() {
+        // AC-7: long group label at default width forces label band > DEFAULT_GROUP_HEIGHT.
+        // Need raw height > 200 → lineCount * 14 + 6 > 200 → lineCount >= 14 lines.
+        StringBuilder label = new StringBuilder();
+        int[] wordWidths = new int[14];
+        for (int i = 0; i < 14; i++) {
+            label.append("VeryLongDescriptiveWord ");
+            wordWidths[i] = 290;  // each fills the 300-wide group on its own
+        }
+        ElementSizer.FontMetrics metrics = metricsFor(label.toString().trim(), wordWidths);
+
+        int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                label.toString().trim(), 300, metrics, PADDING, GROUP_MIN, GROUP_MAX);
+        // Expected: 14 lines × 14 + 6 = 202 > GROUP_MIN (200)
+        assertEquals(202, h);
+        assertTrue("Long group label must grow beyond GROUP_MIN: " + h, h > GROUP_MIN);
+    }
+
+    @Test
+    public void fitTextBoxHeight_widerBox_fewerLines() {
+        // Pinning AC-1 behaviour: same text at wider width wraps fewer times → smaller height.
+        String text = "Word1 Word2 Word3";
+        ElementSizer.FontMetrics metrics = metricsFor(text, 100, 100, 100);
+
+        // Width=110: each word forces wrap (100+4+100=204>110) → 3 lines → 3*14+6=48 → clamp to 80
+        int hNarrow = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                text, 110, metrics, PADDING, NOTE_MIN, NOTE_MAX);
+        // Width=400: all three fit (100+4+100+4+100=308<400) → 1 line → 14+6=20 → clamp to 80
+        int hWide = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                text, 400, metrics, PADDING, NOTE_MIN, NOTE_MAX);
+
+        // Both clamp to NOTE_MIN — the pin verifies the formula direction (wider → fewer lines)
+        // before clamp. Verify with a config that breaches the floor:
+        ElementSizer.FontMetrics tallMetrics = metricsFor(text, 100, 100, 100);
+        int hRawNarrow = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                text, 110, tallMetrics, PADDING, 0, NOTE_MAX);  // minHeight=0 disables floor
+        int hRawWide = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                text, 400, tallMetrics, PADDING, 0, NOTE_MAX);
+        assertEquals("narrow → 3 lines pre-floor", 3 * 14 + 6, hRawNarrow);
+        assertEquals("wide → 1 line pre-floor", 1 * 14 + 6, hRawWide);
+        assertTrue("hNarrow == hWide once both hit NOTE_MIN floor", hNarrow == NOTE_MIN && hWide == NOTE_MIN);
+    }
+
+    @Test
+    public void fitTextBoxHeight_minHeightAlone_clampsBelowMaxHeight() {
+        // Sanity: if minHeight > maxHeight (invalid but defensive), function returns minHeight
+        // (the Math.max wins over Math.min). Documents the implementation choice — minHeight
+        // semantically takes precedence when the band is invalid.
+        int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
+                "Anything", 100, metricsFor("Anything", 50), PADDING, 500, 200);
+        // raw = 14+6=20, Math.min(200, 20)=20, Math.max(500, 20)=500
+        assertEquals(500, h);
+    }
 }

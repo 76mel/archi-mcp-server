@@ -13,6 +13,10 @@ import net.vheerden.archi.mcp.response.dto.ApplyViewLayoutResultDto;
 import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
 import net.vheerden.archi.mcp.response.dto.DetectHubElementsResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoConnectResultDto;
+import net.vheerden.archi.mcp.response.dto.AdjustViewSpacingResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplyElementSpacingRecommendationsResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplyGroupSpacingRecommendationsResultDto;
+import net.vheerden.archi.mcp.response.dto.ApplySpacingRecommendationsResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoLayoutAndRouteResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoRouteResultDto;
 import net.vheerden.archi.mcp.response.dto.BendpointDto;
@@ -393,7 +397,17 @@ public class BaseTestAccessor implements ArchiModelAccessor {
     public MutationResult<AutoRouteResultDto> autoRouteConnections(
             String sessionId, String viewId,
             List<String> connectionIds, String strategy, boolean force,
-            boolean autoNudge, int snapThreshold, int perimeterMargin) {
+            boolean autoNudge, int snapThreshold, int perimeterMargin, String mode) {
+        throw new UnsupportedOperationException(
+                "autoRouteConnections not implemented in test accessor");
+    }
+
+    @Override
+    public MutationResult<AutoRouteResultDto> autoRouteConnections(
+            String sessionId, String viewId,
+            List<String> connectionIds, String strategy, boolean force,
+            boolean autoNudge, int snapThreshold, int perimeterMargin, String mode,
+            boolean enableChannelNudging) {
         throw new UnsupportedOperationException(
                 "autoRouteConnections not implemented in test accessor");
     }
@@ -404,6 +418,44 @@ public class BaseTestAccessor implements ArchiModelAccessor {
             String direction, int spacing, String targetRating) {
         throw new UnsupportedOperationException(
                 "autoLayoutAndRoute not implemented in test accessor");
+    }
+
+    @Override
+    public MutationResult<AdjustViewSpacingResultDto> adjustViewSpacing(
+            String sessionId, String viewId,
+            Integer interElementDelta, Integer paddingDelta,
+            Integer interGroupDelta, boolean recursive) {
+        throw new UnsupportedOperationException(
+                "adjustViewSpacing not implemented in test accessor");
+    }
+
+    @Override
+    public MutationResult<ApplyElementSpacingRecommendationsResultDto>
+            applyElementSpacingRecommendations(
+                    String sessionId, String viewId,
+                    boolean dryRun, Integer targetSpacingOverride) {
+        throw new UnsupportedOperationException(
+                "applyElementSpacingRecommendations not implemented in test accessor");
+    }
+
+    @Override
+    public MutationResult<ApplyGroupSpacingRecommendationsResultDto>
+            applyGroupSpacingRecommendations(
+                    String sessionId, String viewId,
+                    boolean dryRun, Integer targetSpacingOverride) {
+        throw new UnsupportedOperationException(
+                "applyGroupSpacingRecommendations not implemented in test accessor");
+    }
+
+    @Override
+    public MutationResult<ApplySpacingRecommendationsResultDto>
+            applySpacingRecommendations(
+                    String sessionId, String viewId,
+                    String scope, boolean dryRun,
+                    Integer elementTargetSpacingOverride,
+                    Integer groupTargetSpacingOverride) {
+        throw new UnsupportedOperationException(
+                "applySpacingRecommendations not implemented in test accessor");
     }
 
     @Override

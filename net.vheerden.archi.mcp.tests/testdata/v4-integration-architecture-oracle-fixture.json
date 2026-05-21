@@ -1,0 +1,77 @@
+{
+  "viewId": "id-1e2a193766c34855a611c50e7ed54d1d",
+  "viewName": "V4 Integration Architecture - current pipeline (auto-route capture)",
+  "elementCount": 26,
+  "connectionCount": 30,
+  "elements": [
+    {"id": "id-3bb77dcdfa17419e9bfb4903107b6291", "name": "Producers (Channels)",            "x": 20,   "y": 20,   "w": 322, "h": 1422, "isChild": false},
+    {"id": "id-1698a3fb298a48da9b6facc4c475897f", "name": "Integration & Middleware Layer",  "x": 592,  "y": 20,   "w": 400, "h": 1589, "isChild": false},
+    {"id": "id-175e715c84b24009bd44085f48c90c04", "name": "Consumers (Backend Systems)",     "x": 1242, "y": 20,   "w": 338, "h": 2089, "isChild": false},
+
+    {"id": "id-2058e3fef80e483f8319c4ea02bf7347", "name": "Internet Banking Portal",         "x": 70,   "y": 94,   "w": 214, "h": 55,  "isChild": true,  "parentId": "id-3bb77dcdfa17419e9bfb4903107b6291"},
+    {"id": "id-9265b6e86cc84204bd1dde7ee2c57a31", "name": "Mobile Banking App",              "x": 70,   "y": 299,  "w": 174, "h": 55,  "isChild": true,  "parentId": "id-3bb77dcdfa17419e9bfb4903107b6291"},
+    {"id": "id-adea8001c560427d8784e1e9a59d92fb", "name": "ATM System",                      "x": 70,   "y": 504,  "w": 110, "h": 55,  "isChild": true,  "parentId": "id-3bb77dcdfa17419e9bfb4903107b6291"},
+    {"id": "id-ccbd1537df924bbcb4b48198c5079c04", "name": "Branch Teller System",            "x": 70,   "y": 709,  "w": 190, "h": 55,  "isChild": true,  "parentId": "id-3bb77dcdfa17419e9bfb4903107b6291"},
+    {"id": "id-9e9c0ada45b54b1b9c7bb3d26445c28c", "name": "Contact Centre Platform",         "x": 70,   "y": 914,  "w": 214, "h": 68,  "isChild": true,  "parentId": "id-3bb77dcdfa17419e9bfb4903107b6291"},
+    {"id": "id-44648ac6fa904c1fbde529c76796558a", "name": "Corporate Banking Portal",        "x": 70,   "y": 1132, "w": 222, "h": 55,  "isChild": true,  "parentId": "id-3bb77dcdfa17419e9bfb4903107b6291"},
+    {"id": "id-cbd70b330a004c9d8f615297104f511e", "name": "Open Banking Gateway",            "x": 70,   "y": 1337, "w": 190, "h": 55,  "isChild": true,  "parentId": "id-3bb77dcdfa17419e9bfb4903107b6291"},
+
+    {"id": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "name": "API Management Platform",         "x": 642,  "y": 94,   "w": 300, "h": 250, "isChild": true,  "parentId": "id-1698a3fb298a48da9b6facc4c475897f"},
+    {"id": "id-07f6130b61294b35abc600d51528faab", "name": "Enterprise Service Bus",          "x": 642,  "y": 494,  "w": 280, "h": 75,  "isChild": true,  "parentId": "id-1698a3fb298a48da9b6facc4c475897f"},
+    {"id": "id-cc6c9c8bfe4641c7a06e02f236591ae0", "name": "Event Streaming Platform",        "x": 642,  "y": 719,  "w": 300, "h": 130, "isChild": true,  "parentId": "id-1698a3fb298a48da9b6facc4c475897f"},
+    {"id": "id-4ffc1f290eaf41ad82404cc65d73ce71", "name": "Identity & Access Management",    "x": 642,  "y": 999,  "w": 300, "h": 75,  "isChild": true,  "parentId": "id-1698a3fb298a48da9b6facc4c475897f"},
+    {"id": "id-2f9df7c450ee4882bc7872044a6edbf9", "name": "Integration Orchestrator",        "x": 642,  "y": 1224, "w": 280, "h": 75,  "isChild": true,  "parentId": "id-1698a3fb298a48da9b6facc4c475897f"},
+    {"id": "id-920de7b8a3f2431ba4c512abd07f2f60", "name": "Data Integration Hub",            "x": 642,  "y": 1449, "w": 280, "h": 110, "isChild": true,  "parentId": "id-1698a3fb298a48da9b6facc4c475897f"},
+
+    {"id": "id-10fcd7a78ad54239a6e1208611f995c1", "name": "Core Banking System",             "x": 1292, "y": 94,   "w": 182, "h": 55,  "isChild": true,  "parentId": "id-175e715c84b24009bd44085f48c90c04"},
+    {"id": "id-1380f090e068460489c8e06fbab7fd5b", "name": "Loan Management System",          "x": 1292, "y": 299,  "w": 206, "h": 68,  "isChild": true,  "parentId": "id-175e715c84b24009bd44085f48c90c04"},
+    {"id": "id-905e06b7134b4e3f8d840db291d317d9", "name": "Payment Processing Engine",       "x": 1292, "y": 517,  "w": 230, "h": 68,  "isChild": true,  "parentId": "id-175e715c84b24009bd44085f48c90c04"},
+    {"id": "id-551da44152054178b278be36d7a3a99f", "name": "Customer Information File",       "x": 1292, "y": 735,  "w": 230, "h": 68,  "isChild": true,  "parentId": "id-175e715c84b24009bd44085f48c90c04"},
+    {"id": "id-f00a67004f6c42969b1a022762583ce0", "name": "Risk Engine",                     "x": 1292, "y": 953,  "w": 118, "h": 55,  "isChild": true,  "parentId": "id-175e715c84b24009bd44085f48c90c04"},
+    {"id": "id-d14daca166d34fedbadd31faf5e81821", "name": "AML & Fraud Detection",           "x": 1292, "y": 1158, "w": 198, "h": 55,  "isChild": true,  "parentId": "id-175e715c84b24009bd44085f48c90c04"},
+    {"id": "id-c05e854a4a9640eea55d279d57a52c8e", "name": "General Ledger System",           "x": 1292, "y": 1363, "w": 198, "h": 55,  "isChild": true,  "parentId": "id-175e715c84b24009bd44085f48c90c04"},
+    {"id": "id-300982043f0e496e8f1702142d37837e", "name": "Notification Service",            "x": 1292, "y": 1568, "w": 190, "h": 55,  "isChild": true,  "parentId": "id-175e715c84b24009bd44085f48c90c04"},
+    {"id": "id-f755de71a6f04662919afa2521bc9342", "name": "Data Warehouse & Analytics",      "x": 1292, "y": 1773, "w": 238, "h": 68,  "isChild": true,  "parentId": "id-175e715c84b24009bd44085f48c90c04"},
+    {"id": "id-638fef7e91c74824a9167fc9eff701d7", "name": "Card Management System",          "x": 1292, "y": 1991, "w": 206, "h": 68,  "isChild": true,  "parentId": "id-175e715c84b24009bd44085f48c90c04"}
+  ],
+  "connections": [
+    {"id": "id-c3c931d1741a4a9d86672f83742028ca", "sourceId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "targetId": "id-2058e3fef80e483f8319c4ea02bf7347", "label": ""},
+    {"id": "id-8ea045449bff457aa7560e419a27a7fa", "sourceId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "targetId": "id-9265b6e86cc84204bd1dde7ee2c57a31", "label": ""},
+    {"id": "id-3231b490a50a49b8983eb46312bcde9a", "sourceId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "targetId": "id-adea8001c560427d8784e1e9a59d92fb", "label": ""},
+    {"id": "id-a606d39b1e964a07bfc5c80f2863a40b", "sourceId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "targetId": "id-ccbd1537df924bbcb4b48198c5079c04", "label": ""},
+    {"id": "id-0d1f32662ec74d5dbc443b5751844826", "sourceId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "targetId": "id-9e9c0ada45b54b1b9c7bb3d26445c28c", "label": ""},
+    {"id": "id-d6283f83a8a84d68b9b2853a6d1072c3", "sourceId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "targetId": "id-44648ac6fa904c1fbde529c76796558a", "label": ""},
+    {"id": "id-45769cebddc541469096111c02048cd3", "sourceId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "targetId": "id-cbd70b330a004c9d8f615297104f511e", "label": ""},
+
+    {"id": "id-a65887a0587249d3b2a9386e7b21f4aa", "sourceId": "id-cc6c9c8bfe4641c7a06e02f236591ae0", "targetId": "id-d14daca166d34fedbadd31faf5e81821", "label": "AML Events"},
+    {"id": "id-356824bbfaf344b78b39ed60cad0c6e1", "sourceId": "id-cc6c9c8bfe4641c7a06e02f236591ae0", "targetId": "id-300982043f0e496e8f1702142d37837e", "label": "Notifications"},
+    {"id": "id-9e2627031a19429383c15db3634d65b9", "sourceId": "id-cc6c9c8bfe4641c7a06e02f236591ae0", "targetId": "id-f755de71a6f04662919afa2521bc9342", "label": "Analytics Data"},
+    {"id": "id-fd82fd19ec6e4390bc462daddc346434", "sourceId": "id-cc6c9c8bfe4641c7a06e02f236591ae0", "targetId": "id-c05e854a4a9640eea55d279d57a52c8e", "label": "GL Postings"},
+    {"id": "id-123d02ef39184fcbad4ee915e4df90fc", "sourceId": "id-cc6c9c8bfe4641c7a06e02f236591ae0", "targetId": "id-f00a67004f6c42969b1a022762583ce0", "label": "Risk Events"},
+
+    {"id": "id-c67664d903a64ac7b5d6afb0fcb0699b", "sourceId": "id-2f9df7c450ee4882bc7872044a6edbf9", "targetId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "label": ""},
+
+    {"id": "id-4880011003f748578c3566835b815786", "sourceId": "id-920de7b8a3f2431ba4c512abd07f2f60", "targetId": "id-551da44152054178b278be36d7a3a99f", "label": "Customer Data Sync"},
+
+    {"id": "id-2c79c6bf85d34e48aefe5d47d997bfd1", "sourceId": "id-10fcd7a78ad54239a6e1208611f995c1", "targetId": "id-cc6c9c8bfe4641c7a06e02f236591ae0", "label": "Account Events"},
+    {"id": "id-0b0f58ac21644ea1895a344de73a1a21", "sourceId": "id-10fcd7a78ad54239a6e1208611f995c1", "targetId": "id-920de7b8a3f2431ba4c512abd07f2f60", "label": "Batch Extract"},
+    {"id": "id-ac3af9994938480a94fe757bba5c292e", "sourceId": "id-10fcd7a78ad54239a6e1208611f995c1", "targetId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "label": ""},
+
+    {"id": "id-cc0e07ed95b44ddba2b2dd31bd156435", "sourceId": "id-1380f090e068460489c8e06fbab7fd5b", "targetId": "id-cc6c9c8bfe4641c7a06e02f236591ae0", "label": "Loan Events"},
+    {"id": "id-edc1122985bf4b84b15dcfa1b4be5616", "sourceId": "id-1380f090e068460489c8e06fbab7fd5b", "targetId": "id-920de7b8a3f2431ba4c512abd07f2f60", "label": "Batch Extract"},
+    {"id": "id-8d7b1b18177b4f0ea2cb17e0ddde678e", "sourceId": "id-1380f090e068460489c8e06fbab7fd5b", "targetId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "label": ""},
+
+    {"id": "id-24c145b4045f493182dc80f7d5017e75", "sourceId": "id-905e06b7134b4e3f8d840db291d317d9", "targetId": "id-cc6c9c8bfe4641c7a06e02f236591ae0", "label": "Payment Events"},
+    {"id": "id-9bacf6518e1b4887bbe31fbc572102b7", "sourceId": "id-905e06b7134b4e3f8d840db291d317d9", "targetId": "id-920de7b8a3f2431ba4c512abd07f2f60", "label": "Batch Extract"},
+    {"id": "id-3c425b89fcd54abd9406c57a1f0f7e0f", "sourceId": "id-905e06b7134b4e3f8d840db291d317d9", "targetId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "label": ""},
+
+    {"id": "id-5d03acfa7f6840aa85ee3f967a64edf6", "sourceId": "id-551da44152054178b278be36d7a3a99f", "targetId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "label": ""},
+    {"id": "id-b250a38f40ff40dd941d11d1b573ed59", "sourceId": "id-f00a67004f6c42969b1a022762583ce0", "targetId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "label": ""},
+    {"id": "id-9026599b32044295b7b0783bffb9a269", "sourceId": "id-d14daca166d34fedbadd31faf5e81821", "targetId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "label": ""},
+    {"id": "id-585dde45e9a5464c8e093e5a42549778", "sourceId": "id-c05e854a4a9640eea55d279d57a52c8e", "targetId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "label": ""},
+    {"id": "id-6a03003f03c94675acb50766cf7c1ead", "sourceId": "id-f755de71a6f04662919afa2521bc9342", "targetId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "label": ""},
+
+    {"id": "id-33afd5961e4e4be685900e28170f8ae0", "sourceId": "id-638fef7e91c74824a9167fc9eff701d7", "targetId": "id-cc6c9c8bfe4641c7a06e02f236591ae0", "label": "Card Events"},
+    {"id": "id-e12299b66f3942d2a746d0a319ea7966", "sourceId": "id-638fef7e91c74824a9167fc9eff701d7", "targetId": "id-6a69cd1a98994a7a8418f7571e4d8a8d", "label": ""}
+  ]
+}

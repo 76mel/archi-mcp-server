@@ -6,6 +6,10 @@ For installation, configuration, and the complete tool catalog, see the [README]
 
 ## Documents
 
+### [Glossary](glossary.md)
+
+Definitions of the layout-quality metrics (M1–M6, R8, `parallelConnectionGap_V_p10`, HPQ), routing terms (corridor, clearance, perimeter, hub, channel nudging, pass-through, zigzag), and rating tiers (Tier 1/2/3, 1L/1R) used across the tools, resources, and these documents.
+
 ### [Architecture Overview](architecture.md)
 
 The 4-layer architecture model (Protocol, Handlers, Model, UI), package-to-layer mapping, import rules, plugin lifecycle, threading model, and dependency summary.

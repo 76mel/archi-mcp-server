@@ -6,7 +6,7 @@ An Eclipse PDE plugin for [Archi](https://www.archimatetool.com/) that exposes A
 
 Archi MCP Server embeds an HTTP server inside Archi that speaks MCP. Once running, any MCP-compatible LLM client (Claude, Cline, LM Studio, etc.) can connect and interact with the currently open ArchiMate model — asking questions, searching elements, traversing relationships, composing view diagrams, and even creating or modifying model content.
 
-The server provides **65 MCP tools** across querying, searching, creating, layout, routing, assessment, batch operations, images, specializations, and more — plus **7 MCP resources** with ArchiMate reference material and workflow guides for LLMs.
+The server provides **69 MCP tools** across querying, searching, creating, layout, routing, assessment, batch operations, images, specializations, and more — plus **14 MCP resources** with ArchiMate reference material, workflow guides, and a viewpoint recipe library for LLMs.
 
 **Example conversation:**
 
@@ -138,7 +138,7 @@ Clients must trust the self-signed certificate. For `curl` testing, use the `-k`
 
 ## Available Tools
 
-The server exposes **65 MCP tools** organised into functional categories.
+The server exposes **69 MCP tools** organised into functional categories.
 
 ### Query & Model Inspection (5 tools)
 
@@ -207,25 +207,33 @@ Specializations are IS-A subtypes of ArchiMate concept types (e.g. "Microservice
 | `remove-from-view` | Remove a visual element or connection from a view (model object preserved) |
 | `clear-view` | Remove all visual elements and connections from a view (model objects preserved) |
 
-### Layout & Routing (8 tools)
+### Layout & Routing (12 tools)
+
+> **LLM agents:** Fetch `archimate://prompts/routing-preconditions-checklist` before invoking `auto-route-connections` or `auto-layout-and-route` on any non-trivial view. The routing pipeline cannot recover from missing preconditions — it can only route the geometry the agent has set up. The spacing convenience tools self-terminate honestly: if a view is provably too dense for spacing to fix they return `terminationReason: density_floor_reflow_required` and offer a user-consentable structural reflow — surface that to the user instead of looping the spacing tools.
 
 | Tool | Description |
 |---|---|
 | `compute-layout` | Apply an automatic layout algorithm (tree, spring, directed, radial, grid) to a view |
-| `auto-route-connections` | Orthogonal connection routing using clearance-weighted visibility-graph A* pathfinding with corridor directionality, corridor diversity, group-wall awareness, and post-routing path straightening. Optional `autoNudge` mode automatically moves blocking elements and re-routes failed connections in a single atomic operation |
-| `auto-layout-and-route` | Two modes: `auto` (default) uses ELK Layered to compute positions AND routes in one operation; `grouped` orchestrates the full grouped-view workflow (layout-within-group + arrange-groups + optimize-group-order + auto-route-connections) atomically |
+| `auto-route-connections` | Orthogonal connection routing using clearance-weighted visibility-graph A* pathfinding with corridor directionality, corridor diversity, group-wall awareness, channel-global ordered nudging, and post-routing path straightening. Two modes: `mode: "full"` (default) re-routes whole connections via visibility-graph A*; `mode: "terminals-only"` rectifies only the first/last bendpoint of each connection to make terminal segments orthogonal — best after ELK on grouped views to fix diagonal terminal entries without the crossing inflation a full re-route causes. Optional `autoNudge` mode automatically moves blocking elements (and resizes parent groups to contain them) and re-routes failed connections in a single atomic operation. The response carries a `structuredWarnings: List<{code, message, remediationTool, remediationViolatorIds}>` field for deterministic LLM iteration (most common: `AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP` instructing the agent to run `layout-within-group` on the parent before re-routing) |
+| `auto-layout-and-route` | Two modes: `auto` (default) uses ELK Layered to compute positions AND routes in one operation; `grouped` orchestrates the full grouped-view workflow (layout-within-group + arrange-groups + optimize-group-order + auto-route-connections) atomically. Smart iteration when `targetRating` is set — factor-aware iteration tunes the right knob per tier, with plateau detection to exit early when iterations stop improving the dominant tier |
 | `layout-within-group` | Arrange child elements within a group using row, column, or grid patterns |
 | `layout-flat-view` | Automatic layout for flat (non-grouped) views — row, column, or grid arrangement with optional sorting by name/type/layer and category grouping |
-| `arrange-groups` | Position top-level groups relative to each other in grid, row, or column layout |
+| `arrange-groups` | Position top-level groups relative to each other in grid, row, or column layout. **Density-aware default:** when `spacing` is omitted on a view with inter-group connections, the tool derives a connection-count-aware default (≤ 15 → 80 px, 16–30 → 100 px, > 30 → 120 px). Pass an explicit `spacing` to suppress |
 | `optimize-group-order` | Reorder elements within groups to minimise inter-group edge crossings |
-| `resize-elements-to-fit` | Resize all (or selected) elements on a view to fit their labels using SWT font metrics. Two-pass algorithm for nested containment: children first, then parents |
+| `resize-elements-to-fit` | Resize all (or selected) elements on a view to fit their labels using SWT font metrics. Two-pass algorithm for nested containment: children first, then parents. **Sizes for label legibility only — not for connection fan-out.** For hub elements with high connection counts, use `detect-hub-elements` plus `update-view-object` |
+| `adjust-view-spacing` | Inflate inter-element and inter-group spacing on an existing view, then re-route in a single atomic operation. Use when a view is correctly laid out but visually cramped, without re-running ELK from scratch and losing manual placement intent. **Density-aware default:** when `interElementDelta` is omitted on a view with `coincidentSegmentCount > 2` or `connectionEdgeCoincidenceCount > 4`, the tool derives a connection-count-aware default (≤ 15 → 60 px target, 16–30 → 80 px, > 30 → 100 px). Pass `interElementDelta: 0` to suppress. After spacing inflation, a post-pass detects any child element that overflows its parent group bounds and resizes the parent (B15 closure) |
+| `apply-element-spacing-recommendations` | Convenience tool that runs an embedded observe → decide → density-aware-terminate control loop to inflate within-group element spacing. Per iteration it takes a small monotone step, re-runs `assess-layout`, and continues / escalates / stops; a degrading step is always reverted. Hub-aware tier selection (80/100/120 px) when `detect-hub-elements` reports candidates. Returns before/after `assess-layout` snapshots plus `terminationReason` / `iterationCount` / `appliedDeltas[]`. One call = one undo step. Set `dryRun: true` to preview |
+| `apply-group-spacing-recommendations` | Sibling-symmetric convenience tool that runs the same embedded control loop to widen inter-group corridors only — preserves group ordering and topology. Hub-aware connected-pair tier rises to 100/140/160 px. Returns before/after `assess-layout` snapshots plus `terminationReason` / `iterationCount` / `appliedDeltas[]`. `dryRun: true` previews. With hub sizing and `apply-element-spacing-recommendations` this completes the routing-preconditions triad |
+| `apply-spacing-recommendations` | Composed convenience tool that runs TWO coordinated control loops (element arm, then inter-group arm) in one transactional call. The `scope` parameter (`both` / `element` / `group`) selects which arm(s) run. The inflation-knee constants are **per-iteration step caps** (+80 px element / +100 px inter-group per iteration), preventing cumulative-inflation-past-the-knee without a fixed per-call ceiling; `elementKneeClampApplied` / `groupKneeClampApplied` surface when a step cap fires. Reports per-arm `terminationReason` / iteration counts / applied deltas. Use when both axes need adjustment; single-arm siblings cover single-axis changes |
 
 ### Layout Assessment & Analysis (2 tools)
 
+> Metric acronyms below — M1–M6, R8, `parallelConnectionGap_V_p10` (V_p10), HPQ — are defined in the [glossary](docs/glossary.md).
+
 | Tool | Description |
 |---|---|
-| `assess-layout` | Assess view layout quality with severity-tiered rating across 8 metrics — overlaps, crossings, pass-throughs, coincident segments, non-orthogonal terminals, spacing, alignment, label overlaps — plus informational detections for label truncation, parent-label obscured by child, and image sibling overlap. Self-element pass-throughs are reported but excluded from rating. Optional `includeViolatorIds` returns per-metric visual object IDs for targeted fixes |
-| `detect-hub-elements` | Identify hub elements by counting visual connections per element, sorted descending. Includes sizing suggestions for elements with >6 connections based on the hub element formula |
+| `assess-layout` | Assess view layout quality across the legacy 8-metric severity-tiered rating (overlaps, crossings, pass-throughs, coincident segments, non-orthogonal terminals, spacing, alignment, label overlaps) plus the perception-aligned metrics (M1 visible-segment-length non-orthogonal terminals, M2 interior terminations, M3 zigzags, M4 connection-vs-edge coincidence, M5 hub-port quality, R8 corridor utilisation) and the M6 two-dimensional rating (layout tier × routing tier). Also reports the informational `parallelConnectionGap_V_p10` signal (10th-percentile parallel-segment gap on the V axis, anchored at 13.30 px on the ArchiMate reference) for narrow-corridor regime detection. Informational detections cover label truncation, parent-label obscured by child, and image sibling overlap. M3 (zigzag) skips connections already classified as pass-throughs so a single connection is not double-labelled. Self-element pass-throughs are reported but excluded from rating. The `nextSteps[]` envelope names the right precondition tool with violator IDs attached when an overlap, boundary violation, low hub-port-quality score, or grouped-view spacing/crossing breach is detected. Optional `includeViolatorIds` returns per-metric visual object IDs for targeted fixes |
+| `detect-hub-elements` | Identify hub elements by counting visual connections per element, sorted descending. Hub thresholds: ≥ 5 connections is a hub candidate; > 6 connections gets an explicit 1D sizing suggestion `baseDimension + 15px × (connectionCount − 6)`; for elements with > 12 connections the response also surfaces a 2D-resize suggestion (`width += 15 × ⌈excess/2⌉`, `height += 15 × ⌊excess/2⌋`) so the agent can distribute ports across all four edges. The assessor's internal `M5_FACE_GUARD_MIN_CONNECTIONS = 4` is a separate per-face guard for the M5 hub-port-quality metric, not a hub-detection threshold |
 
 ### View Operations (1 tool)
 
@@ -306,7 +314,7 @@ All query tools support response optimisation parameters:
 
 ## MCP Resources
 
-The server provides 7 reference resources accessible to LLM clients.
+The server provides 14 reference resources accessible to LLM clients.
 
 ### Prompts
 
@@ -315,15 +323,29 @@ The server provides 7 reference resources accessible to LLM clients.
 | `archimate://prompts/model-exploration-guide` | Strategy guide for LLMs on how to efficiently search and traverse ArchiMate models |
 | `archimate://prompts/explore-dependencies` | Workflow template for systematic dependency analysis of ArchiMate elements |
 | `archimate://prompts/landscape-overview` | Workflow template for generating architecture landscape summaries |
+| `archimate://prompts/routing-preconditions-checklist` | Single-page checklist for LLM agents to fetch before invoking `auto-route-connections` or `auto-layout-and-route` on any non-trivial view. Three preconditions (hub sizing, inter-element spacing, group arrangement + corridor-friendly spacing), one verification each, plus a disposition matrix mapping view shape to precondition order |
 
 ### References
 
 | URI | Description |
 |---|---|
-| `archimate://reference/archimate-layers` | Comprehensive mapping of ArchiMate layers to element types with descriptions |
+| `archimate://reference/archimate-layers` | Comprehensive mapping of ArchiMate layers to element types with descriptions, plus a concept-to-element-type decision aid (Component vs Service, Process vs Function, Node vs Component, Actor vs Role) |
 | `archimate://reference/archimate-relationships` | All ArchiMate relationship types with valid source/target combinations and usage guidance |
 | `archimate://reference/archimate-specializations` | Specialization (IS-A subtype) vocabulary: when to use specializations vs properties, common patterns per layer, and the discovery/create/audit/delete tool pipeline |
 | `archimate://reference/archimate-view-patterns` | Curated viewpoint patterns, layout algorithm guidance, and diagramming best practices for composing ArchiMate views |
+
+### Viewpoint Recipes
+
+A progressive-disclosure recipe library for laying out non-conventional ArchiMate viewpoints. Fetch the index first; it states the invariant build sequence once, routes conventional viewpoints (layered, landscape, hierarchy, information structure) to the view-patterns principles, and points non-conventional viewpoints to a single full recipe page with the topology block to match.
+
+| URI | Description |
+|---|---|
+| `archimate://recipes/index` | Selector — fetch first. Conventional-vs-non-conventional decision table, the invariant build sequence, and the family selector |
+| `archimate://recipes/application-integration` | Hub-and-spoke recipe for Application Cooperation / Integration views |
+| `archimate://recipes/behaviour-process-flow` | Swimlane recipe for Business Process Cooperation, plus the Service Design / Customer Journey band layout |
+| `archimate://recipes/motivation` | Directed influence-chain recipe for Motivation views (stakeholder → driver → assessment → goal → requirement) |
+| `archimate://recipes/technology-deployment` | Nested-deployment recipe — nodes as containers with deployed software/artifacts, wired by network paths |
+| `archimate://recipes/roadmap-migration` | Left-to-right plateau-timeline recipe for Implementation & Migration views |
 
 ## Mutation Safety
 
@@ -378,7 +400,7 @@ end-batch()
 
 The following sections are for developers who want to fork, extend, or contribute to the plugin.
 
-For comprehensive technical documentation covering architecture internals, coordinate model, routing pipeline, and extension patterns, see [docs/](docs/).
+For comprehensive technical documentation covering architecture internals, coordinate model, routing pipeline, and extension patterns, see [docs/](docs/). Metric acronyms and routing terms used throughout this README (M1–M6, R8, `parallelConnectionGap_V_p10`, HPQ, corridor, clearance, perimeter) are defined in the [glossary](docs/glossary.md).
 
 ## Project Structure
 
@@ -501,10 +523,13 @@ For connections, `redo()` must null-then-reconnect due to Archi's `connect()` ea
 
 The test bundle (`net.vheerden.archi.mcp.tests`) is an OSGi fragment with `Fragment-Host: net.vheerden.archi.mcp`, giving it full access to main plugin classes.
 
-- **Run tests** in Eclipse as "JUnit Plug-in Test", one class at a time
+- **Run the whole suite** in Eclipse as a single "JUnit Plug-in Test" (e.g. the `AllPluginTestsRunner` launch) — the OSGi runtime it provides is required for full coverage. Individual classes can also be run one at a time.
 - **Pure-Java tests** (geometry, layout algorithms, routing) can also run as standard JUnit tests without the Eclipse runtime
 - Handler tests mock `ArchiModelAccessor` — no Archi installation needed
-- Tests needing Archi runtime (preferences, EMF model) require the full Eclipse environment
+- **Tests requiring the Eclipse/OSGi runtime** — three classes touch Archi/Eclipse runtime singletons that only initialise under OSGi, so they **must** be run as a JUnit Plug-in Test (a headless JVM cannot initialise them and they are guarded to *skip* there rather than fail):
+  - `McpPreferenceInitializerTest` — `org.eclipse.core.internal.preferences.ConfigurationPreferences`
+  - `McpServerManagerTest` — `com.archimatetool.editor.model.IEditorModelManager`
+  - `ArchiModelAccessorImplTest` (the two specialization-relationship cases) — `com.archimatetool.model.util.RelationshipsMatrix`
 
 ## Dependencies
 

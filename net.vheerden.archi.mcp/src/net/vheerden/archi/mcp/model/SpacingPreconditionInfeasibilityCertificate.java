@@ -1,0 +1,243 @@
+package net.vheerden.archi.mcp.model;
+
+/**
+ * Story `backlog-st-spacing-precondition-structural-reflow` (row 777) — a
+ * deterministic, <strong>SOUND, one-sided</strong> pre-routing infeasibility
+ * certificate, evaluated <em>before</em> {@code new SpacingControlLoop.Request}
+ * (architecturally sibling-symmetric with the shipped {@code rnb.degraded()}
+ * pre-loop short-circuit). The owner-ratified Lever B; gate-decided, NOT
+ * re-derived.
+ *
+ * <h2>Why a SOUND one-sided certificate (the load-bearing property)</h2>
+ * The 773→774→775→776 lineage proved the control-loop-termination layer is
+ * empirically EXHAUSTED for the pathological ST view: the row-776 direct
+ * orchestrator loop-probe is code-certain that with ESCALATE firing AND a
+ * perfect one-shot hub-resize ({@code hubPortQualityScore} 0.18→1.0) the
+ * measured {@code avgSpacing} still ceilings at 73.8 &lt; 100 — identical to
+ * the row-775 ceiling. The binding constraint is the infeasible <em>input
+ * geometry</em>, not the loop's escalate condition.
+ *
+ * <p>An EXACT universal feasibility oracle is NOT cheaply possible (2D layout
+ * feasibility is NP-hard; achievable average spacing is canvas-growth
+ * dependent) and is <strong>NOT claimed</strong>. Instead this is a
+ * <em>sufficient</em> condition for infeasibility (never merely necessary):
+ * its only permitted error is the SAFE Type-II false-negative — it under-claims
+ * on views whose infeasibility is not this-cheaply-provable, which fall
+ * straight through to the loop's existing, correct, zero-regression
+ * below-regime {@code budget_exhausted} (exactly today's behaviour, no
+ * regression). <strong>ZERO false-positives by construction ⇒ it cannot
+ * produce the reflow-claimed-while-below-regime AC-4 FAIL</strong> — which is
+ * precisely what dissolves the lineage's central AC-4 tension: the
+ * {@link SpacingControlLoop} firewall is left byte-frozen and the honest claim
+ * is the <em>narrower, provably-true</em> "your input, on its current canvas,
+ * cannot reach the prescribed spacing regime by spacing/hub alone — here is the
+ * violated precondition", NOT "reflow will succeed" (canvas growth is a
+ * user-visible tradeoff ⇒ a consent-gated OFFER, never an auto-act).
+ *
+ * <h2>The sound closed form (Task-0.3-finalized, NOT assumed)</h2>
+ * <pre>
+ *   idealUniformAvg    = sqrt(currentElementUnionCanvasArea / elementCount)
+ *                        − avgElementBoxDim                 [mean (w+h)/2]
+ *   provablyInfeasible := idealUniformAvg &lt; DENSITY_REGIME_LOWER_PX (=100)
+ * </pre>
+ * For a FIXED element-union canvas of area {@code A} holding {@code N} boxes of
+ * mean linear footprint {@code b}, the uniform-grid arrangement
+ * <em>maximises</em> the mean inter-element edge gap, and that maximum is
+ * {@code ≈ sqrt(A/N) − b}. The embedded loop's only levers are a
+ * <em>bounded</em> spacing-knob ladder + one escalation hub-resize applied to
+ * the <em>current element topology</em> — it is NOT a free canvas-growth
+ * reflow (that is exactly the user-consented structural reflow the OFFER
+ * proposes), and it cannot re-pack the topology. The soundness claim is
+ * therefore precisely: <em>no loop action within its bounded budget, applied
+ * to the current topology, can push measured spacing to the regime</em> — so
+ * {@code idealUniformAvg < 100} ⇒ infeasible under the loop's levers. NOTE the
+ * loop DOES marginally grow {@code A} by nudging elements outward, so
+ * {@code sqrt(A/N) − b} is the upper bound for the <em>fixed pre-loop</em>
+ * canvas, NOT an unconditional formal proof that ignores that marginal growth;
+ * its tightness/soundness for the loop's actual bounded reach is the
+ * <strong>load-bearing claim</strong> and is established CODE-CERTAIN by the
+ * row-776 direct orchestrator probe (the loop's max effort — budget exhausted,
+ * ESCALATE fired, a perfect hub-resize — plateaued at measured avg 73.8, only
+ * ~0.8px below this formula's pinned-ST prediction 74.6, ≫ the 26% bbox growth
+ * that reaching 100 would require). An EXACT universal feasibility oracle is
+ * NOT claimed; the only permitted error is the SAFE Type-II miss (Q3
+ * evidence-honesty caveat — stated identically in every artefact).
+ *
+ * <p><strong>Task-0.3 calibration (real geometry, read-only-captured from the
+ * live canonical sources;
+ * {@code st-spacing-precondition-empirical-2026-05-18/spike-geometry-2026-05-18.md}):</strong>
+ * pinned ST (id-a6ef9a2b…, 23 elem, union 994×975, avgBox 130.7) ⇒
+ * idealUniformAvg = 74.6 &lt; 100 ⇒ <strong>TRUE</strong> (reproduces the
+ * row-776 code-certain loop-max ceiling 73.8 within 1% — a tight, not loose,
+ * upper bound); pinned HH (id-20f7f4e7…, 23 elem, union 1460×1965, avgBox
+ * 147.3) ⇒ idealUniformAvg = 205.9 ≥ 100 ⇒ <strong>FALSE</strong> (HH must NOT
+ * short-circuit; the loop runs exactly as today). Robust to the N=23-vs-27
+ * count ambiguity. Pinned by
+ * {@code SpacingPreconditionInfeasibilityCertificateTest}.
+ *
+ * <p>The brief's literal {@code ∧ hub already ≥ fan-out-scaled requiredHubMin}
+ * conjunct is intentionally DROPPED (Task-0.3 finding): on the pinned ST hub
+ * (214×68 / 7 conns) {@code requiredHubMinWidthPx(7)=300} so the hub is
+ * <em>under</em>-sized — the literal conjunct would make the certificate MISS
+ * the ST anchor. Dropping it is independently <em>sounder</em>:
+ * {@code idealUniformAvg} is a pure canvas-area/box bound; a hub-resize neither
+ * shrinks boxes nor grows the element-union canvas, so it cannot raise the
+ * area-bounded spacing ceiling (corroborated code-certain by the row-776 probe:
+ * a perfect hub-resize still ceilinged at 73.8 &lt; 100). Granting the hub its
+ * ideal resize is the most-generous feasibility assumption and the area
+ * predicate already dominates it.
+ *
+ * <p>Pure / static — no OSGi, no EMF, no {@code LayoutQualityAssessor} metric
+ * (AC-9). The EMF read-sites in {@code ArchiModelAccessorImpl} are the thin
+ * caller; {@link SpacingControlLoop} is byte-UNTOUCHED (AC-4).
+ */
+public final class SpacingPreconditionInfeasibilityCertificate {
+
+    /**
+     * NEW pre-routing precondition termination reason — honestly DISTINCT from
+     * {@code SpacingControlLoop.REASON_DENSITY_FLOOR_REFLOW_REQUIRED} ("loop
+     * reached an in-regime density floor"): this is "the input precondition is
+     * infeasible on its current canvas — the loop was never entered" (AC-4).
+     */
+    public static final String REASON_DENSITY_PRECONDITION_REFLOW_REQUIRED =
+            "density_precondition_infeasible_reflow_required";
+
+    private SpacingPreconditionInfeasibilityCertificate() {
+    }
+
+    /**
+     * The SOUND ideal-uniform upper bound on the average inter-element edge
+     * spacing achievable on a FIXED canvas: the uniform-grid cell side
+     * {@code sqrt(A/N)} minus the mean element footprint. Degenerate inputs
+     * return {@link Double#POSITIVE_INFINITY} so the certificate never fires on
+     * them (Type-II safe — falls through to today's loop path).
+     *
+     * @param elementCount         N — the ArchiMate-element count (groups /
+     *                             notes excluded; the Task-0.3 calibration N)
+     * @param canvasAreaPx2        A — the current element-union bounding-box
+     *                             area in px² (absolute coordinates)
+     * @param avgElementBoxDimPx   mean of {@code (width+height)/2} over the
+     *                             elements (the Task-0.3-validated convention)
+     */
+    public static double idealUniformAvg(int elementCount,
+            double canvasAreaPx2, double avgElementBoxDimPx) {
+        if (elementCount <= 0
+                || !(canvasAreaPx2 > 0.0)              // <=0 or NaN
+                || Double.isNaN(avgElementBoxDimPx)
+                || avgElementBoxDimPx < 0.0) {
+            return Double.POSITIVE_INFINITY;           // never fire
+        }
+        return Math.sqrt(canvasAreaPx2 / elementCount) - avgElementBoxDimPx;
+    }
+
+    /**
+     * The SOUND one-sided infeasibility certificate (a SUFFICIENT condition for
+     * loop-infeasibility; zero false-positives by construction). TRUE only when
+     * even an ideal uniform redistribution of every element across the current
+     * canvas cannot reach the prescribed spacing regime — so no spacing-knob /
+     * hub-resize available to the loop can either. Strict {@code <} mirrors
+     * {@link SpacingControlLoop#belowRegime} (exactly-100 is in-regime).
+     */
+    public static boolean provablyInfeasible(int elementCount,
+            double canvasAreaPx2, double avgElementBoxDimPx) {
+        return idealUniformAvg(elementCount, canvasAreaPx2, avgElementBoxDimPx)
+                < SpacingControlLoop.DENSITY_REGIME_LOWER_PX;
+    }
+
+    /**
+     * Pre-loop decision + (when firing) the actionable, LLM-self-contained,
+     * consent-gated structural-reflow OFFER. The OFFER is text/affordance
+     * ONLY — it NEVER invokes any auto-layout / reflow / {@code RoutingPipeline}
+     * path (row-773 AC-13 / row-775 surface+offer+consent boundary, absolute);
+     * a returned {@link String} cannot, by construction, invoke anything.
+     *
+     * @param measuredAvgSpacingPx the route-normalized measured input avg
+     *                             ({@code rnb.metrics().avgSpacingPx()});
+     *                             OFFER wording only, {@code NaN} tolerated
+     * @param hubWidthPx           dominant-hub width  (OFFER wording only,
+     *                             {@code null} tolerated)
+     * @param hubHeightPx          dominant-hub height (OFFER wording only)
+     * @param hubConnectionCount   dominant-hub fan-out (OFFER wording only)
+     */
+    public static Decision evaluate(int elementCount, double canvasAreaPx2,
+            double avgElementBoxDimPx, double measuredAvgSpacingPx,
+            Integer hubWidthPx, Integer hubHeightPx,
+            Integer hubConnectionCount) {
+        double iua = idealUniformAvg(
+                elementCount, canvasAreaPx2, avgElementBoxDimPx);
+        if (!(iua < SpacingControlLoop.DENSITY_REGIME_LOWER_PX)) {
+            return Decision.proceed();
+        }
+        String offer = buildReflowOffer(iua, measuredAvgSpacingPx,
+                hubWidthPx, hubHeightPx, hubConnectionCount);
+        return new Decision(true,
+                REASON_DENSITY_PRECONDITION_REFLOW_REQUIRED, offer);
+    }
+
+    /**
+     * Precondition-specific wording, SAME actionable-affordance SHAPE as
+     * {@code SpacingControlLoop.buildDensityDiagnosis} (names the violated
+     * precondition → states the explicit-consent boundary → OFFERS the
+     * next step → confirms the view is preserved unchanged) so the
+     * agent-facing consent-gated contract is consistent with the row-775
+     * PASS-honest contract, but a NEW honestly-distinct claim. NOT a copy of
+     * (and does not call) the byte-frozen loop method (AC-4).
+     */
+    static String buildReflowOffer(double idealUniformAvg,
+            double measuredAvgSpacingPx, Integer hubWidthPx,
+            Integer hubHeightPx, Integer hubConnectionCount) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("PRE-ROUTING INFEASIBLE: this view's input geometry cannot "
+                + "reach the prescribed spacing regime on its current canvas "
+                + "by spacing/hub adjustment alone — even an ideal uniform "
+                + "redistribution of every element across the current "
+                + "element-union canvas yields only ");
+        sb.append(String.format("~%.0fpx", idealUniformAvg));
+        sb.append(String.format(
+                " average spacing, below the prescribed flow-view band "
+                + "(%d–%dpx). ",
+                SpacingControlLoop.DENSITY_REGIME_LOWER_PX,
+                SpacingControlLoop.DENSITY_REGIME_EXCELLENT_PX));
+        if (!Double.isNaN(measuredAvgSpacingPx)) {
+            sb.append(String.format(
+                    "Measured average spacing is currently %.0fpx. ",
+                    measuredAvgSpacingPx));
+        }
+        if (hubWidthPx != null && hubHeightPx != null
+                && hubConnectionCount != null) {
+            sb.append(String.format(
+                    "The dominant hub is %dx%dpx absorbing %d connections. ",
+                    hubWidthPx, hubHeightPx, hubConnectionCount));
+        }
+        sb.append("The control loop was NOT entered (a bounded spacing/hub "
+                + "nudge provably cannot lift this input into the regime) and "
+                + "this layout was NOT auto-reflowed (a structural reflow "
+                + "grows the canvas and moves user-placed elements — an "
+                + "explicit-consent boundary). OFFERED next step (requires "
+                + "your consent): re-layout this view with a structural "
+                + "auto-layout (which grows the canvas), then re-run "
+                + "auto-route-connections. The current view is preserved "
+                + "unchanged (no degraded layout was applied).");
+        return sb.toString();
+    }
+
+    /**
+     * The pre-loop decision. {@code shortCircuit=false} ⇒ the caller builds
+     * the SAME {@code SpacingControlLoop.Request} and enters the loop exactly
+     * as today (transparent pass-through — the no-fire byte-identical
+     * invariant, AC-4/AC-5). {@code shortCircuit=true} ⇒ the caller returns a
+     * DTO carrying {@code terminationReason} +
+     * {@code reflowOffer} WITHOUT constructing the Request / entering the loop.
+     */
+    public record Decision(boolean shortCircuit, String terminationReason,
+            String reflowOffer) {
+
+        private static final Decision PROCEED =
+                new Decision(false, null, null);
+
+        /** The transparent pass-through (no fire) — loop runs as today. */
+        public static Decision proceed() {
+            return PROCEED;
+        }
+    }
+}

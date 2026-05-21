@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import net.vheerden.archi.mcp.model.BaseTestAccessor;
+import net.vheerden.archi.mcp.model.HubSizingSuggestionBuilder;
 import net.vheerden.archi.mcp.model.ModelAccessException;
 import net.vheerden.archi.mcp.model.MutationResult;
 import net.vheerden.archi.mcp.model.ImageParams;
@@ -32,6 +33,7 @@ import net.vheerden.archi.mcp.response.ErrorCode;
 import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 import net.vheerden.archi.mcp.response.dto.AddToViewResultDto;
+import net.vheerden.archi.mcp.response.dto.AdjustViewSpacingResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoLayoutAndRouteResultDto;
 import net.vheerden.archi.mcp.response.dto.AutoLayoutAssessmentSummaryDto;
 import net.vheerden.archi.mcp.response.dto.ArrangeGroupsResultDto;
@@ -84,8 +86,15 @@ public class ViewPlacementHandlerTest {
     // ---- Tool registration ----
 
     @Test
-    public void shouldRegisterTwentyTools() {
-        assertEquals(20, registry.getToolSpecifications().size());
+    public void shouldRegisterTwentyFourTools() {
+        // Parent composed-tool story (sprint-status row 718, commit `cf170df`)
+        // shipped `apply-spacing-recommendations` as the 24th registered tool
+        // but did not bump this assertion — silent-failure latent because
+        // Eclipse MCP `get_console_output` returns empty stdout for JUnit
+        // launches per the SILENT-FAILURE WARNING memory. Surfaced via direct
+        // Eclipse JUnit view run from the SuccessorB.KneeGuardTextTightening
+        // dev-story session 2026-05-12 PM; sweeper-cleanup applied here.
+        assertEquals(24, registry.getToolSpecifications().size());
     }
 
     @Test
@@ -149,6 +158,89 @@ public class ViewPlacementHandlerTest {
     }
 
     @Test
+    public void autoRouteConnections_descriptionShouldDocumentStructuredWarnings() {
+        // Story RoutingPreconditions.AutoRouteStructuredWarning, Row E: the
+        // tool description amendment per AC-8 must name the structuredWarnings
+        // field, the canonical AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP code, the
+        // remediation tool, and the remediationViolatorIds field. Per
+        // feedback_mcp_plugin_contract.md the LLM-facing-guidance channel for
+        // plugin-specific behaviour is the tool description (not CLAUDE.md).
+        String desc = registry.getToolSpecifications().stream()
+                .filter(spec -> "auto-route-connections".equals(spec.tool().name()))
+                .findFirst()
+                .orElseThrow()
+                .tool()
+                .description();
+        assertTrue("description should name the structuredWarnings field",
+                desc.contains("structuredWarnings"));
+        assertTrue("description should name the canonical AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP code value",
+                desc.contains("AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP"));
+        assertTrue("description should frame the recommended iteration (invoke tool BEFORE re-running)",
+                desc.contains("BEFORE re-running"));
+        assertTrue("description should name the remediationViolatorIds field",
+                desc.contains("remediationViolatorIds"));
+    }
+
+    @Test
+    public void applyElementSpacingRecommendations_descriptionShouldCrossReferenceComposedToolKneeGuard() {
+        // Story RoutingPreconditions.SuccessorB.KneeGuardTextTightening AC-2 +
+        // AC-3 + AC-4: the single-axis element sibling MUST cross-reference
+        // the composed tool `apply-spacing-recommendations(scope=both)` as the
+        // surface with structural knee-enforcement (+80px element / +100px
+        // inter-group per-call clamp). Per feedback_mcp_plugin_contract.md
+        // the LLM-facing-guidance channel for plugin-specific behaviour is
+        // the tool description (not CLAUDE.md). AC-3 phrase-presence pin:
+        // asserts the cross-reference prose contains "+80px element" and
+        // "+100px inter-group" — the "+NNpx" format is unique to the
+        // cross-reference block and does NOT appear in the heuristic tier
+        // table ("80px"/"100px" without "+"). If the cross-reference values
+        // change, update these assertions. Note: does NOT compare against
+        // ApplySpacingDecision.ELEMENT_KNEE_LIMIT_PX at runtime; if those
+        // constants change, grep for "+80px"/"+100px" in
+        // ViewPlacementHandler.java to find the prose to update.
+        String desc = registry.getToolSpecifications().stream()
+                .filter(spec -> "apply-element-spacing-recommendations".equals(spec.tool().name()))
+                .findFirst()
+                .orElseThrow()
+                .tool()
+                .description();
+        assertTrue("description should name the composed tool apply-spacing-recommendations",
+                desc.contains("apply-spacing-recommendations"));
+        assertTrue("description should mention the knee-guard discipline (case-insensitive)",
+                desc.toLowerCase().contains("knee"));
+        assertTrue("description should name the scope=both arm of the composed tool",
+                desc.contains("scope=both"));
+        assertTrue("description should contain '+80px' — AC-3 phrase-presence pin, unique to cross-reference (not in heuristic table)",
+                desc.contains("+80px"));
+        assertTrue("description should contain '+100px' — AC-3 phrase-presence pin, unique to cross-reference (not in heuristic table)",
+                desc.contains("+100px"));
+    }
+
+    @Test
+    public void applyGroupSpacingRecommendations_descriptionShouldCrossReferenceComposedToolKneeGuard() {
+        // Sibling-symmetric with applyElementSpacingRecommendations_... above.
+        // Same five substrings (composed tool name, knee, scope=both, +80px,
+        // +100px) verified on the inter-group sibling. See element test comment
+        // for AC-3 phrase-presence pin rationale.
+        String desc = registry.getToolSpecifications().stream()
+                .filter(spec -> "apply-group-spacing-recommendations".equals(spec.tool().name()))
+                .findFirst()
+                .orElseThrow()
+                .tool()
+                .description();
+        assertTrue("description should name the composed tool apply-spacing-recommendations",
+                desc.contains("apply-spacing-recommendations"));
+        assertTrue("description should mention the knee-guard discipline (case-insensitive)",
+                desc.toLowerCase().contains("knee"));
+        assertTrue("description should name the scope=both arm of the composed tool",
+                desc.contains("scope=both"));
+        assertTrue("description should contain '+80px' — AC-3 phrase-presence pin, unique to cross-reference (not in heuristic table)",
+                desc.contains("+80px"));
+        assertTrue("description should contain '+100px' — AC-3 phrase-presence pin, unique to cross-reference (not in heuristic table)",
+                desc.contains("+100px"));
+    }
+
+    @Test
     public void assessLayout_shouldNotHaveMutationPrefix() {
         String desc = registry.getToolSpecifications().stream()
                 .filter(spec -> "assess-layout".equals(spec.tool().name()))
@@ -158,6 +250,205 @@ public class ViewPlacementHandlerTest {
                 .description();
         assertTrue("assess-layout should not start with [Mutation]",
                 !desc.startsWith("[Mutation]"));
+    }
+
+    @Test
+    public void applyElementSpacingRecommendations_descriptionShouldDocumentControlLoopSemantics() {
+        // Story ConvenienceTool.ControlLoopArchitecturalRedesign AC-15: the
+        // tool description amendment must surface the new control-loop
+        // semantics + termination contract + iterationBudget parameter so
+        // an LLM agent can select + invoke the tool correctly without
+        // out-of-band documentation. Per [[feedback_mcp_plugin_contract]]
+        // the LLM-facing-guidance channel for plugin-specific behaviour is
+        // the tool description (not CLAUDE.md). Phrase-presence pins
+        // verify each load-bearing AC-15 sub-promise. If the wording
+        // changes, update these assertions in lockstep with the tool
+        // description in ViewPlacementHandler.
+        String desc = registry.getToolSpecifications().stream()
+                .filter(spec -> "apply-element-spacing-recommendations".equals(spec.tool().name()))
+                .findFirst()
+                .orElseThrow()
+                .tool()
+                .description();
+        assertTrue("description should name the embedded control-loop semantics",
+                desc.contains("control loop"));
+        assertTrue("description should name the density-aware 3-state-termination ordering (Story backlog-control-loop-density-aware-termination AC-15)",
+                desc.contains("observe → decide → density-aware "
+                        + "3-state-termination"));
+        assertTrue("description should name the 2×2 discriminator axes (AC-2)",
+                desc.contains("aggregate-trend × spacing-regime-position"));
+        assertTrue("description should name the three termination states (AC-1)",
+                desc.contains("CONTINUE") && desc.contains("ESCALATE")
+                        && desc.contains("PASS-HONEST"));
+        assertTrue("description should name the density_floor_reflow_required terminal (AC-6)",
+                desc.contains("density_floor_reflow_required"));
+        assertTrue("description should surface the no-auto-reflow + consent model (AC-6)",
+                desc.contains("NEVER auto-reflows")
+                        && desc.contains("never surface + act"));
+        assertTrue("description should name the +10/step monotone ladder (AC-15 control-loop semantics)",
+                desc.contains("+10/step monotone ladder"));
+        assertTrue("description should name the iterationBudget parameter",
+                desc.contains("iterationBudget"));
+        assertTrue("description should name the aggregate thresholds_met back-off rule per AC-3",
+                desc.contains("aggregate thresholds_met"));
+        assertTrue("description should EXPLICITLY exclude per-metric monotonicity (AC-3 forbids it)",
+                desc.contains("per-metric monotonicity"));
+        assertTrue("description should name the terminationReason DTO field",
+                desc.contains("terminationReason"));
+        assertTrue("description should name the goal_reached termination branch (AC-5 (a))",
+                desc.contains("goal_reached_at_iteration_N"));
+        assertTrue("description should name the budget_exhausted termination branch (AC-5 (b))",
+                desc.contains("budget_exhausted_after_N_iterations"));
+        assertTrue("description should name the aggregate_threshold_regressed termination branch (AC-5 (c))",
+                desc.contains("aggregate_threshold_regressed_at_iteration_N"));
+        assertTrue("description should name the structural_no_change termination branch (AC-5 (d))",
+                desc.contains("structural_no_change"));
+        assertTrue("description should name the heuristic_already_met termination branch (AC-5 (e))",
+                desc.contains("heuristic_already_met_no_change"));
+        assertTrue("description should name the dry_run_recommendation_not_applied taxonomy string (6th branch overall — pre-loop dryRun guard)",
+                desc.contains("dry_run_recommendation_not_applied"));
+        assertTrue("description should name the iteration_apply_failed taxonomy string (7th branch overall — Session 8 Decision-A.1.1=α' patch covers cmd.execute() partial-throw recovery)",
+                desc.contains("iteration_apply_failed_at_iteration_N"));
+        assertTrue("description should frame the contract as 'ten branches' (7 in-loop + 3 pre-loop guards — branches (i) reroute_degraded and (j) density_precondition_infeasible_reflow_required shipped after AC-6's density_floor_reflow_required branch)",
+                desc.contains("ten branches"));
+        assertTrue("description should name the iterationCount + appliedDeltas DTO fields",
+                desc.contains("iterationCount") && desc.contains("appliedDeltas"));
+        assertTrue("description should name the single-undo guarantee per AC-6",
+                desc.contains("single undo-stack entry"));
+        assertTrue("description should name the NonNotifyingCompoundCommand wrapping mechanism per AC-6",
+                desc.contains("NonNotifyingCompoundCommand"));
+        assertTrue("description should name the densityFloorDiagnosis DTO field (AC-6)",
+                desc.contains("densityFloorDiagnosis"));
+    }
+
+    @Test
+    public void applyGroupSpacingRecommendations_descriptionShouldDocumentControlLoopSemantics() {
+        // Sibling-symmetric with applyElementSpacingRecommendations_... above
+        // (AC-15 sub-promise pin). Same load-bearing substrings on the
+        // inter-group sibling. See element test comment for rationale.
+        String desc = registry.getToolSpecifications().stream()
+                .filter(spec -> "apply-group-spacing-recommendations".equals(spec.tool().name()))
+                .findFirst()
+                .orElseThrow()
+                .tool()
+                .description();
+        assertTrue("description should name the embedded control-loop semantics",
+                desc.contains("control loop"));
+        assertTrue("description should name the density-aware 3-state-termination ordering (Story backlog-control-loop-density-aware-termination AC-15)",
+                desc.contains("observe → decide → density-aware "
+                        + "3-state-termination"));
+        assertTrue("description should name the 2×2 discriminator axes (AC-2)",
+                desc.contains("aggregate-trend × spacing-regime-position"));
+        assertTrue("description should name the three termination states (AC-1)",
+                desc.contains("CONTINUE") && desc.contains("ESCALATE")
+                        && desc.contains("PASS-HONEST"));
+        assertTrue("description should name the density_floor_reflow_required terminal (AC-6)",
+                desc.contains("density_floor_reflow_required"));
+        assertTrue("description should surface the no-auto-reflow + consent model (AC-6)",
+                desc.contains("NEVER auto-reflows")
+                        && desc.contains("never surface + act"));
+        assertTrue("description should name the +10/step monotone ladder (AC-15 control-loop semantics)",
+                desc.contains("+10/step monotone ladder"));
+        assertTrue("description should name the iterationBudget parameter",
+                desc.contains("iterationBudget"));
+        assertTrue("description should name the aggregate thresholds_met back-off rule per AC-3",
+                desc.contains("aggregate thresholds_met"));
+        assertTrue("description should EXPLICITLY exclude per-metric monotonicity (AC-3 forbids it)",
+                desc.contains("per-metric monotonicity"));
+        assertTrue("description should name the terminationReason DTO field",
+                desc.contains("terminationReason"));
+        assertTrue("description should name the goal_reached termination branch (AC-5 (a))",
+                desc.contains("goal_reached_at_iteration_N"));
+        assertTrue("description should name the budget_exhausted termination branch (AC-5 (b))",
+                desc.contains("budget_exhausted_after_N_iterations"));
+        assertTrue("description should name the aggregate_threshold_regressed termination branch (AC-5 (c))",
+                desc.contains("aggregate_threshold_regressed_at_iteration_N"));
+        assertTrue("description should name the structural_no_change termination branch (AC-5 (d))",
+                desc.contains("structural_no_change"));
+        assertTrue("description should name the heuristic_already_met termination branch (AC-5 (e))",
+                desc.contains("heuristic_already_met_no_change"));
+        assertTrue("description should name the dry_run_recommendation_not_applied taxonomy string (6th branch overall — pre-loop dryRun guard)",
+                desc.contains("dry_run_recommendation_not_applied"));
+        assertTrue("description should name the iteration_apply_failed taxonomy string (7th branch overall — Session 8 Decision-A.1.1=α' patch covers cmd.execute() partial-throw recovery)",
+                desc.contains("iteration_apply_failed_at_iteration_N"));
+        assertTrue("description should frame the contract as 'ten branches' (7 in-loop + 3 pre-loop guards — branches (i) reroute_degraded and (j) density_precondition_infeasible_reflow_required shipped after AC-6's density_floor_reflow_required branch)",
+                desc.contains("ten branches"));
+        assertTrue("description should name the iterationCount + appliedDeltas DTO fields",
+                desc.contains("iterationCount") && desc.contains("appliedDeltas"));
+        assertTrue("description should name the single-undo guarantee per AC-6",
+                desc.contains("single undo-stack entry"));
+        assertTrue("description should name the NonNotifyingCompoundCommand wrapping mechanism per AC-6",
+                desc.contains("NonNotifyingCompoundCommand"));
+        assertTrue("description should name the densityFloorDiagnosis DTO field (AC-6)",
+                desc.contains("densityFloorDiagnosis"));
+    }
+
+    @Test
+    public void applySpacingRecommendations_descriptionShouldDocumentTwoArmControlLoopSemantics() {
+        // Composer AC-15 sub-promise pin. The composer surfaces TWO
+        // coordinated control loops (element arm first, group arm second per
+        // architecture-spec § 1.7 Option A) with PER-ARM terminationReason +
+        // iterationCount + appliedDeltas DTO fields. Plus the composer-only
+        // promise: the legacy ELEMENT_KNEE_LIMIT_PX / GROUP_KNEE_LIMIT_PX
+        // constants are reinterpreted as PER-ITERATION step caps (NOT
+        // per-call total caps as in the previous single-shot composer).
+        String desc = registry.getToolSpecifications().stream()
+                .filter(spec -> "apply-spacing-recommendations".equals(spec.tool().name()))
+                .findFirst()
+                .orElseThrow()
+                .tool()
+                .description();
+        assertTrue("description should name TWO coordinated control loops (composer-specific per arch-spec § 1.7)",
+                desc.contains("TWO coordinated"));
+        assertTrue("description should name the density-aware 3-state-termination ordering (Story backlog-control-loop-density-aware-termination AC-15)",
+                desc.contains("observe → decide → density-aware "
+                        + "3-state-termination"));
+        assertTrue("description should name the 2×2 discriminator axes (AC-2)",
+                desc.contains("aggregate-trend × spacing-regime-position"));
+        assertTrue("description should name the three termination states (AC-1)",
+                desc.contains("CONTINUE") && desc.contains("ESCALATE")
+                        && desc.contains("PASS-HONEST"));
+        assertTrue("description should name the density_floor_reflow_required terminal (AC-6)",
+                desc.contains("density_floor_reflow_required"));
+        assertTrue("description should surface the no-auto-reflow + consent model (AC-6)",
+                desc.contains("NEVER auto-reflows")
+                        && desc.contains("never surface + act"));
+        assertTrue("description should name the iterationBudget parameter",
+                desc.contains("iterationBudget"));
+        assertTrue("description should name the per-iteration step cap reinterpretation (Option α)",
+                desc.contains("per-iteration step caps")
+                        || desc.contains("PER-ITERATION step caps"));
+        assertTrue("description should name the per-arm elementTerminationReason DTO field",
+                desc.contains("elementTerminationReason"));
+        assertTrue("description should name the per-arm groupTerminationReason DTO field",
+                desc.contains("groupTerminationReason"));
+        assertTrue("description should name the per-arm elementIterationCount DTO field",
+                desc.contains("elementIterationCount"));
+        assertTrue("description should name the per-arm groupIterationCount DTO field",
+                desc.contains("groupIterationCount"));
+        assertTrue("description should name the per-arm elementAppliedDeltas DTO field",
+                desc.contains("elementAppliedDeltas"));
+        assertTrue("description should name the per-arm groupAppliedDeltas DTO field",
+                desc.contains("groupAppliedDeltas"));
+        assertTrue("description should name the aggregate thresholds_met back-off rule per AC-3",
+                desc.contains("aggregate thresholds_met"));
+        assertTrue("description should name the goal_reached termination branch",
+                desc.contains("goal_reached_at_iteration_N"));
+        assertTrue("description should name the dry_run_recommendation_not_applied taxonomy string (6th branch overall — pre-loop dryRun guard)",
+                desc.contains("dry_run_recommendation_not_applied"));
+        assertTrue("description should name the iteration_apply_failed taxonomy string (7th branch overall — Session 8 Decision-A.1.1=α' patch covers cmd.execute() partial-throw recovery)",
+                desc.contains("iteration_apply_failed_at_iteration_N"));
+        assertTrue("description should frame the contract as 'ten branches' (7 in-loop + 3 pre-loop guards — branches (i) reroute_degraded and (j) density_precondition_infeasible_reflow_required shipped after AC-6's density_floor_reflow_required branch)",
+                desc.contains("ten branches"));
+        assertTrue("description should name the single-undo guarantee per AC-6 (across both arms)",
+                desc.contains("single undo-stack entry"));
+        assertTrue("description should name the NonNotifyingCompoundCommand wrapping mechanism per AC-6",
+                desc.contains("NonNotifyingCompoundCommand"));
+        assertTrue("description should name the composer's default budget split (4+4 from 8)",
+                desc.contains("4+4"));
+        assertTrue("description should name the per-arm density diagnosis DTO fields (AC-6)",
+                desc.contains("elementDensityFloorDiagnosis")
+                        && desc.contains("groupDensityFloorDiagnosis"));
     }
 
     // ---- add-to-view tests ----
@@ -901,6 +1192,98 @@ public class ViewPlacementHandlerTest {
         assertTrue("Should have fillColor property", props.containsKey("fillColor"));
         assertTrue("Should have lineColor property", props.containsKey("lineColor"));
         assertTrue("Should have fontColor property", props.containsKey("fontColor"));
+    }
+
+    // ---- Story backlog-group-element-styling-surface: AC-8 + AC-9 schema property pins ----
+
+    @Test
+    public void addToViewSpec_includesFigureTypeAndTextAlignmentAndVerticalAlignment_AC8() {
+        assertStylingSurfaceProperties("add-to-view");
+    }
+
+    @Test
+    public void addGroupToViewSpec_includesFigureTypeAndTextAlignmentAndVerticalAlignment_AC8() {
+        assertStylingSurfaceProperties("add-group-to-view");
+    }
+
+    @Test
+    public void addNoteToViewSpec_includesFigureTypeAndTextAlignmentAndVerticalAlignment_AC8() {
+        // Notes silently ignore figureType at apply-time, but the schema property still appears
+        // (uniform extract path via the shared addStylingProperties helper). The tool description
+        // tells the LLM that figureType is ignored on notes.
+        assertStylingSurfaceProperties("add-note-to-view");
+    }
+
+    @Test
+    public void updateViewObjectSpec_includesFigureTypeAndTextAlignmentAndVerticalAlignment_AC8() {
+        assertStylingSurfaceProperties("update-view-object");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertStylingSurfaceProperties(String toolName) {
+        McpServerFeatures.SyncToolSpecification spec = registry.getToolSpecifications().stream()
+                .filter(s -> toolName.equals(s.tool().name()))
+                .findFirst().orElseThrow();
+        Map<String, Object> props = (Map<String, Object>) spec.tool().inputSchema().properties();
+        assertTrue(toolName + " should expose figureType property", props.containsKey("figureType"));
+        assertTrue(toolName + " should expose textAlignment property", props.containsKey("textAlignment"));
+        assertTrue(toolName + " should expose verticalTextAlignment property", props.containsKey("verticalTextAlignment"));
+
+        Map<String, Object> figureType = (Map<String, Object>) props.get("figureType");
+        assertEquals("string", figureType.get("type"));
+        List<?> figureEnum = (List<?>) figureType.get("enum");
+        assertTrue("figureType enum should include 'rectangular'", figureEnum.contains("rectangular"));
+        assertTrue("figureType enum should include 'tabbed'", figureEnum.contains("tabbed"));
+        assertNotNull("figureType should have non-empty description", figureType.get("description"));
+        assertFalse("figureType description should not be empty",
+                ((String) figureType.get("description")).isEmpty());
+
+        Map<String, Object> textAlignment = (Map<String, Object>) props.get("textAlignment");
+        List<?> textEnum = (List<?>) textAlignment.get("enum");
+        assertTrue(textEnum.contains("left"));
+        assertTrue(textEnum.contains("centre"));
+        assertTrue(textEnum.contains("center"));
+        assertTrue(textEnum.contains("right"));
+
+        Map<String, Object> verticalTextAlignment = (Map<String, Object>) props.get("verticalTextAlignment");
+        List<?> verticalEnum = (List<?>) verticalTextAlignment.get("enum");
+        assertTrue(verticalEnum.contains("top"));
+        assertTrue(verticalEnum.contains("centre"));
+        assertTrue(verticalEnum.contains("center"));
+        assertTrue(verticalEnum.contains("bottom"));
+    }
+
+    @Test
+    public void addToViewToolDescription_mentionsAllThreeNewParams_AC9() {
+        String desc = registry.getToolSpecifications().stream()
+                .filter(s -> "add-to-view".equals(s.tool().name()))
+                .map(s -> s.tool().description())
+                .findFirst().orElseThrow();
+        assertTrue("description mentions figureType", desc.contains("figureType"));
+        assertTrue("description mentions textAlignment", desc.contains("textAlignment"));
+        assertTrue("description mentions verticalTextAlignment", desc.contains("verticalTextAlignment"));
+    }
+
+    @Test
+    public void addGroupToViewToolDescription_mentionsAllThreeNewParams_AC9() {
+        String desc = registry.getToolSpecifications().stream()
+                .filter(s -> "add-group-to-view".equals(s.tool().name()))
+                .map(s -> s.tool().description())
+                .findFirst().orElseThrow();
+        assertTrue(desc.contains("figureType"));
+        assertTrue(desc.contains("textAlignment"));
+        assertTrue(desc.contains("verticalTextAlignment"));
+    }
+
+    @Test
+    public void updateViewObjectToolDescription_mentionsAllThreeNewParams_AC9() {
+        String desc = registry.getToolSpecifications().stream()
+                .filter(s -> "update-view-object".equals(s.tool().name()))
+                .map(s -> s.tool().description())
+                .findFirst().orElseThrow();
+        assertTrue(desc.contains("figureType"));
+        assertTrue(desc.contains("textAlignment"));
+        assertTrue(desc.contains("verticalTextAlignment"));
     }
 
     @Test
@@ -1802,6 +2185,62 @@ public class ViewPlacementHandlerTest {
         assertTrue(content.contains("MODEL_NOT_LOADED"));
     }
 
+    @Test
+    public void detectHubElements_shouldIncludeBoth1DAnd2DForLargeHub() throws Exception {
+        // Large-hub case (>LARGE_HUB_THRESHOLD): suggestions list has BOTH the
+        // existing 1D-or-1D entry AND the new 2D entry. Exercises helper-class
+        // extraction at the integration layer.
+        accessor.setDetectHubElementsBehavior(vId -> {
+            List<HubElementEntryDto> entries = List.of(new HubElementEntryDto(
+                    "vo-large", "e-large", "Large Hub", "ApplicationComponent",
+                    14, 200, 180, 0));
+            return new DetectHubElementsResultDto(vId, 1, 14, 14.0, entries,
+                    HubSizingSuggestionBuilder.buildSuggestions(entries));
+        });
+
+        Map<String, Object> result = callAndParse("detect-hub-elements",
+                Map.of("viewId", "v-1"));
+
+        Map<String, Object> entity = getResult(result);
+        @SuppressWarnings("unchecked")
+        List<String> suggestions = (List<String>) entity.get("suggestions");
+        assertNotNull("Should have suggestions for large-fan-out hub", suggestions);
+        assertEquals("Large hub (14 conns) should yield two suggestions",
+                2, suggestions.size());
+        assertTrue("First entry should be the existing 1D-or-1D format",
+                suggestions.get(0).contains("for vertical layouts"));
+        assertTrue("Second entry should be the new 2D recommendation",
+                suggestions.get(1).contains("Consider 2D resize"));
+        assertTrue("2D entry should surface 'connections per edge' owner-perception text",
+                suggestions.get(1).contains("connections per edge"));
+    }
+
+    @Test
+    public void detectHubElements_shouldOmit2DForModerateHub() throws Exception {
+        // Negative-branch coverage at the integration layer: 8 conns is in the
+        // 7..LARGE_HUB_THRESHOLD branch — only the existing 1D-or-1D entry
+        // should appear; no 2D recommendation.
+        accessor.setDetectHubElementsBehavior(vId -> {
+            List<HubElementEntryDto> entries = List.of(new HubElementEntryDto(
+                    "vo-mid", "e-mid", "Moderate Hub", "ApplicationComponent",
+                    8, 160, 120, 0));
+            return new DetectHubElementsResultDto(vId, 1, 8, 8.0, entries,
+                    HubSizingSuggestionBuilder.buildSuggestions(entries));
+        });
+
+        Map<String, Object> result = callAndParse("detect-hub-elements",
+                Map.of("viewId", "v-1"));
+
+        Map<String, Object> entity = getResult(result);
+        @SuppressWarnings("unchecked")
+        List<String> suggestions = (List<String>) entity.get("suggestions");
+        assertNotNull("Should have one suggestion for moderate hub", suggestions);
+        assertEquals("Moderate hub (8 conns) should yield exactly one suggestion",
+                1, suggestions.size());
+        assertFalse("Moderate hub should NOT trip the 2D branch",
+                suggestions.get(0).contains("Consider 2D resize"));
+    }
+
     // ---- detect-hub-elements label-aware sizing (Story B23) ----
 
     @Test
@@ -2215,6 +2654,7 @@ public class ViewPlacementHandlerTest {
             case "optimize-group-order" -> handler.handleOptimizeGroupOrder(null, request);
             case "detect-hub-elements" -> handler.handleDetectHubElements(null, request);
             case "layout-flat-view" -> handler.handleLayoutFlatView(null, request);
+            case "adjust-view-spacing" -> handler.handleAdjustViewSpacing(null, request);
             default -> throw new IllegalArgumentException("Unknown tool: " + toolName);
         };
     }
@@ -2291,6 +2731,293 @@ public class ViewPlacementHandlerTest {
                 nextSteps.stream().anyMatch(s -> s.contains("auto-layout-and-route")));
         assertFalse("Should NOT mention compute-layout (Story 11-22)",
                 nextSteps.stream().anyMatch(s -> s.contains("compute-layout")));
+    }
+
+    // Assessor.Redesign code-review H1 (2026-04-27): a view rated "poor" purely because of
+    // M2/M3/M4/M5 routing defects (no overlaps, no PTs) must funnel to auto-route-connections,
+    // not to auto-layout-and-route — re-positioning elements that are already clean is wrong.
+    @Test
+    public void buildAssessLayoutNextSteps_routingOnlyPoorWithZigzags_shouldSuggestAutoRouteFirst() {
+        AssessLayoutResultDto dto = new AssessLayoutResultDto(
+                "v-1", 6, 4, 0, 0, 0, 0.0, 50.0, 80, "poor", null,
+                null, null, List.of(), null, 0, null, 0, null, 0, null,
+                false, 0, 0, null,
+                0, null, 0, null, 0, null, null, List.of(),
+                // M2-M6: 2 zigzags, no other routing/layout defects
+                0, null, 2, null, 0, null, 1.0, null,
+                "excellent", "poor",
+                // R8 (defaults)
+                1.0, null);
+
+        List<String> steps = handler.buildAssessLayoutNextSteps(dto);
+
+        assertTrue("Routing-only poor should suggest auto-route-connections",
+                steps.stream().anyMatch(s -> s.contains("auto-route-connections")));
+        assertTrue("Routing-only poor should still mention auto-layout-and-route as fallback",
+                steps.stream().anyMatch(s -> s.contains("auto-layout-and-route")));
+        // Order matters — auto-route-connections must come first.
+        int autoRouteIdx = -1, ergoLayoutIdx = -1;
+        for (int i = 0; i < steps.size(); i++) {
+            if (autoRouteIdx == -1 && steps.get(i).contains("auto-route-connections")) {
+                autoRouteIdx = i;
+            }
+            if (ergoLayoutIdx == -1 && steps.get(i).contains("auto-layout-and-route")) {
+                ergoLayoutIdx = i;
+            }
+        }
+        assertTrue("auto-route-connections must precede auto-layout-and-route fallback",
+                autoRouteIdx >= 0 && (ergoLayoutIdx == -1 || autoRouteIdx < ergoLayoutIdx));
+    }
+
+    @Test
+    public void buildAssessLayoutNextSteps_fairWithEdgeCoincidenceOnly_shouldSuggestAutoRoute() {
+        // M4 edge-coincidence with no crossings, no PTs — fair-rated view should still
+        // route to auto-route-connections per code-review H1 fix.
+        AssessLayoutResultDto dto = new AssessLayoutResultDto(
+                "v-1", 6, 4, 0, 0, 0, 0.0, 50.0, 80, "fair", null,
+                null, null, List.of(), null, 0, null, 0, null, 0, null,
+                false, 0, 0, null,
+                0, null, 0, null, 0, null, null, List.of(),
+                0, null, 0, null, 3, null, 1.0, null,
+                "excellent", "fair",
+                // R8 (defaults)
+                1.0, null);
+
+        List<String> steps = handler.buildAssessLayoutNextSteps(dto);
+
+        assertTrue("Fair with M4 alone should suggest auto-route-connections",
+                steps.stream().anyMatch(s -> s.contains("auto-route-connections")));
+    }
+
+    @Test
+    public void buildAssessLayoutNextSteps_fairWithLowHubPortQuality_shouldSuggestAutoRoute() {
+        // M5 low hub-port quality with no other issues — fair-rated view should fall into
+        // hasRoutingIssues path under code-review H1 fix.
+        AssessLayoutResultDto dto = new AssessLayoutResultDto(
+                "v-1", 6, 4, 0, 0, 0, 0.0, 50.0, 80, "fair", null,
+                null, null, List.of(), null, 0, null, 0, null, 0, null,
+                false, 0, 0, null,
+                0, null, 0, null, 0, null, null, List.of(),
+                0, null, 0, null, 0, null, 0.25, null,
+                "excellent", "fair",
+                // R8 (defaults)
+                1.0, null);
+
+        List<String> steps = handler.buildAssessLayoutNextSteps(dto);
+
+        assertTrue("Fair with low hub-port quality should suggest auto-route-connections",
+                steps.stream().anyMatch(s -> s.contains("auto-route-connections")));
+    }
+
+    // Boundary-violation composite-remedy: predicate gate, violator-clause paths, ordering invariants.
+    @Test
+    public void buildAssessLayoutNextSteps_withBoundaryViolations_shouldEmitCompositeRemedy() {
+        AssessLayoutResultDto dto = new AssessLayoutResultDto(
+                "v-1", 6, 4, 0, 0, 0, 0.0, 50.0, 80, "poor", null,
+                null,
+                List.of("Element 'a' overflows parent 'g1'", "Element 'b' overflows parent 'g2'"),
+                List.of(), null, 0, null, 0, null, 0, null,
+                false, 0, 0, null,
+                0, null, 0, null, 0, null,
+                Map.of("boundaryViolations", List.of("id-elem-a", "id-elem-b")),
+                List.of(),
+                0, null, 0, null, 0, null, 1.0, null,
+                "excellent", "poor",
+                // R8 (defaults)
+                1.0, null);
+
+        List<String> steps = handler.buildAssessLayoutNextSteps(dto);
+
+        String remedy = steps.stream()
+                .filter(s -> s.contains("Composite recovery"))
+                .findFirst()
+                .orElse(null);
+        assertNotNull("Composite-remedy entry should be present", remedy);
+        assertTrue("Should include violation count",
+                remedy.contains("Found 2 boundary violation(s)"));
+        assertTrue("Should mention update-view-object", remedy.contains("update-view-object"));
+        assertTrue("Should mention layout-within-group", remedy.contains("layout-within-group"));
+        assertTrue("Should mention auto-route-connections",
+                remedy.contains("auto-route-connections"));
+        assertTrue("Should list violator elements",
+                remedy.contains("violator elements: id-elem-a, id-elem-b"));
+        assertTrue("Should reference Row F deferred sibling", remedy.contains("Row F"));
+    }
+
+    @Test
+    public void buildAssessLayoutNextSteps_withBoundaryViolationsNoViolatorIds_shouldEmitFallbackClause() {
+        AssessLayoutResultDto dto = new AssessLayoutResultDto(
+                "v-1", 6, 4, 0, 0, 0, 0.0, 50.0, 80, "poor", null,
+                null,
+                List.of("Element 'a' overflows parent 'g1'"),
+                List.of(), null, 0, null, 0, null, 0, null,
+                false, 0, 0, null,
+                0, null, 0, null, 0, null,
+                null,
+                List.of(),
+                0, null, 0, null, 0, null, 1.0, null,
+                "excellent", "poor",
+                // R8 (defaults)
+                1.0, null);
+
+        List<String> steps = handler.buildAssessLayoutNextSteps(dto);
+
+        String remedy = steps.stream()
+                .filter(s -> s.contains("Composite recovery"))
+                .findFirst()
+                .orElse(null);
+        assertNotNull("Composite-remedy entry should be present", remedy);
+        assertTrue("Should include violation count",
+                remedy.contains("Found 1 boundary violation(s)"));
+        assertTrue("Should fall back to re-run guidance when violatorIds map is null",
+                remedy.contains("re-run assess-layout with includeViolatorIds=true"));
+    }
+
+    @Test
+    public void buildAssessLayoutNextSteps_withBoundaryViolationsEmptyViolatorIdsList_shouldEmitFallbackClause() {
+        AssessLayoutResultDto dto = new AssessLayoutResultDto(
+                "v-1", 6, 4, 0, 0, 0, 0.0, 50.0, 80, "poor", null,
+                null,
+                List.of("Element 'a' overflows parent 'g1'"),
+                List.of(), null, 0, null, 0, null, 0, null,
+                false, 0, 0, null,
+                0, null, 0, null, 0, null,
+                Map.of("boundaryViolations", List.of()),
+                List.of(),
+                0, null, 0, null, 0, null, 1.0, null,
+                "excellent", "poor",
+                // R8 (defaults)
+                1.0, null);
+
+        List<String> steps = handler.buildAssessLayoutNextSteps(dto);
+
+        String remedy = steps.stream()
+                .filter(s -> s.contains("Composite recovery"))
+                .findFirst()
+                .orElse(null);
+        assertNotNull("Composite-remedy entry should be present", remedy);
+        assertTrue("Should fall back to re-run guidance when violatorIds list is empty",
+                remedy.contains("re-run assess-layout with includeViolatorIds=true"));
+    }
+
+    @Test
+    public void buildAssessLayoutNextSteps_zeroBoundaryViolations_shouldNotEmitRemedy() {
+        AssessLayoutResultDto dto = new AssessLayoutResultDto(
+                "v-1", 6, 4, 0, 0, 0, 0.0, 50.0, 80, "good", null,
+                null,
+                List.of(),
+                List.of(), null, 0, null, 0, null, 0, null,
+                false, 0, 0, null,
+                0, null, 0, null, 0, null,
+                null,
+                List.of(),
+                0, null, 0, null, 0, null, 1.0, null,
+                "excellent", "good",
+                // R8 (defaults)
+                1.0, null);
+
+        List<String> steps = handler.buildAssessLayoutNextSteps(dto);
+
+        assertFalse("Empty boundaryViolations list should not emit composite remedy",
+                steps.stream().anyMatch(s -> s.contains("Composite recovery")));
+    }
+
+    @Test
+    public void buildAssessLayoutNextSteps_nullBoundaryViolations_shouldNotEmitRemedy() {
+        AssessLayoutResultDto dto = new AssessLayoutResultDto(
+                "v-1", 6, 4, 0, 0, 0, 0.0, 50.0, 80, "good", null,
+                null,
+                null,
+                List.of(), null, 0, null, 0, null, 0, null,
+                false, 0, 0, null,
+                0, null, 0, null, 0, null,
+                null,
+                List.of(),
+                0, null, 0, null, 0, null, 1.0, null,
+                "excellent", "good",
+                // R8 (defaults)
+                1.0, null);
+
+        List<String> steps = handler.buildAssessLayoutNextSteps(dto);
+
+        assertFalse("Null boundaryViolations should not emit composite remedy",
+                steps.stream().anyMatch(s -> s.contains("Composite recovery")));
+    }
+
+    @Test
+    public void buildAssessLayoutNextSteps_compositeRemedyPositioning_shouldPrecedeRatingSwitch() {
+        // boundaryViolations populated + grouped view + crossingsPerConnection=5.0 (>4.0)
+        // + rating="poor" — composite-remedy + inter-group-crossing-density + rating-switch
+        // (auto-layout-and-route) all fire. Pin: composite-remedy index < rating-switch index.
+        AssessLayoutResultDto dto = new AssessLayoutResultDto(
+                "v-1", 6, 4, 0, 0, 25, 5.0, 50.0, 80, "poor", null,
+                null,
+                List.of("Element 'a' overflows parent 'g1'"),
+                List.of(), null, 0, null, 0, null, 0, null,
+                true, 0, 0, null,
+                0, null, 0, null, 0, null,
+                Map.of("boundaryViolations", List.of("id-elem-a")),
+                List.of(),
+                0, null, 0, null, 0, null, 1.0, null,
+                "poor", "poor",
+                // R8 (defaults)
+                1.0, null);
+
+        List<String> steps = handler.buildAssessLayoutNextSteps(dto);
+
+        int compositeIdx = -1, crossingDensityIdx = -1, ratingSwitchIdx = -1;
+        for (int i = 0; i < steps.size(); i++) {
+            String s = steps.get(i);
+            if (compositeIdx == -1 && s.contains("Composite recovery")) {
+                compositeIdx = i;
+            }
+            if (crossingDensityIdx == -1 && s.contains("High inter-group crossing density")) {
+                crossingDensityIdx = i;
+            }
+            if (ratingSwitchIdx == -1 && s.contains("auto-layout-and-route")) {
+                ratingSwitchIdx = i;
+            }
+        }
+        assertTrue("Composite-remedy entry must be present", compositeIdx >= 0);
+        assertTrue("Inter-group-crossing-density entry must be present", crossingDensityIdx >= 0);
+        assertTrue("Rating-switch (auto-layout-and-route) entry must be present",
+                ratingSwitchIdx >= 0);
+        assertTrue("Composite-remedy must precede rating-switch advice",
+                compositeIdx < ratingSwitchIdx);
+    }
+
+    @Test
+    public void buildAssessLayoutNextSteps_compositeRemedyAlwaysBeforeExportView() {
+        AssessLayoutResultDto dto = new AssessLayoutResultDto(
+                "v-1", 6, 4, 0, 0, 0, 0.0, 50.0, 80, "good", null,
+                null,
+                List.of("Element 'a' overflows parent 'g1'"),
+                List.of(), null, 0, null, 0, null, 0, null,
+                false, 0, 0, null,
+                0, null, 0, null, 0, null,
+                null,
+                List.of(),
+                0, null, 0, null, 0, null, 1.0, null,
+                "excellent", "good",
+                // R8 (defaults)
+                1.0, null);
+
+        List<String> steps = handler.buildAssessLayoutNextSteps(dto);
+
+        int compositeIdx = -1, exportIdx = -1;
+        for (int i = 0; i < steps.size(); i++) {
+            String s = steps.get(i);
+            if (compositeIdx == -1 && s.contains("Composite recovery")) {
+                compositeIdx = i;
+            }
+            if (exportIdx == -1 && s.contains("export-view")) {
+                exportIdx = i;
+            }
+        }
+        assertTrue("Composite-remedy entry must be present", compositeIdx >= 0);
+        assertTrue("Export-view terminal step must be present", exportIdx >= 0);
+        assertTrue("Composite-remedy must come before export-view (terminal step)",
+                compositeIdx < exportIdx);
     }
 
     @Test
@@ -2717,7 +3444,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldUseClearStrategy() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(vId, 3, "clear", false), null));
 
         Map<String, Object> result = callAndParse("auto-route-connections",
@@ -2730,7 +3457,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldPassConnectionIdsFilter() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             int count = (connIds != null) ? connIds.size() : 0;
             return new MutationResult<>(new AutoRouteResultDto(vId, count, "orthogonal", false), null);
         });
@@ -2744,7 +3471,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldReturnErrorOnInvalidStrategy() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             throw new ModelAccessException("Invalid strategy: 'bogus'. Valid: orthogonal, clear",
                     ErrorCode.INVALID_PARAMETER);
         });
@@ -2759,7 +3486,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldReturnProposalInApprovalMode() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(null, null, new ProposalContext("p-99",
                         "Auto-route connections on view " + vId,
                         Instant.parse("2026-03-04T00:00:00Z"))));
@@ -2778,7 +3505,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldIncludeRouterTypeSwitchedTrue() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(vId, 10, "orthogonal", true), null));
 
         Map<String, Object> result = callAndParse("auto-route-connections",
@@ -2797,7 +3524,7 @@ public class ViewPlacementHandlerTest {
     public void autoRoute_shouldIncludeRouterTypeSwitchedFalse() throws Exception {
         // Explicitly set up a scenario where routerTypeSwitched is false
         // (view already in bendpoint mode — no switch needed)
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(vId, 5, "orthogonal", false), null));
 
         Map<String, Object> result = callAndParse("auto-route-connections",
@@ -2809,7 +3536,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_clearStrategy_shouldNotSwitchRouterType() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(vId, 3, "clear", false), null));
 
         Map<String, Object> result = callAndParse("auto-route-connections",
@@ -2825,7 +3552,7 @@ public class ViewPlacementHandlerTest {
     public void autoRoute_shouldRouteOnlySpecifiedConnections_preservingOthers() throws Exception {
         // When connectionIds are specified, only those connections should be routed
         // The count should reflect only the specified connections
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             assertNotNull("connectionIds should be passed through", connIds);
             assertEquals(2, connIds.size());
             assertEquals("c-1", connIds.get(0));
@@ -2843,7 +3570,7 @@ public class ViewPlacementHandlerTest {
     @Test
     public void autoRoute_shouldRouteAllConnections_whenConnectionIdsOmitted() throws Exception {
         // When connectionIds is omitted, all connections should be routed (backward compat)
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             assertNull("connectionIds should be null when omitted", connIds);
             return new MutationResult<>(new AutoRouteResultDto(vId, 20, "orthogonal", false), null);
         });
@@ -2861,7 +3588,7 @@ public class ViewPlacementHandlerTest {
         List<String> testWarnings = List.of(
                 "Connection not found on view: bad-id-1",
                 "Connection not found on view: bad-id-2");
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(
                         vId, 1, "orthogonal", false, testWarnings), null));
 
@@ -2881,7 +3608,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldReturnError_whenAllConnectionIdsInvalid() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             throw new ModelAccessException(
                     "None of the specified connection IDs were found on the view",
                     ErrorCode.ELEMENT_NOT_FOUND);
@@ -2899,7 +3626,7 @@ public class ViewPlacementHandlerTest {
     @Test
     public void autoRoute_shouldOmitWarningsWhenEmpty() throws Exception {
         // When no warnings, the field should be absent from JSON (NON_EMPTY)
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(vId, 5, "orthogonal", false), null));
 
         Map<String, Object> result = callAndParse("auto-route-connections",
@@ -2912,7 +3639,7 @@ public class ViewPlacementHandlerTest {
     @Test
     public void autoRoute_shouldIncludeWarningsNextStep() throws Exception {
         List<String> testWarnings = List.of("Connection not found on view: bad-id");
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(
                         vId, 2, "orthogonal", false, testWarnings), null));
 
@@ -2940,7 +3667,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldDefaultForceToFalse() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             assertFalse("force should default to false", force);
             return new MutationResult<>(new AutoRouteResultDto(vId, 5, "orthogonal", false), null);
         });
@@ -2949,7 +3676,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldPassForceTrueToAccessor() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             assertTrue("force should be true", force);
             return new MutationResult<>(new AutoRouteResultDto(vId, 5, "orthogonal", false), null);
         });
@@ -2963,7 +3690,7 @@ public class ViewPlacementHandlerTest {
     public void autoRoute_shouldIncludeViolationsInForceMode() throws Exception {
         List<RoutingViolationDto> violations = List.of(
                 new RoutingViolationDto("c-1", "Src", "Tgt", "element_crossing", "warning"));
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(
                         vId, 5, 0, "orthogonal", false,
                         List.of(), List.of(), List.of(), violations), null));
@@ -2984,7 +3711,7 @@ public class ViewPlacementHandlerTest {
     public void autoRoute_shouldIncludeViolationNextSteps_whenForceMode() throws Exception {
         List<RoutingViolationDto> violations = List.of(
                 new RoutingViolationDto("c-1", "Src", "Tgt", "element_crossing", "warning"));
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(
                         vId, 5, 0, "orthogonal", false,
                         List.of(), List.of(), List.of(), violations), null));
@@ -3000,7 +3727,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldOmitViolationsInDefaultMode() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(vId, 5, "orthogonal", false), null));
         Map<String, Object> result = callAndParse("auto-route-connections",
                 Map.of("viewId", "v-1"));
@@ -3012,7 +3739,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldPassAutoNudgeToAccessor() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             assertTrue("autoNudge should be true when passed", autoNudge);
             return new MutationResult<>(new AutoRouteResultDto(vId, 5, "orthogonal", false), null);
         });
@@ -3023,7 +3750,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldDefaultAutoNudgeToFalse() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             assertFalse("autoNudge should default to false", autoNudge);
             return new MutationResult<>(new AutoRouteResultDto(vId, 5, "orthogonal", false), null);
         });
@@ -3034,7 +3761,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldPassSnapThresholdToAccessor() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             assertEquals("snapThreshold should be 35 when passed", 35, snapThreshold);
             return new MutationResult<>(new AutoRouteResultDto(vId, 5, "orthogonal", false), null);
         });
@@ -3045,7 +3772,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldDefaultSnapThresholdTo20() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             assertEquals("snapThreshold should default to 20", 20, snapThreshold);
             return new MutationResult<>(new AutoRouteResultDto(vId, 5, "orthogonal", false), null);
         });
@@ -3056,7 +3783,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldReturnNudgedElements_whenAutoNudgeApplied() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(
                         vId, 8, 0, "orthogonal", false, 0,
                         List.of(), List.of(), List.of(), List.of(),
@@ -3082,7 +3809,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldOmitNudgedElements_whenEmpty() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(vId, 5, "orthogonal", false), null));
 
         Map<String, Object> result = callAndParse("auto-route-connections",
@@ -3094,7 +3821,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldIncludeNudgeInfoInNextSteps() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) ->
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) ->
                 new MutationResult<>(new AutoRouteResultDto(
                         vId, 8, 0, "orthogonal", false, 0,
                         List.of(), List.of(), List.of(), List.of(),
@@ -3112,7 +3839,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_shouldIgnoreAutoNudge_whenForceIsTrue() throws Exception {
-        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             assertTrue("force should be true", force);
             assertTrue("autoNudge should be passed as true", autoNudge);
             // Implementation ignores autoNudge when force=true (effectiveAutoNudge = autoNudge && !force)
@@ -3121,6 +3848,119 @@ public class ViewPlacementHandlerTest {
 
         callAndParse("auto-route-connections",
                 Map.of("viewId", "v-1", "force", true, "autoNudge", true));
+    }
+
+    // ---- auto-route B61: terminals-only mode parameter validation ----
+
+    @Test
+    public void autoRoute_terminalsOnly_shouldPassModeParam() throws Exception {
+        // 4 routed, 7 skipped broken down as: 3 already-orthogonal + 2 obstacle + 2 crossing.
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
+            assertEquals("terminals-only", mode);
+            return new MutationResult<>(new AutoRouteResultDto(
+                    vId, 4, 0, "orthogonal", false, 0, 0, 0, 0, 7, 2, 2,
+                    List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                    List.of()), null);
+        });
+
+        Map<String, Object> result = callAndParse("auto-route-connections",
+                Map.of("viewId", "v-1", "mode", "terminals-only"));
+
+        Map<String, Object> data = getResult(result);
+        assertEquals(4, ((Number) data.get("connectionsRouted")).intValue());
+        assertEquals(7, ((Number) data.get("connectionsSkipped")).intValue());
+        assertEquals(2, ((Number) data.get("vetoedByObstacle")).intValue());
+        assertEquals(2, ((Number) data.get("vetoedByCrossing")).intValue());
+        @SuppressWarnings("unchecked")
+        List<String> nextSteps = (List<String>) result.get("nextSteps");
+        assertTrue("nextSteps should mention terminals-only",
+                nextSteps.stream().anyMatch(s -> s.contains("terminals-only")));
+        assertTrue("nextSteps should break out the three skip categories",
+                nextSteps.stream().anyMatch(s -> s.contains("already orthogonal")
+                        && s.contains("vetoed")));
+        assertTrue("nextSteps should mention force=true escape hatch when vetoes > 0",
+                nextSteps.stream().anyMatch(s -> s.contains("force=true")));
+    }
+
+    @Test
+    public void autoRoute_terminalsOnly_shouldRejectClearStrategy() throws Exception {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
+            throw new ModelAccessException(
+                    "strategy 'clear' cannot be combined with mode 'terminals-only'"
+                            + " — they are mutually exclusive",
+                    ErrorCode.INVALID_PARAMETER);
+        });
+
+        McpSchema.CallToolResult result = callTool("auto-route-connections",
+                Map.of("viewId", "v-1", "strategy", "clear", "mode", "terminals-only"));
+
+        assertTrue("Should be error", result.isError());
+        String content = ((McpSchema.TextContent) result.content().get(0)).text();
+        assertTrue("Should mention INVALID_PARAMETER",
+                content.contains("INVALID_PARAMETER"));
+        assertTrue("Should explain mutual exclusion",
+                content.contains("mutually exclusive"));
+    }
+
+    @Test
+    public void autoRoute_terminalsOnly_shouldRejectAutoNudge() throws Exception {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
+            throw new ModelAccessException(
+                    "autoNudge cannot be combined with mode 'terminals-only'"
+                            + " — terminals-only never moves elements",
+                    ErrorCode.INVALID_PARAMETER);
+        });
+
+        McpSchema.CallToolResult result = callTool("auto-route-connections",
+                Map.of("viewId", "v-1", "autoNudge", true, "mode", "terminals-only"));
+
+        assertTrue("Should be error", result.isError());
+        String content = ((McpSchema.TextContent) result.content().get(0)).text();
+        assertTrue("Should mention INVALID_PARAMETER",
+                content.contains("INVALID_PARAMETER"));
+        assertTrue("Should explain that terminals-only never moves elements",
+                content.contains("never moves elements"));
+    }
+
+    @Test
+    public void autoRoute_terminalsOnly_shouldForwardForceTrue() throws Exception {
+        // AC-8: force=true must propagate into terminals-only so the accessor
+        // can bypass the obstacle + crossing veto.
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
+            assertEquals("terminals-only", mode);
+            assertTrue("force should propagate into terminals-only mode", force);
+            return new MutationResult<AutoRouteResultDto>(
+                    new AutoRouteResultDto(vId, 5, "orthogonal", false), null);
+        });
+
+        callAndParse("auto-route-connections",
+                Map.of("viewId", "v-1", "mode", "terminals-only", "force", true));
+    }
+
+    @Test
+    public void autoRoute_terminalsOnly_shouldHonourConnectionIdsFilter() throws Exception {
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
+            assertEquals("terminals-only", mode);
+            assertNotNull("connectionIds filter should propagate", connIds);
+            assertEquals(2, connIds.size());
+            return new MutationResult<>(new AutoRouteResultDto(
+                    vId, 1, 0, "orthogonal", false, 0, 0, 0, 0, 1, 0, 0,
+                    List.of("Connection not found on view: c-bogus"),
+                    List.of(), List.of(), List.of(), List.of(), List.of(),
+                    List.of()), null);
+        });
+
+        Map<String, Object> result = callAndParse("auto-route-connections",
+                Map.of("viewId", "v-1", "mode", "terminals-only",
+                        "connectionIds", List.of("c-1", "c-bogus")));
+
+        Map<String, Object> data = getResult(result);
+        assertEquals(1, ((Number) data.get("connectionsRouted")).intValue());
+        assertEquals(1, ((Number) data.get("connectionsSkipped")).intValue());
+        @SuppressWarnings("unchecked")
+        List<String> warnings = (List<String>) data.get("warnings");
+        assertNotNull("Warnings should be present", warnings);
+        assertEquals(1, warnings.size());
     }
 
     // ---- auto-layout-and-route (Story 10-29, targetRating Story 11-16) ----
@@ -4415,7 +5255,8 @@ public class ViewPlacementHandlerTest {
         accessor.setArrangeGroupsBehavior((sid, vId, arr, cols, sp, gids, dir) -> {
             capturedDirection[0] = dir;
             return new MutationResult<>(new ArrangeGroupsResultDto(
-                    vId, 3, 800, 200, null, arr), null);
+                    vId, 3, 800, 200, null, arr,
+                    sp != null ? sp : 40, null), null);
         });
 
         Map<String, Object> args = new HashMap<>();
@@ -4434,7 +5275,8 @@ public class ViewPlacementHandlerTest {
         accessor.setArrangeGroupsBehavior((sid, vId, arr, cols, sp, gids, dir) -> {
             capturedDirection[0] = dir;
             return new MutationResult<>(new ArrangeGroupsResultDto(
-                    vId, 3, 800, 200, null, arr), null);
+                    vId, 3, 800, 200, null, arr,
+                    sp != null ? sp : 40, null), null);
         });
 
         Map<String, Object> args = new HashMap<>();
@@ -4587,6 +5429,130 @@ public class ViewPlacementHandlerTest {
         assertTrue(content.contains("INVALID_PARAMETER"));
     }
 
+    // ---- adjust-view-spacing (B68) ----
+
+    @Test
+    public void adjustViewSpacing_allDeltas_shouldReturnCombinedResult() throws Exception {
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "v-1");
+        args.put("interElementDelta", 40);
+        args.put("paddingDelta", 10);
+        args.put("interGroupDelta", 60);
+
+        Map<String, Object> result = callAndParse("adjust-view-spacing", args);
+        Map<String, Object> entity = getResult(result);
+
+        assertNotNull(entity);
+        assertEquals("v-1", entity.get("viewId"));
+        assertEquals(3, entity.get("groupsAdjusted"));
+        assertEquals(9, entity.get("elementsRepositioned"));
+        assertEquals(5, entity.get("connectionsRouted"));
+        assertEquals("good", entity.get("overallRating"));
+        assertEquals(0, entity.get("coincidentSegmentCount"));
+    }
+
+    @Test
+    public void adjustViewSpacing_singleDelta_shouldSucceed() throws Exception {
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "v-1");
+        args.put("interElementDelta", 30);
+
+        Map<String, Object> result = callAndParse("adjust-view-spacing", args);
+        Map<String, Object> entity = getResult(result);
+
+        assertNotNull(entity);
+        assertEquals("v-1", entity.get("viewId"));
+    }
+
+    @Test
+    public void adjustViewSpacing_missingViewId_shouldReturnError() throws Exception {
+        Map<String, Object> args = new HashMap<>();
+        args.put("interElementDelta", 40);
+
+        McpSchema.CallToolResult result = callTool("adjust-view-spacing", args);
+        assertTrue("Should be error for missing viewId", result.isError());
+    }
+
+    @Test
+    public void adjustViewSpacing_recursiveDefault_shouldBeTrue() throws Exception {
+        final boolean[] capturedRecursive = {false};
+        accessor.setAdjustViewSpacingBehavior((sid, vId, ied, pd, igd, rec) -> {
+            capturedRecursive[0] = rec;
+            return new MutationResult<>(new AdjustViewSpacingResultDto(
+                    vId, 1, 3, 0, 0, 0, 0, "good", null, 0, 0, 80.0, List.of(),
+                    /*resolvedInterElementDelta=*/ 20,
+                    /*defaultResolutionReason=*/ null), null);
+        });
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "v-1");
+        args.put("interElementDelta", 20);
+
+        callAndParse("adjust-view-spacing", args);
+        assertTrue("recursive should default to true", capturedRecursive[0]);
+    }
+
+    @Test
+    public void adjustViewSpacing_recursiveFalse_shouldPassThrough() throws Exception {
+        final boolean[] capturedRecursive = {true};
+        accessor.setAdjustViewSpacingBehavior((sid, vId, ied, pd, igd, rec) -> {
+            capturedRecursive[0] = rec;
+            return new MutationResult<>(new AdjustViewSpacingResultDto(
+                    vId, 1, 3, 0, 0, 0, 0, "good", null, 0, 0, 80.0, List.of(),
+                    /*resolvedInterElementDelta=*/ 20,
+                    /*defaultResolutionReason=*/ null), null);
+        });
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "v-1");
+        args.put("interElementDelta", 20);
+        args.put("recursive", false);
+
+        callAndParse("adjust-view-spacing", args);
+        assertFalse("recursive=false should pass through", capturedRecursive[0]);
+    }
+
+    @Test
+    public void adjustViewSpacing_responseStructure_shouldContainRoutingAndAssessment()
+            throws Exception {
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "v-1");
+        args.put("interElementDelta", 40);
+
+        Map<String, Object> result = callAndParse("adjust-view-spacing", args);
+        Map<String, Object> entity = getResult(result);
+
+        // Verify routing metrics present
+        assertNotNull(entity.get("connectionsRouted"));
+        assertNotNull(entity.get("crossingsBefore"));
+        assertNotNull(entity.get("crossingsAfter"));
+        // Verify assessment summary present
+        assertNotNull(entity.get("overallRating"));
+        assertNotNull(entity.get("averageSpacing"));
+        assertNotNull(entity.get("suggestions"));
+    }
+
+    @Test
+    public void adjustViewSpacing_modelNotLoaded_shouldReturnError() throws Exception {
+        accessor = new StubViewPlacementAccessor(false);
+        handler = new ViewPlacementHandler(accessor, formatter, registry, null);
+        handler.registerTools();
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "v-1");
+        args.put("interElementDelta", 40);
+
+        McpSchema.CallToolResult result = callTool("adjust-view-spacing", args);
+        assertTrue("Should be error when model not loaded", result.isError());
+    }
+
+    @Test
+    public void shouldRegisterAdjustViewSpacingTool() {
+        boolean found = registry.getToolSpecifications().stream()
+                .anyMatch(spec -> "adjust-view-spacing".equals(spec.tool().name()));
+        assertTrue("adjust-view-spacing tool should be registered", found);
+    }
+
     // ---- Stubs ----
 
     @FunctionalInterface
@@ -4628,7 +5594,7 @@ public class ViewPlacementHandlerTest {
     interface AutoRouteConnectionsBehavior {
         MutationResult<AutoRouteResultDto> apply(String sessionId, String viewId,
                 List<String> connectionIds, String strategy, boolean force,
-                boolean autoNudge, int snapThreshold, int perimeterMargin);
+                boolean autoNudge, int snapThreshold, int perimeterMargin, String mode);
     }
 
     @FunctionalInterface
@@ -4714,6 +5680,13 @@ public class ViewPlacementHandlerTest {
                 String description);
     }
 
+    @FunctionalInterface
+    interface AdjustViewSpacingBehavior {
+        MutationResult<AdjustViewSpacingResultDto> apply(String sessionId, String viewId,
+                Integer interElementDelta, Integer paddingDelta,
+                Integer interGroupDelta, boolean recursive);
+    }
+
     private static class StubViewPlacementAccessor extends BaseTestAccessor {
 
         private AddToViewBehavior addToViewBehavior;
@@ -4735,6 +5708,7 @@ public class ViewPlacementHandlerTest {
         private OptimizeGroupOrderBehavior optimizeGroupOrderBehavior;
         private DetectHubElementsBehavior detectHubElementsBehavior;
         private LayoutFlatViewBehavior layoutFlatViewBehavior;
+        private AdjustViewSpacingBehavior adjustViewSpacingBehavior;
 
         // Capture last styling params passed to each method (for assertion in tests)
         StylingParams lastUpdateViewObjectStyling;
@@ -4832,6 +5806,10 @@ public class ViewPlacementHandlerTest {
             this.layoutFlatViewBehavior = behavior;
         }
 
+        void setAdjustViewSpacingBehavior(AdjustViewSpacingBehavior behavior) {
+            this.adjustViewSpacingBehavior = behavior;
+        }
+
         private void resetBehaviors() {
             this.addToViewBehavior = (sid, vId, eId, x, y, w, h, ac, pvoId) -> {
                 int rx = (x != null) ? x : 50;
@@ -4911,7 +5889,7 @@ public class ViewPlacementHandlerTest {
                 return new MutationResult<>(new AutoLayoutAndRouteResultDto(
                         vId, d, s, 5, 3, false, 8), null);
             };
-            this.autoRouteConnectionsBehavior = (sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin) -> {
+            this.autoRouteConnectionsBehavior = (sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
                 String s = (strategy != null) ? strategy : "orthogonal";
                 return new MutationResult<>(new AutoRouteResultDto(vId, 5, s, false), null);
             };
@@ -4925,7 +5903,8 @@ public class ViewPlacementHandlerTest {
                     new MutationResult<>(new ArrangeGroupsResultDto(
                             vId, 6, 800, 600,
                             "grid".equals(arr) ? (cols != null ? cols : 3) : null,
-                            arr), null);
+                            arr,
+                            sp != null ? sp : 40, null), null);
             this.optimizeGroupOrderBehavior = (sid, vId, arr, sp, pad, ew, eh, aw, cols, ga) ->
                     new MutationResult<>(new OptimizeGroupOrderResultDto(
                             vId, 5, 2, 60.0, 2, 4, List.of(
@@ -4941,6 +5920,16 @@ public class ViewPlacementHandlerTest {
                             vId, arr, 6, 0, sb, cf,
                             cf != null ? List.of("Application", "Business") : null,
                             "grid".equals(arr) ? (cols != null ? cols : 3) : null), null);
+            this.adjustViewSpacingBehavior = (sid, vId, ied, pd, igd, rec) ->
+                    new MutationResult<>(new AdjustViewSpacingResultDto(
+                            vId, 3, 9, 5, 0, 12, 8, "good",
+                            Map.of("overlaps", "excellent", "crossings", "good",
+                                    "coincidentSegments", "excellent"),
+                            0, 2, 85.5,
+                            List.of("Layout quality is good — no immediate improvements needed."),
+                            /*resolvedInterElementDelta=*/ (ied != null ? ied : 0),
+                            /*defaultResolutionReason=*/ null),
+                            null);
             this.detectHubElementsBehavior = (vId) -> new DetectHubElementsResultDto(
                     vId, 5, 8, 3.2,
                     List.of(
@@ -5065,8 +6054,17 @@ public class ViewPlacementHandlerTest {
         public MutationResult<AutoRouteResultDto> autoRouteConnections(
                 String sessionId, String viewId,
                 List<String> connectionIds, String strategy, boolean force,
-                boolean autoNudge, int snapThreshold, int perimeterMargin) {
-            return autoRouteConnectionsBehavior.apply(sessionId, viewId, connectionIds, strategy, force, autoNudge, snapThreshold, perimeterMargin);
+                boolean autoNudge, int snapThreshold, int perimeterMargin, String mode) {
+            return autoRouteConnectionsBehavior.apply(sessionId, viewId, connectionIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode);
+        }
+
+        @Override
+        public MutationResult<AutoRouteResultDto> autoRouteConnections(
+                String sessionId, String viewId,
+                List<String> connectionIds, String strategy, boolean force,
+                boolean autoNudge, int snapThreshold, int perimeterMargin, String mode,
+                boolean enableChannelNudging) {
+            return autoRouteConnectionsBehavior.apply(sessionId, viewId, connectionIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode);
         }
 
         @Override
@@ -5118,6 +6116,15 @@ public class ViewPlacementHandlerTest {
             return optimizeGroupOrderBehavior.apply(sessionId, viewId, arrangement,
                     spacing, padding, elementWidth, elementHeight, autoWidth, columns,
                     groupArrangements);
+        }
+
+        @Override
+        public MutationResult<AdjustViewSpacingResultDto> adjustViewSpacing(
+                String sessionId, String viewId,
+                Integer interElementDelta, Integer paddingDelta,
+                Integer interGroupDelta, boolean recursive) {
+            return adjustViewSpacingBehavior.apply(sessionId, viewId,
+                    interElementDelta, paddingDelta, interGroupDelta, recursive);
         }
     }
 }

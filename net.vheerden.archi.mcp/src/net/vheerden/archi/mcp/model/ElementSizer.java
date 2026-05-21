@@ -41,6 +41,28 @@ public final class ElementSizer {
     static final int LABEL_CHILD_CLEARANCE = 5;
     /** Default containment label top for null/empty/short labels (backward compatible). */
     static final int DEFAULT_LABEL_HEIGHT = 25;
+    /**
+     * Combined horizontal text inset (left + right) for note and group label-band sizing.
+     * Subtracted from the outer box width by the {@code fitTextBoxHeightToContent} callers
+     * to derive the actual text-wrap content width — Archi's figure renderer reserves a
+     * small horizontal margin inside the box, so the wrap-prediction width must be slightly
+     * narrower than the outer box width to avoid systematic line-count under-estimation.
+     * Calibrated conservatively (errs toward over-grow) — see review L2 of the
+     * view-title-note-autosize story.
+     */
+    static final int HORIZONTAL_TEXT_INSET = 12;
+    /**
+     * Clamp ceiling for autosized note bodies. Pathological wall-of-text degrades to this
+     * height; content beyond the clamp keeps today's "clipped" behaviour (per AC-4 of the
+     * view-title-note-autosize story).
+     */
+    static final int MAX_NOTE_HEIGHT = 600;
+    /**
+     * Clamp ceiling for autosized group label-bands. Same degrade semantics as
+     * {@link #MAX_NOTE_HEIGHT}, with a larger budget to accommodate longer descriptive
+     * group labels.
+     */
+    static final int MAX_GROUP_LABEL_BAND = 800;
 
     private ElementSizer() {}
 
@@ -78,6 +100,83 @@ public final class ElementSizer {
 
         FontMetrics metrics = measureText(labelText);
         return computeLabelHeightFromMetrics(labelText, metrics, elementWidth);
+    }
+
+    /**
+     * Computes a fitted height for a text-bearing box (note body, group label-band).
+     *
+     * <p>Used by {@code prepareAddNoteToView} (note body) and {@code prepareAddGroupToView}
+     * (group label-band) to reserve room for descriptive text when the caller did not
+     * pin an explicit {@code height}. Mirrors the {@link #computeLabelHeight(String, int)}
+     * → {@link #computeLabelHeightFromMetrics(String, FontMetrics, int)} pattern: SWT
+     * measurement here, pure-geometry math in the {@code FromMetrics} overload.</p>
+     *
+     * <p>Formula: {@code lineCount = simulateWordWrap(text, ..., width)},
+     * {@code height = lineCount × lineHeight + padding}, then clamped to
+     * {@code [minHeight, maxHeight]}. Pathological wall-of-text degrades to
+     * {@code maxHeight} (content beyond clamp keeps today's clipped behaviour — AC-4).</p>
+     *
+     * @param text the content (note body or group label); null/empty returns {@code minHeight}
+     * @param width box content width in pixels (used as wrap width directly)
+     * @param padding additional vertical padding (combined top+bottom margin; e.g.
+     *                {@link #LABEL_VERTICAL_PADDING})
+     * @param minHeight floor — height never goes below this (typically the box's
+     *                  {@code DEFAULT_*_HEIGHT}). Preserves back-compat for short content.
+     * @param maxHeight ceiling — pathological cases degrade to this
+     * @return fitted height in pixels, clamped to {@code [minHeight, maxHeight]}
+     */
+    static int fitTextBoxHeightToContent(String text, int width, int padding,
+                                         int minHeight, int maxHeight) {
+        if (text == null || text.isEmpty()) {
+            return minHeight;
+        }
+        FontMetrics metrics = measureText(text);
+        return fitTextBoxHeightToContentFromMetrics(text, width, metrics, padding,
+                                                   minHeight, maxHeight);
+    }
+
+    /**
+     * Pure-geometry overload — testable without SWT. Headless callers construct a fixed
+     * {@link FontMetrics} record and call this directly; mirrors
+     * {@link #computeLabelHeightFromMetrics(String, FontMetrics, int)}.
+     *
+     * <p><strong>Forced line breaks:</strong> any explicit {@code '\n'} character in
+     * {@code text} adds one line beyond the horizontal-wrap count (errs toward over-grow
+     * — never under-grow). Callers that pre-interpret escape sequences must do so before
+     * calling, otherwise an un-interpreted {@code "\\n"} (literal backslash-n) will not
+     * be counted as a break.</p>
+     *
+     * <p><strong>Precondition (review M2):</strong> {@code metrics.wordWidths} should be
+     * sized to {@code text.split("\\s+").length}. {@link #measureText(String)} produces a
+     * conforming record; ad-hoc callers (tests) MUST match this contract or
+     * {@code simulateWordWrap} will silently truncate at the shorter length and the
+     * computed height may be smaller than reality.</p>
+     *
+     * <p>For {@code width <= 0}, returns {@code minHeight} (no useful wrap possible).</p>
+     */
+    static int fitTextBoxHeightToContentFromMetrics(String text, int width, FontMetrics metrics,
+                                                    int padding, int minHeight, int maxHeight) {
+        if (text == null || text.isEmpty() || metrics == null || width <= 0) {
+            return minHeight;
+        }
+        assert metrics.wordWidths.length == text.split("\\s+").length
+                : "FontMetrics.wordWidths length must match text word count";
+        int wrapLineCount = simulateWordWrap(text, metrics.wordWidths, metrics.spaceWidth, width);
+        int forcedBreaks = countNewlines(text);
+        int totalLineCount = wrapLineCount + forcedBreaks;
+        int height = totalLineCount * metrics.lineHeight + padding;
+        return Math.max(minHeight, Math.min(maxHeight, height));
+    }
+
+    /** Counts explicit {@code '\n'} characters in the given text (review M1). */
+    private static int countNewlines(String text) {
+        int n = 0;
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == '\n') {
+                n++;
+            }
+        }
+        return n;
     }
 
     /**
