@@ -10,8 +10,10 @@ import net.vheerden.archi.mcp.response.dto.ExportViewResultDto;
  * MCP content types.</p>
  *
  * <ul>
- *   <li>{@code imageBytes} — non-null for PNG inline mode (raw PNG bytes)</li>
- *   <li>{@code svgContent} — non-null for SVG inline mode (raw SVG XML)</li>
+ *   <li>{@code imageBytes} — non-null for any inline single-binary format
+ *       (PNG, JPG, or PDF raw bytes). The {@code metadata.format} field
+ *       distinguishes which binary format the bytes carry.</li>
+ *   <li>{@code svgContent} — non-null for SVG inline mode (raw SVG XML text)</li>
  *   <li>Both null for file output mode (path in metadata)</li>
  * </ul>
  *

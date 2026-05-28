@@ -808,9 +808,26 @@ public class RoutingPipeline {
         // After all path cleanup stages, ensure intermediate BPs maintain minimum clearance
         // from obstacle boundaries. Terminal BPs (at element faces) are excluded.
         // B25 fix: axis-constrained nudging preserves orthogonality.
+        // backlog-auto-route-source-side-reversal-lane-crossing: the clearance passes
+        // (4.7 / 4.7b / 4.7c) use the connection's OWN obstacle set, which has the
+        // endpoints' ancestors/children already excluded (built in
+        // ArchiModelAccessorImpl#buildOrthogonalRoutingCommands), rather than the
+        // full allObstacles. Routing legitimately runs inside its own ancestor
+        // container (e.g. a swimlane BusinessRole element that spans the canvas
+        // width); treating that container as a clearance obstacle made
+        // enforceMinClearance find an intra-container BP "inside" the band and yank
+        // it to the band's far edge (e.g. corner (390,105) inside a full-width lane
+        // -> (12,168)), seeding a source-side reversal / self-pass-through. Using
+        // conn.obstacles() makes the clearance passes consistent with the A* router
+        // and with TerminalEgressClearancePass's ancestor-aware Tier-1 check.
+        // No empty-set fallback to allObstacles (unlike the egress REJECTION check):
+        // an empty obstacle set means no foreign elements exist, so there is nothing
+        // to clear from and the pass must be a no-op — falling back here would
+        // re-introduce the ancestor band and the reversal.
         int totalClearanceNudges = 0;
         for (int i = 0; i < nudgedPaths.size(); i++) {
-            totalClearanceNudges += enforceMinClearance(nudgedPaths.get(i), allObstacles,
+            totalClearanceNudges += enforceMinClearance(nudgedPaths.get(i),
+                    connections.get(i).obstacles(),
                     connections.get(i).source(), connections.get(i).target());
         }
         if (totalClearanceNudges > 0) {
@@ -831,7 +848,9 @@ public class RoutingPipeline {
         // segment itself runs too close to an obstacle face.
         int totalSegmentShifts = 0;
         for (int i = 0; i < nudgedPaths.size(); i++) {
-            totalSegmentShifts += enforceSegmentClearance(nudgedPaths.get(i), allObstacles,
+            // conn.obstacles() (ancestor-excluded) — see the source-side-reversal note at stage 4.7.
+            totalSegmentShifts += enforceSegmentClearance(nudgedPaths.get(i),
+                    connections.get(i).obstacles(),
                     connections.get(i).source(), connections.get(i).target());
         }
         if (totalSegmentShifts > 0) {
@@ -852,7 +871,9 @@ public class RoutingPipeline {
         // intermediate BPs/segments for the earlier stages to check.
         int totalTerminalFixes = 0;
         for (int i = 0; i < nudgedPaths.size(); i++) {
-            totalTerminalFixes += enforceTerminalCorridorClearance(nudgedPaths.get(i), allObstacles,
+            // conn.obstacles() (ancestor-excluded) — see the source-side-reversal note at stage 4.7.
+            totalTerminalFixes += enforceTerminalCorridorClearance(nudgedPaths.get(i),
+                    connections.get(i).obstacles(),
                     connections.get(i).source(), connections.get(i).target());
         }
         if (totalTerminalFixes > 0) {
@@ -1907,6 +1928,139 @@ public class RoutingPipeline {
             return null;
         }
         return result;
+    }
+
+    /**
+     * Mirror of {@code LayoutQualityAssessor.PERIMETER_TOLERANCE_PX} (0.5) — the inward
+     * tolerance used to decide whether a bendpoint lies <b>strictly inside</b> an element
+     * (and would therefore register as an interior termination, assessor metric M2).
+     */
+    private static final double TERMINAL_INTERIOR_TOLERANCE_PX = 0.5;
+
+    /**
+     * Returns true if the rectified terminals-only path would create an
+     * <b>interior termination</b> at either terminal — its first stored bendpoint is
+     * strictly inside the source element, or its last stored bendpoint is strictly inside
+     * the target element. This mirrors exactly what the assessor's M2 detector
+     * ({@code LayoutQualityAssessor.countInteriorTerminations} via {@code isStrictlyInside})
+     * flags: M2 inspects {@code path.get(1)} (first BP after the source centre) and
+     * {@code path.get(size-2)} (last BP before the target centre); for the terminals-only
+     * full path {@code [srcCentre, rectified…, tgtCentre]} those are exactly the first and
+     * last entries of {@code rectified}. Used by the terminals-only interior-termination
+     * veto so the router can never raise a view's interior-termination count
+     * (backlog-auto-route-terminals-only-interior-termination-veto).
+     *
+     * <p>Parity note: {@code source}/{@code target} are the int-precision {@link RoutingRect}s
+     * that {@link #terminalsOnlyRectify} computes the L-bend against, so the veto is
+     * <em>internally exact</em> — it rejects exactly the interior points rectify could produce.
+     * For deeply nested elements under an odd-dimension parent these int bounds can differ by
+     * &le;1px from the assessor's double-precision {@code AssessmentNode} bounds, so on such
+     * (rare) views the veto and assess-layout M2 could disagree on a boundary-grazing
+     * bendpoint. Flat ELK views — the target use-case — use top-level elements where the two
+     * are identical.</p>
+     *
+     * @param source    the source element bounds
+     * @param target    the target element bounds
+     * @param rectified the rectified bendpoint list returned by
+     *                  {@link #terminalsOnlyRectify} (absolute coords; never the centres)
+     * @return true if the first BP is strictly inside {@code source} or the last BP is
+     *         strictly inside {@code target}
+     */
+    public static boolean terminalsOnlyTerminatesInside(
+            RoutingRect source, RoutingRect target,
+            List<AbsoluteBendpointDto> rectified) {
+        if (rectified == null || rectified.isEmpty()) {
+            return false;
+        }
+        return isStrictlyInside(rectified.get(0), source)
+                || isStrictlyInside(rectified.get(rectified.size() - 1), target);
+    }
+
+    /**
+     * Strict point-in-rectangle test with a 0.5px inward tolerance, byte-identical to
+     * {@code LayoutQualityAssessor.isStrictlyInside} and
+     * {@code HubPerimeterRoutingStage.isStrictlyInside} (a bendpoint on the perimeter line
+     * is NOT strictly inside). Kept private; reuse via {@link #terminalsOnlyTerminatesInside}.
+     */
+    private static boolean isStrictlyInside(AbsoluteBendpointDto bp, RoutingRect elem) {
+        if (bp == null || elem == null) {
+            return false;
+        }
+        double tol = TERMINAL_INTERIOR_TOLERANCE_PX;
+        return bp.x() > elem.x() + tol
+                && bp.x() < elem.x() + elem.width() - tol
+                && bp.y() > elem.y() + tol
+                && bp.y() < elem.y() + elem.height() - tol;
+    }
+
+    /** Mirror of {@code LayoutQualityAssessor.ZIGZAG_AXIS_TOLERANCE_PX} (1.0). */
+    private static final double ZIGZAG_AXIS_TOLERANCE_PX = 1.0;
+    /** Mirror of {@code LayoutQualityAssessor.ZIGZAG_MIN_DELTA_PX} (1.0). */
+    private static final double ZIGZAG_MIN_DELTA_PX = 1.0;
+
+    /**
+     * Returns true if a terminals-only rectification would <b>introduce</b> a zigzag/reversal
+     * that the original path did not have — i.e. the new full path contains a zigzag triple
+     * and the old one did not. This is the sibling of the interior-termination veto: the same
+     * terminal L-bend insertion can create a Tier-1R zigzag (M3) instead of an interior
+     * termination, so terminals-only must veto it too
+     * (backlog-auto-route-terminals-only-interior-termination-veto, widened scope).
+     *
+     * <p>Comparison (not absolute) so a connection whose ELK <em>body</em> already zigzags is
+     * not vetoed for a defect terminals-only did not cause. Both paths are the assessment form
+     * {@code [srcCentre, bendpoints…, tgtCentre]} — exactly what M3 consumes.</p>
+     *
+     * @param oldFullPath the pre-rectification full path. A null old path is treated as
+     *                    clean (no pre-existing zigzag), so the veto fires conservatively if
+     *                    {@code newFullPath} has a zigzag — i.e. null old → "introduced".
+     * @param newFullPath the post-rectification full path
+     * @return true iff {@code newFullPath} has a zigzag triple and {@code oldFullPath} does not
+     */
+    public static boolean terminalsOnlyIntroducesZigzag(
+            List<double[]> oldFullPath, List<double[]> newFullPath) {
+        return pathHasZigzag(newFullPath) && !pathHasZigzag(oldFullPath);
+    }
+
+    /**
+     * True if {@code path} contains at least one zigzag/reversal triple, byte-identical to
+     * {@code LayoutQualityAssessor.countZigzags} (M3): three consecutive points sharing an
+     * axis within {@link #ZIGZAG_AXIS_TOLERANCE_PX} with opposite-sign deltas on the other
+     * axis, both &gt; {@link #ZIGZAG_MIN_DELTA_PX}.
+     */
+    public static boolean pathHasZigzag(List<double[]> path) {
+        if (path == null || path.size() < 3) {
+            return false;
+        }
+        for (int i = 0; i < path.size() - 2; i++) {
+            if (isZigzagTriple(path.get(i), path.get(i + 1), path.get(i + 2))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isZigzagTriple(double[] a, double[] b, double[] c) {
+        double tol = ZIGZAG_AXIS_TOLERANCE_PX;
+        double minDelta = ZIGZAG_MIN_DELTA_PX;
+        boolean sharedX = Math.abs(a[0] - b[0]) <= tol && Math.abs(b[0] - c[0]) <= tol;
+        if (sharedX) {
+            double dy1 = b[1] - a[1];
+            double dy2 = c[1] - b[1];
+            if (Math.abs(dy1) > minDelta && Math.abs(dy2) > minDelta
+                    && Math.signum(dy1) != Math.signum(dy2)) {
+                return true;
+            }
+        }
+        boolean sharedY = Math.abs(a[1] - b[1]) <= tol && Math.abs(b[1] - c[1]) <= tol;
+        if (sharedY) {
+            double dx1 = b[0] - a[0];
+            double dx2 = c[0] - b[0];
+            if (Math.abs(dx1) > minDelta && Math.abs(dx2) > minDelta
+                    && Math.signum(dx1) != Math.signum(dx2)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isWithinOrthogonalTolerance(int ax, int ay, int bx, int by) {
@@ -3414,7 +3568,10 @@ public class RoutingPipeline {
      * is always safe. Nudging perpendicular requires propagation to maintain orthogonality.</p>
      *
      * @param path       mutable list of bendpoints for one connection
-     * @param obstacles  all obstacle rectangles on the view
+     * @param obstacles  obstacle rectangles to clear from. Production passes the
+     *                   connection's ancestor-excluded set ({@code conn.obstacles()}),
+     *                   so an endpoint's own container is not treated as a clearance
+     *                   obstacle; source/target are additionally skipped by id.
      * @param source     source element rectangle (excluded from checks for this connection)
      * @param target     target element rectangle (excluded from checks for this connection)
      * @return number of bendpoints that were nudged
@@ -3563,7 +3720,10 @@ public class RoutingPipeline {
      * compatibility.</p>
      *
      * @param path       mutable list of bendpoints for one connection
-     * @param obstacles  all obstacle rectangles on the view
+     * @param obstacles  obstacle rectangles to clear from. Production passes the
+     *                   connection's ancestor-excluded set ({@code conn.obstacles()}),
+     *                   so an endpoint's own container is not treated as a clearance
+     *                   obstacle; source/target are additionally skipped by id.
      * @param source     source element rectangle (excluded from checks for this connection)
      * @param target     target element rectangle (excluded from checks for this connection)
      * @return number of segments that were shifted
@@ -3747,7 +3907,8 @@ public class RoutingPipeline {
      * grazed obstacles (backlog-b27).
      *
      * @param path      mutable bendpoint list (2 or 3 BPs)
-     * @param obstacles all obstacles on the view
+     * @param obstacles obstacle rectangles to clear from (production passes the
+     *                  connection's ancestor-excluded {@code conn.obstacles()} set)
      * @param source    source element rect (excluded from obstacle checks)
      * @param target    target element rect (excluded from obstacle checks)
      * @return number of paths modified (0 or 1)

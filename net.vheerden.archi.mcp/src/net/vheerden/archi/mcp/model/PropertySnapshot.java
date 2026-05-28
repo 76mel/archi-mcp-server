@@ -5,6 +5,7 @@ package net.vheerden.archi.mcp.model;
  * to capture old property state for undo support.
  *
  * <p>Shared by {@link UpdateElementCommand}, {@link UpdateFolderCommand},
- * and {@link UpdateRelationshipCommand} to avoid duplicating this structure.</p>
+ * {@link UpdateRelationshipCommand}, {@link UpdateViewCommand},
+ * and {@link UpdateModelCommand} to avoid duplicating this structure.</p>
  */
 record PropertySnapshot(String key, String value) {}

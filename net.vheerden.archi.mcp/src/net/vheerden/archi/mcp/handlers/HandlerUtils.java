@@ -129,6 +129,24 @@ public final class HandlerUtils {
     }
 
     /**
+     * Extracts an optional boxed {@code Boolean} parameter — returns {@code null}
+     * when the param is absent or unparseable. Used when null carries semantic
+     * meaning (e.g., "leave unchanged" for update operations). Story 14-7 (G1)
+     * uses this for {@code associationDirected}.
+     */
+    public static Boolean optionalBoxedBooleanParam(Map<String, Object> args, String paramName) {
+        if (args == null) return null;
+        Object value = args.get(paramName);
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        if (value instanceof String s && !s.isBlank()) {
+            return Boolean.parseBoolean(s);
+        }
+        return null;
+    }
+
+    /**
      * Extracts an optional double parameter with a specified default value.
      * Handles JSON number coercion (Double/Integer/Long) from the MCP SDK
      * and String inputs (some MCP clients send numeric params as strings).

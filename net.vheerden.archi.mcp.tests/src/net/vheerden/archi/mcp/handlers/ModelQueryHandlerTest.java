@@ -5,6 +5,7 @@ import static org.junit.Assert.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,7 +53,8 @@ public class ModelQueryHandlerTest {
         ModelQueryHandler handler = new ModelQueryHandler(accessor, formatter, registry, null);
         handler.registerTools();
 
-        assertEquals(3, registry.getToolCount());
+        // Story 14-5 G10: registerTools now registers 5 tools — get-model-info, update-model, get-element, find-concept-usage, list-specializations
+        assertEquals(5, registry.getToolCount());
         McpServerFeatures.SyncToolSpecification spec = findToolSpec("get-model-info");
         assertEquals("get-model-info", spec.tool().name());
     }
@@ -1322,6 +1324,182 @@ public class ModelQueryHandlerTest {
         return spec.callHandler().apply(null, request);
     }
 
+    // ---- update-model tests (Story 14-3 G6) ----
+
+    @Test
+    public void shouldRegisterUpdateModelTool_whenRegisterToolsCalled_AC2() {
+        StubAccessor accessor = new StubAccessor(true);
+        new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
+        McpServerFeatures.SyncToolSpecification spec = findToolSpec("update-model");
+        assertEquals("update-model", spec.tool().name());
+        assertNotNull(spec.tool().description());
+        assertTrue("description must call out 'update-model' surface",
+                spec.tool().description().contains("model"));
+    }
+
+    @Test
+    public void shouldExposeNameParam_inUpdateModelSchema_AC2() {
+        StubAccessor accessor = new StubAccessor(true);
+        new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
+        McpSchema.JsonSchema schema = findToolSpec("update-model").tool().inputSchema();
+        assertNotNull(schema.properties());
+        assertTrue("schema must expose 'name' param", schema.properties().containsKey("name"));
+    }
+
+    @Test
+    public void shouldExposePurposeParam_inUpdateModelSchema_AC4() {
+        StubAccessor accessor = new StubAccessor(true);
+        new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
+        McpSchema.JsonSchema schema = findToolSpec("update-model").tool().inputSchema();
+        assertTrue("schema must expose 'purpose' param", schema.properties().containsKey("purpose"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> purposeProp = (Map<String, Object>) schema.properties().get("purpose");
+        String desc = (String) purposeProp.get("description");
+        assertNotNull(desc);
+        assertTrue("purpose description must mention empty-string clears",
+                desc.toLowerCase().contains("empty string") && desc.toLowerCase().contains("clear"));
+    }
+
+    @Test
+    public void shouldExposePropertiesParam_inUpdateModelSchema_AC5() {
+        StubAccessor accessor = new StubAccessor(true);
+        new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
+        McpSchema.JsonSchema schema = findToolSpec("update-model").tool().inputSchema();
+        assertTrue("schema must expose 'properties' param", schema.properties().containsKey("properties"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> propsProp = (Map<String, Object>) schema.properties().get("properties");
+        assertEquals("properties must be a JSON object", "object", propsProp.get("type"));
+    }
+
+    @Test
+    public void shouldRejectEmptyName_whenNamePassedAsEmptyString_AC8() throws Exception {
+        // True regression pin: HandlerUtils.optionalStringParam collapses "" to null via
+        // !isBlank(). Without the explicit args.containsKey("name") + "".equals(...) guard
+        // in handleUpdateModel, an empty name would be silently stripped and the accessor
+        // would see name=null — producing the misleading "No fields to update" error
+        // instead of AC8's required "Model name must not be empty." This test verifies
+        // the handler forwards "" to the accessor unchanged. Empirically caught in the
+        // 14-3 empirical run (2026-05-26).
+        RecordingUpdateModelAccessor accessor = new RecordingUpdateModelAccessor(
+                new ModelInfoDto("X", null, null, 0, 0, 0, 0, Map.of(), Map.of(), Map.of()));
+        new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
+        invokeUpdateModel(Map.of("name", ""));
+        assertEquals("handler must forward empty-string name to accessor unchanged",
+                "", accessor.lastName);
+    }
+
+    @Test
+    public void shouldProduceCorrectErrorMessage_whenNameIsEmpty_AC8() throws Exception {
+        // End-to-end pin: the accessor's prepareUpdateModel must reject "" with the
+        // AC8 message — once the handler forwards "" correctly (per the test above),
+        // this asserts the accessor wires the boundary rejection.
+        RejectingUpdateModelAccessor accessor = new RejectingUpdateModelAccessor(
+                net.vheerden.archi.mcp.response.ErrorCode.INVALID_PARAMETER,
+                "Model name must not be empty.");
+        new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
+        McpSchema.CallToolResult result = invokeUpdateModel(Map.of("name", ""));
+        assertTrue("empty name should produce error", result.isError());
+        Map<String, Object> envelope = parseJson(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) envelope.get("error");
+        assertEquals("INVALID_PARAMETER", error.get("code"));
+        assertTrue("error message must say 'Model name must not be empty.'",
+                error.get("message").toString().contains("Model name must not be empty"));
+    }
+
+    @Test
+    public void shouldRejectNoFieldsToUpdate_whenAllFieldsOmitted_AC2_AC8() throws Exception {
+        RejectingUpdateModelAccessor accessor = new RejectingUpdateModelAccessor(
+                net.vheerden.archi.mcp.response.ErrorCode.INVALID_PARAMETER,
+                "No fields to update — provide at least one of: name, purpose, properties");
+        new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
+        McpSchema.CallToolResult result = invokeUpdateModel(Collections.emptyMap());
+        assertTrue(result.isError());
+        Map<String, Object> envelope = parseJson(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) envelope.get("error");
+        assertEquals("INVALID_PARAMETER", error.get("code"));
+    }
+
+    @Test
+    public void shouldReturnUpdatedModelInfoDto_whenSucceeds_AC11() throws Exception {
+        RecordingUpdateModelAccessor accessor = new RecordingUpdateModelAccessor(
+                new ModelInfoDto("New Name", "New purpose", Map.of("Author", "Jane"),
+                        10, 5, 3, 0, Map.of(), Map.of(), Map.of()));
+        new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("name", "New Name");
+        args.put("purpose", "New purpose");
+        args.put("properties", Map.of("Author", "Jane"));
+        McpSchema.CallToolResult result = invokeUpdateModel(args);
+        assertFalse(result.isError());
+        Map<String, Object> envelope = parseJson(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> modelResult = (Map<String, Object>) envelope.get("result");
+        assertEquals("New Name", modelResult.get("name"));
+        assertEquals("New purpose", modelResult.get("purpose"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) modelResult.get("properties");
+        assertEquals("Jane", props.get("Author"));
+    }
+
+    @Test
+    public void shouldSurfacePurpose_inGetModelInfoResponse_AC11() throws Exception {
+        ModelMetadataAwareAccessor accessor = new ModelMetadataAwareAccessor(
+                "Test Model", "Strategic EA", null);
+        new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
+        McpSchema.CallToolResult result = invokeHandler();
+        assertFalse(result.isError());
+        Map<String, Object> envelope = parseJson(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> modelResult = (Map<String, Object>) envelope.get("result");
+        assertEquals("Strategic EA", modelResult.get("purpose"));
+    }
+
+    @Test
+    public void shouldSurfaceProperties_inGetModelInfoResponse_AC11() throws Exception {
+        Map<String, String> modelProps = new LinkedHashMap<>();
+        modelProps.put("Author", "Jane");
+        modelProps.put("Tag", "draft");
+        ModelMetadataAwareAccessor accessor = new ModelMetadataAwareAccessor(
+                "Test Model", null, modelProps);
+        new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
+        McpSchema.CallToolResult result = invokeHandler();
+        assertFalse(result.isError());
+        Map<String, Object> envelope = parseJson(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> modelResult = (Map<String, Object>) envelope.get("result");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) modelResult.get("properties");
+        assertNotNull(props);
+        assertEquals("Jane", props.get("Author"));
+        assertEquals("draft", props.get("Tag"));
+    }
+
+    @Test
+    public void shouldCarryClearPurposeSignal_throughHandlerBoundary_AC12() {
+        // AC12 proposal rendering itself lives in ArchiModelAccessorImpl (Layer 3).
+        // At the handler boundary (Layer 2), what matters is that an empty-string
+        // "purpose" is forwarded to accessor.updateModel as "" (not null) — the
+        // accessor is then responsible for converting it to clearPurpose=true.
+        RecordingUpdateModelAccessor accessor = new RecordingUpdateModelAccessor(
+                new ModelInfoDto("X", null, null, 0, 0, 0, 0, Map.of(), Map.of(), Map.of()));
+        new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("purpose", "");
+        invokeUpdateModel(args);
+        // optionalStringParam returns null for "", but ModelQueryHandler.handleUpdateModel
+        // explicitly restores "" from the args map. So the accessor must see "".
+        assertEquals("handler must forward empty-string purpose to accessor unchanged",
+                "", accessor.lastPurpose);
+    }
+
+    private McpSchema.CallToolResult invokeUpdateModel(Map<String, Object> args) {
+        McpServerFeatures.SyncToolSpecification spec = findToolSpec("update-model");
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("update-model", args);
+        return spec.callHandler().apply(null, request);
+    }
+
     // ---- Stub Implementations ----
 
     /**
@@ -1543,6 +1721,77 @@ public class ModelQueryHandlerTest {
                     Map.of("ApplicationComponent", elementCount),
                     Map.of("ServingRelationship", elementCount / 2),
                     Map.of("Application", elementCount));
+        }
+    }
+
+    /**
+     * Story 14-3 (G6): stub that throws a configured ModelAccessException on updateModel —
+     * used to exercise validation error paths at the handler boundary.
+     */
+    private static class RejectingUpdateModelAccessor extends StubAccessor {
+        private final net.vheerden.archi.mcp.response.ErrorCode code;
+        private final String message;
+
+        RejectingUpdateModelAccessor(net.vheerden.archi.mcp.response.ErrorCode code, String message) {
+            super(true);
+            this.code = code;
+            this.message = message;
+        }
+
+        @Override
+        public net.vheerden.archi.mcp.model.MutationResult<ModelInfoDto> updateModel(
+                String sessionId, String name, String purpose, Map<String, String> properties) {
+            throw new net.vheerden.archi.mcp.model.ModelAccessException(message, code);
+        }
+    }
+
+    /**
+     * Story 14-3 (G6): stub that records its updateModel inputs and returns a
+     * pre-canned ModelInfoDto. Used to verify handler→accessor forwarding.
+     */
+    private static class RecordingUpdateModelAccessor extends StubAccessor {
+        private final ModelInfoDto response;
+        String lastName;
+        String lastPurpose;
+        Map<String, String> lastProperties;
+
+        RecordingUpdateModelAccessor(ModelInfoDto response) {
+            super(true);
+            this.response = response;
+        }
+
+        @Override
+        public net.vheerden.archi.mcp.model.MutationResult<ModelInfoDto> updateModel(
+                String sessionId, String name, String purpose, Map<String, String> properties) {
+            this.lastName = name;
+            this.lastPurpose = purpose;
+            this.lastProperties = properties;
+            return new net.vheerden.archi.mcp.model.MutationResult<>(response, null);
+        }
+    }
+
+    /**
+     * Story 14-3 (G6): stub whose getModelInfo response carries explicit
+     * purpose + properties — used to verify the read-side parity surfacing.
+     */
+    private static class ModelMetadataAwareAccessor extends StubAccessor {
+        private final String modelName;
+        private final String purpose;
+        private final Map<String, String> properties;
+
+        ModelMetadataAwareAccessor(String modelName, String purpose, Map<String, String> properties) {
+            super(true);
+            this.modelName = modelName;
+            this.purpose = purpose;
+            this.properties = properties;
+        }
+
+        @Override
+        public ModelInfoDto getModelInfo() {
+            return new ModelInfoDto(modelName, purpose, properties, 10, 5, 3, 0,
+                    Map.of("ApplicationComponent", 4, "BusinessProcess", 6),
+                    Map.of("ServingRelationship", 3, "FlowRelationship", 2),
+                    Map.of("Application", 4, "Business", 6));
         }
     }
 }

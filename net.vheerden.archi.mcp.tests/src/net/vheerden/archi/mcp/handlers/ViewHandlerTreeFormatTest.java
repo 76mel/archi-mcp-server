@@ -428,6 +428,125 @@ public class ViewHandlerTreeFormatTest {
         assertTrue(envelope.get("summary") instanceof String);
     }
 
+    // ---- Graph format regression: groups/notes present
+    //      (Story backlog-get-view-contents-graph-format-internal-error) ----
+    //
+    // The prior graph-format test above uses the "flat" variant (no groups/notes),
+    // which dodged the ClassCastException that crashed graph format whenever a view
+    // contained visual Groupings or notes. These tests pin the fix.
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void shouldReturnGraph_whenViewHasGroupsAndNotes() throws Exception {
+        TreeStubAccessor accessor = new TreeStubAccessor("grouped");
+        ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeWithFormat("view-grouped", "graph");
+        assertFalse("graph format must not crash on a view with groups/notes", result.isError());
+
+        Map<String, Object> envelope = parseJson(result);
+        Map<String, Object> graph = (Map<String, Object>) envelope.get("graph");
+        assertNotNull(graph);
+
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) graph.get("nodes");
+        assertNotNull(nodes);
+
+        // The single group appears as a graph node with _nodeType=group and its label
+        Map<String, Object> groupNode = nodes.stream()
+                .filter(n -> "group".equals(n.get("_nodeType")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No group node in graph"));
+        assertEquals("grp-1", groupNode.get("viewObjectId"));
+        assertEquals("Infrastructure", groupNode.get("label"));
+        // AC-7: null fields are omitted (NON_NULL), exactly as JSON serialization would —
+        // the group's styling fields are null and must not appear as keys.
+        assertFalse("null styling fields must be omitted from the group node",
+                groupNode.containsKey("fillColor"));
+
+        // Both notes appear as graph nodes with _nodeType=note
+        long noteNodes = nodes.stream()
+                .filter(n -> "note".equals(n.get("_nodeType")))
+                .count();
+        assertEquals("both notes should appear as graph nodes", 2, noteNodes);
+
+        // Element nodes are still produced (3 elements; identified by "id", no _nodeType)
+        long elementNodes = nodes.stream()
+                .filter(n -> n.get("_nodeType") == null && n.get("id") != null)
+                .count();
+        assertEquals(3, elementNodes);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void shouldReturnGraph_whenTechViewWithZonesAndCommunicationNetwork() throws Exception {
+        // Reproduces the reported "view I" shape: 3 zone Groupings, deep node nesting,
+        // a CommunicationNetwork element participating in associations.
+        TreeStubAccessor accessor = new TreeStubAccessor("tech-zones");
+        ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeWithFormat("view-tech-zones", "graph");
+        assertFalse("graph format must not crash on tech view with zones + CommunicationNetwork",
+                result.isError());
+
+        Map<String, Object> envelope = parseJson(result);
+        Map<String, Object> graph = (Map<String, Object>) envelope.get("graph");
+        assertNotNull(graph);
+
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) graph.get("nodes");
+        List<Map<String, Object>> edges = (List<Map<String, Object>>) graph.get("edges");
+
+        // All 3 zone groupings present as graph nodes
+        long groupNodes = nodes.stream()
+                .filter(n -> "group".equals(n.get("_nodeType")))
+                .count();
+        assertEquals("3 zone groupings should appear as graph nodes", 3, groupNodes);
+
+        // The note present as a graph node (independent AC-2/AC-4 coverage on the view-I fixture)
+        long noteNodes = nodes.stream()
+                .filter(n -> "note".equals(n.get("_nodeType")))
+                .count();
+        assertEquals("the zone note should appear as a graph node", 1, noteNodes);
+
+        // CommunicationNetwork element present as a node
+        assertTrue("CommunicationNetwork element should be a graph node",
+                nodes.stream().anyMatch(n -> "net-wan".equals(n.get("id"))));
+
+        // The association edge whose endpoint is the CommunicationNetwork is present
+        assertTrue("association edge to CommunicationNetwork should be present",
+                edges.stream().anyMatch(e -> "rel-assoc".equals(e.get("id"))
+                        && "net-wan".equals(e.get("targetId"))));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void shouldPreserveGroupChildIdsInGraphNodes() throws Exception {
+        // List-typed DTO fields (childViewObjectIds) must survive the DTO->map
+        // conversion, identical to the JSON field set (AC-7/AC-8).
+        TreeStubAccessor accessor = new TreeStubAccessor("nested");
+        ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeWithFormat("view-nested", "graph");
+        assertFalse(result.isError());
+
+        Map<String, Object> envelope = parseJson(result);
+        Map<String, Object> graph = (Map<String, Object>) envelope.get("graph");
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) graph.get("nodes");
+
+        Map<String, Object> outerGroup = nodes.stream()
+                .filter(n -> "group".equals(n.get("_nodeType"))
+                        && "grp-outer".equals(n.get("viewObjectId")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No grp-outer node in graph"));
+
+        List<String> childIds = (List<String>) outerGroup.get("childViewObjectIds");
+        assertNotNull("childViewObjectIds list-field must survive DTO->map conversion", childIds);
+        assertTrue("childViewObjectIds should contain the nested group id",
+                childIds.contains("grp-inner"));
+    }
+
     // ---- AC-9: fields/exclude/preset ignored for tree format ----
 
     @SuppressWarnings("unchecked")
@@ -576,7 +695,8 @@ public class ViewHandlerTreeFormatTest {
                     new ViewDto("view-nested", "Nested View", null, "Views"),
                     new ViewDto("view-flat", "Flat View", null, "Views"),
                     new ViewDto("view-empty", "Empty View", null, "Views"),
-                    new ViewDto("view-orphan", "Orphan Element View", null, "Views"));
+                    new ViewDto("view-orphan", "Orphan Element View", null, "Views"),
+                    new ViewDto("view-tech-zones", "Technology Zones View", null, "Views"));
         }
 
         @Override
@@ -592,6 +712,7 @@ public class ViewHandlerTreeFormatTest {
                 case "view-flat" -> Optional.of(createFlatView());
                 case "view-empty" -> Optional.of(createEmptyView());
                 case "view-orphan" -> Optional.of(createOrphanElementView());
+                case "view-tech-zones" -> Optional.of(createTechZonesView());
                 default -> Optional.empty();
             };
         }
@@ -669,6 +790,48 @@ public class ViewHandlerTreeFormatTest {
         private ViewContentsDto createEmptyView() {
             return new ViewContentsDto("view-empty", "Empty View", null, null,
                     List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        }
+
+        /**
+         * Technology zones view reproducing the reported "view I" crash shape:
+         * 3 zone Groupings, elements nested inside groups, an element nested inside
+         * another element (deep node nesting), a CommunicationNetwork participating
+         * in associations, and a note. Triggers the graph-format ClassCastException
+         * because groups/notes are present.
+         */
+        private ViewContentsDto createTechZonesView() {
+            List<ElementDto> elements = List.of(
+                    ElementDto.standard("node-web", "Web Server", "Node", null, "Technology", null, null),
+                    ElementDto.standard("node-app", "App Server", "Node", null, "Technology", null, null),
+                    ElementDto.standard("node-db", "DB Server", "Node", null, "Technology", null, null),
+                    ElementDto.standard("sw-app", "App Runtime", "SystemSoftware", null, "Technology", null, null),
+                    ElementDto.standard("net-wan", "Corp WAN", "CommunicationNetwork", null, "Technology", null, null));
+
+            List<RelationshipDto> relationships = List.of(
+                    // CommunicationNetwork participating in associations (the reported shape)
+                    new RelationshipDto("rel-assoc", "", "AssociationRelationship", "node-web", "net-wan"),
+                    new RelationshipDto("rel-assoc2", "", "AssociationRelationship", "node-app", "net-wan"),
+                    new RelationshipDto("rel-serve", "Serves", "ServingRelationship", "node-app", "node-db"));
+
+            // Deep nesting: nodes inside zone groups, sw-app inside node-app's view object
+            List<ViewNodeDto> visualMetadata = List.of(
+                    new ViewNodeDto("vo-web", "node-web", 10, 10, 120, 55, "grp-dmz"),
+                    new ViewNodeDto("vo-app", "node-app", 10, 10, 160, 110, "grp-appz"),
+                    new ViewNodeDto("vo-sw", "sw-app", 20, 40, 120, 50, "vo-app"),
+                    new ViewNodeDto("vo-db", "node-db", 10, 10, 120, 55, "grp-data"),
+                    new ViewNodeDto("vo-net", "net-wan", 400, 300, 150, 40));
+
+            List<ViewGroupDto> groups = List.of(
+                    new ViewGroupDto("grp-dmz", "DMZ Zone", 0, 0, 200, 150, null, List.of()),
+                    new ViewGroupDto("grp-appz", "Application Zone", 250, 0, 250, 200, null, List.of()),
+                    new ViewGroupDto("grp-data", "Data Zone", 0, 200, 200, 150, null, List.of()));
+
+            List<ViewNoteDto> notes = List.of(
+                    new ViewNoteDto("note-z", "Zone segmentation per security policy",
+                            400, 0, 220, 50, null));
+
+            return new ViewContentsDto("view-tech-zones", "Technology Zones View", null, null,
+                    elements, relationships, visualMetadata, List.of(), groups, notes);
         }
 
         /**

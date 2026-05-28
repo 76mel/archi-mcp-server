@@ -20,6 +20,7 @@ import net.vheerden.archi.mcp.registry.CommandRegistry;
 import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.ElementDto;
 import net.vheerden.archi.mcp.response.dto.RelationshipDto;
+import net.vheerden.archi.mcp.response.dto.RelationshipSemanticAttributes;
 import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
@@ -225,12 +226,39 @@ public class ElementUpdateHandler {
                 + "(\"\") clears all specializations. Omit to leave the current specialization "
                 + "unchanged.");
 
+        // Story 14-7 (G1): ArchiMate semantic attributes (type-conditional)
+        Map<String, Object> accessTypeProp = new LinkedHashMap<>();
+        accessTypeProp.put("type", "string");
+        accessTypeProp.put("enum", List.of("access", "read", "write", "readwrite"));
+        accessTypeProp.put("description",
+                "New access type for AccessRelationship only. 'access' = unspecified; "
+                + "'read' = data read by source; 'write' = data written by source; "
+                + "'readwrite' = bidirectional. Omit to leave unchanged. REJECTED if "
+                + "the target relationship is not AccessRelationship.");
+
+        Map<String, Object> associationDirectedProp = new LinkedHashMap<>();
+        associationDirectedProp.put("type", "boolean");
+        associationDirectedProp.put("description",
+                "New directed flag for AssociationRelationship only. true = directional, "
+                + "false = undirected. Omit to leave unchanged. REJECTED if the target "
+                + "relationship is not AssociationRelationship.");
+
+        Map<String, Object> influenceStrengthProp = new LinkedHashMap<>();
+        influenceStrengthProp.put("type", "string");
+        influenceStrengthProp.put("description",
+                "New free-text strength qualifier for InfluenceRelationship only. Empty "
+                + "string clears the value. Max 255 characters. Omit to leave unchanged. "
+                + "REJECTED if the target relationship is not InfluenceRelationship.");
+
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("id", idProp);
         properties.put("name", nameProp);
         properties.put("documentation", documentationProp);
         properties.put("properties", propertiesProp);
         properties.put("specialization", specializationProp);
+        properties.put("accessType", accessTypeProp);
+        properties.put("associationDirected", associationDirectedProp);
+        properties.put("influenceStrength", influenceStrengthProp);
 
         McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
                 "object", properties, List.of("id"), null, null, null);
@@ -245,6 +273,13 @@ public class ElementUpdateHandler {
                         + "REPLACES any existing specialization (auto-creating the profile if "
                         + "needed); empty string removes all specializations; omitting leaves "
                         + "them unchanged. "
+                        + "Optional ArchiMate semantic attributes (type-conditional — each "
+                        + "applies only when the relationship is the matching subtype, otherwise "
+                        + "rejected): accessType (AccessRelationship — 'access' / 'read' / 'write' "
+                        + "/ 'readwrite'; use 'access' to set back to unspecified), "
+                        + "associationDirected (AssociationRelationship — boolean), "
+                        + "influenceStrength (InfluenceRelationship — free text, max 255 chars; "
+                        + "empty string clears). Omit to leave unchanged. "
                         + "Related: get-relationships (verify changes), search-relationships "
                         + "(find relationship to update), get-view-contents (check visual "
                         + "representation), list-specializations.")
@@ -271,9 +306,13 @@ public class ElementUpdateHandler {
             Map<String, String> properties = HandlerUtils.optionalMapParamWithNulls(args, "properties");
             // Specialization clear semantics: empty string means "clear all profiles".
             String specialization = HandlerUtils.optionalStringParamAllowEmpty(args, "specialization");
+            // Story 14-7 (G1): semantic attributes (type-conditional)
+            RelationshipSemanticAttributes semanticAttributes =
+                    ElementCreationHandler.readSemanticAttributes(args);
 
             MutationResult<RelationshipDto> result = accessor.updateRelationship(
-                    sessionId, id, name, documentation, properties, specialization);
+                    sessionId, id, name, documentation, properties, specialization,
+                    semanticAttributes);
 
             return HandlerUtils.formatMutationResponse(result.entity(), result,
                     buildUpdateRelationshipNextSteps(result), accessor, formatter);

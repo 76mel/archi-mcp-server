@@ -3675,6 +3675,178 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
+    // Interior-termination veto predicate
+    // (backlog-auto-route-terminals-only-interior-termination-veto)
+    // =============================================
+
+    @Test
+    public void terminatesInside_shouldFlag_whenFirstBpStrictlyInsideSource() {
+        RoutingRect src = new RoutingRect(0, 0, 300, 200, "src");      // x[0,300] y[0,200]
+        RoutingRect tgt = new RoutingRect(1000, 1000, 100, 60, "tgt"); // far away
+        // First BP (150,100) is the source centre — strictly inside; last BP outside target
+        // so the assertion isolates the source-side check.
+        List<AbsoluteBendpointDto> rectified = List.of(
+                new AbsoluteBendpointDto(150, 100),
+                new AbsoluteBendpointDto(500, 500));
+        assertTrue("First BP strictly inside source must be flagged as interior termination",
+                RoutingPipeline.terminalsOnlyTerminatesInside(src, tgt, rectified));
+    }
+
+    @Test
+    public void terminatesInside_shouldFlag_whenLastBpStrictlyInsideTarget() {
+        RoutingRect src = new RoutingRect(0, 0, 100, 60, "src");       // far from last BP
+        RoutingRect tgt = new RoutingRect(400, 400, 200, 120, "tgt");  // x[400,600] y[400,520]
+        // Last BP (500,460) is the target centre — strictly inside (the prototypical
+        // interior-termination failure mode: the L-bend landing on the element body); first BP
+        // outside source so the assertion isolates the target-side check.
+        List<AbsoluteBendpointDto> rectified = List.of(
+                new AbsoluteBendpointDto(50, 300),
+                new AbsoluteBendpointDto(500, 460));
+        assertTrue("Last BP strictly inside target must be flagged as interior termination",
+                RoutingPipeline.terminalsOnlyTerminatesInside(src, tgt, rectified));
+    }
+
+    @Test
+    public void terminatesInside_shouldNotFlag_whenBpOnPerimeterLine() {
+        RoutingRect src = new RoutingRect(0, 0, 300, 200, "src");
+        RoutingRect tgt = new RoutingRect(1000, 1000, 100, 60, "tgt");
+        // First BP (0,100) lies exactly on the LEFT face line — NOT strictly inside; last BP
+        // outside the target so neither terminal is interior.
+        List<AbsoluteBendpointDto> rectified = List.of(
+                new AbsoluteBendpointDto(0, 100),
+                new AbsoluteBendpointDto(500, 500));
+        assertFalse("A bendpoint on the perimeter line is not strictly inside",
+                RoutingPipeline.terminalsOnlyTerminatesInside(src, tgt, rectified));
+    }
+
+    @Test
+    public void terminatesInside_shouldNotFlag_whenBpsOutsideBothElements() {
+        RoutingRect src = new RoutingRect(0, 0, 100, 60, "src");
+        RoutingRect tgt = new RoutingRect(400, 400, 100, 60, "tgt");
+        List<AbsoluteBendpointDto> rectified = List.of(
+                new AbsoluteBendpointDto(200, 200),
+                new AbsoluteBendpointDto(300, 300));
+        assertFalse("Bendpoints outside both elements are not interior terminations",
+                RoutingPipeline.terminalsOnlyTerminatesInside(src, tgt, rectified));
+    }
+
+    @Test
+    public void terminatesInside_shouldNotFlag_whenRectifiedEmptyOrNull() {
+        RoutingRect src = new RoutingRect(0, 0, 100, 60, "src");
+        RoutingRect tgt = new RoutingRect(400, 400, 100, 60, "tgt");
+        assertFalse("Empty rectified list cannot create an interior termination",
+                RoutingPipeline.terminalsOnlyTerminatesInside(src, tgt, List.of()));
+        assertFalse("Null rectified list cannot create an interior termination",
+                RoutingPipeline.terminalsOnlyTerminatesInside(src, tgt, null));
+    }
+
+    @Test
+    public void terminatesInside_shouldCheckFirstVsSourceAndLastVsTargetOnly() {
+        // First BP lies inside the TARGET's rect but is checked against the SOURCE; last BP
+        // lies inside the SOURCE's rect but is checked against the TARGET. Neither terminal
+        // matches its own element → no interior termination (terminal-specific, not
+        // "inside any box").
+        RoutingRect src = new RoutingRect(0, 0, 100, 60, "src");      // centre (50,30)
+        RoutingRect tgt = new RoutingRect(400, 400, 100, 60, "tgt");  // centre (450,430)
+        List<AbsoluteBendpointDto> rectified = List.of(
+                new AbsoluteBendpointDto(450, 430),  // inside tgt, but checked vs src
+                new AbsoluteBendpointDto(50, 30));   // inside src, but checked vs tgt
+        assertFalse("Predicate checks first-vs-source and last-vs-target only",
+                RoutingPipeline.terminalsOnlyTerminatesInside(src, tgt, rectified));
+    }
+
+    // =============================================
+    // Zigzag/reversal-introduction veto predicate
+    // (backlog-auto-route-terminals-only-interior-termination-veto, widened scope)
+    // =============================================
+
+    @Test
+    public void pathHasZigzag_shouldFlag_sharedYReversal() {
+        // Mirrors the live View-G defect: shared Y, x goes far back then forward.
+        List<double[]> path = List.of(
+                new double[]{0, 50}, new double[]{100, 50},
+                new double[]{40, 50}, new double[]{60, 50});
+        assertTrue("Shared-Y reversal is a zigzag", RoutingPipeline.pathHasZigzag(path));
+    }
+
+    @Test
+    public void pathHasZigzag_shouldFlag_sharedXReversal() {
+        List<double[]> path = List.of(
+                new double[]{50, 0}, new double[]{50, 100},
+                new double[]{50, 40}, new double[]{50, 60});
+        assertTrue("Shared-X reversal is a zigzag", RoutingPipeline.pathHasZigzag(path));
+    }
+
+    @Test
+    public void pathHasZigzag_shouldNotFlag_cleanRightAngleTurn() {
+        // A clean L (right-angle turn) is not a reversal.
+        List<double[]> path = List.of(
+                new double[]{0, 0}, new double[]{100, 0}, new double[]{100, 100});
+        assertFalse("A right-angle turn is not a zigzag", RoutingPipeline.pathHasZigzag(path));
+    }
+
+    @Test
+    public void pathHasZigzag_shouldNotFlag_collinearMonotonic() {
+        List<double[]> path = List.of(
+                new double[]{0, 0}, new double[]{50, 0}, new double[]{100, 0});
+        assertFalse("Collinear monotonic points are not a zigzag",
+                RoutingPipeline.pathHasZigzag(path));
+    }
+
+    @Test
+    public void pathHasZigzag_shouldNotFlag_shortOrNullPath() {
+        assertFalse("Two-point path cannot zigzag", RoutingPipeline.pathHasZigzag(
+                List.of(new double[]{0, 0}, new double[]{100, 0})));
+        assertFalse("Null path cannot zigzag", RoutingPipeline.pathHasZigzag(null));
+    }
+
+    @Test
+    public void introducesZigzag_shouldFlag_whenNewZigzagsButOldDidNot() {
+        List<double[]> oldPath = List.of(
+                new double[]{0, 0}, new double[]{50, 0}, new double[]{100, 0});       // clean
+        List<double[]> newPath = List.of(
+                new double[]{0, 0}, new double[]{100, 50},
+                new double[]{40, 50}, new double[]{60, 50});                          // reversal
+        assertTrue("Rectification that introduces a new zigzag must be flagged",
+                RoutingPipeline.terminalsOnlyIntroducesZigzag(oldPath, newPath));
+    }
+
+    @Test
+    public void introducesZigzag_shouldNotFlag_whenOldAlreadyZigzagged() {
+        List<double[]> zig = List.of(
+                new double[]{0, 0}, new double[]{100, 50},
+                new double[]{40, 50}, new double[]{60, 50});
+        // Old already has the zigzag → terminals-only did not introduce it → no veto.
+        assertFalse("A pre-existing body zigzag is not 'introduced' by terminals-only",
+                RoutingPipeline.terminalsOnlyIntroducesZigzag(zig, zig));
+    }
+
+    @Test
+    public void introducesZigzag_shouldNotFlag_whenNeitherZigzags() {
+        List<double[]> oldPath = List.of(
+                new double[]{0, 0}, new double[]{100, 0});
+        List<double[]> newPath = List.of(
+                new double[]{0, 0}, new double[]{100, 0}, new double[]{100, 100});    // clean L
+        assertFalse("No zigzag in old or new → no veto",
+                RoutingPipeline.terminalsOnlyIntroducesZigzag(oldPath, newPath));
+    }
+
+    @Test
+    public void introducesZigzag_shouldHandleNullOldPath_asCleanBaseline() {
+        // A null old path (connection absent from the assessment snapshot) is treated as clean,
+        // so a new zigzag counts as "introduced" → conservative veto fires.
+        List<double[]> newZig = List.of(
+                new double[]{0, 0}, new double[]{100, 50},
+                new double[]{40, 50}, new double[]{60, 50});
+        assertTrue("Null old path + new zigzag → conservative veto",
+                RoutingPipeline.terminalsOnlyIntroducesZigzag(null, newZig));
+        List<double[]> cleanNew = List.of(
+                new double[]{0, 0}, new double[]{100, 0}, new double[]{100, 100});
+        assertFalse("Null old path + clean new → no veto",
+                RoutingPipeline.terminalsOnlyIntroducesZigzag(null, cleanNew));
+    }
+
+    // =============================================
     // B29 / B70: ChopboxAnchor center-aligned terminal alignment
     //
     // History: B29 prepended a center-aligned BP whenever the first/last BP
@@ -7480,6 +7652,86 @@ public class RoutingPipelineTest {
                     "AC-4 idempotence: route " + connId + " must be byte-identical on re-run",
                     first.routed().get(connId), second.routed().get(connId));
         }
+    }
+
+    // =============================================
+    // Source-side reversal / self-pass-through on a lane-crossing hand-off
+    // (backlog-auto-route-source-side-reversal-lane-crossing)
+    // =============================================
+
+    /**
+     * AC-1 — deterministic synthetic reproduction of the View-C Submit→Capture
+     * source-side reversal, asserting the FIXED (clean-L) behaviour.
+     *
+     * <p>Exact captured View-C geometry: a horizontal-dominant down-right hand-off
+     * whose source center sits LEFT of the target, with both swimlanes (BusinessRole
+     * elements, not groups) present in {@code allObstacles}. Before the fix, stage 4.7
+     * {@code enforceMinClearance} treated the endpoints' own full-width lane band as a
+     * clearance obstacle: the intra-lane corner (390,105) was yanked to the band's
+     * far-left edge (12,168), which cascaded (orthogonalize → correctSelfElementPassThrough
+     * → simplifyFinalPath) into a source LEFT-face attachment (39,105) and a reversal that
+     * passes back through the source body — stored BPs {@code [(39,105),(390,105),(390,234)]},
+     * routing "poor", {@code zigzagCount 1}, self-pass-through. Live oracle:
+     * {@code retail-bank-mcp-test-2026-05-21-1627} View C.</p>
+     *
+     * <p>The fix excludes the endpoints' ancestor containers from the clearance obstacle
+     * set (consistent with the A* router's ancestor exclusion), so the corner is left in
+     * place and the source exits toward the target — a clean 1-bend L
+     * {@code [(211,105),(390,105),(390,234)]}, {@code pathHasZigzag false}, no
+     * self-pass-through. Assertions are semantic (not coordinate-equality) so they survive
+     * router tie-break jitter while still rejecting the LEFT-face reversal.</p>
+     */
+    @Test
+    public void routeAllConnections_shouldNotReverseThroughSource_onLaneCrossingHandoff() {
+        // Submit (source, far-left of its lane), Capture (target, below-right).
+        RoutingRect submit  = new RoutingRect(40, 75, 170, 60, "submit");    // center (125,105)
+        RoutingRect capture = new RoutingRect(300, 235, 180, 60, "capture"); // center (390,265)
+        // Both swimlanes are BusinessRole ELEMENTS (isGroup()==false) → they enter
+        // allObstacles even though they are the endpoints' ancestor containers.
+        RoutingRect customerLane = new RoutingRect(20, 20, 1340, 140, "customerLane"); // contains submit
+        RoutingRect aooLane      = new RoutingRect(20, 180, 1340, 140, "aooLane");     // contains capture
+
+        // Per-connection obstacle set excludes ancestors (lanes) and src/tgt — the
+        // Submit→Capture corridor is obstacle-free (matches routeOrthogonal exclusion).
+        RoutingPipeline.ConnectionEndpoints conn = new RoutingPipeline.ConnectionEndpoints(
+                "submit-capture", submit, capture, List.of(), "", 1);
+
+        // allObstacles = ALL non-group nodes, incl. the lanes + source + target
+        // (matches ArchiModelAccessorImpl#buildOrthogonalRoutingCommands).
+        List<RoutingRect> allObstacles = List.of(submit, capture, customerLane, aooLane);
+
+        RoutingResult result = pipeline.routeAllConnections(
+                List.of(conn), allObstacles, null,
+                RoutingPipeline.DEFAULT_SNAP_THRESHOLD, true);
+        List<AbsoluteBendpointDto> path = result.routed().get("submit-capture");
+
+        assertNotNull("Submit→Capture must be routed", path);
+        assertFalse("Routed path must have bendpoints", path.isEmpty());
+
+        // (a) Source must not attach to the LEFT face (away from the down-right target).
+        // Bug: first BP (39,105), x < source centerX 125. Clean: RIGHT (211) or BOTTOM (125,*).
+        AbsoluteBendpointDto first = path.get(0);
+        assertTrue(
+                "Source must not exit LEFT (away from target): first BP " + first
+                        + " has x < source centerX (" + submit.centerX() + ") — the captured "
+                        + "(39,105) LEFT-face reversal. Full path: " + path,
+                first.x() >= submit.centerX());
+
+        // (b) No zigzag/reversal (AC-9 oracle = LayoutQualityAssessor.countZigzags mirror).
+        List<double[]> full = new ArrayList<>();
+        full.add(new double[]{submit.centerX(), submit.centerY()});
+        for (AbsoluteBendpointDto bp : path) {
+            full.add(new double[]{bp.x(), bp.y()});
+        }
+        full.add(new double[]{capture.centerX(), capture.centerY()});
+        assertFalse(
+                "Routed path must not zigzag/reverse. Full path: " + path,
+                RoutingPipeline.pathHasZigzag(full));
+
+        // (c) No self-pass-through back through the source body.
+        assertFalse(
+                "Routed path must not pass back through its own source. Full path: " + path,
+                pipeline.hasEndpointPassThrough(path, submit, capture, true));
     }
 
     // =============================================

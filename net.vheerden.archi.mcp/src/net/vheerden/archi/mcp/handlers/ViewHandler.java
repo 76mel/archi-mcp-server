@@ -935,6 +935,8 @@ public class ViewHandler {
                     // groups/notes as additional nodes (Story 8-6)
                     @SuppressWarnings("unchecked")
                     Map<String, Object> filteredMap = (Map<String, Object>) filteredResult;
+                    // elements/relationships are already mapped to List<Map> by FieldSelector.applyToList,
+                    // so these casts are safe (unlike groups/notes below, which stay as raw DTOs).
                     @SuppressWarnings("unchecked")
                     List<Map<String, Object>> elements =
                             (List<Map<String, Object>>) filteredMap.get("elements");
@@ -950,23 +952,23 @@ public class ViewHandler {
                     List<Map<String, Object>> graphEdges =
                             (List<Map<String, Object>>) graphData.get("edges");
 
-                    // Add groups and notes as graph nodes (Story 8-6 AC14)
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> groups =
-                            (List<Map<String, Object>>) filteredMap.get("groups");
+                    // Add groups and notes as graph nodes (Story 8-6 AC14).
+                    // FieldSelector stores groups/notes as raw DTOs (ViewGroupDto/ViewNoteDto),
+                    // unlike elements/relationships which it maps to List<Map>. Convert each to a
+                    // map before adding — iterating them as Map would throw ClassCastException
+                    // (Story backlog-get-view-contents-graph-format-internal-error).
+                    List<?> groups = (List<?>) filteredMap.get("groups");
                     if (groups != null) {
-                        for (Map<String, Object> group : groups) {
-                            Map<String, Object> node = new LinkedHashMap<>(group);
+                        for (Object group : groups) {
+                            Map<String, Object> node = new LinkedHashMap<>(formatter.toMap(group));
                             node.put("_nodeType", "group");
                             graphNodes.add(node);
                         }
                     }
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> notes =
-                            (List<Map<String, Object>>) filteredMap.get("notes");
+                    List<?> notes = (List<?>) filteredMap.get("notes");
                     if (notes != null) {
-                        for (Map<String, Object> note : notes) {
-                            Map<String, Object> node = new LinkedHashMap<>(note);
+                        for (Object note : notes) {
+                            Map<String, Object> node = new LinkedHashMap<>(formatter.toMap(note));
                             node.put("_nodeType", "note");
                             graphNodes.add(node);
                         }

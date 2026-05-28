@@ -223,15 +223,29 @@ The plugin serves static reference materials as MCP Resources via the `ResourceH
 | `archimate://prompts/model-exploration-guide` | Model Exploration Guide | Strategy for efficient model exploration |
 | `archimate://prompts/explore-dependencies` | Explore Dependencies | Systematic dependency analysis workflow |
 | `archimate://prompts/landscape-overview` | Landscape Overview | Architecture landscape summary generation |
+| `archimate://prompts/routing-preconditions-checklist` | Routing Preconditions Checklist | Single-page checklist for LLM agents to fetch before invoking `auto-route-connections` or `auto-layout-and-route` on a non-trivial view |
 
 **References (domain knowledge):**
 
 | URI | Name | Content |
 |-----|------|---------|
-| `archimate://reference/archimate-layers` | ArchiMate Layers Reference | All layers with element types |
-| `archimate://reference/archimate-relationships` | ArchiMate Relationships Reference | Relationship types with valid combinations |
-| `archimate://reference/archimate-specializations` | ArchiMate Specializations Reference | Specialization vocabulary, identity rules, when-to-use guidance, tool pipeline |
-| `archimate://reference/archimate-view-patterns` | ArchiMate View Patterns | Layout and diagramming best practices |
+| `archimate://reference/archimate-layers` | ArchiMate Layers Reference | All layers with element types, plus a concept-to-element-type decision aid |
+| `archimate://reference/archimate-relationships` | ArchiMate Relationships Reference | Relationship types with valid combinations and semantic-attribute parameters (`accessType`, `associationDirected`, `influenceStrength`) |
+| `archimate://reference/archimate-specializations` | ArchiMate Specializations Reference | Specialization vocabulary, identity rules, when-to-use guidance, tool pipeline, icon support |
+| `archimate://reference/archimate-view-patterns` | ArchiMate View Patterns | Layout, diagramming best practices, label expressions, styling completeness, image and view-reference visuals |
+
+**Viewpoint recipes (progressive-disclosure layout library):**
+
+| URI | Name | Content |
+|-----|------|---------|
+| `archimate://recipes/index` | Recipe Selector | Fetch first. Conventional-vs-non-conventional decision table, invariant build sequence, family selector |
+| `archimate://recipes/application-integration` | Application Integration Recipe | Hub-and-spoke recipe for Application Cooperation / Integration views |
+| `archimate://recipes/behaviour-process-flow` | Behaviour / Process Flow Recipe | Swimlane recipe for Business Process Cooperation, plus Service Design / Customer Journey band layout |
+| `archimate://recipes/motivation` | Motivation Recipe | Directed influence-chain recipe (stakeholder → driver → assessment → goal → requirement) |
+| `archimate://recipes/technology-deployment` | Technology Deployment Recipe | Nested-deployment recipe — nodes as containers with deployed software/artifacts, wired by network paths |
+| `archimate://recipes/roadmap-migration` | Roadmap / Migration Recipe | Left-to-right plateau-timeline recipe for Implementation & Migration views |
+
+Total resource count: 14.
 
 ### Loading and Serving
 

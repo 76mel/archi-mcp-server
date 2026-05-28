@@ -334,15 +334,18 @@ public class MutationHandler {
     // ---- bulk-mutate ----
 
     private McpServerFeatures.SyncToolSpecification buildBulkMutateSpec() {
+        // Single source of truth for the advertised supported-tools lists: derive from the
+        // deterministically-ordered canonical list so both the toolProp and tool-level
+        // descriptions stay complete and consistent with BulkOperation.SUPPORTED_TOOLS.
+        // (Do NOT join BulkOperation.SUPPORTED_TOOLS directly — Set.of iteration order is
+        // randomized per JVM run, which would make the served description unstable.)
+        String supportedTools = String.join(", ", BulkOperation.SUPPORTED_TOOLS_ORDERED);
+
         // operations array item schema
         Map<String, Object> toolProp = new LinkedHashMap<>();
         toolProp.put("type", "string");
         toolProp.put("description",
-                "Mutation tool to execute: create-element, create-relationship, "
-                        + "create-view, update-element, add-to-view, "
-                        + "add-connection-to-view, remove-from-view, "
-                        + "update-view-object, update-view-connection, "
-                        + "or clear-view");
+                "Mutation tool to execute: " + supportedTools);
 
         Map<String, Object> paramsProp = new LinkedHashMap<>();
         paramsProp.put("type", "object");
@@ -363,7 +366,8 @@ public class MutationHandler {
         operationsProp.put("description",
                 "Array of mutation operations to execute atomically. "
                         + "Use $N.id in param values to reference the ID of entity created "
-                        + "by operation at index N (0-based). Max 50 operations.");
+                        + "by operation at index N (0-based). Max "
+                        + BulkOperation.MAX_OPERATIONS + " operations.");
         operationsProp.put("items", itemSchema);
         operationsProp.put("maxItems", BulkOperation.MAX_OPERATIONS);
 
@@ -402,11 +406,7 @@ public class MutationHandler {
                         + "Required: operations (array of {tool, params} objects). "
                         + "Optional: description (label for undo history), "
                         + "continueOnError (boolean, default false). "
-                        + "Supported tools: create-element, create-relationship, create-view, "
-                        + "update-element, add-to-view, add-connection-to-view, "
-                        + "add-group-to-view, add-note-to-view, "
-                        + "remove-from-view, update-view-object, update-view-connection, "
-                        + "clear-view. "
+                        + "Supported tools: " + supportedTools + ". "
                         + "Note: autoConnect is forced false for add-to-view in bulk context "
                         + "— use explicit add-connection-to-view operations instead. "
                         + "Use $N.id from add-group-to-view as parentViewObjectId in subsequent "

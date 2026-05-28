@@ -302,14 +302,18 @@ public class ResourceHandlerTest {
 		assertTrue("Should contain algorithm reference section",
 				viewPatternsContent.text().contains("Algorithm Reference"));
 
-		// Regression pins: stop-at-fair stop-signal phrase in Pre-Layout Planning §2 Spacing Heuristics.
-		assertTrue("Should contain stop-at-fair stop signal sentinel",
+		// Regression pins: control-loop stop-signal phrase in Pre-Layout Planning §2 Spacing Heuristics.
+		// (Updated 2026-05-25: the stop-signal text was rewritten from the row-735 narrow-numeric
+		// "more than three spacing tool calls -> stop at fair" phrasing to the control-loop
+		// "let the control loop decide / density_floor_reflow_required" phrasing by the density-aware
+		// control-loop work; this pin tracks the current resource text.)
+		assertTrue("Should contain control-loop stop signal sentinel",
 				viewPatternsContent.text().contains("Stop signal"));
 		assertEquals("Stop signal sentinel must appear exactly once",
 				1, viewPatternsContent.text().split("Stop signal", -1).length - 1);
-		assertTrue("Should pair narrow-numeric three-tool count with fair rating floor",
-				viewPatternsContent.text().contains("more than three")
-						&& viewPatternsContent.text().contains("fair"));
+		assertTrue("Should defer termination to the self-terminating control loop",
+				viewPatternsContent.text().contains("let the control loop decide")
+						&& viewPatternsContent.text().contains("density_floor_reflow_required"));
 		assertTrue("Should redirect to composed apply-spacing-recommendations(scope=both)",
 				viewPatternsContent.text().contains("apply-spacing-recommendations(scope=both)"));
 		assertTrue("Should name +80px element knee-clamp constant",

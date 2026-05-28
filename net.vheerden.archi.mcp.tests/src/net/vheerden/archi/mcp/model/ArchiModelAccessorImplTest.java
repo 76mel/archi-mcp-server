@@ -548,6 +548,60 @@ public class ArchiModelAccessorImplTest {
         assertTrue(info.elementTypeDistribution().isEmpty());
     }
 
+    // ---- getModelInfo read-side parity tests (Story 14-3 G6) ----
+
+    @Test
+    public void shouldReturnModelInfoDtoWithPurpose_whenGetModelInfo_AC11() {
+        IArchimateModel model = createEmptyModel();
+        model.setPurpose("Strategic enterprise architecture");
+        stubModelManager.setModels(List.of(model));
+        accessor = new ArchiModelAccessorImpl(stubModelManager);
+
+        ModelInfoDto info = accessor.getModelInfo();
+        assertEquals("Strategic enterprise architecture", info.purpose());
+    }
+
+    @Test
+    public void shouldReturnModelInfoDtoWithProperties_whenGetModelInfo_AC11() {
+        IArchimateModel model = createEmptyModel();
+        IProperty p1 = IArchimateFactory.eINSTANCE.createProperty();
+        p1.setKey("Author");
+        p1.setValue("Jane Doe");
+        model.getProperties().add(p1);
+        IProperty p2 = IArchimateFactory.eINSTANCE.createProperty();
+        p2.setKey("Tag");
+        p2.setValue("draft");
+        model.getProperties().add(p2);
+        stubModelManager.setModels(List.of(model));
+        accessor = new ArchiModelAccessorImpl(stubModelManager);
+
+        ModelInfoDto info = accessor.getModelInfo();
+        assertNotNull(info.properties());
+        assertEquals("Jane Doe", info.properties().get("Author"));
+        assertEquals("draft", info.properties().get("Tag"));
+    }
+
+    @Test
+    public void shouldExtendModelInfoDto_byteIdenticalWhenLegacy_AC7() {
+        // Empty-Archi-default model has null purpose and empty properties EList —
+        // the build path normalises empty/empty-list → null so legacy callers
+        // (and Jackson with @JsonInclude(NON_NULL)) see the same 8-field shape
+        // they did before Story 14-3.
+        IArchimateModel model = createEmptyModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = new ArchiModelAccessorImpl(stubModelManager);
+
+        ModelInfoDto info = accessor.getModelInfo();
+        assertEquals("Empty Model", info.name());
+        assertNull("legacy: purpose must be null on a default model", info.purpose());
+        assertNull("legacy: properties must be null when EList is empty", info.properties());
+        // Existing 8-field assertions continue to pass byte-identically:
+        assertEquals(0, info.elementCount());
+        assertEquals(0, info.relationshipCount());
+        assertEquals(0, info.viewCount());
+        assertTrue(info.elementTypeDistribution().isEmpty());
+    }
+
     // ---- getViews tests ----
 
     @Test
@@ -4056,7 +4110,7 @@ public class ArchiModelAccessorImplTest {
 
         // Update all bounds
         MutationResult<ViewObjectDto> result = accessor.updateViewObject(
-                "default", viewObjectId, 200, 300, 180, 80, null, null, null);
+                "default", viewObjectId, 200, 300, 180, 80, null, null, null, null);
 
         assertNotNull(result);
         assertEquals(200, result.entity().x());
@@ -4077,7 +4131,7 @@ public class ArchiModelAccessorImplTest {
 
         // Update only x and height, leave y and width unchanged
         MutationResult<ViewObjectDto> result = accessor.updateViewObject(
-                "default", viewObjectId, 200, null, null, 80, null, null, null);
+                "default", viewObjectId, 200, null, null, 80, null, null, null, null);
 
         assertNotNull(result);
         assertEquals(200, result.entity().x());
@@ -4097,7 +4151,7 @@ public class ArchiModelAccessorImplTest {
         String viewObjectId = addResult.entity().viewObject().viewObjectId();
 
         try {
-            accessor.updateViewObject("default", viewObjectId, null, null, null, null, null, null, null);
+            accessor.updateViewObject("default", viewObjectId, null, null, null, null, null, null, null, null);
             fail("Expected ModelAccessException");
         } catch (ModelAccessException e) {
             assertEquals(ErrorCode.INVALID_PARAMETER, e.getErrorCode());
@@ -4111,7 +4165,7 @@ public class ArchiModelAccessorImplTest {
         accessor = createAccessorWithTestDispatcher(model);
 
         try {
-            accessor.updateViewObject("default", "nonexistent", 100, 100, null, null, null, null, null);
+            accessor.updateViewObject("default", "nonexistent", 100, 100, null, null, null, null, null, null);
             fail("Expected ModelAccessException");
         } catch (ModelAccessException e) {
             assertEquals(ErrorCode.VIEW_OBJECT_NOT_FOUND, e.getErrorCode());
@@ -5101,7 +5155,7 @@ public class ArchiModelAccessorImplTest {
 
         // Update note text with escaped newlines
         MutationResult<ViewObjectDto> result = accessor.updateViewObject(
-                "default", noteVoId, null, null, null, null, "Updated\\nContent", null, null);
+                "default", noteVoId, null, null, null, null, "Updated\\nContent", null, null, null);
 
         assertNotNull(result);
 
@@ -9276,7 +9330,7 @@ public class ArchiModelAccessorImplTest {
         // Update the parent: set imagePosition to bottom-left. NOTHING else changes.
         accessor.updateViewObject("default", parentId,
                 null, null, null, null, null,
-                null, new ImageParams(null, "bottom-left", null));
+                null, new ImageParams(null, "bottom-left", null), null);
 
         // Parent grew by exactly ICON_BAND_HEIGHT — AC-15 + AC-14 Case B firing path.
         assertEquals("W2 MUTATION moment: parent grows by ICON_BAND_HEIGHT (=24)",
@@ -9382,7 +9436,7 @@ public class ArchiModelAccessorImplTest {
         // No children added. Now set imagePosition via update.
         accessor.updateViewObject("default", parentId,
                 null, null, null, null, null,
-                null, new ImageParams(null, "bottom-left", null));
+                null, new ImageParams(null, "bottom-left", null), null);
 
         IDiagramModelGroup parent = (IDiagramModelGroup)
                 com.archimatetool.model.util.ArchimateModelUtils.getObjectByID(model, parentId);
@@ -9454,7 +9508,7 @@ public class ArchiModelAccessorImplTest {
 
         accessor.updateViewObject("default", parentId,
                 null, null, null, null, null,
-                null, new ImageParams(null, "bottom-right", null));
+                null, new ImageParams(null, "bottom-right", null), null);
 
         IDiagramModelGroup parent = (IDiagramModelGroup)
                 com.archimatetool.model.util.ArchimateModelUtils.getObjectByID(model, parentId);

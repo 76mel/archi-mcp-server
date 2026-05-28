@@ -25,6 +25,33 @@ public class BulkOperationTest {
         op.validate();
     }
 
+    // ---- Story 14-7 (G1) ----
+
+    @Test
+    public void shouldAcceptG1ParamsInCreateRelationshipBulkOp_AC2() {
+        BulkOperation op = new BulkOperation("create-relationship",
+                Map.of("type", "AccessRelationship",
+                        "sourceId", "ba-1",
+                        "targetId", "bo-1",
+                        "accessType", "read"));
+        // BulkOperation.validate only checks tool membership + non-empty params; G1 params
+        // ride through unchecked at this layer (validation happens at the prepare boundary).
+        op.validate();
+        assertEquals("read", op.params().get("accessType"));
+    }
+
+    @Test
+    public void shouldAcceptG1ParamsInUpdateRelationshipBulkOp_AC3() {
+        BulkOperation op = new BulkOperation("update-relationship",
+                Map.of("id", "rel-1",
+                        "accessType", "readwrite",
+                        "associationDirected", Boolean.TRUE,
+                        "influenceStrength", "+/-"));
+        op.validate();
+        assertEquals(Boolean.TRUE, op.params().get("associationDirected"));
+        assertEquals("+/-", op.params().get("influenceStrength"));
+    }
+
     @Test
     public void shouldAcceptCreateViewTool() {
         BulkOperation op = new BulkOperation("create-view", Map.of("name", "Test View"));
@@ -132,8 +159,11 @@ public class BulkOperationTest {
     }
 
     @Test
-    public void shouldHaveTwentyThreeSupportedTools() {
-        assertEquals(23, BulkOperation.SUPPORTED_TOOLS.size());
+    public void shouldHaveTwentySevenSupportedTools() {
+        // Story 14-8 (G16): added add-image-to-view (26→27).
+        assertEquals(27, BulkOperation.SUPPORTED_TOOLS.size());
+        // Story 14-8: add-image-to-view (standalone IDiagramModelImage visuals)
+        assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-image-to-view"));
         // Story C3c: specialization profile management tools
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("create-specialization"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-specialization"));
@@ -142,8 +172,12 @@ public class BulkOperationTest {
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("create-relationship"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("create-view"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-element"));
+        // Story C10: relationship update tool
+        assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-relationship"));
         // Story 8-7: view update tool
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-view"));
+        // Story 14-3 (G6): model metadata update tool
+        assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-model"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-to-view"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-connection-to-view"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("remove-from-view"));
@@ -162,6 +196,8 @@ public class BulkOperationTest {
         // Story 8-6: visual grouping tools
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-group-to-view"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-note-to-view"));
+        // Story 14-6 (G8): view-reference placement tool
+        assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-view-reference-to-view"));
     }
 
     @Test

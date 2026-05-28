@@ -244,7 +244,7 @@ The codebase carries four distinct connection-count thresholds with different ro
 | > 12 connections | `LayoutQualityAssessor.HUB_2D_RESIZE_THRESHOLD` | *2D sizing-suggestion* trigger — for very high-fan-out hubs, `detect-hub-elements` additionally surfaces a 2D-resize suggestion (`width += 15 × ⌈excess/2⌉`, `height += 15 × ⌊excess/2⌋`) so connections can spread across all four faces |
 | ≥ 4 connections per face | `LayoutQualityAssessor.M5_FACE_GUARD_MIN_CONNECTIONS` | M5 *hub-port-quality* face-count guard — a separate per-face metric, not a hub-detection threshold |
 
-For a deeper LLM-agent walkthrough of when each threshold applies, when to use `detect-hub-elements` vs `resize-elements-to-fit`, and the gaps to be aware of, see [Hub Identification and Sizing Advisory](../_bmad-output/implementation-artifacts/hub-identification-and-sizing-advisory-2026-05-03.md).
+For a deeper walkthrough of when each threshold applies and when to use `detect-hub-elements` versus `resize-elements-to-fit`, see the `archimate://prompts/routing-preconditions-checklist` MCP resource and the [Hub Sizing Suggestions](#hub-sizing-suggestions) section below.
 
 ### Connection Counting
 

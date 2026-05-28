@@ -305,4 +305,95 @@ public class AutoRouteResultDtoTest {
         assertTrue("compact constructor must null-guard structuredWarnings to empty",
                 dto.structuredWarnings().isEmpty());
     }
+
+    // ---- Interior-termination veto sub-count
+    //      (backlog-auto-route-terminals-only-interior-termination-veto) ----
+
+    @Test
+    public void serialization_zeroVetoedByInterior_shouldOmitField() throws Exception {
+        // Canonical constructor, vetoedByInterior = 0 (13th scalar, after vetoedByCrossing).
+        AutoRouteResultDto dto = new AutoRouteResultDto(
+                "v-1", 5, 0, "orthogonal", false, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of());
+
+        String json = objectMapper.writeValueAsString(dto);
+        assertFalse("vetoedByInterior should be omitted when 0 per @JsonInclude(NON_DEFAULT)",
+                json.contains("vetoedByInterior"));
+        assertFalse("vetoedByZigzag should be omitted when 0 per @JsonInclude(NON_DEFAULT)",
+                json.contains("vetoedByZigzag"));
+    }
+
+    @Test
+    public void serialization_populatedVetoedByInterior_shouldIncludeField() throws Exception {
+        // 9 skipped = 0 already-orthogonal + 2 obstacle + 1 crossing + 3 interior + 3 zigzag.
+        AutoRouteResultDto dto = new AutoRouteResultDto(
+                "v-1", 2, 0, "orthogonal", false, 0, 0, 0, 0, 9, 2, 1, 3, 3,
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of());
+
+        assertEquals(3, dto.vetoedByInterior());
+        assertEquals(3, dto.vetoedByZigzag());
+        String json = objectMapper.writeValueAsString(dto);
+        assertTrue("vetoedByInterior should be present in JSON when > 0",
+                json.contains("\"vetoedByInterior\":3"));
+        assertTrue("vetoedByZigzag should be present in JSON when > 0",
+                json.contains("\"vetoedByZigzag\":3"));
+    }
+
+    // ---- Blocked recommendations / nudgeBlockedReason tests (Story 14-12) ----
+
+    @Test
+    public void shouldOmitBlockedRecommendations_whenEmpty() throws Exception {
+        // Canonical pre-14-12 21-arg convenience constructor (Story 14-12).
+        // Defaults blockedRecommendations to List.of() and nudgeBlockedReason to null;
+        // both must be omitted from JSON per @JsonInclude(NON_EMPTY / NON_NULL).
+        AutoRouteResultDto dto = new AutoRouteResultDto(
+                "v-1", 5, 0, "orthogonal", false, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of());
+
+        assertTrue("blockedRecommendations must default to empty",
+                dto.blockedRecommendations().isEmpty());
+        assertEquals("nudgeBlockedReason must default to null", null, dto.nudgeBlockedReason());
+        String json = objectMapper.writeValueAsString(dto);
+        assertFalse("blockedRecommendations should be omitted when empty per @JsonInclude(NON_EMPTY)",
+                json.contains("blockedRecommendations"));
+        assertFalse("nudgeBlockedReason should be omitted when null per @JsonInclude(NON_NULL)",
+                json.contains("nudgeBlockedReason"));
+    }
+
+    @Test
+    public void shouldSerializeBlockedRecommendations_whenPopulated() throws Exception {
+        // Construct via the new 23-arg canonical constructor with one recommendation
+        // surfaced under blockedRecommendations and nudgeBlockedReason populated to
+        // the canonical sibling_overlap value (Story 14-12).
+        MoveRecommendationDto rec = new MoveRecommendationDto(
+                "el-1", "AppServer Cluster", 230, 0,
+                "Move 230px east to clear sibling overlap blocking 1 connection",
+                1);
+
+        AutoRouteResultDto dto = new AutoRouteResultDto(
+                "v-1", 4, 1, "orthogonal", true, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                List.of(), List.of(),
+                List.of(),                                   // recommendations (advisory) — empty
+                List.of(), List.of(), List.of(),
+                List.of(),                                   // structuredWarnings — covered separately
+                List.of(rec),                                // blockedRecommendations — populated
+                AutoRouteBlockedReasons.SIBLING_OVERLAP);    // nudgeBlockedReason
+
+        assertEquals(1, dto.blockedRecommendations().size());
+        assertEquals("el-1", dto.blockedRecommendations().get(0).elementId());
+        assertEquals(230, dto.blockedRecommendations().get(0).dx());
+        assertEquals("sibling_overlap", dto.nudgeBlockedReason());
+        String json = objectMapper.writeValueAsString(dto);
+        assertTrue("blockedRecommendations should be present in JSON when populated",
+                json.contains("\"blockedRecommendations\""));
+        assertTrue("blockedRecommendation elementId should be present",
+                json.contains("\"elementId\":\"el-1\""));
+        assertTrue("nudgeBlockedReason should be present in JSON when populated",
+                json.contains("\"nudgeBlockedReason\":\"sibling_overlap\""));
+        assertFalse("recommendations should be omitted (empty advisory path)",
+                json.contains("\"recommendations\""));
+    }
 }

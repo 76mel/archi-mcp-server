@@ -21,10 +21,13 @@ import net.vheerden.archi.mcp.response.dto.BendpointDto;
 import net.vheerden.archi.mcp.response.dto.BulkMutationResult;
 import net.vheerden.archi.mcp.response.dto.BulkOperation;
 import net.vheerden.archi.mcp.response.dto.ClearViewResultDto;
+import net.vheerden.archi.mcp.response.dto.ConceptUsageDto;
 import net.vheerden.archi.mcp.response.dto.DeleteResultDto;
 import net.vheerden.archi.mcp.response.dto.DetectHubElementsResultDto;
+import net.vheerden.archi.mcp.response.dto.DiagramImageDto;
 import net.vheerden.archi.mcp.response.dto.DuplicateCandidate;
 import net.vheerden.archi.mcp.response.dto.ElementDto;
+import net.vheerden.archi.mcp.response.dto.EmbeddedViewDto;
 import net.vheerden.archi.mcp.response.dto.FolderDto;
 import net.vheerden.archi.mcp.response.dto.FolderTreeDto;
 import net.vheerden.archi.mcp.response.dto.LayoutFlatViewResultDto;
@@ -36,6 +39,7 @@ import net.vheerden.archi.mcp.response.dto.OptimizeGroupOrderResultDto;
 import net.vheerden.archi.mcp.response.dto.ModelImageDto;
 import net.vheerden.archi.mcp.response.dto.ModelInfoDto;
 import net.vheerden.archi.mcp.response.dto.RelationshipDto;
+import net.vheerden.archi.mcp.response.dto.RelationshipSemanticAttributes;
 import net.vheerden.archi.mcp.response.dto.RemoveFromViewResultDto;
 import net.vheerden.archi.mcp.response.dto.UndoRedoResultDto;
 import net.vheerden.archi.mcp.response.dto.ViewConnectionDto;
@@ -119,6 +123,23 @@ public interface ArchiModelAccessor {
     List<ElementDto> getElementsByIds(List<String> ids);
 
     /**
+     * Returns the cross-view "where used" footprint for an ArchiMate concept
+     * (element or relationship). Story 14-5 / G10.
+     *
+     * <p>Lists every view + visual object/connection that references the concept.
+     * Inverse of {@link #getViewContents(String)}; intended for impact analysis
+     * before delete / rename / re-type workflows.</p>
+     *
+     * @param conceptId the concept ID (element or relationship)
+     * @return Optional containing the usage DTO; empty if no concept with that ID
+     *         exists OR the ID resolves to a non-IArchimateConcept (e.g., folder,
+     *         view). The handler disambiguates these cases via a second lookup
+     *         (see ModelQueryHandler.handleFindConceptUsage).
+     * @throws NoModelLoadedException if no model is loaded
+     */
+    Optional<ConceptUsageDto> findConceptUsage(String conceptId);
+
+    /**
      * Searches all elements in the model using case-insensitive substring matching,
      * with optional filtering by ArchiMate element type and layer.
      *
@@ -186,22 +207,55 @@ public interface ArchiModelAccessor {
      * @throws NoModelLoadedException if no model is loaded
      */
     MutationResult<Map<String, Object>> createSpecialization(String sessionId,
-            String name, String conceptType);
+            String name, String conceptType, String imagePath);
+
+    /**
+     * Back-compat overload (Story 14-8 / G16) — delegates to the canonical
+     * 4-arg signature with {@code imagePath = null} (no icon).
+     *
+     * @deprecated use {@link #createSpecialization(String, String, String, String)}
+     */
+    @Deprecated
+    default MutationResult<Map<String, Object>> createSpecialization(String sessionId,
+            String name, String conceptType) {
+        return createSpecialization(sessionId, name, conceptType, null);
+    }
 
     /**
      * Renames an existing specialization (profile). Refuses to merge: if a
      * profile with {@code (newName, conceptType)} already exists (and is not the
      * same instance), the operation fails with {@code VALIDATION_ERROR}.
      *
-     * @param sessionId   the session ID for operational mode/approval routing
-     * @param name        the current profile name (required)
-     * @param conceptType the ArchiMate concept EClass name (required)
-     * @param newName     the new profile name (required, non-blank)
+     * <p>Story 14-8 / G16 adds the optional {@code imagePath} (set/change icon)
+     * and {@code clearImagePath} (explicit clear) parameters. They are mutually
+     * exclusive; providing both rejects with {@code INVALID_PARAMETER}. At least
+     * one of {@code newName} / {@code imagePath} / {@code clearImagePath=true}
+     * MUST be supplied.</p>
+     *
+     * @param sessionId       the session ID for operational mode/approval routing
+     * @param name            the current profile name (required)
+     * @param conceptType     the ArchiMate concept EClass name (required)
+     * @param newName         the new profile name; null leaves the name unchanged
+     * @param imagePath       archive imagePath to apply as the new icon; null leaves unchanged
+     * @param clearImagePath  if true, explicitly clear the icon; mutually exclusive with imagePath
      * @return MutationResult containing the updated profile fields
      * @throws NoModelLoadedException if no model is loaded
      */
     MutationResult<Map<String, Object>> updateSpecialization(String sessionId,
-            String name, String conceptType, String newName);
+            String name, String conceptType, String newName,
+            String imagePath, boolean clearImagePath);
+
+    /**
+     * Back-compat overload (Story 14-8 / G16) — delegates to the canonical
+     * 6-arg signature with {@code imagePath = null} and {@code clearImagePath = false}.
+     *
+     * @deprecated use {@link #updateSpecialization(String, String, String, String, String, boolean)}
+     */
+    @Deprecated
+    default MutationResult<Map<String, Object>> updateSpecialization(String sessionId,
+            String name, String conceptType, String newName) {
+        return updateSpecialization(sessionId, name, conceptType, newName, null, false);
+    }
 
     /**
      * Deletes a specialization (profile) definition. By default, refuses if the
@@ -390,18 +444,36 @@ public interface ArchiModelAccessor {
      * exist, checks ArchiMate specification rules, and dispatches. Returns
      * structured error with valid alternatives if spec validation fails.</p>
      *
-     * @param sessionId      the session identifier for mode detection
-     * @param type           ArchiMate relationship type (e.g., "ServingRelationship")
-     * @param sourceId       source element ID (required)
-     * @param targetId       target element ID (required)
-     * @param name           optional relationship name
-     * @param specialization optional specialization name; auto-creates profile if absent (Story C3b)
+     * @param sessionId          the session identifier for mode detection
+     * @param type               ArchiMate relationship type (e.g., "ServingRelationship")
+     * @param sourceId           source element ID (required)
+     * @param targetId           target element ID (required)
+     * @param name               optional relationship name
+     * @param specialization     optional specialization name; auto-creates profile if absent (Story C3b)
+     * @param semanticAttributes optional bundle of ArchiMate semantic attributes — type-conditional:
+     *                           {@code accessType} for AccessRelationship, {@code associationDirected}
+     *                           for AssociationRelationship, {@code influenceStrength} for
+     *                           InfluenceRelationship (Story 14-7 / G1). Pass
+     *                           {@link RelationshipSemanticAttributes#NONE} or {@code null} for none.
      * @return MutationResult containing the created RelationshipDto and optional batch sequence
      * @throws NoModelLoadedException if no model is loaded
-     * @throws ModelAccessException if type invalid, elements not found, or spec violation
+     * @throws ModelAccessException if type invalid, elements not found, spec violation,
+     *                              or semantic attribute applied to the wrong relationship type
      */
     MutationResult<RelationshipDto> createRelationship(String sessionId, String type,
-            String sourceId, String targetId, String name, String specialization);
+            String sourceId, String targetId, String name, String specialization,
+            RelationshipSemanticAttributes semanticAttributes);
+
+    /**
+     * Back-compat overload preserving the 6-arg signature for callers that don't
+     * supply G1 semantic attributes. Delegates to the 7-arg overload with
+     * {@link RelationshipSemanticAttributes#NONE}.
+     */
+    default MutationResult<RelationshipDto> createRelationship(String sessionId, String type,
+            String sourceId, String targetId, String name, String specialization) {
+        return createRelationship(sessionId, type, sourceId, targetId, name, specialization,
+                RelationshipSemanticAttributes.NONE);
+    }
 
     /**
      * Creates a new ArchiMate view (diagram) in the model.
@@ -471,19 +543,39 @@ public interface ArchiModelAccessor {
      * <p>Source, target, and type are immutable — changing these fundamentally
      * alters the relationship's semantics and should be done via delete + create.</p>
      *
-     * @param sessionId      the session identifier for mode detection
-     * @param id             relationship ID (required)
-     * @param name           new name, or null to leave unchanged
-     * @param documentation  new documentation, or null to leave unchanged
-     * @param properties     property merge map (null value = remove key), or null to leave unchanged
-     * @param specialization new specialization name, empty string to clear, or null to leave
-     *                       unchanged (Story C3b)
+     * @param sessionId          the session identifier for mode detection
+     * @param id                 relationship ID (required)
+     * @param name               new name, or null to leave unchanged
+     * @param documentation      new documentation, or null to leave unchanged
+     * @param properties         property merge map (null value = remove key), or null to leave unchanged
+     * @param specialization     new specialization name, empty string to clear, or null to leave
+     *                           unchanged (Story C3b)
+     * @param semanticAttributes optional bundle of ArchiMate semantic attributes (Story 14-7 / G1) —
+     *                           {@code accessType} (AccessRelationship), {@code associationDirected}
+     *                           (AssociationRelationship), {@code influenceStrength}
+     *                           (InfluenceRelationship). For each field, {@code null} = leave unchanged;
+     *                           empty-string {@code influenceStrength} clears the value. Pass
+     *                           {@link RelationshipSemanticAttributes#NONE} or {@code null} for none.
      * @return MutationResult containing the updated RelationshipDto and optional batch sequence
      * @throws NoModelLoadedException if no model is loaded
-     * @throws ModelAccessException if relationship not found or no fields to update
+     * @throws ModelAccessException if relationship not found, no fields to update,
+     *                              or semantic attribute applied to the wrong relationship type
      */
     MutationResult<RelationshipDto> updateRelationship(String sessionId, String id, String name,
-            String documentation, Map<String, String> properties, String specialization);
+            String documentation, Map<String, String> properties, String specialization,
+            RelationshipSemanticAttributes semanticAttributes);
+
+    /**
+     * Back-compat overload preserving the 6-arg signature for callers that don't
+     * supply G1 semantic attributes. Delegates to the 7-arg overload with
+     * {@link RelationshipSemanticAttributes#NONE}.
+     */
+    default MutationResult<RelationshipDto> updateRelationship(String sessionId, String id,
+            String name, String documentation, Map<String, String> properties,
+            String specialization) {
+        return updateRelationship(sessionId, id, name, documentation, properties, specialization,
+                RelationshipSemanticAttributes.NONE);
+    }
 
     /**
      * Updates an existing ArchiMate view's metadata fields.
@@ -504,6 +596,31 @@ public interface ArchiModelAccessor {
     MutationResult<ViewDto> updateView(String sessionId, String id, String name,
             String viewpoint, String documentation, Map<String, String> properties,
             String connectionRouterType);
+
+    // ---- Model metadata mutation (Story 14-3, G6) ----
+
+    /**
+     * Updates the loaded model's own metadata — name, purpose, and custom properties.
+     *
+     * <p>Only non-null parameters are modified; null parameters leave the
+     * corresponding field unchanged. For properties, a merge semantic applies:
+     * non-null values add/update, null values remove the property key.</p>
+     *
+     * <p>Story 14-3 (G6): closes the model-level read/write parity gap with
+     * jArchi. {@code documentation} is intentionally NOT a parameter —
+     * {@code IArchimateModel} has no {@code setDocumentation(String)} in Archi 5.7/5.8
+     * (the model's free-text field IS {@code purpose}).</p>
+     *
+     * @param sessionId      the session identifier for mode detection
+     * @param name           new name, or null to leave unchanged
+     * @param purpose        new purpose, or null to leave unchanged; empty string clears the purpose
+     * @param properties     property merge map (null value = remove key), or null to leave unchanged
+     * @return MutationResult containing the updated ModelInfoDto and optional batch sequence
+     * @throws NoModelLoadedException if no model is loaded
+     * @throws ModelAccessException if no fields to update or name is empty
+     */
+    MutationResult<ModelInfoDto> updateModel(String sessionId, String name,
+            String purpose, Map<String, String> properties);
 
     // ---- View placement (Story 7-7) ----
 
@@ -576,6 +693,91 @@ public interface ArchiModelAccessor {
             String parentViewObjectId, StylingParams styling, ImageParams imageParams);
 
     /**
+     * Creates a view-reference visual object on a view that embeds another view
+     * as a clickable thumbnail (Story 14-6 / G8). The visual displays the referenced
+     * view's name dynamically — Archi's figure reads {@code referencedModel.getName()}
+     * at render time, so there is no stored name field on the reference (and renaming
+     * the referenced view auto-updates every embedding visual without a separate
+     * mutation).
+     *
+     * @param sessionId          the session identifier for mode detection
+     * @param viewId             the TARGET view ID (required) — where the view-reference
+     *                           visual is placed
+     * @param referencedViewId   the SOURCE view ID being referenced (required); must
+     *                           resolve to {@code IArchimateDiagramModel} per the
+     *                           Story 14-6 Q3 default (ArchiMate views only)
+     * @param x                  x coordinate (null for auto-placement; both x and y
+     *                           must be specified together or both omitted)
+     * @param y                  y coordinate (see x)
+     * @param width              width (null for default 185)
+     * @param height             height (null for default 80)
+     * @param parentViewObjectId optional group/element viewObjectId to nest inside;
+     *                           when non-null, x/y are RELATIVE to the parent's origin
+     * @param styling            optional G5 styling surface (StylingHelper applies)
+     * @return MutationResult containing the EmbeddedViewDto
+     * @throws NoModelLoadedException if no model is loaded
+     * @throws ModelAccessException if view not found, referenced view not found or
+     *                              not an ArchiMate view, parent is invalid, or bounds
+     *                              fail validation
+     */
+    MutationResult<EmbeddedViewDto> addViewReferenceToView(String sessionId,
+            String viewId, String referencedViewId, Integer x, Integer y,
+            Integer width, Integer height, String parentViewObjectId,
+            StylingParams styling);
+
+    /**
+     * Adds a standalone image visual ({@code IDiagramModelImage}) to a view
+     * (Story 14-8 / G16). Mirrors {@link #addViewReferenceToView}, swapping
+     * the typed-reference EMF class for the image-visual EMF class.
+     *
+     * <p>Distinct from {@code IIconic.imagePath} on element/group/note
+     * view-objects — that surface is an icon overlay on an existing element;
+     * this surface is a first-class image node placed directly on the view.</p>
+     *
+     * @param sessionId           the session identifier for mode detection
+     * @param viewId              the target view's unique identifier (required)
+     * @param imagePath           archive path from {@code add-image-to-model} /
+     *                            {@code list-model-images} (required); must
+     *                            resolve to existing bytes — typo'd paths reject
+     *                            with {@code IMAGE_NOT_FOUND}
+     * @param x                   optional X coordinate (with y — both-or-neither;
+     *                            relative when parent set, absolute otherwise)
+     * @param y                   optional Y coordinate (with x — both-or-neither)
+     * @param width               optional width (default: natural image dimensions
+     *                            read from archive, fallback 200)
+     * @param height              optional height (default: natural image dimensions
+     *                            read from archive, fallback 200)
+     * @param parentViewObjectId  optional group/element viewObjectId to nest
+     *                            inside; when non-null x/y are relative to parent
+     * @param styling             optional G5 styling surface
+     * @return MutationResult containing the DiagramImageDto
+     * @throws NoModelLoadedException if no model is loaded
+     * @throws ModelAccessException if view not found, imagePath does not exist
+     *                              in archive, parent is invalid, or bounds fail
+     *                              validation
+     */
+    MutationResult<DiagramImageDto> addImageToView(String sessionId,
+            String viewId, String imagePath, Integer x, Integer y,
+            Integer width, Integer height, String parentViewObjectId,
+            StylingParams styling, String borderColor, String documentation);
+
+    /**
+     * Back-compat 9-arg overload (Story 14-8 / G16 follow-up — found in AC10
+     * empirical Step 5). Delegates to the canonical 11-arg signature with
+     * {@code borderColor = null} and {@code documentation = null}.
+     *
+     * @deprecated use {@link #addImageToView(String, String, String, Integer, Integer, Integer, Integer, String, StylingParams, String, String)}
+     */
+    @Deprecated
+    default MutationResult<DiagramImageDto> addImageToView(String sessionId,
+            String viewId, String imagePath, Integer x, Integer y,
+            Integer width, Integer height, String parentViewObjectId,
+            StylingParams styling) {
+        return addImageToView(sessionId, viewId, imagePath, x, y, width, height,
+                parentViewObjectId, styling, null, null);
+    }
+
+    /**
      * Adds a visual connection between two view objects on a view.
      *
      * <p>Links an existing model relationship as a visual connection on the diagram.
@@ -608,27 +810,38 @@ public interface ArchiModelAccessor {
      * Updates the visual bounds and optionally text of a view object on a diagram.
      *
      * <p>Only non-null parameters are modified; null parameters leave the
-     * corresponding field unchanged. At least one of x, y, width, height, text
-     * must be non-null.</p>
+     * corresponding field unchanged. At least one of x, y, width, height, text,
+     * styling, image, or labelExpression must be non-null.</p>
      *
      * <p><strong>Story 8-6:</strong> The text parameter updates the label for
      * groups or content for notes. It is rejected with INVALID_PARAMETER when
      * the viewObjectId references an ArchiMate element view object.</p>
      *
-     * @param sessionId    the session identifier for mode detection
-     * @param viewObjectId the view object's unique identifier (required)
-     * @param x            new X coordinate, or null to leave unchanged
-     * @param y            new Y coordinate, or null to leave unchanged
-     * @param width        new width, or null to leave unchanged
-     * @param height       new height, or null to leave unchanged
-     * @param text         new text for groups (label) or notes (content), or null to leave unchanged
+     * <p><strong>Story 14-1 (G4):</strong> The {@code labelExpression} parameter
+     * writes Archi's per-view-object dynamic label template (e.g. {@code "${name}"},
+     * {@code "${property:Owner}"}). Null leaves unchanged; empty string clears
+     * (Archi falls back to the element's static name). Stored as a generic
+     * {@code IFeatures} entry on the diagram object (no token validation; Archi
+     * owns the grammar).</p>
+     *
+     * @param sessionId       the session identifier for mode detection
+     * @param viewObjectId    the view object's unique identifier (required)
+     * @param x               new X coordinate, or null to leave unchanged
+     * @param y               new Y coordinate, or null to leave unchanged
+     * @param width           new width, or null to leave unchanged
+     * @param height          new height, or null to leave unchanged
+     * @param text            new text for groups (label) or notes (content), or null to leave unchanged
+     * @param styling         styling parameters, or null for no styling change
+     * @param imageParams     image parameters, or null for no image change
+     * @param labelExpression new label expression, or null to leave unchanged; empty string clears
      * @return MutationResult containing the updated ViewObjectDto
      * @throws NoModelLoadedException if no model is loaded
      * @throws ModelAccessException if view object not found, no fields to update, or text on element
      */
     MutationResult<ViewObjectDto> updateViewObject(String sessionId,
             String viewObjectId, Integer x, Integer y, Integer width, Integer height,
-            String text, StylingParams styling, ImageParams imageParams);
+            String text, StylingParams styling, ImageParams imageParams,
+            String labelExpression);
 
     /**
      * Replaces the bendpoints of a connection on a view.
@@ -1466,7 +1679,7 @@ public interface ArchiModelAccessor {
      * direct EMF element references are used for source/target wiring.</p>
      *
      * @param sessionId       the session identifier for mode detection
-     * @param operations      the list of operations to execute (max 50)
+     * @param operations      the list of operations to execute (max {@value BulkOperation#MAX_OPERATIONS})
      * @param description     optional label for the compound command (undo history), may be null
      * @param continueOnError if true, failed operations are skipped and reported separately
      * @return BulkMutationResult with per-operation results (and failures when continueOnError)
@@ -1482,20 +1695,27 @@ public interface ArchiModelAccessor {
     /**
      * Renders a view to an image in the specified format.
      *
-     * <p>PNG rendering uses SWT {@code DiagramUtils.createImage()} on the Display thread.
-     * SVG rendering requires the optional {@code com.archimatetool.export.svg} bundle.</p>
+     * <p>PNG and JPG rendering use SWT {@code DiagramUtils.createImage()} on
+     * the Display thread (core SWT, no external bundle). SVG and PDF rendering
+     * require the optional {@code com.archimatetool.export.svg} bundle (the
+     * same bundle provides both formats; PDF uses Apache FOP transcoders that
+     * ship inside the bundle's {@code lib/} directory).</p>
      *
      * @param viewId          the view's unique identifier (required)
-     * @param format          output format: "png" or "svg" (required)
-     * @param scale           rendering scale factor (1.0 = 100%)
+     * @param format          output format: "png", "jpg", "svg", or "pdf" (required)
+     * @param scale           rendering scale factor (1.0 = 100%); applies to
+     *                        raster formats (PNG/JPG); vector providers (SVG/PDF)
+     *                        ignore scale because they emit resolution-independent output
+     * @param quality         JPEG encoding quality (1–100); applied only when
+     *                        {@code format} is "jpg"; silently ignored for other formats
      * @param inline          true to return image bytes, false to write to file
      * @param outputDirectory custom output directory path (null to use temp dir)
      * @return ExportResult containing metadata + optional image bytes/SVG content
      * @throws NoModelLoadedException if no model is loaded
      * @throws ModelAccessException if view not found or format not available
      */
-    ExportResult exportView(String viewId, String format, double scale, boolean inline,
-            String outputDirectory);
+    ExportResult exportView(String viewId, String format, double scale, int quality,
+            boolean inline, String outputDirectory);
 
     // ---- Command stack undo/redo (Story 11-1) ----
 

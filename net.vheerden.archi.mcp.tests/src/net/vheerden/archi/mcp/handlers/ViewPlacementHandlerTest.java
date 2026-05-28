@@ -86,7 +86,7 @@ public class ViewPlacementHandlerTest {
     // ---- Tool registration ----
 
     @Test
-    public void shouldRegisterTwentyFourTools() {
+    public void shouldRegisterTwentySixTools() {
         // Parent composed-tool story (sprint-status row 718, commit `cf170df`)
         // shipped `apply-spacing-recommendations` as the 24th registered tool
         // but did not bump this assertion — silent-failure latent because
@@ -94,7 +94,18 @@ public class ViewPlacementHandlerTest {
         // launches per the SILENT-FAILURE WARNING memory. Surfaced via direct
         // Eclipse JUnit view run from the SuccessorB.KneeGuardTextTightening
         // dev-story session 2026-05-12 PM; sweeper-cleanup applied here.
-        assertEquals(24, registry.getToolSpecifications().size());
+        // Story 14-6 (G8) bumped 24→25 with add-view-reference-to-view.
+        // Story 14-8 (G16) bumped 25→26 with add-image-to-view.
+        assertEquals(26, registry.getToolSpecifications().size());
+    }
+
+    @Test
+    public void shouldRegisterAddImageToViewTool() {
+        // Story 14-8 (G16) — add-image-to-view registered alongside the
+        // existing add-X-to-view siblings (notes / groups / view-references).
+        boolean found = registry.getToolSpecifications().stream()
+                .anyMatch(spec -> "add-image-to-view".equals(spec.tool().name()));
+        assertTrue("add-image-to-view tool should be registered", found);
     }
 
     @Test
@@ -1166,6 +1177,88 @@ public class ViewPlacementHandlerTest {
         assertNotNull("Styling params should be captured", captured);
         assertEquals("#FF0000", captured.fillColor());
         assertNull("lineColor should be null when not provided", captured.lineColor());
+    }
+
+    // ---- Story 14-1 (G4): labelExpression handler-level flow tests ----
+
+    @Test
+    public void shouldPassLabelExpression_whenUpdateViewObjectReceivesParam_AC2() throws Exception {
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewObjectId", "vo-1");
+        args.put("labelExpression", "${name}");
+
+        Map<String, Object> result = callAndParse("update-view-object", args);
+        Map<String, Object> entity = getResult(result);
+        assertNotNull("labelExpression-only update should succeed", entity);
+
+        String captured = accessor.lastUpdateViewObjectLabelExpression;
+        assertEquals("Handler must thread labelExpression to the accessor verbatim",
+                "${name}", captured);
+    }
+
+    @Test
+    public void shouldPassEmptyString_whenLabelExpressionClearRequested_AC3() throws Exception {
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewObjectId", "vo-1");
+        args.put("labelExpression", "");
+
+        callAndParse("update-view-object", args);
+
+        // Empty string is the clear semantic — must reach the accessor as "" (NOT null)
+        // so the accessor can distinguish "clear" from "no change".
+        assertEquals("", accessor.lastUpdateViewObjectLabelExpression);
+    }
+
+    @Test
+    public void shouldNotPassLabelExpression_whenAbsent_AC5() throws Exception {
+        // Reset any prior capture before the call.
+        accessor.lastUpdateViewObjectLabelExpression = "sentinel-prefilled";
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewObjectId", "vo-1");
+        args.put("x", 200);  // some other field, so the call validates
+
+        callAndParse("update-view-object", args);
+
+        assertNull("Absent labelExpression key must reach the accessor as null",
+                accessor.lastUpdateViewObjectLabelExpression);
+    }
+
+    @Test
+    public void shouldIncludeLabelExpressionProperty_inUpdateViewObjectSpec_AC10() {
+        McpServerFeatures.SyncToolSpecification spec = registry.getToolSpecifications().stream()
+                .filter(s -> "update-view-object".equals(s.tool().name()))
+                .findFirst().orElseThrow();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> props = (Map<String, Object>) spec.tool().inputSchema().properties();
+
+        assertTrue("update-view-object schema should expose labelExpression",
+                props.containsKey("labelExpression"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> labelExpressionProp = (Map<String, Object>) props.get("labelExpression");
+        assertEquals("string", labelExpressionProp.get("type"));
+        String desc = (String) labelExpressionProp.get("description");
+        assertNotNull("labelExpression must have a description", desc);
+        assertTrue("Description must mention ${name}", desc.contains("${name}"));
+        assertTrue("Description must mention ${property:KEY}",
+                desc.contains("${property:KEY}"));
+        assertTrue("Description must explain empty-string-clears semantic",
+                desc.toLowerCase().contains("empty"));
+    }
+
+    @Test
+    public void updateViewObjectToolDescription_mentionsLabelExpression_AC10() {
+        McpServerFeatures.SyncToolSpecification spec = registry.getToolSpecifications().stream()
+                .filter(s -> "update-view-object".equals(s.tool().name()))
+                .findFirst().orElseThrow();
+
+        String description = spec.tool().description();
+        assertTrue("Tool description must mention labelExpression",
+                description.contains("labelExpression"));
+        // text vs labelExpression distinction must be discoverable from the description.
+        assertTrue("Tool description must distinguish text from labelExpression",
+                description.contains("literal stored label"));
     }
 
     @Test
@@ -3858,7 +3951,7 @@ public class ViewPlacementHandlerTest {
         accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             assertEquals("terminals-only", mode);
             return new MutationResult<>(new AutoRouteResultDto(
-                    vId, 4, 0, "orthogonal", false, 0, 0, 0, 0, 7, 2, 2,
+                    vId, 4, 0, "orthogonal", false, 0, 0, 0, 0, 7, 2, 2, 0, 0,
                     List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
                     List.of()), null);
         });
@@ -3880,6 +3973,85 @@ public class ViewPlacementHandlerTest {
                         && s.contains("vetoed")));
         assertTrue("nextSteps should mention force=true escape hatch when vetoes > 0",
                 nextSteps.stream().anyMatch(s -> s.contains("force=true")));
+    }
+
+    @Test
+    public void autoRoute_terminalsOnly_shouldSurfaceInteriorVeto() throws Exception {
+        // 2 routed, 6 skipped = 1 already-orthogonal + 2 obstacle + 1 crossing + 2 interior.
+        // alreadyOrtho = skipped - obstacle - crossing - interior = 6 - 2 - 1 - 2 = 1.
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
+            assertEquals("terminals-only", mode);
+            return new MutationResult<>(new AutoRouteResultDto(
+                    vId, 2, 0, "orthogonal", false, 0, 0, 0, 0, 6, 2, 1, 2, 0,
+                    List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                    List.of()), null);
+        });
+
+        Map<String, Object> result = callAndParse("auto-route-connections",
+                Map.of("viewId", "v-1", "mode", "terminals-only"));
+
+        Map<String, Object> data = getResult(result);
+        assertEquals(6, ((Number) data.get("connectionsSkipped")).intValue());
+        assertEquals(2, ((Number) data.get("vetoedByInterior")).intValue());
+        @SuppressWarnings("unchecked")
+        List<String> nextSteps = (List<String>) result.get("nextSteps");
+        assertTrue("nextSteps should report the interior-termination veto category",
+                nextSteps.stream().anyMatch(s -> s.contains("terminate inside an element")));
+        assertTrue("nextSteps should compute alreadyOrtho net of the interior veto",
+                nextSteps.stream().anyMatch(s -> s.contains("1 already orthogonal")));
+        assertTrue("nextSteps should offer the force=true escape hatch when vetoes > 0",
+                nextSteps.stream().anyMatch(s -> s.contains("force=true")));
+    }
+
+    @Test
+    public void autoRoute_terminalsOnly_shouldSurfaceZigzagVeto() throws Exception {
+        // 5 skipped = 1 already-orthogonal + 1 obstacle + 1 crossing + 0 interior + 2 zigzag.
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
+            assertEquals("terminals-only", mode);
+            return new MutationResult<>(new AutoRouteResultDto(
+                    vId, 3, 0, "orthogonal", false, 0, 0, 0, 0, 5, 1, 1, 0, 2,
+                    List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                    List.of()), null);
+        });
+
+        Map<String, Object> result = callAndParse("auto-route-connections",
+                Map.of("viewId", "v-1", "mode", "terminals-only"));
+
+        Map<String, Object> data = getResult(result);
+        assertEquals(2, ((Number) data.get("vetoedByZigzag")).intValue());
+        @SuppressWarnings("unchecked")
+        List<String> nextSteps = (List<String>) result.get("nextSteps");
+        assertTrue("nextSteps should report the zigzag veto category",
+                nextSteps.stream().anyMatch(s -> s.contains("introduce a zigzag/reversal")));
+        assertTrue("nextSteps should compute alreadyOrtho net of all vetoes",
+                nextSteps.stream().anyMatch(s -> s.contains("1 already orthogonal")));
+        assertTrue("nextSteps should offer the force=true escape hatch",
+                nextSteps.stream().anyMatch(s -> s.contains("force=true")));
+    }
+
+    @Test
+    public void autoRoute_terminalsOnly_shouldOmitAlreadyOrthogonal_whenAllSkippedAreVetoes() throws Exception {
+        // 6 skipped = 0 already-orthogonal + 2 obstacle + 1 crossing + 3 interior + 0 zigzag.
+        // alreadyOrtho = 0 → the breakdown must omit "already orthogonal" and the first listed
+        // category (obstacle) must use a space separator, not a leading comma.
+        accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
+            assertEquals("terminals-only", mode);
+            return new MutationResult<>(new AutoRouteResultDto(
+                    vId, 0, 0, "orthogonal", false, 0, 0, 0, 0, 6, 2, 1, 3, 0,
+                    List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                    List.of()), null);
+        });
+
+        Map<String, Object> result = callAndParse("auto-route-connections",
+                Map.of("viewId", "v-1", "mode", "terminals-only"));
+
+        @SuppressWarnings("unchecked")
+        List<String> nextSteps = (List<String>) result.get("nextSteps");
+        assertTrue("First category should follow the colon with a space, not a comma",
+                nextSteps.stream().anyMatch(s ->
+                        s.contains("(terminals-only mode): 2 vetoed (L-bend would cross")));
+        assertTrue("Breakdown must omit 'already orthogonal' when none are",
+                nextSteps.stream().noneMatch(s -> s.contains("already orthogonal")));
     }
 
     @Test
@@ -3944,7 +4116,7 @@ public class ViewPlacementHandlerTest {
             assertNotNull("connectionIds filter should propagate", connIds);
             assertEquals(2, connIds.size());
             return new MutationResult<>(new AutoRouteResultDto(
-                    vId, 1, 0, "orthogonal", false, 0, 0, 0, 0, 1, 0, 0,
+                    vId, 1, 0, "orthogonal", false, 0, 0, 0, 0, 1, 0, 0, 0, 0,
                     List.of("Connection not found on view: c-bogus"),
                     List.of(), List.of(), List.of(), List.of(), List.of(),
                     List.of()), null);
@@ -4381,7 +4553,7 @@ public class ViewPlacementHandlerTest {
         accessor.setAutoConnectViewBehavior((sid, vId, elemIds, relTypes, sl, sty) -> {
             int count = (elemIds != null) ? elemIds.size() : 0;
             return new MutationResult<>(new AutoConnectResultDto(
-                    vId, count, 0, List.of("r-1")), null);
+                    vId, count, 0, List.of("r-1"), List.of()), null);
         });
 
         Map<String, Object> result = callAndParse("auto-connect-view",
@@ -4396,7 +4568,7 @@ public class ViewPlacementHandlerTest {
         accessor.setAutoConnectViewBehavior((sid, vId, elemIds, relTypes, sl, sty) -> {
             int count = (relTypes != null) ? relTypes.size() : 0;
             return new MutationResult<>(new AutoConnectResultDto(
-                    vId, count, 0, List.of("r-1")), null);
+                    vId, count, 0, List.of("r-1"), List.of()), null);
         });
 
         Map<String, Object> result = callAndParse("auto-connect-view",
@@ -4411,7 +4583,7 @@ public class ViewPlacementHandlerTest {
     public void autoConnect_shouldReturnZeroWhenNoConnections() throws Exception {
         accessor.setAutoConnectViewBehavior((sid, vId, elemIds, relTypes, sl, sty) ->
                 new MutationResult<>(new AutoConnectResultDto(
-                        vId, 0, 0, List.of()), null));
+                        vId, 0, 0, List.of(), List.of()), null));
 
         Map<String, Object> result = callAndParse("auto-connect-view",
                 Map.of("viewId", "v-1"));
@@ -4463,7 +4635,7 @@ public class ViewPlacementHandlerTest {
             assertNotNull("showLabel should be passed", (Object) sl);
             assertFalse("showLabel should be false", sl.booleanValue());
             return new MutationResult<>(new AutoConnectResultDto(
-                    vId, 2, 0, List.of("r-1", "r-2")), null);
+                    vId, 2, 0, List.of("r-1", "r-2"), List.of()), null);
         });
 
         Map<String, Object> result = callAndParse("auto-connect-view",
@@ -4479,7 +4651,7 @@ public class ViewPlacementHandlerTest {
             assertNotNull("showLabel should be passed", (Object) sl);
             assertTrue("showLabel should be true", sl.booleanValue());
             return new MutationResult<>(new AutoConnectResultDto(
-                    vId, 2, 0, List.of("r-1", "r-2")), null);
+                    vId, 2, 0, List.of("r-1", "r-2"), List.of()), null);
         });
 
         Map<String, Object> result = callAndParse("auto-connect-view",
@@ -4494,7 +4666,7 @@ public class ViewPlacementHandlerTest {
         accessor.setAutoConnectViewBehavior((sid, vId, elemIds, relTypes, sl, sty) -> {
             assertNull("showLabel should be null when omitted", (Object) sl);
             return new MutationResult<>(new AutoConnectResultDto(
-                    vId, 2, 0, List.of("r-1", "r-2")), null);
+                    vId, 2, 0, List.of("r-1", "r-2"), List.of()), null);
         });
 
         Map<String, Object> result = callAndParse("auto-connect-view",
@@ -4514,7 +4686,7 @@ public class ViewPlacementHandlerTest {
             assertEquals("#FFFFFF", sty.fontColor());
             assertEquals(Integer.valueOf(2), sty.lineWidth());
             return new MutationResult<>(new AutoConnectResultDto(
-                    vId, 3, 0, List.of("r-1", "r-2", "r-3")), null);
+                    vId, 3, 0, List.of("r-1", "r-2", "r-3"), List.of()), null);
         });
 
         Map<String, Object> args = new LinkedHashMap<>();
@@ -4533,7 +4705,7 @@ public class ViewPlacementHandlerTest {
         accessor.setAutoConnectViewBehavior((sid, vId, elemIds, relTypes, sl, sty) -> {
             assertNull("styling should be null when omitted", sty);
             return new MutationResult<>(new AutoConnectResultDto(
-                    vId, 2, 0, List.of("r-1", "r-2")), null);
+                    vId, 2, 0, List.of("r-1", "r-2"), List.of()), null);
         });
 
         Map<String, Object> result = callAndParse("auto-connect-view",
@@ -4551,7 +4723,7 @@ public class ViewPlacementHandlerTest {
             assertNull("fontColor should be null", sty.fontColor());
             assertNull("lineWidth should be null", sty.lineWidth());
             return new MutationResult<>(new AutoConnectResultDto(
-                    vId, 2, 0, List.of("r-1", "r-2")), null);
+                    vId, 2, 0, List.of("r-1", "r-2"), List.of()), null);
         });
 
         Map<String, Object> args = new LinkedHashMap<>();
@@ -4607,7 +4779,7 @@ public class ViewPlacementHandlerTest {
             assertNotNull("styling should be passed", sty);
             assertEquals("#0066CC", sty.lineColor());
             return new MutationResult<>(new AutoConnectResultDto(
-                    vId, 1, 0, List.of("r-1")), null);
+                    vId, 1, 0, List.of("r-1"), List.of()), null);
         });
 
         Map<String, Object> args = new LinkedHashMap<>();
@@ -4630,7 +4802,7 @@ public class ViewPlacementHandlerTest {
             assertNull("fontColor should be null", sty.fontColor());
             assertNull("lineWidth should be null", sty.lineWidth());
             return new MutationResult<>(new AutoConnectResultDto(
-                    vId, 2, 0, List.of("r-1", "r-2")), null);
+                    vId, 2, 0, List.of("r-1", "r-2"), List.of()), null);
         });
 
         Map<String, Object> args = new LinkedHashMap<>();
@@ -5650,6 +5822,13 @@ public class ViewPlacementHandlerTest {
                 List<BendpointDto> bendpoints, List<AbsoluteBendpointDto> absoluteBendpoints);
     }
 
+    /**
+     * Intentionally narrower than the accessor's full 10-arg signature: styling,
+     * imageParams, and labelExpression are captured into {@code last*} fields on
+     * the stub before delegating to this behavior, so existing test lambdas (using
+     * the 7-arg shape) keep working without rewrites. New per-call assertions on
+     * those trailing params read from the capture fields directly.
+     */
     @FunctionalInterface
     interface UpdateViewObjectBehavior {
         MutationResult<ViewObjectDto> apply(String sessionId, String viewObjectId,
@@ -5717,6 +5896,8 @@ public class ViewPlacementHandlerTest {
         StylingParams lastAddNoteToViewStyling;
         StylingParams lastUpdateViewConnectionStyling;
         StylingParams lastAutoConnectViewStyling;
+        // Story 14-1 (G4): capture last labelExpression param passed to update-view-object.
+        String lastUpdateViewObjectLabelExpression;
         // B55: capture last includeViolatorIds parameter
         boolean lastAssessLayoutIncludeViolatorIds;
 
@@ -5895,7 +6076,7 @@ public class ViewPlacementHandlerTest {
             };
             this.autoConnectViewBehavior = (sid, vId, elemIds, relTypes, sl, sty) ->
                     new MutationResult<>(new AutoConnectResultDto(
-                            vId, 3, 1, List.of("r-1", "r-2", "r-3")), null);
+                            vId, 3, 1, List.of("r-1", "r-2", "r-3"), List.of()), null);
             this.layoutWithinGroupBehavior = (sid, vId, gvoId, arr, sp, pad, ew, eh, ar, aw, cols, rec) ->
                     new MutationResult<>(new LayoutWithinGroupResultDto(
                             vId, gvoId, arr, 4, ar, ar ? 300 : null, ar ? 200 : null, false, aw, null, 0), null);
@@ -5985,8 +6166,10 @@ public class ViewPlacementHandlerTest {
         @Override
         public MutationResult<ViewObjectDto> updateViewObject(String sessionId,
                 String viewObjectId, Integer x, Integer y, Integer width, Integer height,
-                String text, StylingParams styling, ImageParams imageParams) {
+                String text, StylingParams styling, ImageParams imageParams,
+                String labelExpression) {
             this.lastUpdateViewObjectStyling = styling;
+            this.lastUpdateViewObjectLabelExpression = labelExpression;
             return updateViewObjectBehavior.apply(sessionId, viewObjectId, x, y, width, height,
                     text);
         }

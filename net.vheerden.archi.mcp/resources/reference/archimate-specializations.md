@@ -37,13 +37,23 @@ If you find yourself creating dozens of specializations that differ only by a nu
 | 2. Browse | `list-specializations` | Lists every specialization with `(name, conceptType, layer, usageCount)` |
 | 3. Create inline | `create-element` / `create-relationship` with `specialization` param | Auto-creates the specialization if missing, then creates the concept in one CompoundCommand |
 | 4. Update inline | `update-element` / `update-relationship` with `specialization` param | Reassigns the specialization on an existing concept. Pass empty string `""` to clear all specializations |
-| 5. Pre-register | `create-specialization` | Defines a specialization explicitly without creating any element. Idempotent — returns the existing one on duplicate |
+| 5. Pre-register | `create-specialization` | Defines a specialization explicitly without creating any element. Idempotent — returns the existing one on duplicate. Optional `imagePath` sets the icon at definition time |
 | 6. Filter | `search-elements` / `search-relationships` with `specialization` filter | Finds all concepts of a specialized type |
 | 7. Audit | `get-specialization-usage` | Lists every element and relationship referencing a specialization (call before rename or delete) |
-| 8. Rename | `update-specialization` | Renames a specialization. Refuses to merge into an existing target name |
+| 8. Rename / icon | `update-specialization` | Renames a specialization (`newName`) and/or sets its icon (`imagePath`, `clearImagePath: true`). At least one of the three must be supplied. Refuses to merge into an existing target name |
 | 9. Delete | `delete-specialization` | Refuses by default if any concept uses it. Pass `force: true` to detach and delete in one atomic command |
 
-The DTO field exposed on `ElementDto` and `RelationshipDto` is `specialization` — the *primary* specialization name only (see Multi-Profile Caveat).
+The DTO field exposed on `ElementDto` and `RelationshipDto` is `specialization` — the *primary* specialization name only (see Multi-Profile Caveat). `list-specializations` additionally returns `imagePath` for each specialization that has an icon set (omitted when no icon).
+
+### Specialization Icons
+
+A specialization can carry an icon that Archi renders on every concept of that specialization. The icon comes from the model's own image archive:
+
+1. Import the image bytes once with `add-image-to-model` (or look up an existing archive path with `list-model-images`) — the response gives you an archive `imagePath` of the form `images/<sha1>.png`.
+2. Set the icon on the specialization by passing `imagePath` to `create-specialization` (icon at definition) or `update-specialization` (set/change icon on an existing specialization).
+3. Clear the icon explicitly on an existing specialization with `update-specialization clearImagePath: true` (mutually exclusive with `imagePath`).
+
+A typo'd `imagePath` is rejected with `IMAGE_NOT_FOUND` rather than silently rendering as a broken-image placeholder.
 
 ## Common Element Specializations by Layer
 

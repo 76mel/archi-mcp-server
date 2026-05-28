@@ -20,19 +20,24 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema;
 import net.vheerden.archi.mcp.model.ArchiModelAccessor;
+import net.vheerden.archi.mcp.model.ModelAccessException;
+import net.vheerden.archi.mcp.model.MutationResult;
+import net.vheerden.archi.mcp.model.exceptions.MutationException;
 import net.vheerden.archi.mcp.model.NoModelLoadedException;
 import net.vheerden.archi.mcp.registry.CommandRegistry;
 import net.vheerden.archi.mcp.response.ErrorCode;
 import net.vheerden.archi.mcp.response.ErrorResponse;
 import net.vheerden.archi.mcp.response.FieldSelector;
 import net.vheerden.archi.mcp.response.ResponseFormatter;
+import net.vheerden.archi.mcp.response.dto.ConceptUsageDto;
 import net.vheerden.archi.mcp.response.dto.ElementDto;
 import net.vheerden.archi.mcp.response.dto.ModelInfoDto;
 import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
  * Handler for model-level query tools: get-model-info (Story 2.2),
- * get-element (Story 2.3).
+ * get-element (Story 2.3), update-model (Story 14-3 / G6),
+ * find-concept-usage (Story 14-5 / G10), list-specializations (Story C3a).
  *
  * <p>This is the first handler in the codebase and establishes the pattern
  * for all subsequent handlers (ViewHandler, SearchHandler, TraversalHandler).</p>
@@ -79,7 +84,9 @@ public class ModelQueryHandler {
      */
     public void registerTools() {
         registry.registerTool(buildGetModelInfoSpec());
+        registry.registerTool(buildUpdateModelSpec());
         registry.registerTool(buildGetElementSpec());
+        registry.registerTool(buildFindConceptUsageSpec());
         registry.registerTool(buildListSpecializationsSpec());
     }
 
@@ -566,6 +573,305 @@ public class ModelQueryHandler {
         return nextSteps;
     }
 
+    // ---- update-model tool (Story 14-3, G6) ----
+
+    private McpServerFeatures.SyncToolSpecification buildUpdateModelSpec() {
+        Map<String, Object> nameProp = new LinkedHashMap<>();
+        nameProp.put("type", "string");
+        nameProp.put("description",
+                "New display name for the model (omit to leave unchanged). "
+                + "Reject empty string — provide a non-empty name or omit the parameter. "
+                + "Example: \"Acme Bank EA — v2\".");
+
+        Map<String, Object> purposeProp = new LinkedHashMap<>();
+        purposeProp.put("type", "string");
+        purposeProp.put("description",
+                "New purpose / free-text description for the model (omit to leave unchanged). "
+                + "Set to empty string to clear the purpose. This IS the model-level free-text "
+                + "field Archi exposes — there is no separate model-level documentation field "
+                + "in Archi 5.7/5.8. "
+                + "Example: \"Strategic enterprise architecture for retail bank XYZ — Q3 2026 cut\".");
+
+        Map<String, Object> propertiesValueSchema = new LinkedHashMap<>();
+        propertiesValueSchema.put("type", "string");
+        propertiesValueSchema.put("nullable", true);
+        Map<String, Object> propertiesProp = new LinkedHashMap<>();
+        propertiesProp.put("type", "object");
+        propertiesProp.put("description",
+                "Custom model-level properties to add, update, or remove. Set value to a string "
+                + "to add/update, set value to null to remove the property key. Omit to leave "
+                + "properties unchanged. "
+                + "Example: {\"Author\": \"Jane Doe\", \"Tag\": \"draft\", \"ApprovedBy\": null}.");
+        propertiesProp.put("additionalProperties", propertiesValueSchema);
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("name", nameProp);
+        properties.put("purpose", purposeProp);
+        properties.put("properties", propertiesProp);
+
+        // No required schema-level fields — at least one must be provided, enforced at boundary
+        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
+                "object", properties, null, null, null, null);
+
+        McpSchema.Tool tool = McpSchema.Tool.builder()
+                .name("update-model")
+                .description("[Mutation] Update the loaded ArchiMate model's own metadata — "
+                        + "name, purpose, and custom properties. At least one of name, purpose, "
+                        + "or properties must be provided. Optional: name (new display name, "
+                        + "rejected if empty), purpose (new free-text description, or empty "
+                        + "string to clear), properties (object with key-value pairs; set value "
+                        + "to null to remove a property). Only provided fields are modified; "
+                        + "omitted fields remain unchanged. The model's free-text field IS the "
+                        + "purpose — Archi 5.7/5.8 has no separate model-level documentation API; "
+                        + "set the purpose field for descriptive model context. If a property "
+                        + "key appears multiple times on the model, only the first occurrence "
+                        + "is updated, and the response DTO may show the last value for that key "
+                        + "(mirrors update-view's multi-key warning). "
+                        + "Related: get-model-info (read counterpart — includes name, purpose, "
+                        + "properties plus element/relationship counts and distributions).")
+                .inputSchema(inputSchema)
+                .build();
+
+        return McpServerFeatures.SyncToolSpecification.builder()
+                .tool(tool)
+                .callHandler(this::handleUpdateModel)
+                .build();
+    }
+
+    McpSchema.CallToolResult handleUpdateModel(
+            McpSyncServerExchange exchange, McpSchema.CallToolRequest request) {
+        logger.info("Handling update-model request");
+        try {
+            HandlerUtils.requireModelLoaded(accessor);
+            String sessionId = HandlerUtils.extractSessionId(sessionManager, exchange);
+
+            Map<String, Object> args = request.arguments();
+            // optionalStringParam (HandlerUtils:70) returns null for absent/JSON-null AND for
+            // blank/empty strings (`!str.isBlank()` filter). For BOTH `name` and `purpose` we
+            // need to preserve "" so the accessor can:
+            //   - name="" → reject with AC8's "Model name must not be empty." (not the wrong
+            //     "No fields to update" cascade from a null name);
+            //   - purpose="" → trigger the AC4 clearPurpose flag (mirrors `clearViewpoint`).
+            // The explicit empty-string guards below restore "" after the helper strips it.
+            // Empirically verified in the 14-3 empirical run (2026-05-26).
+            String name = HandlerUtils.optionalStringParam(args, "name");
+            String purpose = HandlerUtils.optionalStringParam(args, "purpose");
+            Map<String, String> props = HandlerUtils.optionalMapParamWithNulls(args, "properties");
+
+            // Name empty-string preservation: pass "" through so the accessor's AC8 guard
+            // rejects it with the right error message.
+            if (args != null && args.containsKey("name") && "".equals(args.get("name"))) {
+                name = "";
+            }
+
+            // Purpose clear semantics: empty string means "clear purpose".
+            // Cross-ref: same logic in ArchiModelAccessorImpl.prepareBulkOperation("update-model")
+            // and ArchiModelAccessorImpl.prepareUpdateModel() which converts "" to clearPurpose=true.
+            if (args != null && args.containsKey("purpose") && "".equals(args.get("purpose"))) {
+                purpose = "";
+            }
+
+            MutationResult<ModelInfoDto> result = accessor.updateModel(sessionId, name, purpose, props);
+
+            return HandlerUtils.formatMutationResponse(result.entity(), result,
+                    buildUpdateModelNextSteps(result), accessor, formatter);
+
+        } catch (NoModelLoadedException e) {
+            return HandlerUtils.buildModelNotLoadedError(formatter, e);
+        } catch (ModelAccessException e) {
+            return HandlerUtils.buildModelAccessError(formatter, e);
+        } catch (MutationException e) {
+            return HandlerUtils.buildMutationError(formatter, e);
+        } catch (Exception e) {
+            logger.error("Unexpected error handling update-model", e);
+            return HandlerUtils.buildInternalError(formatter,
+                    "An unexpected error occurred while updating model metadata");
+        }
+    }
+
+    private List<String> buildUpdateModelNextSteps(MutationResult<ModelInfoDto> result) {
+        if (result.isBatched()) {
+            return List.of(
+                    "Mutation queued as operation #" + result.batchSequenceNumber() + " in current batch",
+                    "Use get-batch-status to check batch progress",
+                    "Use end-batch to commit all queued mutations");
+        }
+        return List.of(
+                "Use get-model-info to see the updated model metadata",
+                "Use get-views or search-elements to continue authoring the model");
+    }
+
+    // ---- find-concept-usage tool (Story 14-5 / G10) ----
+
+    private McpServerFeatures.SyncToolSpecification buildFindConceptUsageSpec() {
+        Map<String, Object> conceptIdProp = new LinkedHashMap<>();
+        conceptIdProp.put("type", "string");
+        conceptIdProp.put("description",
+                "The ID of an ArchiMate element or relationship to look up. "
+                + "Accepts BOTH element IDs and relationship IDs. "
+                + "Get IDs from search-elements, search-relationships, get-element, "
+                + "or get-view-contents.");
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("conceptId", conceptIdProp);
+
+        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
+                "object", properties, List.of("conceptId"), null, null, null);
+
+        McpSchema.Tool tool = McpSchema.Tool.builder()
+                .name("find-concept-usage")
+                .description("[Query] Reverse where-used lookup: given an element or "
+                        + "relationship ID, returns every view and visual object/connection "
+                        + "that references the concept across the entire model — the inverse "
+                        + "of get-view-contents. The response groups placements by view; each "
+                        + "view carries a list of visualObjects (kind=object for element "
+                        + "placements, kind=connection for relationship lines). "
+                        + "viewReferenceCount counts distinct views; visualReferenceCount counts "
+                        + "total placements (a concept placed twice on one view counts twice). "
+                        + "Views are ordered by viewName ascending (viewId tiebreaker); "
+                        + "visualObjects within a view are ordered by viewObjectId ascending. "
+                        + "Primary use case: impact analysis BEFORE delete-element / "
+                        + "delete-relationship / rename / re-type — see every visual reference "
+                        + "in one round-trip. "
+                        + "The embeddingViewReferences field is reserved for future view-reference "
+                        + "embedding metadata; null today. "
+                        + "Related: get-element (concept details), get-relationships "
+                        + "(relationship-chain reachability — orthogonal axis), get-view-contents "
+                        + "(forward view->contents lookup), delete-element, "
+                        + "get-specialization-usage (sibling where-used at specialization-class level).")
+                .inputSchema(inputSchema)
+                .build();
+
+        return McpServerFeatures.SyncToolSpecification.builder()
+                .tool(tool)
+                .callHandler(this::handleFindConceptUsage)
+                .build();
+    }
+
+    private McpSchema.CallToolResult handleFindConceptUsage(
+            McpSyncServerExchange exchange, McpSchema.CallToolRequest request) {
+        logger.info("Handling find-concept-usage request");
+        try {
+            Map<String, Object> args = request.arguments();
+            Object idObj = (args != null) ? args.get("conceptId") : null;
+            if (!(idObj instanceof String conceptId) || conceptId.isBlank()) {
+                ErrorResponse error = new ErrorResponse(
+                        ErrorCode.INVALID_PARAMETER,
+                        "The 'conceptId' parameter is required and must be a non-empty string",
+                        null,
+                        "Provide a valid element or relationship ID. "
+                                + "Use search-elements or search-relationships to find IDs.",
+                        null);
+                return buildResult(formatter.toJsonString(formatter.formatError(error)), true);
+            }
+
+            Optional<ConceptUsageDto> usage = accessor.findConceptUsage(conceptId);
+
+            if (usage.isEmpty()) {
+                // Disambiguate not-found vs not-a-concept (folder/view ID) per AC3.
+                // The accessor returns Optional.empty() for both cases; a second
+                // ID lookup tells us which one it was so we can return the right
+                // error envelope to the LLM.
+                String otherType = resolveNonConceptType(conceptId);
+                if (otherType != null) {
+                    ErrorResponse error = new ErrorResponse(
+                            ErrorCode.INVALID_PARAMETER,
+                            "The ID '" + conceptId + "' refers to a " + otherType
+                                    + ", not an ArchiMate element or relationship. "
+                                    + "find-concept-usage accepts only element or relationship IDs.",
+                            null,
+                            "Use get-views for view-level information or get-folder-tree "
+                                    + "for folder structure.",
+                            null);
+                    return buildResult(formatter.toJsonString(formatter.formatError(error)), true);
+                }
+                ErrorResponse error = new ErrorResponse(
+                        ErrorCode.ELEMENT_NOT_FOUND,
+                        "No element or relationship found with ID: " + conceptId,
+                        null,
+                        "Use search-elements / search-relationships / get-views to discover valid IDs.",
+                        null);
+                return buildResult(formatter.toJsonString(formatter.formatError(error)), true);
+            }
+
+            ConceptUsageDto dto = usage.get();
+            List<String> nextSteps = buildFindConceptUsageNextSteps(dto);
+            String modelVersion = accessor.getModelVersion();
+            Map<String, Object> envelope = formatter.formatSuccess(
+                    dto, nextSteps, modelVersion, 1, 1, false);
+            return buildResult(formatter.toJsonString(envelope), false);
+
+        } catch (NoModelLoadedException e) {
+            ErrorResponse error = new ErrorResponse(
+                    ErrorCode.MODEL_NOT_LOADED, e.getMessage(), null,
+                    "Open an ArchiMate model in ArchimateTool", null);
+            return buildResult(formatter.toJsonString(formatter.formatError(error)), true);
+        } catch (Exception e) {
+            logger.error("Unexpected error handling find-concept-usage", e);
+            ErrorResponse error = new ErrorResponse(
+                    ErrorCode.INTERNAL_ERROR,
+                    "An unexpected error occurred while finding concept usage");
+            return buildResult(formatter.toJsonString(formatter.formatError(error)), true);
+        }
+    }
+
+    /**
+     * Resolves a non-concept ID to a human-readable type label for the AC3
+     * "wrong type" error envelope. Returns null if the ID does not match any
+     * known model object (true not-found case).
+     */
+    private String resolveNonConceptType(String id) {
+        // NoModelLoadedException is not caught here — the outer handler catches it
+        // and emits the correct MODEL_NOT_LOADED envelope. Catching it locally would
+        // mask the real cause and produce a misleading ELEMENT_NOT_FOUND response.
+        // Other exceptions are best-effort silenced — disambiguation is a UX nicety,
+        // not a correctness requirement (the fallback ELEMENT_NOT_FOUND is always sound).
+        try {
+            if (accessor.getViews(null).stream().anyMatch(v -> id.equals(v.id()))) {
+                return "view";
+            }
+        } catch (NoModelLoadedException e) {
+            throw e;
+        } catch (Exception ignored) {
+            // Fall through — best-effort disambiguation only
+        }
+        try {
+            if (accessor.getFolderById(id).isPresent()) {
+                return "folder";
+            }
+        } catch (NoModelLoadedException e) {
+            throw e;
+        } catch (Exception ignored) {
+            // Fall through
+        }
+        return null;
+    }
+
+    private List<String> buildFindConceptUsageNextSteps(ConceptUsageDto dto) {
+        int count = dto.viewReferenceCount();
+        if (count == 0) {
+            return List.of(
+                    "Concept exists but has no visual references — safe to delete-element/"
+                            + "delete-relationship without affecting any view",
+                    "Use get-relationships to check for relationship-chain dependencies before deleting",
+                    "Use search-elements / search-relationships to find similar concepts that "
+                            + "might be intended substitutes");
+        }
+        if (count == 1) {
+            String viewName = dto.viewReferences().get(0).viewName();
+            return List.of(
+                    "Concept appears on 1 view (" + viewName + ") — review impact before deleting",
+                    "Use get-view-contents on that view to see surrounding context",
+                    "Use remove-from-view to detach from this view without deleting the concept",
+                    "Use delete-element to remove the concept (cascades to remove from this view)");
+        }
+        return List.of(
+                "Concept appears on " + count + " views — delete-element will cascade to ALL views; "
+                        + "use remove-from-view per view if scoped removal is intended",
+                "Use get-view-contents on each view in viewReferences to see surrounding context",
+                "Use get-relationships to check for relationship-chain dependencies before deleting");
+    }
+
     // ---- list-specializations tool (Story C3a) ----
 
     private McpServerFeatures.SyncToolSpecification buildListSpecializationsSpec() {
@@ -591,15 +897,18 @@ public class ModelQueryHandler {
                 .description("[Query] List all specialization (profile) definitions in the model. "
                         + "Returns each specialization's name, applicable concept type, "
                         + "concept type layer, and usage count (how many elements/relationships "
-                        + "reference it). Use the optional conceptType filter to narrow results. "
+                        + "reference it). Each entry includes imagePath (the archive path of "
+                        + "the specialization's icon, omitted when no icon is set). "
+                        + "Use the optional conceptType filter to narrow results. "
                         + "Specializations are IS-A subtypes of ArchiMate concepts — e.g., "
                         + "a Node specialized as 'Cloud Server' inherits all Node relationships "
                         + "but adds domain-specific semantics. "
-                        + "Related: create-specialization (define new), update-specialization "
-                        + "(rename), delete-specialization (remove), get-specialization-usage "
-                        + "(audit usage), search-elements (filter by specialization), "
-                        + "get-element (see specialization field), create-element with inline "
-                        + "specialization param (auto-create profile + element in one step).")
+                        + "Related: create-specialization (define new — now accepts imagePath), "
+                        + "update-specialization (rename / set/clear icon), delete-specialization "
+                        + "(remove), get-specialization-usage (audit usage), search-elements "
+                        + "(filter by specialization), get-element (see specialization field), "
+                        + "create-element with inline specialization param (auto-create profile "
+                        + "+ element in one step), add-image-to-model (import icon bytes).")
                 .inputSchema(inputSchema)
                 .build();
 

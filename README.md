@@ -6,7 +6,7 @@ An Eclipse PDE plugin for [Archi](https://www.archimatetool.com/) that exposes A
 
 Archi MCP Server embeds an HTTP server inside Archi that speaks MCP. Once running, any MCP-compatible LLM client (Claude, Cline, LM Studio, etc.) can connect and interact with the currently open ArchiMate model — asking questions, searching elements, traversing relationships, composing view diagrams, and even creating or modifying model content.
 
-The server provides **69 MCP tools** across querying, searching, creating, layout, routing, assessment, batch operations, images, specializations, and more — plus **14 MCP resources** with ArchiMate reference material, workflow guides, and a viewpoint recipe library for LLMs.
+The server provides **72 MCP tools** across querying, searching, creating, layout, routing, assessment, batch operations, images, specializations, and more — plus **14 MCP resources** with ArchiMate reference material, workflow guides, and a viewpoint recipe library for LLMs.
 
 **Example conversation:**
 
@@ -138,17 +138,18 @@ Clients must trust the self-signed certificate. For `curl` testing, use the `-k`
 
 ## Available Tools
 
-The server exposes **69 MCP tools** organised into functional categories.
+The server exposes **72 MCP tools** organised into functional categories.
 
-### Query & Model Inspection (5 tools)
+### Query & Model Inspection (6 tools)
 
 | Tool | Description |
 |---|---|
-| `get-model-info` | Model overview — name, purpose, element/relationship/view counts by type and layer, plus specialization count |
+| `get-model-info` | Model overview — name, `purpose`, custom `properties`, element/relationship/view counts by type and layer, plus specialization count. Read counterpart to `update-model` |
 | `get-element` | Retrieve element(s) by ID (single via `id` or batch via `ids` array) |
 | `get-views` | List views with optional viewpoint type or name filtering |
-| `get-view-contents` | View diagram contents — elements, relationships, visual positions, connection routing |
+| `get-view-contents` | View diagram contents — elements, relationships, visual positions, connection routing, image visuals |
 | `get-relationships` | Traverse relationships with configurable depth (0-3 hops) or multi-hop chain traversal with direction/type/layer filters |
+| `find-concept-usage` | Reverse where-used lookup — given an element or relationship ID, returns every view and visual object/connection that references it. Inverse of `get-view-contents`. Use before `delete-element` / `delete-relationship` / rename / re-type to see the cross-view footprint in one round-trip |
 
 ### Search & Discovery (4 tools)
 
@@ -164,17 +165,18 @@ The server exposes **69 MCP tools** organised into functional categories.
 | Tool | Description |
 |---|---|
 | `create-element` | Create an ArchiMate element with type validation and duplicate detection. Optional `specialization` parameter auto-creates the specialization on first use |
-| `create-relationship` | Create a relationship with ArchiMate specification rule enforcement. Optional `specialization` parameter auto-creates the specialization on first use |
+| `create-relationship` | Create a relationship with ArchiMate specification rule enforcement. Optional `specialization` parameter auto-creates the specialization on first use. Optional type-conditional semantic attributes: `accessType` (AccessRelationship), `associationDirected` (AssociationRelationship), `influenceStrength` (InfluenceRelationship) |
 | `create-view` | Create a new diagram view with optional viewpoint and connection router type |
 | `clone-view` | Duplicate an existing view with all visual contents (elements, groups, notes, connections, bendpoints, styling). The clone references the same model objects |
 
-### Element, Relationship & View Updates (3 tools)
+### Element, Relationship, View & Model Updates (4 tools)
 
 | Tool | Description |
 |---|---|
 | `update-element` | Update element name, documentation, properties, or `specialization` (pass `""` to clear) |
-| `update-relationship` | Update relationship name, documentation, properties, or `specialization` (pass `""` to clear). Source, target, and type are immutable |
+| `update-relationship` | Update relationship name, documentation, properties, or `specialization` (pass `""` to clear). Optional type-conditional semantic attributes: `accessType` (AccessRelationship), `associationDirected` (AssociationRelationship), `influenceStrength` (InfluenceRelationship). Source, target, and type are immutable |
 | `update-view` | Update view name, viewpoint, documentation, properties, or connection router type |
+| `update-model` | Update the loaded model's own `name`, `purpose`, and custom `properties` as a single undo unit. At least one of the three must be provided; omitted fields stay unchanged. Empty-string `purpose` clears the field; null property values remove a key |
 
 ### ArchiMate Specializations (5 tools)
 
@@ -182,21 +184,25 @@ Specializations are IS-A subtypes of ArchiMate concept types (e.g. "Microservice
 
 | Tool | Description |
 |---|---|
-| `list-specializations` | List every specialization defined on the model with `(name, conceptType, layer, usageCount)`. Optional `conceptType` filter |
-| `create-specialization` | Define a specialization explicitly without creating any element. Idempotent on duplicate `(name, conceptType)` — useful for pre-registering vocabulary at session start |
-| `update-specialization` | Rename a specialization. Refuses to merge into an existing target name. Existing references move with the rename |
+| `list-specializations` | List every specialization defined on the model with `(name, conceptType, layer, usageCount, imagePath)`. Optional `conceptType` filter |
+| `create-specialization` | Define a specialization explicitly without creating any element. Idempotent on duplicate `(name, conceptType)` — useful for pre-registering vocabulary at session start. Optional `imagePath` sets the specialization's icon (Archi renders it on every concept of that specialization) |
+| `update-specialization` | Rename a specialization and/or set its icon. Refuses to merge into an existing target name. Existing references move with the rename. Optional `imagePath` (set/change icon) and `clearImagePath: true` (explicit clear) — mutually exclusive. At least one of `newName`, `imagePath`, or `clearImagePath` must be supplied |
 | `delete-specialization` | Delete a specialization. Refuses by default if any concept uses it; pass `force: true` to detach references and delete in one atomic command |
 | `get-specialization-usage` | Audit query — lists every element and relationship referencing a specialization. Call before rename or delete |
 
-### View Composition (7 tools)
+### View Composition (9 tools)
+
+All view-composition tools that place a new visual object (`add-to-view`, `add-group-to-view`, `add-note-to-view`, `add-view-reference-to-view`, `add-image-to-view`) and `update-view-object` accept the full visual styling surface: fill / line / font colour, opacity, line width, line style (`solid` / `dashed` / `dotted` / `none`), typography (`fontName`, `fontSize`, `fontStyle`), gradient, `deriveLineColor`, `outlineOpacity`, `figureType` (`rectangular` / `tabbed`), `textAlignment`, `verticalTextAlignment`, plus note-specific `borderType` (`dogear` / `rectangle` / `none`). Existing calls are byte-identical; supply only the fields you want to set.
 
 | Tool | Description |
 |---|---|
-| `add-to-view` | Place a model element onto a view diagram (same element can appear on multiple views). Optional `imagePath`, `imagePosition`, and `showIcon` for custom images |
-| `add-group-to-view` | Add a visual grouping rectangle (pure visual container, no model representation). Optional `imagePath`, `imagePosition`, and `showIcon` for custom images |
-| `add-note-to-view` | Add a text note annotation (pure visual, no model representation). Optional `imagePath`, `imagePosition`, and `showIcon` for custom images |
+| `add-to-view` | Place a model element onto a view diagram (same element can appear on multiple views). Optional `imagePath`, `imagePosition`, `showIcon` for custom icon overlays, and `labelExpression` for a per-view-object dynamic label template (e.g. `"${name}"`, `"${property:Owner}"`) |
+| `add-group-to-view` | Add a visual grouping rectangle (pure visual container, no model representation). Optional `imagePath`, `imagePosition`, and `showIcon` for custom icon overlays |
+| `add-note-to-view` | Add a text note annotation (pure visual, no model representation). Optional `imagePath`, `imagePosition`, `showIcon`, and note-specific `borderType` |
+| `add-view-reference-to-view` | Embed another ArchiMate view as a clickable thumbnail (the agent-driven equivalent of Archi GUI's drag-view-onto-view). Requires `viewId` (target) and `referencedViewId` (source). The referenced view's name is not stored on the visual — renaming the referenced view auto-updates every embedding |
+| `add-image-to-view` | Add a standalone image as a first-class diagram node (sibling to notes, groups, and view-references). Requires `viewId` and an `imagePath` returned by `add-image-to-model` or `list-model-images`. Default size is the image's natural dimensions; typo'd paths are rejected with `IMAGE_NOT_FOUND`. Distinct from `update-view-object`'s `imagePath`, which sets an icon overlay on an existing element |
 | `add-connection-to-view` | Add a visual connection representing an existing model relationship, with optional styling, label suppression, and label positioning |
-| `update-view-object` | Update position, size, styling, and/or image of a visual element on a view. Optional `imagePath`, `imagePosition`, and `showIcon` for custom images |
+| `update-view-object` | Update position, size, styling, image, and/or `labelExpression` of a visual element on a view |
 | `update-view-connection` | Replace bendpoints, update styling, toggle label visibility, and/or set label position of a connection on a view |
 | `apply-positions` | Apply a complete visual layout atomically (up to 10,000 entries per call) |
 
@@ -264,7 +270,7 @@ Specializations are IS-A subtypes of ArchiMate concept types (e.g. "Microservice
 
 | Tool | Description |
 |---|---|
-| `export-view` | Render a view as PNG or SVG — returned inline (base64) or written to file. Optional `outputDirectory` to control where files are saved (auto-creates directories; defaults to temp) |
+| `export-view` | Render a view as PNG, JPG, SVG, or PDF — returned inline (base64 / blob) or written to file. Optional `quality` (1–100, default 90) for JPEG encoding; ignored for other formats. Vector formats (SVG, PDF) leave `width`/`height` unset because they are resolution-independent. Optional `outputDirectory` controls where files are saved (auto-creates directories; defaults to temp). SVG and PDF require the `com.archimatetool.export.svg` bundle that ships with Archi 5.7+ |
 
 ### Images (2 tools)
 

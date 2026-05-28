@@ -13,6 +13,9 @@ This document describes how the ArchiMate MCP Server handles model mutations, in
 - [Batch Mode](#batch-mode)
 - [Bulk Mutate](#bulk-mutate)
 - [Inline Specialization Parameter](#inline-specialization-parameter)
+- [Specialization Icons](#specialization-icons)
+- [Relationship Semantic Attributes](#relationship-semantic-attributes)
+- [Model Metadata Mutation](#model-metadata-mutation)
 - [Error Handling](#error-handling)
 
 ## Mutation Flow Overview
@@ -235,7 +238,7 @@ The `bulk-mutate` tool executes multiple mutations in a single request.
 
 ### Supported Operations
 
-22 tools are supported in bulk: create, update, view placement, folder, and deletion tools. Query tools, undo/redo, approval tools, and session tools are not supported.
+27 tools are supported in bulk: create, update, view placement (including `add-view-reference-to-view` and `add-image-to-view`), `update-model`, folder, deletion, and specialization tools. Query tools, undo/redo, approval tools, and session tools are not supported. The full list is maintained as `BulkOperation.SUPPORTED_TOOLS_ORDERED` — both the tool description and the operations-array parameter description derive from this single source of truth.
 
 ### Back-Reference Syntax
 
@@ -244,9 +247,9 @@ Operations can reference results from earlier operations using `$N.id`:
 ```json
 {
   "operations": [
-    {"tool": "create-element", "args": {"type": "ApplicationComponent", "name": "Service A"}},
-    {"tool": "create-element", "args": {"type": "ApplicationComponent", "name": "Service B"}},
-    {"tool": "create-relationship", "args": {
+    {"tool": "create-element", "params": {"type": "ApplicationComponent", "name": "Service A"}},
+    {"tool": "create-element", "params": {"type": "ApplicationComponent", "name": "Service B"}},
+    {"tool": "create-relationship", "params": {
       "type": "ServingRelationship",
       "sourceId": "$0.id",
       "targetId": "$1.id"
@@ -337,10 +340,10 @@ A specialization is identified by `(name, conceptType)` — the same name on a d
 ```json
 {
   "operations": [
-    {"tool": "create-specialization", "args": {"name": "Microservice", "conceptType": "ApplicationComponent"}},
-    {"tool": "create-specialization", "args": {"name": "API Gateway", "conceptType": "ApplicationComponent"}},
-    {"tool": "create-element", "args": {"type": "ApplicationComponent", "name": "Order Service", "specialization": "Microservice"}},
-    {"tool": "create-element", "args": {"type": "ApplicationComponent", "name": "Public API Edge", "specialization": "API Gateway"}}
+    {"tool": "create-specialization", "params": {"name": "Microservice", "conceptType": "ApplicationComponent"}},
+    {"tool": "create-specialization", "params": {"name": "API Gateway", "conceptType": "ApplicationComponent"}},
+    {"tool": "create-element", "params": {"type": "ApplicationComponent", "name": "Order Service", "specialization": "Microservice"}},
+    {"tool": "create-element", "params": {"type": "ApplicationComponent", "name": "Public API Edge", "specialization": "API Gateway"}}
   ]
 }
 ```
@@ -352,6 +355,62 @@ A specialization is identified by `(name, conceptType)` — the same name on a d
 A concept can technically carry more than one specialization in the underlying EMF model, but the inline `specialization` parameter reads and writes only the **primary** (first) specialization. The `specialization` field on `ElementDto` and `RelationshipDto` exposes the same primary value. For multi-faceted classification, prefer multiple specializations on different relationships, or use properties.
 
 **Source:** `model/CreateProfileCommand.java`, `model/UpdateProfileCommand.java`, `model/DeleteProfileCommand.java`, `model/ApplySpecializationCommand.java`, `model/ClearSpecializationCommand.java`, `handlers/SpecializationHandler.java`
+
+## Specialization Icons
+
+`create-specialization` and `update-specialization` accept an optional `imagePath` parameter that ties an image stored in the model's archive to the specialization. Archi renders the named image as the specialization's icon on every element or relationship of that specialization.
+
+| Tool | Parameter | Semantics |
+|------|-----------|-----------|
+| `create-specialization` | `imagePath` (optional) | Set the icon at definition time. Idempotent re-creation by `(name, conceptType)` returns the existing specialization unchanged (no icon swap on duplicate) |
+| `update-specialization` | `imagePath` (optional) | Set or change the icon on an existing specialization |
+| `update-specialization` | `clearImagePath: true` (optional) | Explicitly clear the icon. Mutually exclusive with `imagePath` |
+
+`update-specialization` relaxed `newName` from required to optional in v1.5 — at least one of `newName`, `imagePath`, or `clearImagePath` must be supplied. Supplying `imagePath` and `clearImagePath` together is rejected with `INVALID_PARAMETER`.
+
+The `imagePath` value is the archive path returned by `add-image-to-model` (e.g. `images/<sha1>.png`) or surfaced by `list-model-images`. A typo'd path is rejected with `IMAGE_NOT_FOUND` — a deliberate deviation from the validation-sync principle, since Archi's GUI silently renders a broken-image placeholder rather than surfacing the failure.
+
+Under the hood, `UpdateProfileCommand` snapshots `oldName` and `oldImagePath` on execute and restores both on undo. The image-path apply is idempotence-guarded (same-value sets are no-ops) to avoid spurious model-dirty notifications.
+
+`list-specializations` returns each specialization's `imagePath` field (omitted when no icon is set), so an agent can audit the icon vocabulary without a separate call.
+
+**Source:** `model/UpdateProfileCommand.java`, `handlers/SpecializationHandler.java`
+
+## Relationship Semantic Attributes
+
+`create-relationship` and `update-relationship` accept three additive, type-conditional optional parameters for ArchiMate's relationship-subtype semantics. Each applies only to one relationship subtype; supplying a parameter on the wrong subtype is rejected at the prepare boundary with `INVALID_PARAMETER` and a `suggestedCorrection` naming the valid type.
+
+| Parameter | Applies To | Type | Semantics |
+|-----------|-----------|------|-----------|
+| `accessType` | `AccessRelationship` | enum (`"access"` / `"read"` / `"write"` / `"readwrite"`) | `"access"` is unspecified (the default). The enum is closed; empty-string `accessType` is rejected — use `"access"` to set back to unspecified |
+| `associationDirected` | `AssociationRelationship` | boolean | `true` renders an arrowhead; `false` (default) renders an undirected line |
+| `influenceStrength` | `InfluenceRelationship` | string (max 255 chars) | Free text qualifier (e.g. `"+"`, `"++"`, `"-"`, `"--"`, or any convention you prefer). Empty string clears the field |
+
+`RelationshipDto` carries the three fields under `@JsonInclude(NON_NULL)` — they populate only when the relationship is the matching subtype, so JSON shapes for relationships of any other type are unchanged. Every read surface (`get-relationships`, `search-relationships`, `get-view-contents`, `find-concept-usage`) inherits the fields automatically through the single DTO conversion path.
+
+`UpdateRelationshipCommand` snapshots the previous values of all three fields on execute and restores them on undo for full Cmd+Z fidelity. The apply path is idempotence-guarded to avoid spurious change notifications when a value matches the existing one.
+
+**Source:** `model/UpdateRelationshipCommand.java`, `response/dto/RelationshipSemanticAttributes.java`, `response/dto/RelationshipDto.java`, `handlers/ElementCreationHandler.java`, `handlers/ElementUpdateHandler.java`
+
+## Model Metadata Mutation
+
+`update-model` is the write counterpart to `get-model-info` — it sets the loaded model's own `name`, `purpose`, and custom `properties` as a single undo unit. The shape mirrors `update-view`.
+
+| Parameter | Required | Semantics |
+|-----------|----------|-----------|
+| `name` | Optional | New display name. Empty string is rejected (provide a non-empty name or omit the parameter) |
+| `purpose` | Optional | New free-text description. Empty string clears the field |
+| `properties` | Optional | Object of key→value pairs; `null` value removes a key. Omit the parameter entirely to leave properties unchanged |
+
+At least one of the three must be provided; omitted parameters stay unchanged.
+
+`IArchimateModel` in Archi 5.7/5.8 does not extend `IDocumentable` — there is no separate model-level `documentation` field. `purpose` IS the model-level free-text field Archi exposes.
+
+`get-model-info` gained read-side parity for the same fields: its response now carries `purpose` and `properties` alongside the existing counts and distributions. Default-state models (no purpose, no properties) see byte-identical responses because the new fields are omitted under `@JsonInclude(NON_NULL)`.
+
+`bulk-mutate` accepts `update-model`. If a property key appears multiple times on the model, only the first occurrence is updated; the response DTO may report the last value for that key, mirroring `update-view`'s multi-key behaviour.
+
+**Source:** `model/UpdateModelCommand.java`, `response/dto/ModelInfoDto.java`, `handlers/ModelQueryHandler.java`
 
 ## Error Handling
 
@@ -383,6 +442,7 @@ A concept can technically carry more than one specialization in the underlying E
 | `BULK_VALIDATION_FAILED` | Pre-validation failed for bulk operation |
 | `INVALID_PARAMETER` | Parameter validation failure |
 | `MODEL_NOT_LOADED` | No ArchiMate model open |
+| `IMAGE_NOT_FOUND` | Supplied `imagePath` does not resolve to bytes in the model archive (`add-image-to-view`, `create-specialization` / `update-specialization` icon path) |
 
 ### Validation Sync Principle
 

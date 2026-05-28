@@ -20,11 +20,15 @@ import net.vheerden.archi.mcp.registry.CommandRegistry;
 import net.vheerden.archi.mcp.response.ResponseFormatter;
 
 /**
- * Handler for view rendering/export tools: export-view (Story 8-1).
+ * Handler for view rendering/export tools: export-view (Story 8-1; extended
+ * for PDF + JPG + SVG fix in Story 14-4).
  *
- * <p>Renders ArchiMate views as images (PNG/SVG) and returns them either
- * inline (as MCP {@link McpSchema.ImageContent} or {@link McpSchema.TextContent})
- * or written to a file.</p>
+ * <p>Renders ArchiMate views as PNG, JPG, SVG, or PDF and returns them either
+ * inline (as MCP {@link McpSchema.ImageContent} for raster formats,
+ * {@link McpSchema.TextContent} for SVG, or {@link McpSchema.EmbeddedResource}
+ * wrapping {@link McpSchema.BlobResourceContents} for PDF) or written to a
+ * file. SVG and PDF require the optional {@code com.archimatetool.export.svg}
+ * bundle (declared {@code resolution:=optional} in MANIFEST.MF).</p>
  *
  * <p><strong>Architecture boundary:</strong> This class MUST NOT import any
  * EMF, SWT, GEF, or ArchimateTool model types. All rendering is performed
@@ -70,22 +74,38 @@ public class RenderHandler {
         Map<String, Object> formatProp = new LinkedHashMap<>();
         formatProp.put("type", "string");
         formatProp.put("description",
-                "Output format: 'png' (always available) or 'svg' "
-                        + "(requires optional SVG export plugin). Default: 'png'");
-        formatProp.put("enum", List.of("png", "svg"));
+                "Output format: 'png' (lossless raster, default — ideal for LLM "
+                        + "vision review), 'jpg' (lossy raster, smaller files; alias "
+                        + "'jpeg' is accepted), 'svg' (vector text, scales infinitely), "
+                        + "or 'pdf' (vector, print-ready). SVG and PDF require the "
+                        + "optional Archi SVG export plugin (ships with Archi 5.7+).");
+        formatProp.put("enum", List.of("png", "jpg", "svg", "pdf"));
 
         Map<String, Object> scaleProp = new LinkedHashMap<>();
         scaleProp.put("type", "number");
         scaleProp.put("description",
                 "Rendering scale factor (0.1 to 4.0). "
-                        + "0.5 = half size, 2.0 = double size. Default: 1.0");
+                        + "0.5 = half size, 2.0 = double size. Applies to raster "
+                        + "formats (PNG/JPG); vector formats (SVG/PDF) are resolution-"
+                        + "independent and ignore scale. Default: 1.0");
+
+        Map<String, Object> qualityProp = new LinkedHashMap<>();
+        qualityProp.put("type", "integer");
+        qualityProp.put("description",
+                "JPEG encoding quality (1-100). Applies only to format 'jpg' — "
+                        + "silently ignored for png/svg/pdf. Higher = better quality, "
+                        + "larger file. Default: 90");
+        qualityProp.put("minimum", 1);
+        qualityProp.put("maximum", 100);
 
         Map<String, Object> inlineProp = new LinkedHashMap<>();
         inlineProp.put("type", "boolean");
         inlineProp.put("description",
                 "Return image data in the response (true) or write "
                         + "to a file and return the path (false). Inline mode returns "
-                        + "PNG as ImageContent for LLM vision analysis. Default: true");
+                        + "PNG/JPG as ImageContent for LLM vision analysis, SVG as "
+                        + "TextContent (raw XML), and PDF as EmbeddedResource "
+                        + "(application/pdf blob). Default: true");
 
         Map<String, Object> outputDirProp = new LinkedHashMap<>();
         outputDirProp.put("type", "string");
@@ -98,6 +118,7 @@ public class RenderHandler {
         properties.put("viewId", viewIdProp);
         properties.put("format", formatProp);
         properties.put("scale", scaleProp);
+        properties.put("quality", qualityProp);
         properties.put("inline", inlineProp);
         properties.put("outputDirectory", outputDirProp);
 
@@ -106,15 +127,23 @@ public class RenderHandler {
 
         McpSchema.Tool tool = McpSchema.Tool.builder()
                 .name("export-view")
-                .description("[Rendering] Renders an ArchiMate view as an image. "
-                        + "Returns image data inline (default) or writes to file. "
-                        + "PNG uses Archi's native renderer which computes connection "
-                        + "endpoint positions at element perimeter intersections "
-                        + "(ChopboxAnchor) — the rendered image shows true visual "
-                        + "attachment points, not the center-based reference coordinates "
-                        + "returned by get-view-contents. SVG requires the optional "
-                        + "SVG export plugin. Use for visual verification of layout "
-                        + "changes and connection routing via LLM vision capabilities.")
+                .description("[Rendering] Renders an ArchiMate view as an image in "
+                        + "one of four formats: png (lossless raster), jpg (lossy "
+                        + "raster, with quality knob), svg (vector text), pdf "
+                        + "(vector, print-ready). Returns image data inline (default) "
+                        + "or writes to file. Inline mode returns PNG/JPG as ImageContent, "
+                        + "SVG as TextContent, PDF as EmbeddedResource(application/pdf). "
+                        + "The 'jpeg' alias is accepted as a synonym for 'jpg'. The "
+                        + "raster renderers (PNG/JPG) use Archi's native renderer which "
+                        + "computes connection endpoint positions at element perimeter "
+                        + "intersections (ChopboxAnchor) — the rendered image shows true "
+                        + "visual attachment points, not the center-based reference "
+                        + "coordinates returned by get-view-contents. SVG and PDF require "
+                        + "the optional Archi SVG export plugin (ships with Archi 5.7+; "
+                        + "PDF is provided by the same bundle). Use for visual verification "
+                        + "of layout changes and connection routing via LLM vision "
+                        + "capabilities, and for embedding diagrams in reports/wikis. "
+                        + "Related: get-view-contents (reference vs rendered coords).")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -135,6 +164,11 @@ public class RenderHandler {
             if (format == null) {
                 format = "png";
             }
+            // "jpeg" alias normalised at the handler boundary so the accessor's
+            // dispatcher has a single case for the raster lossy format.
+            if ("jpeg".equals(format)) {
+                format = "jpg";
+            }
             double scale = HandlerUtils.optionalDoubleParam(args, "scale", 1.0);
             if (!Double.isFinite(scale) || scale < 0.1 || scale > 4.0) {
                 throw new ModelAccessException(
@@ -142,6 +176,16 @@ public class RenderHandler {
                         net.vheerden.archi.mcp.response.ErrorCode.INVALID_PARAMETER,
                         null,
                         "Provide a scale value between 0.1 and 4.0 (1.0 = 100%)",
+                        null);
+            }
+            Integer qualityBoxed = HandlerUtils.optionalIntegerParam(args, "quality");
+            int quality = (qualityBoxed != null) ? qualityBoxed : 90;
+            if (qualityBoxed != null && (quality < 1 || quality > 100)) {
+                throw new ModelAccessException(
+                        "JPEG quality must be between 1 and 100, got: " + quality,
+                        net.vheerden.archi.mcp.response.ErrorCode.INVALID_PARAMETER,
+                        null,
+                        "Provide a quality value between 1 (lowest) and 100 (highest)",
                         null);
             }
             boolean inline = HandlerUtils.optionalBooleanParam(args, "inline", true);
@@ -154,13 +198,17 @@ public class RenderHandler {
             boolean outputDirIgnored = inline && outputDirectory != null;
             String effectiveOutputDir = inline ? null : outputDirectory;
 
-            ExportResult result = accessor.exportView(viewId, format, scale, inline,
+            ExportResult result = accessor.exportView(viewId, format, scale, quality, inline,
                     effectiveOutputDir);
 
             if (inline && "png".equals(format)) {
                 return buildInlinePngResponse(result, outputDirIgnored);
+            } else if (inline && "jpg".equals(format)) {
+                return buildInlineJpgResponse(result, outputDirIgnored);
             } else if (inline && "svg".equals(format)) {
                 return buildInlineSvgResponse(result, outputDirIgnored);
+            } else if (inline && "pdf".equals(format)) {
+                return buildInlinePdfResponse(result, outputDirIgnored);
             } else {
                 return buildFileResponse(result, format);
             }
@@ -195,6 +243,27 @@ public class RenderHandler {
                 .build();
     }
 
+    private McpSchema.CallToolResult buildInlineJpgResponse(ExportResult result,
+                                                              boolean outputDirIgnored) {
+        String base64 = Base64.getEncoder().encodeToString(result.imageBytes());
+
+        Map<String, Object> wrapper = new LinkedHashMap<>();
+        wrapper.put("metadata", result.metadata());
+        if (outputDirIgnored) {
+            wrapper.put("note", "outputDirectory is ignored when inline is true");
+        }
+        wrapper.put("nextSteps", buildInlineNextSteps("jpg"));
+        String metadataJson = formatter.toJsonString(wrapper);
+        McpSchema.TextContent textContent = new McpSchema.TextContent(metadataJson);
+        McpSchema.ImageContent imageContent =
+                new McpSchema.ImageContent(null, base64, "image/jpeg");
+
+        return McpSchema.CallToolResult.builder()
+                .content(List.of(textContent, imageContent))
+                .isError(false)
+                .build();
+    }
+
     private McpSchema.CallToolResult buildInlineSvgResponse(ExportResult result,
                                                               boolean outputDirIgnored) {
         Map<String, Object> wrapper = new LinkedHashMap<>();
@@ -209,6 +278,33 @@ public class RenderHandler {
 
         return McpSchema.CallToolResult.builder()
                 .content(List.of(metaContent, svgContent))
+                .isError(false)
+                .build();
+    }
+
+    private McpSchema.CallToolResult buildInlinePdfResponse(ExportResult result,
+                                                              boolean outputDirIgnored) {
+        String base64 = Base64.getEncoder().encodeToString(result.imageBytes());
+
+        Map<String, Object> wrapper = new LinkedHashMap<>();
+        wrapper.put("metadata", result.metadata());
+        if (outputDirIgnored) {
+            wrapper.put("note", "outputDirectory is ignored when inline is true");
+        }
+        wrapper.put("nextSteps", buildInlineNextSteps("pdf"));
+        String metadataJson = formatter.toJsonString(wrapper);
+        McpSchema.TextContent textContent = new McpSchema.TextContent(metadataJson);
+
+        String viewId = result.metadata().viewId();
+        McpSchema.BlobResourceContents blob = new McpSchema.BlobResourceContents(
+                "archi://export/" + viewId + ".pdf",
+                "application/pdf",
+                base64);
+        McpSchema.EmbeddedResource pdfResource =
+                new McpSchema.EmbeddedResource(null, blob);
+
+        return McpSchema.CallToolResult.builder()
+                .content(List.of(textContent, pdfResource))
                 .isError(false)
                 .build();
     }
@@ -229,19 +325,53 @@ public class RenderHandler {
                     "Use export-view with scale 2.0 for higher resolution",
                     "Use export-view with inline false to save to file");
         }
+        if ("jpg".equals(format)) {
+            return List.of(
+                    "Use LLM vision to verify layout quality (note: JPEG lossy compression "
+                            + "may obscure fine alignment details — use 'png' for precise verification)",
+                    "Use get-view-contents to see element details and positions",
+                    "Use export-view with quality 100 for highest fidelity",
+                    "Use export-view with format 'png' for lossless raster");
+        }
+        if ("pdf".equals(format)) {
+            return List.of(
+                    "Inline PDF is returned as an EmbeddedResource (application/pdf) — "
+                            + "use export-view with inline false to write the file to disk for "
+                            + "viewing or embedding in reports/wikis",
+                    "Use get-view-contents to see element details and positions",
+                    "Use export-view with format 'png' for LLM vision review (some MCP clients "
+                            + "cannot render PDF embedded resources inline)",
+                    "Use export-view with scale 2.0 for a larger PDF page");
+        }
+        // svg
         return List.of(
                 "Use get-view-contents to see element details and positions",
-                "Use export-view with format 'png' for bitmap rendering",
+                "Use export-view with format 'png' for bitmap rendering for LLM vision review",
+                "Use export-view with format 'pdf' for print-ready vector output",
                 "Use export-view with inline false to save to file");
     }
 
     private List<String> buildFileNextSteps(String format) {
+        String alternativeFormat;
+        String alternativeKind;
+        if ("png".equals(format)) {
+            alternativeFormat = "svg";
+            alternativeKind = "scalable vector";
+        } else if ("jpg".equals(format)) {
+            alternativeFormat = "png";
+            alternativeKind = "lossless bitmap";
+        } else if ("svg".equals(format)) {
+            alternativeFormat = "png";
+            alternativeKind = "bitmap";
+        } else { // pdf
+            alternativeFormat = "png";
+            alternativeKind = "bitmap (for LLM vision review)";
+        }
         return List.of(
                 "File written to local server filesystem — use export-view with "
                         + "inline true to retrieve image data directly for analysis",
                 "Use get-view-contents to see element details and positions",
-                "Use export-view with format '"
-                        + ("png".equals(format) ? "svg" : "png") + "' for "
-                        + ("png".equals(format) ? "scalable vector" : "bitmap") + " output");
+                "Use export-view with format '" + alternativeFormat + "' for "
+                        + alternativeKind + " output");
     }
 }

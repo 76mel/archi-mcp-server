@@ -7,10 +7,14 @@ import java.util.Map;
 
 import org.junit.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * Tests for {@link ViewContentsDto} record.
  */
 public class ViewContentsDtoTest {
+
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
     public void shouldCreateWithAllFields() {
@@ -77,5 +81,81 @@ public class ViewContentsDtoTest {
 
         assertEquals(1, dto.connections().size());
         assertTrue(dto.connections().get(0).bendpoints().isEmpty());
+    }
+
+    // ---- Story 14-8 (G16) AXIS C — images array ----
+
+    @Test
+    public void shouldSerialiseImagesArrayWhenSet_AC5() throws Exception {
+        DiagramImageDto image = new DiagramImageDto(
+                "img-vo-1", "images/abc.png", 100, 100, 64, 64,
+                null, null, null);
+        ViewContentsDto dto = new ViewContentsDto(
+                "v-1", "Test View", null, null,
+                List.of(), List.of(), List.of(), List.of(),
+                null, null, List.of(image));
+
+        String json = mapper.writeValueAsString(dto);
+        assertTrue("images array should appear when populated",
+                json.contains("\"images\""));
+        assertTrue("image entry should serialise its imagePath",
+                json.contains("\"imagePath\":\"images/abc.png\""));
+    }
+
+    @Test
+    public void shouldOmitImagesArrayWhenNull_AC5() throws Exception {
+        ViewContentsDto dto = new ViewContentsDto(
+                "v-2", "Test View", null, null,
+                List.of(), List.of(), List.of(), List.of(),
+                null, null, null);
+
+        String json = mapper.writeValueAsString(dto);
+        assertFalse("images field should be omitted under NON_NULL when null",
+                json.contains("images"));
+    }
+
+    @Test
+    public void shouldPreserveBackCompat10ArgCtor_AC5() throws Exception {
+        // Story 8-6 callers used the 10-arg ctor; Story 14-8 added an 11th
+        // `images` field via a NEW canonical ctor + preserved the 10-arg form
+        // as a back-compat delegating ctor that passes null for images. JSON
+        // for a view without image visuals must be byte-identical to its
+        // pre-Story-14-8 form.
+        ViewContentsDto dto = new ViewContentsDto(
+                "v-3", "Legacy View", "layered", "manual",
+                List.of(), List.of(), List.of(), List.of(),
+                null, null);
+
+        // The new images field is null (NON_NULL omitted) — serialised JSON
+        // should not contain the word "images".
+        String json = mapper.writeValueAsString(dto);
+        assertFalse("10-arg ctor should produce byte-identical pre-14-8 JSON "
+                + "(images field omitted)",
+                json.contains("\"images\""));
+        assertNull(dto.images());
+    }
+
+    @Test
+    public void shouldPreserveBackCompat7ArgCtor_AC5() throws Exception {
+        // Pre-Story-8-6 callers used the 7-arg ctor. Story 14-8 preserves it
+        // by delegating with null for connectionRouterType, groups, notes,
+        // AND images.
+        ViewContentsDto dto = new ViewContentsDto(
+                "v-4", "Older Legacy View", "layered",
+                List.of(), List.of(), List.of(), List.of());
+
+        String json = mapper.writeValueAsString(dto);
+        assertFalse("7-arg ctor should produce no images key",
+                json.contains("\"images\""));
+        assertFalse("7-arg ctor should produce no groups key",
+                json.contains("\"groups\""));
+        assertFalse("7-arg ctor should produce no notes key",
+                json.contains("\"notes\""));
+        assertFalse("7-arg ctor should produce no connectionRouterType key",
+                json.contains("connectionRouterType"));
+        assertNull(dto.images());
+        assertNull(dto.groups());
+        assertNull(dto.notes());
+        assertNull(dto.connectionRouterType());
     }
 }

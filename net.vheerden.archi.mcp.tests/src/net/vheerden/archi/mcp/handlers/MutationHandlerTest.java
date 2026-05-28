@@ -987,6 +987,71 @@ public class MutationHandlerTest {
                 nextSteps.stream().anyMatch(s -> s.contains("can be undone")));
     }
 
+    // ---- Story 14-1 (G4): bulk-mutate flows labelExpression through update-view-object ----
+
+    @Test
+    public void shouldFlowLabelExpression_inBulkUpdateViewObject_AC2_AC11() throws Exception {
+        // Capture the operations the handler hands to the accessor so we can
+        // assert the labelExpression param survived the JSON → BulkOperation
+        // conversion intact.
+        final java.util.concurrent.atomic.AtomicReference<List<BulkOperation>> capturedOps =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        accessor.setBulkBehavior(ops -> {
+            capturedOps.set(ops);
+            List<BulkOperationResult> results = new ArrayList<>();
+            results.add(new BulkOperationResult(0, "update-view-object", "updated",
+                    "vo-1", "BusinessActor", "Test"));
+            return new BulkMutationResult(results, 1, true, null);
+        });
+
+        Map<String, Object> args = Map.of("operations", List.of(
+                Map.of("tool", "update-view-object",
+                        "params", Map.of(
+                                "viewObjectId", "vo-1",
+                                "labelExpression", "${name}"))
+        ));
+
+        Map<String, Object> result = callAndParse("bulk-mutate", args);
+        Map<String, Object> bulkResult = getResult(result);
+        assertTrue("Bulk op should succeed", (Boolean) bulkResult.get("allSucceeded"));
+
+        List<BulkOperation> ops = capturedOps.get();
+        assertNotNull("Bulk operations must reach the accessor", ops);
+        assertEquals(1, ops.size());
+        assertEquals("update-view-object", ops.get(0).tool());
+        // The params map must carry labelExpression verbatim — the bulk
+        // dispatcher inside the accessor reads this key and passes it through
+        // prepareUpdateViewObject / prepareUpdateViewObjectDirect.
+        assertEquals("${name}", ops.get(0).params().get("labelExpression"));
+    }
+
+    @Test
+    public void shouldFlowEmptyLabelExpression_inBulkUpdateViewObject_AC3() throws Exception {
+        final java.util.concurrent.atomic.AtomicReference<List<BulkOperation>> capturedOps =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        accessor.setBulkBehavior(ops -> {
+            capturedOps.set(ops);
+            List<BulkOperationResult> results = new ArrayList<>();
+            results.add(new BulkOperationResult(0, "update-view-object", "updated",
+                    "vo-1", "BusinessActor", "Test"));
+            return new BulkMutationResult(results, 1, true, null);
+        });
+
+        Map<String, Object> args = Map.of("operations", List.of(
+                Map.of("tool", "update-view-object",
+                        "params", Map.of(
+                                "viewObjectId", "vo-1",
+                                "labelExpression", ""))
+        ));
+
+        callAndParse("bulk-mutate", args);
+
+        // Empty string must survive the JSON map round-trip so the bulk
+        // dispatcher inside the accessor (optionalAllowEmptyParam) can
+        // distinguish "" (clear) from absent (no change).
+        assertEquals("", capturedOps.get().get(0).params().get("labelExpression"));
+    }
+
     // ---- Response envelope structure tests ----
 
     @Test
@@ -1000,6 +1065,74 @@ public class MutationHandlerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) result.get("_meta");
         assertNotNull("modelVersion should exist", meta.get("modelVersion"));
+    }
+
+    // ---- update-model bulk-mutate parity tests (Story 14-3 G6) ----
+
+    @Test
+    public void shouldFlowUpdateModel_inBulkMutate_AC9() throws Exception {
+        Map<String, Object> args = Map.of("operations", List.of(
+                Map.of("tool", "update-model",
+                        "params", Map.of("name", "Renamed Model", "purpose", "New EA cut"))
+        ));
+
+        Map<String, Object> result = callAndParse("bulk-mutate", args);
+        Map<String, Object> bulkResult = getResult(result);
+
+        assertEquals(1, bulkResult.get("totalOperations"));
+        assertTrue("update-model must pass validation as a supported tool",
+                (Boolean) bulkResult.get("allSucceeded"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> ops = (List<Map<String, Object>>) bulkResult.get("operations");
+        assertEquals("update-model", ops.get(0).get("tool"));
+        assertEquals("updated", ops.get(0).get("action"));
+    }
+
+    @Test
+    public void shouldFlowEmptyPurpose_inBulkUpdateModel_AC9() throws Exception {
+        // Empty-string purpose must NOT cause the bulk-mutate framing to reject the op.
+        // The empty-string → clearPurpose conversion happens inside prepareBulkOperation
+        // (Layer 3) — this test verifies the Layer 2 framing accepts the request.
+        Map<String, Object> args = Map.of("operations", List.of(
+                Map.of("tool", "update-model",
+                        "params", Map.of("purpose", ""))
+        ));
+
+        Map<String, Object> result = callAndParse("bulk-mutate", args);
+        Map<String, Object> bulkResult = getResult(result);
+
+        assertEquals(1, bulkResult.get("totalOperations"));
+        assertTrue("empty-string purpose param must not bounce off bulk-mutate validation",
+                (Boolean) bulkResult.get("allSucceeded"));
+    }
+
+    @Test
+    public void shouldAdvertiseUpdateModel_inBulkMutateDescription_AC9() {
+        // The bulk-mutate tool description is built from BulkOperation.SUPPORTED_TOOLS_ORDERED.
+        // Adding "update-model" to the list automatically extends the description.
+        // This is the regression pin for the one-liner registry insert in BulkOperation.
+        String description = registry.getToolSpecifications().stream()
+                .filter(s -> "bulk-mutate".equals(s.tool().name()))
+                .findFirst()
+                .orElseThrow()
+                .tool().description();
+        assertNotNull(description);
+        assertTrue("bulk-mutate description must advertise update-model",
+                description.contains("update-model"));
+    }
+
+    @Test
+    public void shouldAdvertiseAddViewReferenceToView_inBulkMutateDescription_AC9() {
+        // Story 14-6 (G8): regression pin for the one-liner registry insert.
+        String description = registry.getToolSpecifications().stream()
+                .filter(s -> "bulk-mutate".equals(s.tool().name()))
+                .findFirst()
+                .orElseThrow()
+                .tool().description();
+        assertNotNull(description);
+        assertTrue("bulk-mutate description must advertise add-view-reference-to-view",
+                description.contains("add-view-reference-to-view"));
     }
 
     // ---- Helper methods ----

@@ -24,6 +24,7 @@ import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.DuplicateCandidate;
 import net.vheerden.archi.mcp.response.dto.ElementDto;
 import net.vheerden.archi.mcp.response.dto.RelationshipDto;
+import net.vheerden.archi.mcp.response.dto.RelationshipSemanticAttributes;
 import net.vheerden.archi.mcp.response.dto.ViewDto;
 import net.vheerden.archi.mcp.session.SessionManager;
 
@@ -274,12 +275,39 @@ public class ElementCreationHandler {
                 + "and type does not exist in the model, it is auto-created. Profile creation "
                 + "and relationship creation are wrapped in a single undoable operation.");
 
+        // Story 14-7 (G1): ArchiMate semantic attributes (type-conditional)
+        Map<String, Object> accessTypeProp = new LinkedHashMap<>();
+        accessTypeProp.put("type", "string");
+        accessTypeProp.put("enum", List.of("access", "read", "write", "readwrite"));
+        accessTypeProp.put("description",
+                "Optional: Access type for AccessRelationship only. 'access' = unspecified "
+                + "direction (default); 'read' = data read by source; 'write' = data written "
+                + "by source; 'readwrite' = bidirectional. REJECTED if the relationship type "
+                + "is not AccessRelationship.");
+
+        Map<String, Object> associationDirectedProp = new LinkedHashMap<>();
+        associationDirectedProp.put("type", "boolean");
+        associationDirectedProp.put("description",
+                "Optional: Direction flag for AssociationRelationship only. true = directional "
+                + "(renders an arrowhead); false = undirected (default). REJECTED if the "
+                + "relationship type is not AssociationRelationship.");
+
+        Map<String, Object> influenceStrengthProp = new LinkedHashMap<>();
+        influenceStrengthProp.put("type", "string");
+        influenceStrengthProp.put("description",
+                "Optional: Free-text strength qualifier for InfluenceRelationship only. Common "
+                + "values: '+', '-', '+/-', '+1', '-2'. Empty string clears the value. Max 255 "
+                + "characters. REJECTED if the relationship type is not InfluenceRelationship.");
+
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("type", typeProp);
         properties.put("sourceId", sourceIdProp);
         properties.put("targetId", targetIdProp);
         properties.put("name", nameProp);
         properties.put("specialization", specializationProp);
+        properties.put("accessType", accessTypeProp);
+        properties.put("associationDirected", associationDirectedProp);
+        properties.put("influenceStrength", influenceStrengthProp);
 
         McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
                 "object", properties, List.of("type", "sourceId", "targetId"), null, null, null);
@@ -295,6 +323,11 @@ public class ElementCreationHandler {
                         + "domain-specific subtype (e.g., 'Data Flow' FlowRelationship). The "
                         + "profile is auto-created on first use and reused (case-insensitive) "
                         + "thereafter. "
+                        + "Optional ArchiMate semantic attributes (type-conditional, each applies "
+                        + "only when the relationship is the matching subtype): accessType "
+                        + "(AccessRelationship — enum: 'access' (unspecified) / 'read' / 'write' / "
+                        + "'readwrite'), associationDirected (AssociationRelationship — boolean), "
+                        + "influenceStrength (InfluenceRelationship — free text, max 255 chars). "
                         + "Related: get-relationships (verify), get-element (check endpoints), "
                         + "create-element (create endpoints first), list-specializations.")
                 .inputSchema(inputSchema)
@@ -319,9 +352,11 @@ public class ElementCreationHandler {
             String targetId = HandlerUtils.requireStringParam(args, "targetId");
             String name = HandlerUtils.optionalStringParam(args, "name");
             String specialization = HandlerUtils.optionalStringParam(args, "specialization");
+            // Story 14-7 (G1): semantic attributes (type-conditional)
+            RelationshipSemanticAttributes semanticAttributes = readSemanticAttributes(args);
 
             MutationResult<RelationshipDto> result = accessor.createRelationship(
-                    sessionId, type, sourceId, targetId, name, specialization);
+                    sessionId, type, sourceId, targetId, name, specialization, semanticAttributes);
 
             return HandlerUtils.formatMutationResponse(result.entity(), result,
                     buildCreateRelationshipNextSteps(result), accessor, formatter);
@@ -591,5 +626,32 @@ public class ElementCreationHandler {
                 error, extras, nextSteps, modelVersion);
 
         return HandlerUtils.buildResult(formatter.toJsonString(envelope), true);
+    }
+
+    /**
+     * Story 14-7 (G1): reads the 3 semantic-attribute params from the request args
+     * and bundles them. Returns {@link RelationshipSemanticAttributes#NONE} when
+     * none are supplied. Preserves empty-string {@code influenceStrength} (clear
+     * semantic) via {@code containsKey} rather than blank-coercion.
+     */
+    static RelationshipSemanticAttributes readSemanticAttributes(Map<String, Object> args) {
+        if (args == null) {
+            return RelationshipSemanticAttributes.NONE;
+        }
+        String accessType = HandlerUtils.optionalStringParamAllowEmpty(args, "accessType");
+        Boolean associationDirected = HandlerUtils.optionalBoxedBooleanParam(args, "associationDirected");
+        String influenceStrength = null;
+        if (args.containsKey("influenceStrength")) {
+            Object raw = args.get("influenceStrength");
+            if (raw instanceof String s) {
+                influenceStrength = s;
+            } else if (raw != null) {
+                influenceStrength = String.valueOf(raw);
+            }
+        }
+        if (accessType == null && associationDirected == null && influenceStrength == null) {
+            return RelationshipSemanticAttributes.NONE;
+        }
+        return new RelationshipSemanticAttributes(accessType, associationDirected, influenceStrength);
     }
 }

@@ -23,9 +23,12 @@ import net.vheerden.archi.mcp.response.dto.BendpointDto;
 import net.vheerden.archi.mcp.response.dto.BulkMutationResult;
 import net.vheerden.archi.mcp.response.dto.BulkOperation;
 import net.vheerden.archi.mcp.response.dto.ClearViewResultDto;
+import net.vheerden.archi.mcp.response.dto.ConceptUsageDto;
 import net.vheerden.archi.mcp.response.dto.DeleteResultDto;
+import net.vheerden.archi.mcp.response.dto.DiagramImageDto;
 import net.vheerden.archi.mcp.response.dto.DuplicateCandidate;
 import net.vheerden.archi.mcp.response.dto.ElementDto;
+import net.vheerden.archi.mcp.response.dto.EmbeddedViewDto;
 import net.vheerden.archi.mcp.response.dto.FolderDto;
 import net.vheerden.archi.mcp.response.dto.FolderTreeDto;
 import net.vheerden.archi.mcp.response.dto.LayoutFlatViewResultDto;
@@ -37,6 +40,7 @@ import net.vheerden.archi.mcp.response.dto.OptimizeGroupOrderResultDto;
 import net.vheerden.archi.mcp.response.dto.ModelImageDto;
 import net.vheerden.archi.mcp.response.dto.ModelInfoDto;
 import net.vheerden.archi.mcp.response.dto.RelationshipDto;
+import net.vheerden.archi.mcp.response.dto.RelationshipSemanticAttributes;
 import net.vheerden.archi.mcp.response.dto.RemoveFromViewResultDto;
 import net.vheerden.archi.mcp.response.dto.UndoRedoResultDto;
 import net.vheerden.archi.mcp.response.dto.ViewConnectionDto;
@@ -91,6 +95,12 @@ public class BaseTestAccessor implements ArchiModelAccessor {
     }
 
     @Override
+    public Optional<ConceptUsageDto> findConceptUsage(String conceptId) {
+        if (!modelLoaded) throw new NoModelLoadedException();
+        return Optional.empty();
+    }
+
+    @Override
     public List<ElementDto> getElementsByIds(List<String> ids) {
         if (!modelLoaded) throw new NoModelLoadedException();
         return Collections.emptyList();
@@ -119,22 +129,36 @@ public class BaseTestAccessor implements ArchiModelAccessor {
 
     @Override
     public MutationResult<Map<String, Object>> createSpecialization(String sessionId,
-            String name, String conceptType) {
+            String name, String conceptType, String imagePath) {
         if (!modelLoaded) throw new NoModelLoadedException();
         Map<String, Object> dto = new java.util.LinkedHashMap<>();
         dto.put("name", name);
         dto.put("conceptType", conceptType);
         dto.put("created", true);
+        if (imagePath != null) {
+            dto.put("imagePath", imagePath);
+        }
         return new MutationResult<>(dto, null);
     }
 
     @Override
     public MutationResult<Map<String, Object>> updateSpecialization(String sessionId,
-            String name, String conceptType, String newName) {
+            String name, String conceptType, String newName,
+            String imagePath, boolean clearImagePath) {
         if (!modelLoaded) throw new NoModelLoadedException();
+        // STUB LIMITATION (cross-LLM-review FA6 MEDIUM): does NOT enforce the
+        // production "at least one of newName/imagePath/clearImagePath" guard
+        // that lives in ArchiModelAccessorImpl.prepareUpdateSpecialization.
+        // Any handler test that relies on this stub MUST exercise the field
+        // it cares about (newName / imagePath / clearImagePath) explicitly —
+        // do NOT use this stub to verify the at-least-one-of rejection path
+        // (that requires the real accessor or a guard-bearing fake).
         Map<String, Object> dto = new java.util.LinkedHashMap<>();
-        dto.put("name", newName);
+        dto.put("name", (newName != null && !newName.isBlank()) ? newName : name);
         dto.put("conceptType", conceptType);
+        if (imagePath != null) {
+            dto.put("imagePath", imagePath);
+        }
         return new MutationResult<>(dto, null);
     }
 
@@ -244,7 +268,8 @@ public class BaseTestAccessor implements ArchiModelAccessor {
 
     @Override
     public MutationResult<RelationshipDto> createRelationship(String sessionId, String type,
-            String sourceId, String targetId, String name, String specialization) {
+            String sourceId, String targetId, String name, String specialization,
+            RelationshipSemanticAttributes semanticAttributes) {
         throw new UnsupportedOperationException("createRelationship not implemented in test accessor");
     }
 
@@ -268,7 +293,8 @@ public class BaseTestAccessor implements ArchiModelAccessor {
 
     @Override
     public MutationResult<RelationshipDto> updateRelationship(String sessionId, String id,
-            String name, String documentation, Map<String, String> properties, String specialization) {
+            String name, String documentation, Map<String, String> properties, String specialization,
+            RelationshipSemanticAttributes semanticAttributes) {
         throw new UnsupportedOperationException("updateRelationship not implemented in test accessor");
     }
 
@@ -277,6 +303,12 @@ public class BaseTestAccessor implements ArchiModelAccessor {
             String viewpoint, String documentation, Map<String, String> properties,
             String connectionRouterType) {
         throw new UnsupportedOperationException("updateView not implemented in test accessor");
+    }
+
+    @Override
+    public MutationResult<ModelInfoDto> updateModel(String sessionId, String name,
+            String purpose, Map<String, String> properties) {
+        throw new UnsupportedOperationException("updateModel not implemented in test accessor");
     }
 
     @Override
@@ -303,6 +335,24 @@ public class BaseTestAccessor implements ArchiModelAccessor {
     }
 
     @Override
+    public MutationResult<EmbeddedViewDto> addViewReferenceToView(String sessionId,
+            String viewId, String referencedViewId, Integer x, Integer y,
+            Integer width, Integer height, String parentViewObjectId,
+            StylingParams styling) {
+        throw new UnsupportedOperationException(
+                "addViewReferenceToView not implemented in test accessor");
+    }
+
+    @Override
+    public MutationResult<DiagramImageDto> addImageToView(String sessionId,
+            String viewId, String imagePath, Integer x, Integer y,
+            Integer width, Integer height, String parentViewObjectId,
+            StylingParams styling, String borderColor, String documentation) {
+        throw new UnsupportedOperationException(
+                "addImageToView not implemented in test accessor");
+    }
+
+    @Override
     public MutationResult<ViewConnectionDto> addConnectionToView(String sessionId, String viewId,
             String relationshipId, String sourceViewObjectId, String targetViewObjectId,
             List<BendpointDto> bendpoints, List<AbsoluteBendpointDto> absoluteBendpoints,
@@ -313,7 +363,7 @@ public class BaseTestAccessor implements ArchiModelAccessor {
     @Override
     public MutationResult<ViewObjectDto> updateViewObject(String sessionId, String viewObjectId,
             Integer x, Integer y, Integer width, Integer height, String text,
-            StylingParams styling, ImageParams imageParams) {
+            StylingParams styling, ImageParams imageParams, String labelExpression) {
         throw new UnsupportedOperationException("updateViewObject not implemented in test accessor");
     }
 
@@ -547,8 +597,8 @@ public class BaseTestAccessor implements ArchiModelAccessor {
     }
 
     @Override
-    public ExportResult exportView(String viewId, String format, double scale, boolean inline,
-            String outputDirectory) {
+    public ExportResult exportView(String viewId, String format, double scale, int quality,
+            boolean inline, String outputDirectory) {
         throw new UnsupportedOperationException("exportView not implemented in test accessor");
     }
 

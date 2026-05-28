@@ -43,5 +43,7 @@ public enum ErrorCode {
     ALREADY_IN_TARGET_FOLDER,
     OBJECT_NOT_FOUND,
     INVALID_MOVE_TARGET,
-    FOLDER_LAYER_MISMATCH
+    FOLDER_LAYER_MISMATCH,
+    /** Story 14-8 (G16): supplied imagePath does not resolve to bytes in the model archive. */
+    IMAGE_NOT_FOUND
 }

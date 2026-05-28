@@ -889,6 +889,18 @@ public class TraversalHandler {
             expanded.put("target", buildElementResponse(
                     elementMap.get(rel.targetId()), depth, nestedRelationships,
                     fieldPreset, excludeFields));
+            // Story 14-7 (G1): surface semantic-attribute fields when populated (NON_NULL discipline).
+            // The handler builds its own Map shape rather than serialising RelationshipDto directly,
+            // so the record-level @JsonInclude(NON_NULL) doesn't reach this surface — explicit guards.
+            if (rel.accessType() != null) {
+                expanded.put("accessType", rel.accessType());
+            }
+            if (rel.associationDirected() != null) {
+                expanded.put("associationDirected", rel.associationDirected());
+            }
+            if (rel.influenceStrength() != null) {
+                expanded.put("influenceStrength", rel.influenceStrength());
+            }
             expandedResult.add(expanded);
         }
         return expandedResult;

@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +31,7 @@ import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.DuplicateCandidate;
 import net.vheerden.archi.mcp.response.dto.ElementDto;
 import net.vheerden.archi.mcp.response.dto.RelationshipDto;
+import net.vheerden.archi.mcp.response.dto.RelationshipSemanticAttributes;
 import net.vheerden.archi.mcp.response.dto.ViewDto;
 
 import org.eclipse.gef.commands.Command;
@@ -737,6 +739,90 @@ public class ElementCreationHandlerTest {
         assertTrue("create-view should have connectionRouterType property", found);
     }
 
+    // ---- Story 14-7 (G1) tests ----
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void shouldAdvertiseG1ParamsInCreateRelationshipSchema_AC2() {
+        Map<String, Object> properties = registry.getToolSpecifications().stream()
+                .filter(spec -> "create-relationship".equals(spec.tool().name()))
+                .findFirst()
+                .orElseThrow()
+                .tool().inputSchema().properties();
+
+        assertTrue("schema should advertise accessType", properties.containsKey("accessType"));
+        assertTrue("schema should advertise associationDirected",
+                properties.containsKey("associationDirected"));
+        assertTrue("schema should advertise influenceStrength",
+                properties.containsKey("influenceStrength"));
+
+        // accessType has the closed 4-string enum
+        Map<String, Object> accessTypeProp = (Map<String, Object>) properties.get("accessType");
+        List<?> enumValues = (List<?>) accessTypeProp.get("enum");
+        assertNotNull("accessType should declare an enum", enumValues);
+        assertTrue(enumValues.contains("access"));
+        assertTrue(enumValues.contains("read"));
+        assertTrue(enumValues.contains("write"));
+        assertTrue(enumValues.contains("readwrite"));
+    }
+
+    @Test
+    public void shouldPassAccessTypeThroughHandler_toAccessor_AC2() throws Exception {
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("type", "AccessRelationship");
+        args.put("sourceId", "src-1");
+        args.put("targetId", "tgt-1");
+        args.put("accessType", "read");
+        callTool("create-relationship", args);
+        assertNotNull("handler should have populated semanticAttributes bundle",
+                accessor.capturedSemanticAttributes);
+        assertEquals("read", accessor.capturedSemanticAttributes.accessType());
+        assertNull(accessor.capturedSemanticAttributes.associationDirected());
+        assertNull(accessor.capturedSemanticAttributes.influenceStrength());
+    }
+
+    @Test
+    public void shouldRejectAccessTypeOnNonAccessType_atHandler_AC7() throws Exception {
+        accessor.setCreateRelationshipBehavior((sessionId, type, sourceId, targetId, name) -> {
+            throw new ModelAccessException(
+                    "accessType only applies to AccessRelationship; got CompositionRelationship.",
+                    ErrorCode.INVALID_PARAMETER,
+                    null,
+                    "Use type='AccessRelationship' to apply accessType, or remove the accessType parameter.",
+                    null);
+        });
+
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("type", "CompositionRelationship");
+        args.put("sourceId", "src-1");
+        args.put("targetId", "tgt-1");
+        args.put("accessType", "read");
+        McpSchema.CallToolResult result = callTool("create-relationship", args);
+        Map<String, Object> parsed = parseResult(result);
+
+        assertTrue("should be an error", result.isError());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) parsed.get("error");
+        assertEquals("INVALID_PARAMETER", error.get("code"));
+        assertTrue(((String) error.get("message")).contains("accessType"));
+    }
+
+    @Test
+    public void shouldCaptureAllThreeG1Fields_AC5() throws Exception {
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("type", "AccessRelationship");
+        args.put("sourceId", "src-1");
+        args.put("targetId", "tgt-1");
+        args.put("accessType", "readwrite");
+        args.put("associationDirected", Boolean.TRUE);
+        args.put("influenceStrength", "+");
+        callTool("create-relationship", args);
+        // All 3 fields flow through together; nothing is dropped at the boundary
+        assertEquals("readwrite", accessor.capturedSemanticAttributes.accessType());
+        assertEquals(Boolean.TRUE, accessor.capturedSemanticAttributes.associationDirected());
+        assertEquals("+", accessor.capturedSemanticAttributes.influenceStrength());
+    }
+
     // ---- Helper methods ----
 
     private McpSchema.CallToolResult callTool(String toolName, Map<String, Object> args)
@@ -813,6 +899,7 @@ public class ElementCreationHandlerTest {
         boolean createElementCalled = false;
         Map<String, String> capturedSource;
         String capturedSpecialization;
+        RelationshipSemanticAttributes capturedSemanticAttributes;
 
         StubCreationAccessor() {
             super(true);
@@ -899,8 +986,10 @@ public class ElementCreationHandlerTest {
 
         @Override
         public MutationResult<RelationshipDto> createRelationship(String sessionId,
-                String type, String sourceId, String targetId, String name, String specialization) {
+                String type, String sourceId, String targetId, String name, String specialization,
+                RelationshipSemanticAttributes semanticAttributes) {
             capturedSpecialization = specialization;
+            capturedSemanticAttributes = semanticAttributes;
             return createRelationshipBehavior.apply(sessionId, type, sourceId, targetId, name);
         }
 

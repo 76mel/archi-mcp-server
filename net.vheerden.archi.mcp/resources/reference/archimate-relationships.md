@@ -53,6 +53,7 @@ Dependency relationships model how elements depend on each other.
 - **Example:** An ApplicationFunction accesses a DataObject
 - **Valid between:** Behaviour elements to passive structure elements
 - **Key rule:** Can indicate read, write, or read-write access
+- **Semantic attribute:** `accessType` on `create-relationship` / `update-relationship` — `"access"` (unspecified, default), `"read"`, `"write"`, `"readwrite"`. Set back to unspecified with `"access"`
 
 ### InfluenceRelationship
 - **Meaning:** The source influences the target (positive, negative, or neutral)
@@ -60,6 +61,7 @@ Dependency relationships model how elements depend on each other.
 - **Example:** A Requirement influences a Goal
 - **Valid between:** Any motivation element to any motivation element; any core element to motivation element
 - **Key rule:** Optionally annotated with strength (+, ++, -, --)
+- **Semantic attribute:** `influenceStrength` on `create-relationship` / `update-relationship` — free text up to 255 characters (e.g. `"+"`, `"++"`, `"-"`, `"--"`, or any qualifier convention you prefer). Empty string clears
 
 ## Dynamic Relationships
 
@@ -94,6 +96,7 @@ Dynamic relationships model behaviour and interaction over time.
 - **Example:** A Stakeholder is associated with a Driver
 - **Valid between:** Any element to any element
 - **Key rule:** Use when no more specific relationship type applies; weakest semantic meaning
+- **Semantic attribute:** `associationDirected` on `create-relationship` / `update-relationship` — boolean. `true` renders an arrow head; `false` (default) renders an undirected line
 
 ## Relationship Specializations
 

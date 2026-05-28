@@ -441,4 +441,157 @@ public class UpdateViewObjectCommandTest {
         cmd.undo();
         assertEquals(IDiagramModelGroup.BORDER_RECTANGLE, group.getBorderType());
     }
+
+    // ---- Story 14-1 (G4): labelExpression rail tests ----
+    //
+    // labelExpression is stored as a generic IFeatures entry under key
+    // "labelExpression", NOT a typed EMF getter/setter. The rail's
+    // bookkeeping matches the existing 4 rails (old/new/has-change triplet),
+    // but the apply method writes via IFeatures.putString / IFeatures.remove.
+    // See Story 14-1 Task 0 EMF finding.
+
+    @Test
+    public void shouldApplyLabelExpression_whenSetOnElementViewObject_AC2() {
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, null, null, "${name}");
+
+        cmd.execute();
+
+        assertEquals("${name}",
+                diagramObject.getFeatures().getString("labelExpression", null));
+        assertTrue("Feature should be present after set",
+                diagramObject.getFeatures().has("labelExpression"));
+    }
+
+    @Test
+    public void shouldReplaceLabelExpression_whenExistingValuePresent_AC3() {
+        diagramObject.getFeatures().putString("labelExpression", "${property:Owner}");
+
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, null, null, "${name}");
+        cmd.execute();
+
+        assertEquals("${name}",
+                diagramObject.getFeatures().getString("labelExpression", null));
+    }
+
+    @Test
+    public void shouldClearLabelExpression_whenEmptyString_AC3() {
+        diagramObject.getFeatures().putString("labelExpression", "${name}");
+
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, null, null, "");
+        cmd.execute();
+
+        assertFalse("Feature should be removed after empty-string clear",
+                diagramObject.getFeatures().has("labelExpression"));
+        assertNull("getString default must be returned after clear",
+                diagramObject.getFeatures().getString("labelExpression", null));
+    }
+
+    @Test
+    public void shouldLeaveLabelExpressionUnchanged_whenParamIsNull_AC3_AC5() {
+        diagramObject.getFeatures().putString("labelExpression", "${name}");
+
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, null, null, null);
+        cmd.execute();
+
+        assertEquals("Null param means leave-unchanged (omit-means-no-change)",
+                "${name}",
+                diagramObject.getFeatures().getString("labelExpression", null));
+        assertFalse("No labelExpression change tracked when param is null",
+                cmd.hasLabelExpressionChange());
+    }
+
+    @Test
+    public void shouldRestoreLabelExpression_whenUndoneAfterSet_AC4() {
+        // Pre-state: no labelExpression feature.
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, null, null, "${name}");
+        cmd.execute();
+        assertEquals("${name}",
+                diagramObject.getFeatures().getString("labelExpression", null));
+
+        cmd.undo();
+
+        assertFalse("Undo of set-from-empty must REMOVE the feature",
+                diagramObject.getFeatures().has("labelExpression"));
+    }
+
+    @Test
+    public void shouldRestoreLabelExpression_whenUndoneAfterReplace_AC4() {
+        diagramObject.getFeatures().putString("labelExpression", "${property:Owner}");
+
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, null, null, "${name}");
+        cmd.execute();
+        cmd.undo();
+
+        assertEquals("Undo restores the previous expression value verbatim",
+                "${property:Owner}",
+                diagramObject.getFeatures().getString("labelExpression", null));
+    }
+
+    @Test
+    public void shouldRestoreLabelExpression_whenUndoneAfterClear_AC4() {
+        diagramObject.getFeatures().putString("labelExpression", "${name}");
+
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, null, null, "");
+        cmd.execute();
+        cmd.undo();
+
+        assertEquals("Undo of empty-string-clear restores the pre-clear value",
+                "${name}",
+                diagramObject.getFeatures().getString("labelExpression", null));
+    }
+
+    @Test
+    public void shouldCaptureOldLabelExpressionAtConstruction_AC4() {
+        diagramObject.getFeatures().putString("labelExpression", "${property:Owner}");
+
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, null, null, "${name}");
+
+        // Snapshot pin: the old value is captured at construction, not at execute.
+        assertEquals("${property:Owner}", cmd.getOldLabelExpression());
+        assertEquals("${name}", cmd.getNewLabelExpression());
+        assertTrue(cmd.hasLabelExpressionChange());
+
+        // Mutate the EMF state directly (bypassing the command) — undo must
+        // still restore the value captured at construction, not the
+        // bypass-mutated value.
+        diagramObject.getFeatures().putString("labelExpression", "${type}");
+        cmd.execute();
+        cmd.undo();
+
+        assertEquals("Undo restores construction-time captured value, not post-bypass",
+                "${property:Owner}",
+                diagramObject.getFeatures().getString("labelExpression", null));
+    }
+
+    @Test
+    public void shouldNormalizeEmptyStringToNull_inNewLabelExpression_AC3() {
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, null, null, "");
+
+        // emptyToNull normalization mirrors the existing styling rail idiom.
+        assertNull("Empty-string newLabelExpression normalizes to null (clear semantic)",
+                cmd.getNewLabelExpression());
+        assertTrue("hasChange remains true so the clear semantic fires on execute",
+                cmd.hasLabelExpressionChange());
+    }
+
+    @Test
+    public void shouldBeIdempotentUnderRepeatedApply_labelExpression_AC15() {
+        UpdateViewObjectCommand cmd = new UpdateViewObjectCommand(
+                diagramObject, 50, 60, 120, 55, null, null, null, "${name}");
+
+        cmd.execute();
+        cmd.execute();   // second apply — captured "new" value is static, so idempotent.
+
+        assertEquals("${name}",
+                diagramObject.getFeatures().getString("labelExpression", null));
+    }
 }

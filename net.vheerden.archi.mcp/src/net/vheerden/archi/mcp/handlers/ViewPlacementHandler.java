@@ -29,6 +29,7 @@ import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 import net.vheerden.archi.mcp.response.dto.AddToViewResultDto;
 import net.vheerden.archi.mcp.response.dto.ElementDto;
+import net.vheerden.archi.mcp.response.dto.EmbeddedViewDto;
 import net.vheerden.archi.mcp.response.dto.ArrangeGroupsResultDto;
 import net.vheerden.archi.mcp.response.dto.ApplyViewLayoutResultDto;
 import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
@@ -42,6 +43,7 @@ import net.vheerden.archi.mcp.response.dto.AutoRouteResultDto;
 import net.vheerden.archi.mcp.response.dto.BendpointDto;
 import net.vheerden.archi.mcp.response.dto.ClearViewResultDto;
 import net.vheerden.archi.mcp.response.dto.DetectHubElementsResultDto;
+import net.vheerden.archi.mcp.response.dto.DiagramImageDto;
 import net.vheerden.archi.mcp.response.dto.LayoutFlatViewResultDto;
 import net.vheerden.archi.mcp.response.dto.LayoutViewResultDto;
 import net.vheerden.archi.mcp.response.dto.LayoutWithinGroupResultDto;
@@ -57,8 +59,9 @@ import net.vheerden.archi.mcp.response.dto.ViewPositionSpec;
 import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
- * Handler for view placement and editing tools (Stories 7-7, 7-8, 8-0c, 8-6, 9-0a, 9-2, 9-5, 9-6, 10-29, 11-20, 13-6):
- * add-to-view, add-group-to-view, add-note-to-view, add-connection-to-view,
+ * Handler for view placement and editing tools (Stories 7-7, 7-8, 8-0c, 8-6, 9-0a, 9-2, 9-5, 9-6, 10-29, 11-20, 13-6, 14-6):
+ * add-to-view, add-group-to-view, add-note-to-view, add-view-reference-to-view,
+ * add-connection-to-view,
  * update-view-object, update-view-connection, remove-from-view, clear-view,
  * apply-positions, compute-layout, assess-layout, auto-route-connections,
  * auto-connect-view, layout-within-group, auto-layout-and-route, arrange-groups,
@@ -94,7 +97,8 @@ public class ViewPlacementHandler {
     /**
      * Registers all tools provided by this handler with the command registry.
      * Registers: add-to-view, add-group-to-view, add-note-to-view,
-     * add-connection-to-view, update-view-object, update-view-connection,
+     * add-view-reference-to-view, add-connection-to-view,
+     * update-view-object, update-view-connection,
      * remove-from-view, clear-view, apply-positions, compute-layout,
      * assess-layout, auto-route-connections, auto-connect-view,
      * layout-within-group, auto-layout-and-route, arrange-groups,
@@ -105,6 +109,8 @@ public class ViewPlacementHandler {
         registry.registerTool(buildAddToViewSpec());
         registry.registerTool(buildAddGroupToViewSpec());
         registry.registerTool(buildAddNoteToViewSpec());
+        registry.registerTool(buildAddViewReferenceToViewSpec());
+        registry.registerTool(buildAddImageToViewSpec());
         registry.registerTool(buildAddConnectionToViewSpec());
         registry.registerTool(buildUpdateViewObjectSpec());
         registry.registerTool(buildUpdateViewConnectionSpec());
@@ -223,9 +229,16 @@ public class ViewPlacementHandler {
                         + "element only; silently ignored on other element classes), textAlignment ('left' / 'centre' / "
                         + "'right' — horizontal label alignment), verticalTextAlignment ('top' / "
                         + "'centre' / 'bottom' — vertical label position within the figure). "
+                        + "Optional typography: fontName, fontSize, fontStyle "
+                        + "('normal'/'bold'/'italic'/'bold-italic'). Optional gradient "
+                        + "('none'/'top-bottom'/'bottom-top'/'left-right'/'right-left'). Optional "
+                        + "deriveLineColor (boolean — when false, lineColor is used verbatim "
+                        + "instead of being derived from fill). Optional outlineOpacity (0-255). "
+                        + "Optional lineStyle ('solid'/'dashed'/'dotted'/'none' — view-object outline border style). "
                         + "Related: get-view-contents (inspect view), get-views (list views), "
                         + "auto-connect-view (batch connections), "
-                        + "add-connection-to-view (individual connections), create-view (create new view).")
+                        + "add-connection-to-view (individual connections), create-view (create new view), "
+                        + "archimate-view-patterns resource (styling completeness reference).")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -388,12 +401,17 @@ public class ViewPlacementHandler {
                         + "textAlignment ('left' / 'centre' / 'right' — horizontal label alignment), "
                         + "verticalTextAlignment ('top' / 'centre' / 'bottom' — vertical label position within "
                         + "the figure). "
+                        + "Optional typography: fontName, fontSize, fontStyle. "
+                        + "Optional gradient ('none'/'top-bottom'/'bottom-top'/'left-right'/'right-left'). "
+                        + "Optional deriveLineColor (boolean), outlineOpacity (0-255), "
+                        + "lineStyle ('solid'/'dashed'/'dotted'/'none' — view-object outline style). "
                         + "NOTE: Groups constrain element positioning and reduce connection "
                         + "routing quality. Prefer groups on structure/overview views only. "
                         + "For views needing clean routed connections, use flat layout without groups. "
                         + "Related: add-to-view (place elements inside group), "
                         + "get-view-contents (inspect view groups), "
-                        + "update-view-object (resize/relabel group).")
+                        + "update-view-object (resize/relabel group), "
+                        + "archimate-view-patterns resource (styling completeness reference).")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -553,10 +571,16 @@ public class ViewPlacementHandler {
                         + "fillColor, lineColor, fontColor (#RRGGBB hex), opacity (0-255), lineWidth "
                         + "(1-3), textAlignment ('left' / 'centre' / 'right' — horizontal label alignment), "
                         + "verticalTextAlignment ('top' / 'centre' / 'bottom' — vertical label position within "
-                        + "the note). NOTE: figureType is silently ignored on notes (notes use a separate "
-                        + "border-type semantics — dogear / rectangle / none — out of scope for this surface). "
+                        + "the note). NOTE: figureType is silently ignored on notes (notes have their own "
+                        + "borderType vocabulary — see below). "
+                        + "Optional typography: fontName, fontSize, fontStyle "
+                        + "('normal'/'bold'/'italic'/'bold-italic'). Optional borderType "
+                        + "('dogear' = Archi default folded-corner / 'rectangle' / 'none') — applies "
+                        + "to notes specifically. Optional gradient, deriveLineColor (boolean), "
+                        + "outlineOpacity (0-255), lineStyle ('solid'/'dashed'/'dotted'/'none'). "
                         + "Related: get-view-contents (inspect view notes), "
-                        + "update-view-object (edit note text or resize).")
+                        + "update-view-object (edit note text or resize), "
+                        + "archimate-view-patterns resource (styling completeness reference).")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -628,6 +652,337 @@ public class ViewPlacementHandler {
                 "Use update-view-object with viewObjectId='" + voId
                         + "' to edit the note text or resize.",
                 "Use remove-from-view to remove the note from the view.");
+    }
+
+    // ---- add-view-reference-to-view (Story 14-6 / G8) ----
+
+    private McpServerFeatures.SyncToolSpecification buildAddViewReferenceToViewSpec() {
+        Map<String, Object> viewIdProp = new LinkedHashMap<>();
+        viewIdProp.put("type", "string");
+        viewIdProp.put("description",
+                "ID of the TARGET view to place the view-reference on");
+
+        Map<String, Object> refViewIdProp = new LinkedHashMap<>();
+        refViewIdProp.put("type", "string");
+        refViewIdProp.put("description",
+                "ID of the SOURCE view being referenced (embedded as a thumbnail). "
+                + "Must be an existing ArchiMate view in the same model. "
+                + "Archi reads the referenced view's name dynamically at render time, "
+                + "so renaming the referenced view via update-view auto-updates every "
+                + "embedding visual without a separate mutation.");
+
+        Map<String, Object> xProp = new LinkedHashMap<>();
+        xProp.put("type", "integer");
+        xProp.put("description",
+                "Optional X coordinate. When parentViewObjectId is provided, this is RELATIVE "
+                + "to the parent's top-left corner. When no parent is specified, this is an "
+                + "absolute canvas coordinate. Both x and y must be provided together, "
+                + "or both omitted for auto-placement.");
+
+        Map<String, Object> yProp = new LinkedHashMap<>();
+        yProp.put("type", "integer");
+        yProp.put("description",
+                "Optional Y coordinate. When parentViewObjectId is provided, this is RELATIVE "
+                + "to the parent's top-left corner. When no parent is specified, this is an "
+                + "absolute canvas coordinate. Both x and y must be provided together, "
+                + "or both omitted for auto-placement.");
+
+        Map<String, Object> widthProp = new LinkedHashMap<>();
+        widthProp.put("type", "integer");
+        widthProp.put("description", "Optional width (default: 185)");
+
+        Map<String, Object> heightProp = new LinkedHashMap<>();
+        heightProp.put("type", "integer");
+        heightProp.put("description", "Optional height (default: 80)");
+
+        Map<String, Object> parentVoProp = new LinkedHashMap<>();
+        parentVoProp.put("type", "string");
+        parentVoProp.put("description",
+                "Optional viewObjectId of a parent group or element to nest this view-reference "
+                + "inside. NOTE: When a parent is specified, x/y coordinates are relative to the "
+                + "parent's origin (top-left corner), not absolute canvas coordinates. "
+                + "Omit to place at the top level of the view.");
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("viewId", viewIdProp);
+        properties.put("referencedViewId", refViewIdProp);
+        properties.put("x", xProp);
+        properties.put("y", yProp);
+        properties.put("width", widthProp);
+        properties.put("height", heightProp);
+        properties.put("parentViewObjectId", parentVoProp);
+        addStylingProperties(properties);
+
+        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
+                "object", properties, List.of("viewId", "referencedViewId"),
+                null, null, null);
+
+        McpSchema.Tool tool = McpSchema.Tool.builder()
+                .name("add-view-reference-to-view")
+                .description("[Mutation] Add a view-reference visual object to a view that "
+                        + "embeds another ArchiMate view as a clickable thumbnail — the "
+                        + "agent-driven equivalent of Archi GUI's drag-view-onto-view behaviour. "
+                        + "Use to compose landscape views that embed each layer view as a "
+                        + "thumbnail, build index views that link every viewpoint, or assemble "
+                        + "cross-cutting documentation views that reference detail views. "
+                        + "Requires viewId (TARGET) and referencedViewId (SOURCE) — both must be "
+                        + "IDs of existing ArchiMate views in the same model. "
+                        + "Optional: x, y (both or neither for auto-placement), width, height "
+                        + "(default 185x80), parentViewObjectId (nest inside a group or element; "
+                        + "x/y become parent-relative). "
+                        + "Same visual styling surface as add-note-to-view: fillColor, lineColor, "
+                        + "fontColor (#RRGGBB hex), opacity (0-255), lineWidth (1-3), "
+                        + "fontName, fontSize, fontStyle ('normal'/'bold'/'italic'/'bold-italic'), "
+                        + "gradient, deriveLineColor (boolean), outlineOpacity (0-255), lineStyle "
+                        + "('solid'/'dashed'/'dotted'/'none'), textAlignment ('left'/'centre'/"
+                        + "'right'), verticalTextAlignment ('top'/'centre'/'bottom'). "
+                        + "The referenced view's name is NOT stored on the visual (Archi reads it "
+                        + "dynamically at render time — renaming the referenced view auto-updates "
+                        + "every embedding visual). "
+                        + "Complement to add-note-to-view: notes are pure annotation, view-references "
+                        + "are navigational links to other views. "
+                        + "Related: get-views (find view IDs), update-view-object (resize or "
+                        + "restyle an existing view-reference — it's an IDiagramModelObject), "
+                        + "remove-from-view (delete the placement without affecting the referenced "
+                        + "view), delete-view (delete the referenced view itself — cascades "
+                        + "visual placeholders).")
+                .inputSchema(inputSchema)
+                .build();
+
+        return McpServerFeatures.SyncToolSpecification.builder()
+                .tool(tool)
+                .callHandler(this::handleAddViewReferenceToView)
+                .build();
+    }
+
+    McpSchema.CallToolResult handleAddViewReferenceToView(
+            McpSyncServerExchange exchange, McpSchema.CallToolRequest request) {
+        logger.info("Handling add-view-reference-to-view request");
+        try {
+            HandlerUtils.requireModelLoaded(accessor);
+            String sessionId = HandlerUtils.extractSessionId(sessionManager, exchange);
+
+            Map<String, Object> args = request.arguments();
+            String viewId = HandlerUtils.requireStringParam(args, "viewId");
+            String referencedViewId = HandlerUtils.requireStringParam(args, "referencedViewId");
+            Integer x = HandlerUtils.optionalIntegerParam(args, "x");
+            Integer y = HandlerUtils.optionalIntegerParam(args, "y");
+            Integer width = HandlerUtils.optionalIntegerParam(args, "width");
+            Integer height = HandlerUtils.optionalIntegerParam(args, "height");
+            String parentViewObjectId = HandlerUtils.optionalStringParam(args, "parentViewObjectId");
+            StylingParams styling = extractStylingParams(args);
+
+            MutationResult<EmbeddedViewDto> result = accessor.addViewReferenceToView(
+                    sessionId, viewId, referencedViewId, x, y, width, height,
+                    parentViewObjectId, styling);
+
+            return HandlerUtils.formatMutationResponse(result.entity(), result,
+                    buildAddViewReferenceNextSteps(result), accessor, formatter);
+
+        } catch (NoModelLoadedException e) {
+            return HandlerUtils.buildModelNotLoadedError(formatter, e);
+        } catch (ModelAccessException e) {
+            return HandlerUtils.buildModelAccessError(formatter, e);
+        } catch (MutationException e) {
+            return HandlerUtils.buildMutationError(formatter, e);
+        } catch (Exception e) {
+            logger.error("Unexpected error handling add-view-reference-to-view", e);
+            return HandlerUtils.buildInternalError(formatter, e.getMessage());
+        }
+    }
+
+    private List<String> buildAddViewReferenceNextSteps(MutationResult<EmbeddedViewDto> result) {
+        if (result.isBatched()) {
+            return List.of(
+                    "Mutation queued as operation #" + result.batchSequenceNumber()
+                            + " in current batch",
+                    "Use get-batch-status to check batch progress",
+                    "Use end-batch to commit all queued mutations");
+        }
+        String voId = result.entity().viewObjectId();
+        return List.of(
+                "Use get-view-contents to see the full target view including the new view-reference (viewObjectId='"
+                        + voId + "').",
+                "Use update-view-object to resize or restyle the view-reference"
+                        + " (it's an IDiagramModelObject).",
+                "Use add-view-reference-to-view again to embed other views,"
+                        + " or add-to-view to add element placements.");
+    }
+
+    // ---- add-image-to-view (Story 14-8 / G16) ----
+
+    private McpServerFeatures.SyncToolSpecification buildAddImageToViewSpec() {
+        Map<String, Object> viewIdProp = new LinkedHashMap<>();
+        viewIdProp.put("type", "string");
+        viewIdProp.put("description",
+                "ID of the TARGET view to place the image visual on");
+
+        Map<String, Object> imagePathProp = new LinkedHashMap<>();
+        imagePathProp.put("type", "string");
+        imagePathProp.put("description",
+                "Archive imagePath returned by add-image-to-model, or one of the paths "
+                + "returned by list-model-images. Format: 'images/<sha1>.png'. "
+                + "MUST resolve to existing bytes in the model archive — typo'd paths "
+                + "are rejected with IMAGE_NOT_FOUND. To import a new image first, "
+                + "call add-image-to-model with filePath/url/imageData.");
+
+        Map<String, Object> xProp = new LinkedHashMap<>();
+        xProp.put("type", "integer");
+        xProp.put("description",
+                "Optional X coordinate. When parentViewObjectId is provided, this is RELATIVE "
+                + "to the parent's top-left corner. When no parent is specified, this is an "
+                + "absolute canvas coordinate. Both x and y must be provided together, "
+                + "or both omitted for auto-placement.");
+
+        Map<String, Object> yProp = new LinkedHashMap<>();
+        yProp.put("type", "integer");
+        yProp.put("description",
+                "Optional Y coordinate. When parentViewObjectId is provided, this is RELATIVE "
+                + "to the parent's top-left corner. When no parent is specified, this is an "
+                + "absolute canvas coordinate. Both x and y must be provided together, "
+                + "or both omitted for auto-placement.");
+
+        Map<String, Object> widthProp = new LinkedHashMap<>();
+        widthProp.put("type", "integer");
+        widthProp.put("description", "Optional width. Default: natural image dimensions "
+                + "read from archive bytes; fallback 200 if archive read fails.");
+
+        Map<String, Object> heightProp = new LinkedHashMap<>();
+        heightProp.put("type", "integer");
+        heightProp.put("description", "Optional height. Default: natural image dimensions "
+                + "read from archive bytes; fallback 200 if archive read fails.");
+
+        Map<String, Object> parentVoProp = new LinkedHashMap<>();
+        parentVoProp.put("type", "string");
+        parentVoProp.put("description",
+                "Optional viewObjectId of a parent group or element to nest this image "
+                + "inside. NOTE: When a parent is specified, x/y coordinates are relative "
+                + "to the parent's origin (top-left corner), not absolute canvas coordinates. "
+                + "Omit to place at the top level of the view.");
+
+        // Story 14-8 follow-up (AC10 Step 5): IDiagramModelImage extends
+        // IBorderObject + IDocumentable — surface their fields as image-specific
+        // schema properties (NOT in addStylingProperties because those are
+        // generic IDiagramModelObject G5 fields).
+        Map<String, Object> borderColorProp = new LinkedHashMap<>();
+        borderColorProp.put("type", "string");
+        borderColorProp.put("description",
+                "Optional border colour in #RRGGBB hex format (specific to "
+                + "IDiagramModelImage via IBorderObject; distinct from the "
+                + "generic lineColor field). Empty string clears to default. "
+                + "Omit to leave unset (Archi default).");
+
+        Map<String, Object> documentationProp = new LinkedHashMap<>();
+        documentationProp.put("type", "string");
+        documentationProp.put("description",
+                "Optional free-text documentation attached to the image visual "
+                + "(IDocumentable). Appears in Archi's Properties tab when the "
+                + "image is selected. Omit to leave empty.");
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("viewId", viewIdProp);
+        properties.put("imagePath", imagePathProp);
+        properties.put("x", xProp);
+        properties.put("y", yProp);
+        properties.put("width", widthProp);
+        properties.put("height", heightProp);
+        properties.put("parentViewObjectId", parentVoProp);
+        properties.put("borderColor", borderColorProp);
+        properties.put("documentation", documentationProp);
+        addStylingProperties(properties);
+
+        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
+                "object", properties, List.of("viewId", "imagePath"),
+                null, null, null);
+
+        McpSchema.Tool tool = McpSchema.Tool.builder()
+                .name("add-image-to-view")
+                .description("[Mutation] Add a standalone image visual to a view — Archi renders "
+                        + "the image as a first-class diagram node (sibling to notes, groups, "
+                        + "view-references). Use to embed logos, screenshots, architecture "
+                        + "sketches, or reference imagery on a landscape view. "
+                        + "Requires viewId (target) and imagePath (returned by add-image-to-model "
+                        + "or list-model-images). "
+                        + "Optional: x, y (both or neither for auto-placement), width, height "
+                        + "(default: natural image dimensions read from archive bytes; falls back "
+                        + "to 200x200), parentViewObjectId (nest inside a group or element; "
+                        + "x/y become parent-relative). "
+                        + "Same visual styling surface as add-note-to-view (fillColor, lineColor, "
+                        + "fontColor, opacity, lineWidth, font fields, gradient, deriveLineColor, "
+                        + "outlineOpacity, lineStyle, textAlignment, verticalTextAlignment) — "
+                        + "some font/gradient fields are silently ignored by Archi's image "
+                        + "renderer at paint time, though the EMF state is preserved. "
+                        + "Different from update-view-object setting an imagePath on an element: "
+                        + "this tool creates a standalone image visual (IDiagramModelImage), "
+                        + "not an icon overlay on an existing element (IIconic.imagePath). "
+                        + "Related: add-image-to-model (import image bytes first), "
+                        + "list-model-images (browse stored images), add-view-reference-to-view "
+                        + "(sibling — embed another view as thumbnail), update-view-object "
+                        + "(resize or restyle an existing image visual — it's an "
+                        + "IDiagramModelObject), remove-from-view (delete the placement).")
+                .inputSchema(inputSchema)
+                .build();
+
+        return McpServerFeatures.SyncToolSpecification.builder()
+                .tool(tool)
+                .callHandler(this::handleAddImageToView)
+                .build();
+    }
+
+    McpSchema.CallToolResult handleAddImageToView(
+            McpSyncServerExchange exchange, McpSchema.CallToolRequest request) {
+        logger.info("Handling add-image-to-view request");
+        try {
+            HandlerUtils.requireModelLoaded(accessor);
+            String sessionId = HandlerUtils.extractSessionId(sessionManager, exchange);
+
+            Map<String, Object> args = request.arguments();
+            String viewId = HandlerUtils.requireStringParam(args, "viewId");
+            String imagePath = HandlerUtils.requireStringParam(args, "imagePath");
+            Integer x = HandlerUtils.optionalIntegerParam(args, "x");
+            Integer y = HandlerUtils.optionalIntegerParam(args, "y");
+            Integer width = HandlerUtils.optionalIntegerParam(args, "width");
+            Integer height = HandlerUtils.optionalIntegerParam(args, "height");
+            String parentViewObjectId = HandlerUtils.optionalStringParam(args, "parentViewObjectId");
+            StylingParams styling = extractStylingParams(args);
+            String borderColor = HandlerUtils.optionalStringParam(args, "borderColor");
+            String documentation = HandlerUtils.optionalStringParam(args, "documentation");
+
+            MutationResult<DiagramImageDto> result = accessor.addImageToView(
+                    sessionId, viewId, imagePath, x, y, width, height,
+                    parentViewObjectId, styling, borderColor, documentation);
+
+            return HandlerUtils.formatMutationResponse(result.entity(), result,
+                    buildAddImageToViewNextSteps(result), accessor, formatter);
+
+        } catch (NoModelLoadedException e) {
+            return HandlerUtils.buildModelNotLoadedError(formatter, e);
+        } catch (ModelAccessException e) {
+            return HandlerUtils.buildModelAccessError(formatter, e);
+        } catch (MutationException e) {
+            return HandlerUtils.buildMutationError(formatter, e);
+        } catch (Exception e) {
+            logger.error("Unexpected error handling add-image-to-view", e);
+            return HandlerUtils.buildInternalError(formatter, e.getMessage());
+        }
+    }
+
+    private List<String> buildAddImageToViewNextSteps(MutationResult<DiagramImageDto> result) {
+        if (result.isBatched()) {
+            return List.of(
+                    "Mutation queued as operation #" + result.batchSequenceNumber()
+                            + " in current batch",
+                    "Use get-batch-status to check batch progress",
+                    "Use end-batch to commit all queued mutations");
+        }
+        String voId = result.entity().viewObjectId();
+        return List.of(
+                "Use get-view-contents to see the image visual in the target view "
+                        + "(viewObjectId='" + voId + "').",
+                "Use update-view-object to resize or restyle the image visual "
+                        + "(it's an IDiagramModelObject).",
+                "Use add-image-to-view again to add more images, or remove-from-view "
+                        + "to delete this image visual.");
     }
 
     // ---- add-connection-to-view ----
@@ -734,11 +1089,16 @@ public class ViewPlacementHandler {
                         + "Optional styling: lineColor, fontColor (#RRGGBB hex or empty to clear), "
                         + "lineWidth (1-3). Optional: showLabel (false to suppress relationship name label). "
                         + "Optional: labelPosition ('source'/'middle'/'target') to control label placement. "
+                        + "Optional typography: fontName, fontSize, fontStyle "
+                        + "('normal'/'bold'/'italic'/'bold-italic'). "
+                        + "NOTE: lineStyle is a view-object property only; connection line style is "
+                        + "determined by the ArchiMate relationship type (per Archi 5.8). "
                         + "The relationship's elements must match the view objects' elements "
                         + "(either orientation). "
                         + "Related: add-to-view (place elements first), "
                         + "get-view-contents (find view object IDs in visualMetadata), "
-                        + "get-relationships (find relationship IDs).")
+                        + "get-relationships (find relationship IDs), "
+                        + "archimate-view-patterns resource (styling completeness reference).")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -938,6 +1298,21 @@ public class ViewPlacementHandler {
                 + "as their corresponding whitespace characters. "
                 + "Omit to leave text unchanged.");
 
+        Map<String, Object> labelExpressionProp = new LinkedHashMap<>();
+        labelExpressionProp.put("type", "string");
+        labelExpressionProp.put("description",
+                "Archi label expression — a dynamic rendering template for this view object's "
+                + "label. Most common tokens: '${name}' renders the element's current name (so "
+                + "renaming the element updates every view); '${property:KEY}' renders the value "
+                + "of an element property named KEY (e.g. '${property:Owner}'). "
+                + "Unlike 'text' (which sets a literal stored label for groups and notes), "
+                + "'labelExpression' is the COMPUTED rendering instruction stored on the diagram "
+                + "object. Archi evaluates the expression at render time. "
+                + "Set to a non-empty string to apply; set to empty string (\"\") to clear and "
+                + "fall back to the element's static name; omit to leave unchanged. "
+                + "No server-side validation — Archi owns the grammar; unknown tokens render as "
+                + "the literal '${...}'. See the archimate-view-patterns reference for details.");
+
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("viewObjectId", viewObjectIdProp);
         properties.put("x", xProp);
@@ -945,6 +1320,7 @@ public class ViewPlacementHandler {
         properties.put("width", widthProp);
         properties.put("height", heightProp);
         properties.put("text", textProp);
+        properties.put("labelExpression", labelExpressionProp);
         addStylingProperties(properties);
         addImageProperties(properties);
 
@@ -953,28 +1329,41 @@ public class ViewPlacementHandler {
 
         McpSchema.Tool tool = McpSchema.Tool.builder()
                 .name("update-view-object")
-                .description("[Mutation] Update the visual position, size, styling, and/or image of an element "
-                        + "on a view. Only provided fields are modified; unspecified fields remain "
-                        + "unchanged. The underlying model element is not affected — only the visual "
-                        + "representation on the diagram changes. At least one of x, y, width, height, "
-                        + "text, styling, or image parameter must be provided. Required: viewObjectId (string) — "
+                .description("[Mutation] Update the visual position, size, styling, image, and/or label "
+                        + "expression of an element on a view. Only provided fields are modified; "
+                        + "unspecified fields remain unchanged. The underlying model element is not "
+                        + "affected — only the visual representation on the diagram changes. At "
+                        + "least one of x, y, width, height, text, styling, image, or labelExpression "
+                        + "parameter must be provided. Required: viewObjectId (string) — "
                         + "the view object ID (from get-view-contents visualMetadata or groups/notes). "
                         + "Optional: x (integer), y (integer) — new position; width (integer), height (integer) "
                         + "— new size; text (string) — new label for groups or content for notes "
-                        + "(rejected for elements); fillColor, lineColor, fontColor (#RRGGBB hex or empty "
-                        + "to clear), opacity (0-255), lineWidth (1-3) — visual styling; "
-                        + "figureType ('rectangular' or 'tabbed' — applies to native groups and the "
-                        + "ArchiMate Grouping element only; silently ignored on notes and other "
-                        + "ArchiMate element classes), textAlignment ('left' / "
+                        + "(rejected for elements); labelExpression (string) — per-view-object dynamic "
+                        + "label template, e.g. '${name}' or '${property:Owner}' (empty string clears, "
+                        + "distinct from text which is the literal stored label); fillColor, lineColor, "
+                        + "fontColor (#RRGGBB hex or empty to clear), opacity (0-255), lineWidth (1-3) "
+                        + "— visual styling; figureType ('rectangular' or 'tabbed' — applies to native "
+                        + "groups and the ArchiMate Grouping element only; silently ignored on notes "
+                        + "and other ArchiMate element classes), textAlignment ('left' / "
                         + "'centre' / 'right' — horizontal label alignment), verticalTextAlignment "
                         + "('top' / 'centre' / 'bottom' — vertical label position within the figure); "
                         + "imagePath (string — from add-image-to-model, empty to remove), "
                         + "imagePosition (string — e.g. bottom-left), showIcon (string — if-no-image/always/never) "
                         + "— custom image on element/group/note. "
-                        + "Respects approval mode (set-approval-mode). All changes (including figureType + "
-                        + "textAlignment + verticalTextAlignment) execute as a single undo unit. "
+                        + "Optional typography: fontName, fontSize, fontStyle "
+                        + "('normal'/'bold'/'italic'/'bold-italic'). Optional gradient "
+                        + "('none'/'top-bottom'/'bottom-top'/'left-right'/'right-left'). Optional "
+                        + "borderType ('dogear'/'rectangle'/'none' — note-specific, silently ignored "
+                        + "on groups and elements). Optional deriveLineColor (boolean — when false, "
+                        + "lineColor is used verbatim instead of derived from fill). Optional "
+                        + "outlineOpacity (0-255). Optional lineStyle ('solid'/'dashed'/'dotted'/'none' "
+                        + "— view-object outline border style). "
+                        + "Respects approval mode (set-approval-mode). All changes (including labelExpression, "
+                        + "figureType, textAlignment, verticalTextAlignment, typography, gradient, borderType, "
+                        + "deriveLineColor, outlineOpacity, lineStyle) execute as a single undo unit. "
                         + "Related: get-view-contents (inspect view + get viewObjectIds), "
-                        + "add-to-view (place elements), add-image-to-model (import images).")
+                        + "add-to-view (place elements), add-image-to-model (import images), "
+                        + "archimate-view-patterns (label expression + styling completeness reference).")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -1000,9 +1389,13 @@ public class ViewPlacementHandler {
             String text = HandlerUtils.optionalStringParam(args, "text");
             StylingParams styling = extractStylingParams(args);
             ImageParams imageParams = extractImageParams(args);
+            // Story 14-1 (G4): allow-empty variant — empty string "" clears the label
+            // expression; absent key leaves it unchanged.
+            String labelExpression = HandlerUtils.optionalStringParamAllowEmpty(args, "labelExpression");
 
             MutationResult<ViewObjectDto> result = accessor.updateViewObject(
-                    sessionId, viewObjectId, x, y, width, height, text, styling, imageParams);
+                    sessionId, viewObjectId, x, y, width, height, text, styling, imageParams,
+                    labelExpression);
 
             return HandlerUtils.formatMutationResponse(result.entity(), result,
                     buildUpdateViewObjectNextSteps(result), accessor, formatter);
@@ -1125,9 +1518,14 @@ public class ViewPlacementHandler {
                         + "lineWidth (1-3). Optional: showLabel (false to suppress relationship "
                         + "name label, true to restore). "
                         + "Optional: labelPosition ('source'/'middle'/'target') to control label placement. "
-                        + "Respects approval mode (set-approval-mode). "
+                        + "Optional typography: fontName, fontSize, fontStyle "
+                        + "('normal'/'bold'/'italic'/'bold-italic'). "
+                        + "NOTE: lineStyle is a view-object property; connection line style is determined "
+                        + "by the ArchiMate relationship type (per Archi 5.8). "
+                        + "Respects approval mode (set-approval-mode). All changes execute as a single undo unit. "
                         + "Related: get-view-contents (inspect view + get connection IDs and "
-                        + "absoluteBendpoints), add-connection-to-view (add connections).")
+                        + "absoluteBendpoints), add-connection-to-view (add connections), "
+                        + "archimate-view-patterns resource (styling completeness reference).")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -1153,19 +1551,30 @@ public class ViewPlacementHandler {
             Boolean showLabel = (args.get("showLabel") instanceof Boolean b) ? b : null;
             Integer textPosition = parseLabelPosition(args);
 
-            // At least one format must be provided (or both null means clear)
+            // At least one field must be provided. If all five (bendpoints, absoluteBendpoints,
+            // styling, showLabel, textPosition) are null, fall back to clearing bendpoints (the
+            // legacy default — preserved for compat with callers who deliberately call with no
+            // arguments to straighten the line).
+            boolean autoClearedBendpoints = false;
             if (bendpoints == null && absoluteBendpoints == null && styling == null
                     && showLabel == null && textPosition == null) {
                 bendpoints = List.of(); // clear bendpoints
+                autoClearedBendpoints = true;
             }
 
             MutationResult<ViewConnectionDto> result = accessor.updateViewConnection(
                     sessionId, viewConnectionId, bendpoints, absoluteBendpoints, styling,
                     showLabel, textPosition);
 
-            List<BendpointDto> effectiveBps = (bendpoints != null) ? bendpoints : List.of();
+            // Story 14-2 AC16 fix: distinguish "caller intentionally changed bendpoints" from
+            // "caller passed only styling/labelling — bendpoints unchanged". The pre-14-2 code
+            // treated null as "cleared" and emitted the misleading message
+            // "Connection bendpoints cleared" for styling-only updates.
             return HandlerUtils.formatMutationResponse(result.entity(), result,
-                    buildUpdateViewConnectionNextSteps(result, effectiveBps), accessor, formatter);
+                    buildUpdateViewConnectionNextSteps(
+                            result, bendpoints, absoluteBendpoints,
+                            styling, showLabel, textPosition, autoClearedBendpoints),
+                    accessor, formatter);
 
         } catch (NoModelLoadedException e) {
             return HandlerUtils.buildModelNotLoadedError(formatter, e);
@@ -1180,7 +1589,13 @@ public class ViewPlacementHandler {
     }
 
     private List<String> buildUpdateViewConnectionNextSteps(
-            MutationResult<ViewConnectionDto> result, List<BendpointDto> bendpoints) {
+            MutationResult<ViewConnectionDto> result,
+            List<BendpointDto> bendpoints,
+            List<AbsoluteBendpointDto> absoluteBendpoints,
+            StylingParams styling,
+            Boolean showLabel,
+            Integer textPosition,
+            boolean autoClearedBendpoints) {
         if (result.isBatched()) {
             return List.of(
                     "Mutation queued as operation #" + result.batchSequenceNumber()
@@ -1188,14 +1603,32 @@ public class ViewPlacementHandler {
                     "Use get-batch-status to check batch progress",
                     "Use end-batch to commit all queued mutations");
         }
-        if (bendpoints.isEmpty()) {
+        // Story 14-2 AC16: detect what the caller actually changed and tailor the message.
+        boolean bendpointsCleared = autoClearedBendpoints
+                || (bendpoints != null && bendpoints.isEmpty())
+                || (absoluteBendpoints != null && absoluteBendpoints.isEmpty());
+        boolean bendpointsSet = (bendpoints != null && !bendpoints.isEmpty())
+                || (absoluteBendpoints != null && !absoluteBendpoints.isEmpty());
+        if (bendpointsCleared) {
             return List.of(
                     "Connection bendpoints cleared (straight line). Use get-view-contents to inspect.",
                     "Use update-view-connection to add bendpoints for routing.");
         }
+        if (bendpointsSet) {
+            return List.of(
+                    "Connection bendpoints updated. Use get-view-contents to inspect.",
+                    "Use update-view-connection with empty bendpoints array to straighten the connection.");
+        }
+        // Styling / showLabel / textPosition only (no bendpoint change).
+        boolean anyStyling = styling != null && styling.hasAnyValue();
+        if (anyStyling || showLabel != null || textPosition != null) {
+            return List.of(
+                    "Connection updated (bendpoints unchanged). Use get-view-contents to inspect.",
+                    "Provide bendpoints or absoluteBendpoints to change routing.");
+        }
         return List.of(
-                "Connection bendpoints updated. Use get-view-contents to inspect.",
-                "Use update-view-connection with empty bendpoints array to straighten the connection.");
+                "Connection updated. Use get-view-contents to inspect.",
+                "Use update-view-connection to change bendpoints, styling, or label visibility.");
     }
 
     // ---- remove-from-view (Story 7-8) ----
@@ -2287,18 +2720,19 @@ public class ViewPlacementHandler {
                         + "connection may change. Use when assess-layout reports "
                         + "non-orthogonal terminals on a view with otherwise good routing — "
                         + "a full re-route would inflate crossings on ELK views (~3x measured). "
-                        + "Each rectification is gated by an obstacle + crossing veto — "
-                        + "connections whose L-bend would add a pass-through, an element "
-                        + "crossing, or a new edge crossing with another connection are "
-                        + "left unchanged and counted in connectionsSkipped (with "
+                        + "Each rectification is gated by an interior + zigzag + obstacle + "
+                        + "crossing veto — connections whose L-bend would terminate inside its "
+                        + "own element (an interior termination), introduce a zigzag/reversal, "
+                        + "add a pass-through, cross an unrelated element, or add a new edge "
+                        + "crossing with another connection are left unchanged and counted in "
+                        + "connectionsSkipped (with vetoedByInterior, vetoedByZigzag, "
                         + "vetoedByObstacle and vetoedByCrossing sub-counts). This preserves "
-                        + "the rating tier but means dense ELK views (high non-orth rate) "
-                        + "may see only a small number of connections actually modified. "
-                        + "Most effective on sparse-to-moderate layouts; on very dense "
-                        + "views, accept the residual non-orth count as cosmetic or "
-                        + "increase element spacing first. Pass force=true to bypass the "
-                        + "obstacle + crossing veto and force-apply every L-bend (matches "
-                        + "force semantics on the orthogonal strategy). "
+                        + "the rating tier but means dense ELK views (high non-orth rate) may "
+                        + "see only a small number of connections actually modified. Most "
+                        + "effective on sparse-to-moderate layouts; on very dense views, accept "
+                        + "the residual non-orth count as cosmetic or increase element spacing "
+                        + "first. Pass force=true to bypass all four vetoes and force-apply "
+                        + "every L-bend (matches force semantics on the orthogonal strategy). "
                         + "terminals-only is mutually exclusive with strategy='clear' and "
                         + "autoNudge=true. "
                         + "Related: compute-layout (position elements first), assess-layout "
@@ -2327,7 +2761,18 @@ public class ViewPlacementHandler {
                         + "BEFORE re-running auto-route-connections — the autoNudge skip is a "
                         + "hard gate driven by degenerate geometry that the routing pipeline "
                         + "cannot resolve, so re-running without first separating the siblings "
-                        + "will reproduce the same skip.")
+                        + "will reproduce the same skip. "
+                        + "BLOCKED RECOMMENDATIONS: when autoNudge=true is requested AND the "
+                        + "autoNudge phase is blocked by overlapping sibling elements, the move "
+                        + "recommendations are surfaced under blockedRecommendations (not "
+                        + "recommendations) and a top-level nudgeBlockedReason field carries the "
+                        + "canonical reason (currently only \"sibling_overlap\"). The "
+                        + "recommendations field is reserved for the advisory (autoNudge=false) "
+                        + "path. When you see blockedRecommendations populated, resolve the "
+                        + "underlying overlap via layout-within-group (or apply the listed "
+                        + "recommendations manually) and re-run auto-route-connections — the "
+                        + "routing pipeline cannot apply the recommendations directly until the "
+                        + "sibling overlap is resolved.")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -2462,7 +2907,10 @@ public class ViewPlacementHandler {
             AutoRouteResultDto entity = result.entity();
             int obstacle = entity.vetoedByObstacle();
             int crossing = entity.vetoedByCrossing();
-            int alreadyOrtho = entity.connectionsSkipped() - obstacle - crossing;
+            int interior = entity.vetoedByInterior();
+            int zigzag = entity.vetoedByZigzag();
+            int alreadyOrtho = entity.connectionsSkipped()
+                    - obstacle - crossing - interior - zigzag;
             StringBuilder msg = new StringBuilder();
             msg.append(entity.connectionsSkipped())
                     .append(" connection(s) left unchanged (terminals-only mode):");
@@ -2479,9 +2927,20 @@ public class ViewPlacementHandler {
             if (crossing > 0) {
                 msg.append(first ? ' ' : ", ").append(crossing)
                         .append(" vetoed (L-bend would add edge crossings)");
+                first = false;
+            }
+            if (interior > 0) {
+                msg.append(first ? ' ' : ", ").append(interior)
+                        .append(" vetoed (L-bend would terminate inside an element)");
+                first = false;
+            }
+            if (zigzag > 0) {
+                msg.append(first ? ' ' : ", ").append(zigzag)
+                        .append(" vetoed (L-bend would introduce a zigzag/reversal)");
+                first = false; // keep the separator flag correct if a category is added below
             }
             msg.append('.');
-            if (obstacle > 0 || crossing > 0) {
+            if (obstacle > 0 || crossing > 0 || interior > 0 || zigzag > 0) {
                 msg.append(" To force-apply the vetoed rectifications, re-run with "
                         + "force=true, or increase element spacing first.");
             }
@@ -2578,6 +3037,10 @@ public class ViewPlacementHandler {
                         + "lineWidth (1-3) — applied to all created connections. "
                         + "TIP: Call multiple times with different relationshipTypes + lineColor "
                         + "to colour-code connections by type (e.g. blue for API calls, orange for events). "
+                        + "Pairs where one endpoint is visually nested inside the other on this view "
+                        + "are skipped (a connection between ancestor and descendant on the view "
+                        + "renders as a self-pass-through). Skipped pairs are reported in the response "
+                        + "under skippedDueToNesting; the model relationship is preserved. "
                         + "Related: add-connection-to-view (single connection), "
                         + "auto-route-connections (compute bendpoints for existing connections).")
                 .inputSchema(inputSchema)
@@ -3486,6 +3949,81 @@ public class ViewPlacementHandler {
                 + "header band of the figure). Example: 'centre' to vertically centre a group "
                 + "label inside the group's bounding rectangle.");
 
+        // Story 14-2 G5 — typography (shared with addConnectionStylingProperties).
+        Map<String, Object> fontNameProp = new LinkedHashMap<>();
+        fontNameProp.put("type", "string");
+        fontNameProp.put("description",
+                "Font family name (e.g. 'Segoe UI', 'Arial', 'Courier New'). Empty string clears "
+                + "to the system default view font. Omit to leave unchanged. Archi falls back at "
+                + "render time when the named font is not installed on the host system — the server "
+                + "does not pre-validate against installed fonts. Example: 'Comic Sans MS'.");
+
+        Map<String, Object> fontSizeProp = new LinkedHashMap<>();
+        fontSizeProp.put("type", "integer");
+        fontSizeProp.put("description",
+                "Font point size (positive integer, e.g. 9, 12, 16). No upper cap — Archi handles "
+                + "large sizes. Omit to leave the per-type default unchanged. Example: 14.");
+
+        Map<String, Object> fontStyleProp = new LinkedHashMap<>();
+        fontStyleProp.put("type", "string");
+        fontStyleProp.put("enum", java.util.List.of("normal", "bold", "italic", "bold-italic"));
+        fontStyleProp.put("description",
+                "Font style. Values: 'normal' (default), 'bold', 'italic', or 'bold-italic'. "
+                + "Omit to leave unchanged. Example: 'bold'.");
+
+        // Story 14-2 G5 — gradient (view-object only — silently ignored on connections).
+        Map<String, Object> gradientProp = new LinkedHashMap<>();
+        gradientProp.put("type", "string");
+        gradientProp.put("enum", java.util.List.of("none", "top-bottom", "bottom-top", "left-right", "right-left"));
+        gradientProp.put("description",
+                "Shape fill gradient direction. Values: 'none' (Archi default — flat fill), "
+                + "'top-bottom' (gradient starts at top), 'bottom-top', 'left-right', or "
+                + "'right-left'. Applies to view objects (groups + ArchiMate elements + notes) — "
+                + "silently ignored on connections. Empty string clears to 'none'. Omit to leave "
+                + "unchanged. Example: 'top-bottom'.");
+
+        // Story 14-2 G5 — note borderType (note-only — silently ignored on other view objects).
+        Map<String, Object> borderTypeProp = new LinkedHashMap<>();
+        borderTypeProp.put("type", "string");
+        borderTypeProp.put("enum", java.util.List.of("dogear", "rectangle", "none"));
+        borderTypeProp.put("description",
+                "Note border type. Values: 'dogear' (Archi default — folded-corner note), "
+                + "'rectangle' (plain rectangular border), or 'none' (no visible border). "
+                + "Applies ONLY to notes (add-note-to-view + update-view-object on a note) — "
+                + "silently ignored on groups, ArchiMate elements, and connections. Distinct from "
+                + "figureType (which uses tabbed/rectangular vocabulary for groups). Empty string "
+                + "clears to 'dogear'. Omit to leave unchanged. Example: 'rectangle'.");
+
+        // Story 14-2 G5 — deriveLineColor (view-object only).
+        Map<String, Object> deriveLineColorProp = new LinkedHashMap<>();
+        deriveLineColorProp.put("type", "boolean");
+        deriveLineColorProp.put("description",
+                "When true (Archi default), the element's outline colour is derived from its fill "
+                + "colour (typically a darker shade). When false, the explicit lineColor is used "
+                + "verbatim. Applies to view objects — silently ignored on connections. Omit to "
+                + "leave unchanged. Example: false (to honour an explicit lineColor regardless of fill).");
+
+        // Story 14-2 G5 — outlineOpacity (view-object only).
+        Map<String, Object> outlineOpacityProp = new LinkedHashMap<>();
+        outlineOpacityProp.put("type", "integer");
+        outlineOpacityProp.put("description",
+                "Outline (border line) opacity from 0 (fully transparent) to 255 (fully opaque). "
+                + "Archi default is 255. Distinct from 'opacity' (which controls fill opacity). "
+                + "Applies to view objects — silently ignored on connections. Omit to leave "
+                + "unchanged. Example: 128 (half-transparent outline).");
+
+        // Story 14-2 G5 — lineStyle on view objects (Task-9 empirical correction —
+        // Archi's lineStyle property is view-object only, not a connection property).
+        Map<String, Object> lineStyleProp = new LinkedHashMap<>();
+        lineStyleProp.put("type", "string");
+        lineStyleProp.put("enum", java.util.List.of("solid", "dashed", "dotted", "none"));
+        lineStyleProp.put("description",
+                "View-object outline (border) line style. Values: 'solid' (Archi default), "
+                + "'dashed', 'dotted', or 'none' (no visible outline). Applies to view objects "
+                + "(elements, groups, notes) — silently ignored on connections (connection styling "
+                + "is determined by the ArchiMate relationship type). Empty string clears to default. "
+                + "Omit to leave unchanged. Example: 'dashed'.");
+
         properties.put("fillColor", fillColorProp);
         properties.put("lineColor", lineColorProp);
         properties.put("fontColor", fontColorProp);
@@ -3494,11 +4032,22 @@ public class ViewPlacementHandler {
         properties.put("figureType", figureTypeProp);
         properties.put("textAlignment", textAlignmentProp);
         properties.put("verticalTextAlignment", verticalTextAlignmentProp);
+        // Story 14-2 G5:
+        properties.put("fontName", fontNameProp);
+        properties.put("fontSize", fontSizeProp);
+        properties.put("fontStyle", fontStyleProp);
+        properties.put("gradient", gradientProp);
+        properties.put("borderType", borderTypeProp);
+        properties.put("deriveLineColor", deriveLineColorProp);
+        properties.put("outlineOpacity", outlineOpacityProp);
+        properties.put("lineStyle", lineStyleProp);
     }
 
     /**
-     * Adds connection styling property definitions (lineColor, lineWidth, fontColor)
-     * to a tool spec properties map. Connections don't support fillColor or opacity.
+     * Adds connection styling property definitions (lineColor, lineWidth, fontColor;
+     * Story 14-2 G5: fontName/fontSize/fontStyle — lineStyle is view-object-only per
+     * Task-9 empirical correction) to a tool spec properties map.
+     * Connections don't support fillColor or opacity.
      */
     private void addConnectionStylingProperties(Map<String, Object> properties) {
         Map<String, Object> lineColorProp = new LinkedHashMap<>();
@@ -3518,9 +4067,33 @@ public class ViewPlacementHandler {
         lineWidthProp.put("description",
                 "Line width from 1 to 3. Default is 1. Omit to leave unchanged.");
 
+        // Story 14-2 G5 — typography for connection labels.
+        Map<String, Object> fontNameProp = new LinkedHashMap<>();
+        fontNameProp.put("type", "string");
+        fontNameProp.put("description",
+                "Font family name for the connection label (e.g. 'Segoe UI', 'Arial'). Empty string "
+                + "clears to system default view font. Omit to leave unchanged. Example: 'Verdana'.");
+
+        Map<String, Object> fontSizeProp = new LinkedHashMap<>();
+        fontSizeProp.put("type", "integer");
+        fontSizeProp.put("description",
+                "Font point size for the connection label (positive integer). Omit to leave the "
+                + "per-type default unchanged. Example: 11.");
+
+        Map<String, Object> fontStyleProp = new LinkedHashMap<>();
+        fontStyleProp.put("type", "string");
+        fontStyleProp.put("enum", java.util.List.of("normal", "bold", "italic", "bold-italic"));
+        fontStyleProp.put("description",
+                "Font style for the connection label. Values: 'normal' (default), 'bold', "
+                + "'italic', 'bold-italic'. Omit to leave unchanged. Example: 'italic'.");
+
         properties.put("lineColor", lineColorProp);
         properties.put("fontColor", fontColorProp);
         properties.put("lineWidth", lineWidthProp);
+        // Story 14-2 G5 — typography only (lineStyle is view-object-only per Task-9 empirical correction):
+        properties.put("fontName", fontNameProp);
+        properties.put("fontSize", fontSizeProp);
+        properties.put("fontStyle", fontStyleProp);
     }
 
     /**
@@ -3552,13 +4125,32 @@ public class ViewPlacementHandler {
         String textAlignment = HandlerUtils.optionalStringParam(args, "textAlignment");
         String verticalTextAlignment = HandlerUtils.optionalStringParam(args, "verticalTextAlignment");
 
+        // Story 14-2 G5 — typography (allow empty to clear fontName to default; the enum fields
+        // use the no-empty helper, since "" is not a meaningful enum value).
+        String fontName = HandlerUtils.optionalStringParamAllowEmpty(args, "fontName");
+        Integer fontSize = HandlerUtils.optionalIntegerParam(args, "fontSize");
+        String fontStyle = HandlerUtils.optionalStringParam(args, "fontStyle");
+        // Connection-only line style; allowEmpty for the "clear to solid" symmetry on connections.
+        String lineStyle = HandlerUtils.optionalStringParamAllowEmpty(args, "lineStyle");
+        // Gradient + borderType: allowEmpty for "clear to default" symmetry.
+        String gradient = HandlerUtils.optionalStringParamAllowEmpty(args, "gradient");
+        String borderType = HandlerUtils.optionalStringParamAllowEmpty(args, "borderType");
+        // deriveLineColor is a Boolean; null = unchanged, true/false = set.
+        Boolean deriveLineColor = (args.get("deriveLineColor") instanceof Boolean b) ? b : null;
+        Integer outlineOpacity = HandlerUtils.optionalIntegerParam(args, "outlineOpacity");
+
         if (fillColor == null && lineColor == null && fontColor == null
                 && opacity == null && lineWidth == null
-                && figureType == null && textAlignment == null && verticalTextAlignment == null) {
+                && figureType == null && textAlignment == null && verticalTextAlignment == null
+                && fontName == null && fontSize == null && fontStyle == null
+                && lineStyle == null && gradient == null && borderType == null
+                && deriveLineColor == null && outlineOpacity == null) {
             return null;
         }
         return new StylingParams(fillColor, lineColor, fontColor, opacity, lineWidth,
-                figureType, textAlignment, verticalTextAlignment);
+                figureType, textAlignment, verticalTextAlignment,
+                fontName, fontSize, fontStyle, lineStyle, gradient, borderType,
+                deriveLineColor, outlineOpacity);
     }
 
     // ---- Image helper methods (Story C4) ----

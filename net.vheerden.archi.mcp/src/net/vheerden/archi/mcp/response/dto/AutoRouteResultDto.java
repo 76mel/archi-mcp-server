@@ -5,7 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Result DTO for auto-route-connections (Story 9-5, enhanced Story 10-11, 10-21, 10-30, 10-31, 10-32, 11-31, 13-7, backlog-b14, backlog-b15, backlog-b22, B61, RoutingPreconditions.AutoRouteStructuredWarning).
+ * Result DTO for auto-route-connections (Story 9-5, enhanced Story 10-11, 10-21, 10-30, 10-31, 10-32, 11-31, 13-7, backlog-b14, backlog-b15, backlog-b22, B61, RoutingPreconditions.AutoRouteStructuredWarning, backlog-auto-route-terminals-only-interior-termination-veto, Story 14-12).
  *
  * @param viewId              the view that was routed
  * @param connectionsRouted   number of connections whose bendpoints were updated
@@ -17,12 +17,17 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @param crossingsBefore     crossing count among targeted connections before routing (backlog-b14); omitted when 0
  * @param crossingsAfter      crossing count among targeted connections after routing (backlog-b14); omitted when 0
  * @param straightLineCrossings straight-line crossing estimate before routing (backlog-b22); omitted when 0
- * @param connectionsSkipped  connections not modified (B61: already-orthogonal + obstacle-veto + crossing-veto); omitted when 0
+ * @param connectionsSkipped  connections not modified (B61: already-orthogonal + obstacle-veto + crossing-veto + interior-veto + zigzag-veto); omitted when 0
  * @param vetoedByObstacle    connections where terminals-only refused a rectification because the new L-bend would cross an unrelated element (B61); omitted when 0
  * @param vetoedByCrossing    connections where terminals-only refused a rectification because the new path would add edge crossings with other connections (B61); omitted when 0
+ * @param vetoedByInterior    connections where terminals-only refused a rectification because the new L-bend would terminate strictly inside the source or target element (interior termination, a Tier-1 routing defect); omitted when 0
+ * @param vetoedByZigzag      connections where terminals-only refused a rectification because the new L-bend would introduce a zigzag/reversal the original path did not have (a Tier-1 routing defect); omitted when 0
  * @param warnings            non-fatal issues (e.g. invalid connection IDs); omitted when empty
  * @param failed              connections that failed constraint validation; omitted when empty
- * @param recommendations     move recommendations for blocking elements; omitted when empty
+ * @param recommendations     move recommendations for blocking elements on the advisory path
+ *                            (autoNudge=false); omitted when empty. Reserved for advisory mode
+ *                            since Story 14-12 — when autoNudge=true is blocked by sibling
+ *                            overlap, recommendations move to {@link #blockedRecommendations}.
  * @param violations          constraint violations for force-mode applied routes; omitted when empty
  * @param nudgedElements      elements automatically nudged by autoNudge (Story 13-7); omitted when empty
  * @param resizedGroups       groups automatically resized to contain nudged elements (backlog-b15); omitted when empty
@@ -31,6 +36,16 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *                            metadata for deterministic LLM iteration (Story
  *                            RoutingPreconditions.AutoRouteStructuredWarning, Row E); omitted
  *                            when empty
+ * @param blockedRecommendations recommendations the autoNudge phase would have applied
+ *                            automatically but did not, because sibling-element overlap
+ *                            blocked the nudge (Story 14-12); omitted when empty. When
+ *                            populated, the agent must apply these manually (typically
+ *                            by resolving the underlying overlap via layout-within-group
+ *                            and re-running auto-route-connections).
+ * @param nudgeBlockedReason  canonical reason the autoNudge was blocked (Story 14-12);
+ *                            omitted (null) when nudge was not requested or ran to
+ *                            completion. Current value: {@code "sibling_overlap"}.
+ *                            See {@link AutoRouteBlockedReasons}.
  */
 public record AutoRouteResultDto(
         String viewId,
@@ -53,6 +68,10 @@ public record AutoRouteResultDto(
         int vetoedByObstacle,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT)
         int vetoedByCrossing,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+        int vetoedByInterior,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+        int vetoedByZigzag,
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         List<String> warnings,
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
@@ -66,7 +85,11 @@ public record AutoRouteResultDto(
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         List<ResizedGroupDto> resizedGroups,
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
-        List<StructuredWarningDto> structuredWarnings) {
+        List<StructuredWarningDto> structuredWarnings,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        List<MoveRecommendationDto> blockedRecommendations,
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String nudgeBlockedReason) {
 
     /** Compact constructor: null-guard list fields. */
     public AutoRouteResultDto {
@@ -77,13 +100,44 @@ public record AutoRouteResultDto(
         nudgedElements = nudgedElements != null ? nudgedElements : List.of();
         resizedGroups = resizedGroups != null ? resizedGroups : List.of();
         structuredWarnings = structuredWarnings != null ? structuredWarnings : List.of();
+        blockedRecommendations = blockedRecommendations != null ? blockedRecommendations : List.of();
+        // nudgeBlockedReason may legitimately be null (omitted from JSON); no guard needed.
+    }
+
+    /**
+     * Convenience constructor accepting the canonical pre-14-12 21-arg signature
+     * (without {@code blockedRecommendations} / {@code nudgeBlockedReason}).
+     * Defaults the two new fields to empty / null; used by pre-14-12 call sites
+     * that do not need the new fields (e.g. the terminals-only DTO construction
+     * site in {@code ArchiModelAccessorImpl.autoRouteConnections}, which is
+     * mutex with autoNudge and therefore cannot observe a blocked nudge).
+     */
+    public AutoRouteResultDto(String viewId, int connectionsRouted,
+            int connectionsFailed, String strategy, boolean routerTypeSwitched,
+            int labelsOptimized, int crossingsBefore, int crossingsAfter,
+            int straightLineCrossings,
+            int connectionsSkipped, int vetoedByObstacle, int vetoedByCrossing,
+            int vetoedByInterior, int vetoedByZigzag,
+            List<String> warnings, List<FailedConnectionDto> failed,
+            List<MoveRecommendationDto> recommendations,
+            List<RoutingViolationDto> violations,
+            List<NudgedElementDto> nudgedElements,
+            List<ResizedGroupDto> resizedGroups,
+            List<StructuredWarningDto> structuredWarnings) {
+        this(viewId, connectionsRouted, connectionsFailed, strategy, routerTypeSwitched,
+                labelsOptimized, crossingsBefore, crossingsAfter, straightLineCrossings,
+                connectionsSkipped, vetoedByObstacle, vetoedByCrossing,
+                vetoedByInterior, vetoedByZigzag,
+                warnings, failed, recommendations, violations,
+                nudgedElements, resizedGroups, structuredWarnings,
+                List.of(), null);
     }
 
     /**
      * Convenience constructor accepting structuredWarnings without the B61 vetoed-counters
      * (Story RoutingPreconditions.AutoRouteStructuredWarning, Row E). Defaults
-     * connectionsSkipped, vetoedByObstacle and vetoedByCrossing to 0; used by the
-     * autoNudge-skip emission path in {@code ArchiModelAccessorImpl.autoRouteConnections}.
+     * connectionsSkipped and all four vetoed-counters to 0; used by the autoNudge-skip
+     * emission path in {@code ArchiModelAccessorImpl.autoRouteConnections}.
      */
     public AutoRouteResultDto(String viewId, int connectionsRouted,
             int connectionsFailed, String strategy, boolean routerTypeSwitched,
@@ -107,13 +161,17 @@ public record AutoRouteResultDto(
                 0,
                 0,
                 0,
+                0,
+                0,
                 warnings,
                 failed,
                 recommendations,
                 violations,
                 nudgedElements,
                 resizedGroups,
-                structuredWarnings);
+                structuredWarnings,
+                List.of(),
+                null);
     }
 
     /**
@@ -141,13 +199,17 @@ public record AutoRouteResultDto(
                 0,
                 0,
                 0,
+                0,
+                0,
                 warnings,
                 failed,
                 recommendations,
                 violations,
                 nudgedElements,
                 resizedGroups,
-                List.of());
+                List.of(),
+                List.of(),
+                null);
     }
 
     /**
@@ -173,17 +235,21 @@ public record AutoRouteResultDto(
                 0,
                 0,
                 0,
+                0,
+                0,
                 warnings,
                 failed,
                 recommendations,
                 violations,
                 nudgedElements,
                 resizedGroups,
-                List.of());
+                List.of(),
+                List.of(),
+                null);
     }
 
     /**
-     * Convenience constructor without resizedGroups (backward compat with 13-param callers).
+     * Convenience constructor without resizedGroups (backward compat for 13-param callers).
      */
     public AutoRouteResultDto(String viewId, int connectionsRouted,
             int connectionsFailed, String strategy, boolean routerTypeSwitched,
@@ -204,13 +270,17 @@ public record AutoRouteResultDto(
                 0,
                 0,
                 0,
+                0,
+                0,
                 warnings,
                 failed,
                 recommendations,
                 violations,
                 nudgedElements,
                 List.of(),
-                List.of());
+                List.of(),
+                List.of(),
+                null);
     }
 
     /**
@@ -234,13 +304,17 @@ public record AutoRouteResultDto(
                 0,
                 0,
                 0,
+                0,
+                0,
                 warnings,
                 failed,
                 recommendations,
                 violations,
                 nudgedElements,
                 List.of(),
-                List.of());
+                List.of(),
+                List.of(),
+                null);
     }
 
     /**
@@ -263,13 +337,17 @@ public record AutoRouteResultDto(
                 0,
                 0,
                 0,
+                0,
+                0,
                 warnings,
                 failed,
                 recommendations,
                 violations,
                 List.of(),
                 List.of(),
-                List.of());
+                List.of(),
+                List.of(),
+                null);
     }
 
     /**
@@ -292,13 +370,17 @@ public record AutoRouteResultDto(
                 0,
                 0,
                 0,
+                0,
+                0,
                 warnings,
                 failed,
                 recommendations,
                 violations,
                 List.of(),
                 List.of(),
-                List.of());
+                List.of(),
+                List.of(),
+                null);
     }
 
     /**
@@ -320,13 +402,17 @@ public record AutoRouteResultDto(
                 0,
                 0,
                 0,
+                0,
+                0,
                 warnings,
                 failed,
                 recommendations,
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of());
+                List.of(),
+                List.of(),
+                null);
     }
 
     /**
@@ -347,13 +433,17 @@ public record AutoRouteResultDto(
                 0,
                 0,
                 0,
+                0,
+                0,
                 warnings,
                 failed,
                 List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of());
+                List.of(),
+                List.of(),
+                null);
     }
 
     /**
@@ -374,13 +464,17 @@ public record AutoRouteResultDto(
                 0,
                 0,
                 0,
+                0,
+                0,
                 warnings,
                 List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of());
+                List.of(),
+                List.of(),
+                null);
     }
 
     /**
@@ -400,12 +494,16 @@ public record AutoRouteResultDto(
                 0,
                 0,
                 0,
+                0,
+                0,
                 List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of());
+                List.of(),
+                List.of(),
+                null);
     }
 }

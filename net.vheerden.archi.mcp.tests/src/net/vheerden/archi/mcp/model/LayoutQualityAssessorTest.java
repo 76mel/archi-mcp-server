@@ -12,6 +12,9 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import net.vheerden.archi.mcp.model.routing.RoutingPipeline;
+import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
+
 /**
  * Tests for {@link LayoutQualityAssessor} — pure geometry computation (Story 9-2).
  * No EMF or SWT runtime required.
@@ -2229,6 +2232,68 @@ public class LayoutQualityAssessorTest {
     // ---- Helper methods ----
 
     /** Creates a top-level leaf element (non-group, no parent). */
+    /**
+     * Parity guard (backlog-auto-route-terminals-only-interior-termination-veto): the
+     * terminals-only interior veto ({@link RoutingPipeline#terminalsOnlyTerminatesInside})
+     * MUST flag exactly what assess-layout's M2 detector ({@link LayoutQualityAssessor#isStrictlyInside})
+     * flags, so the router can never introduce an interior termination the assessor would
+     * then report as a Tier-1 "poor". Probes span interior / on-perimeter / outside on every
+     * face (integer coords, matching Archi's int-snapped bendpoints).
+     */
+    @Test
+    public void interiorVetoPredicate_shouldMatchAssessorIsStrictlyInside() {
+        RoutingRect rect = new RoutingRect(100, 100, 200, 120, "e"); // x[100,300] y[100,220]
+        AssessmentNode elem = node("e", 100, 100, 200, 120);
+        RoutingRect far = new RoutingRect(5000, 5000, 10, 10, "far"); // never contains a probe
+        int[][] probes = {
+                {200, 160},   // dead centre — strictly inside
+                {101, 160},   // just inside left face
+                {100, 160},   // on left face line — not strictly inside
+                {300, 160},   // on right face line — not strictly inside
+                {299, 160},   // just inside right face
+                {50, 160},    // outside left
+                {200, 100},   // on top face line — not strictly inside
+                {200, 101},   // just inside top face
+                {200, 219},   // just inside bottom face
+                {200, 220},   // on bottom face line — not strictly inside
+        };
+        for (int[] p : probes) {
+            boolean assessor = LayoutQualityAssessor.isStrictlyInside(
+                    new double[]{p[0], p[1]}, elem);
+            // Single-BP rectified list: first==last==p, checked vs source (rect) and far target.
+            boolean router = RoutingPipeline.terminalsOnlyTerminatesInside(
+                    rect, far, List.of(new AbsoluteBendpointDto(p[0], p[1])));
+            assertEquals("Veto predicate must match assessor isStrictlyInside at ("
+                    + p[0] + "," + p[1] + ")", assessor, router);
+        }
+    }
+
+    /**
+     * Parity guard for the zigzag-introduction veto: `RoutingPipeline.pathHasZigzag` MUST
+     * agree with assess-layout's M3 (`countZigzags`/`isZigzagTriple`) on whether a path
+     * contains a reversal — so the veto rejects exactly the zigzags the assessor would flag.
+     */
+    @Test
+    public void zigzagVetoPredicate_shouldMatchAssessorCountZigzags() {
+        List<List<double[]>> paths = List.of(
+                List.of(new double[]{0, 50}, new double[]{100, 50},
+                        new double[]{40, 50}, new double[]{60, 50}),   // shared-Y reversal
+                List.of(new double[]{50, 0}, new double[]{50, 100},
+                        new double[]{50, 40}, new double[]{50, 60}),   // shared-X reversal
+                List.of(new double[]{0, 0}, new double[]{100, 0},
+                        new double[]{100, 100}),                       // clean L
+                List.of(new double[]{0, 0}, new double[]{50, 0},
+                        new double[]{100, 0}));                        // collinear
+        for (List<double[]> path : paths) {
+            AssessmentConnection conn = new AssessmentConnection("c", "s", "t", path, "", 1);
+            boolean assessor = this.assessor
+                    .countZigzags(List.of(conn), Set.of(), false).count() > 0;
+            boolean router = RoutingPipeline.pathHasZigzag(path);
+            assertEquals("Veto predicate must match assessor countZigzags for path " + path,
+                    assessor, router);
+        }
+    }
+
     private static AssessmentNode node(String id, double x, double y,
                                         double w, double h) {
         return new AssessmentNode(id, x, y, w, h, null, false, false, null, 0.0, null, null);

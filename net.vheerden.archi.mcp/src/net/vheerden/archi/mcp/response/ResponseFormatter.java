@@ -3,9 +3,11 @@ package net.vheerden.archi.mcp.response;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -328,5 +330,22 @@ public class ResponseFormatter {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize response to JSON", e);
         }
+    }
+
+    /**
+     * Converts a DTO (or any bean/map) into a field-keyed {@code Map} using the
+     * shared {@code NON_NULL}-configured {@link ObjectMapper}, so the resulting
+     * map omits null fields exactly as the JSON serialization would.
+     *
+     * <p>Used by graph-format building when a value reaches the handler as a DTO
+     * (e.g. {@code ViewGroupDto}/{@code ViewNoteDto}) but must be emitted as a
+     * graph node map. Passing a {@code Map} returns an equivalent {@code Map}.</p>
+     *
+     * @param value the DTO, bean, or map to convert (non-null)
+     * @return a {@code Map} of the value's non-null fields
+     */
+    public Map<String, Object> toMap(Object value) {
+        Objects.requireNonNull(value, "value must not be null");
+        return objectMapper.convertValue(value, new TypeReference<Map<String, Object>>() {});
     }
 }

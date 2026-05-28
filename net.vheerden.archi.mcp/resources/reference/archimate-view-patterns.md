@@ -428,6 +428,33 @@ When adding custom images (icons) to elements via `add-image-to-model` + `update
 - **Icon size:** 16x16 icons may be barely visible on large elements (120+ px wide). Consider 32x32 or larger icons for better visibility, or use `fill` position to stretch the image.
 - **Workflow:** Import images with `add-image-to-model` first, then apply to view objects. Set `imagePosition` and `showIcon` in the same `update-view-object` call to avoid intermediate states where both icons overlap.
 
+## Standalone Image Visuals (vs Icon Overlays)
+
+There are two distinct ways an image can appear on a view — pick the one that matches your intent:
+
+| Goal | Tool | Result |
+|------|------|--------|
+| Show a small icon on an existing ArchiMate element | `update-view-object` with `imagePath` + `imagePosition` + `showIcon` | Icon overlay on the element. Element type, name, and connections are unchanged |
+| Embed a logo, screenshot, sketch, or reference image as its own diagram node | `add-image-to-view` | Standalone image visual (sibling to notes, groups, view-references). Has its own ID, position, and size; can be connected to elements visually but does not carry ArchiMate semantics |
+
+Both pull from the same model image archive — call `add-image-to-model` (or `list-model-images` for what's already there) to get an `imagePath` of the form `images/<sha1>.png`, then pass that path to either tool.
+
+A standalone image visual carries the same visual styling fields as a note (fill / line / opacity / line width / line style / typography / gradient / border). Archi's image renderer ignores some font and gradient fields at paint time, though the EMF state is preserved if you read the visual back via `get-view-contents` (in the new `images` array).
+
+## View-Reference Visuals (Embedding One View in Another)
+
+A view-reference visual embeds another ArchiMate view inside the current view as a clickable thumbnail (the agent-driven equivalent of Archi GUI's drag-view-onto-view). Use it to build:
+
+- **Landscape views** that embed each layer view as a thumbnail.
+- **Index views** that link every viewpoint in one place.
+- **Cross-cutting documentation views** that reference detail views from a single overview.
+
+Tool: `add-view-reference-to-view` with `viewId` (the target) and `referencedViewId` (the source). Both must be IDs of existing ArchiMate views in the same model. The referenced view's name is NOT stored on the visual — Archi reads it dynamically at render time, so renaming the referenced view via `update-view` updates every embedding automatically.
+
+Cycle (A→B→A) and self-reference (X→X) are not rejected — Archi's model setter accepts them.
+
+When you delete a view that other views embed, `delete-view` now removes every embedding placeholder pointing at it atomically with the view itself, so the resulting model saves and reloads cleanly.
+
 ## Auto-Sizing Elements to Fit Labels
 
 Elements placed at default size (120x55) may truncate long names. Use auto-sizing to ensure labels are fully visible. **All workflow branches above include `autoSize: true` at the element placement step — this avoids a costly resize-then-relayout cycle later.**
@@ -472,3 +499,62 @@ Always add title notes AFTER completing layout, routing, and assessment. Use `po
 3. Optionally adjust `gap` (default 10px) for more or less spacing between note and content
 
 **Anti-pattern:** Do NOT place notes at hardcoded coordinates (e.g., x=10, y=10) before layout — ELK and other algorithms will reposition elements into the note's space, causing overlaps.
+
+## Label Expressions (`labelExpression` on `update-view-object`)
+
+A **label expression** is a dynamic rendering template stored on a view object that Archi evaluates at render time. Unlike `text` (which sets a literal stored label for groups and notes), `labelExpression` is the *computed* rendering instruction — when the underlying element changes, every view that uses the expression updates automatically.
+
+**Two common token shapes:**
+
+| Token | Renders | Example use |
+|-------|---------|-------------|
+| `${name}` | The element's current name | Show the latest element name on this view object, no manual sync |
+| `${property:KEY}` | The value of the element property named `KEY` | `${property:Owner}` renders the value of an `Owner` property on the element |
+
+Archi supports a richer grammar (model name, documentation, type, modifiers). See the Archi user-guide topic *"Label Expressions"* for the full token catalog. This MCP server does not parse or validate expressions — Archi owns the grammar; unknown tokens render as the literal `${...}`.
+
+**Semantics on `update-view-object`:**
+
+- Omit the `labelExpression` parameter → no change.
+- Pass a non-empty string → set the expression verbatim.
+- Pass `""` (empty string) → clear the expression; Archi falls back to rendering the element's static name.
+
+**`text` vs `labelExpression`:**
+
+- `text` writes the literal stored label for **groups** (`setName(...)`) or **notes** (`setContent(...)`). Rejected for element view objects.
+- `labelExpression` writes the rendering template for any view object. When both are set, Archi's `labelExpression` wins at render time.
+
+**Scope:** label expressions are stored per-view-object and are exposed on `update-view-object` only. Setting a label expression on the underlying ArchiMate element (via `update-element`) is **not supported** — Archi's renderer reads label expressions from the view-object layer, not the model-element layer.
+
+## Styling Completeness
+
+The styling rail on `add-to-view` / `add-group-to-view` / `add-note-to-view` / `update-view-object` and `add-connection-to-view` / `update-view-connection` covers typography, line style, gradient, note border type, derived line colour, and outline opacity in addition to the basic colour / opacity / line-width fields.
+
+**Typography (fontName / fontSize / fontStyle):**
+- One composite EMF field (`IFontAttribute.setFont(String)`); the three knobs are merged server-side against the existing font string, so partial updates preserve the other components.
+- `fontStyle` enum: `"normal"` / `"bold"` / `"italic"` / `"bold-italic"`.
+- `fontName: ""` clears to the system default view font. Unknown fonts fall back at render time — no installed-font pre-check.
+
+**View-object lineStyle (view objects only — elements, groups, notes):**
+- Values: `"solid"` (Archi default) / `"dashed"` / `"dotted"` / `"none"` (no visible outline).
+- Applied via `IDiagramModelObject.setLineStyle(int)` (Archi 5.8 typed setter; LINE_STYLE_DEFAULT=-1, SOLID=0, DASHED=1, DOTTED=2, NONE=3).
+- **Note:** Connection line style is NOT separately controllable in Archi 5.8 — it is determined by the ArchiMate relationship type. Setting `lineStyle` on connection tools is silently ignored.
+
+**Gradient (view objects):**
+- Values: `"none"` (Archi default — flat fill) / `"top-bottom"` / `"bottom-top"` / `"left-right"` / `"right-left"`.
+- Direction names describe the gradient's origin side (e.g. `"top-bottom"` = gradient starts at the top, fades toward the bottom).
+
+**Note borderType (notes only):**
+- Values: `"dogear"` (Archi default — folded-corner note) / `"rectangle"` / `"none"`.
+- Distinct from `figureType` (which uses `tabbed/rectangular` vocabulary on groups + ArchiMate Grouping elements). `borderType` is silently ignored on non-note objects.
+
+**deriveLineColor (view objects):**
+- Default `true`: outline colour is derived from fill (typically a darker shade — Archi's convention).
+- Set `false` to honour an explicit `lineColor` verbatim regardless of fill.
+
+**outlineOpacity (view objects):**
+- 0-255, default 255. Distinct from `opacity` (fill opacity) — controls just the outline line's alpha.
+
+**Read-back discipline:** all styling fields are omitted from JSON when the underlying EMF state is at Archi's default. Set fields are echoed in the response DTO under the same names. All changes execute as a single undo unit alongside the basic styling fields.
+
+**Note on connection line style:** Connection line style (dashed / dotted / etc.) is NOT separately controllable in Archi 5.8 — Archi derives it from the ArchiMate relationship type. The `lineStyle` parameter is a view-object property; setting it on `add-connection-to-view` or `update-view-connection` is silently ignored.

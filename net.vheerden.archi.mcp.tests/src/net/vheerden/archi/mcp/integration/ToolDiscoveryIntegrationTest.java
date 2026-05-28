@@ -32,6 +32,7 @@ import net.vheerden.archi.mcp.handlers.ViewPlacementHandler;
 import net.vheerden.archi.mcp.model.ArchiModelAccessor;
 import net.vheerden.archi.mcp.registry.CommandRegistry;
 import net.vheerden.archi.mcp.response.ResponseFormatter;
+import net.vheerden.archi.mcp.response.dto.BulkOperation;
 import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
@@ -92,7 +93,7 @@ public class ToolDiscoveryIntegrationTest {
     @Test
     public void shouldDiscoverAllRegisteredTools() {
         List<McpServerFeatures.SyncToolSpecification> tools = registry.getToolSpecifications();
-        assertEquals("Expected exactly 66 tools (3 ModelQuery + 3 View + 2 Search + 1 Traversal + 2 Session + 2 Folder + 4 Mutation + 4 Creation + 4 Specialization + 2 Update + 2 Discovery + 3 Approval + 24 ViewPlacement + 1 Render + 4 Deletion + 3 FolderMutation + 2 CommandStack)", 66, tools.size());
+        assertEquals("Expected exactly 70 tools (5 ModelQuery + 3 View + 2 Search + 1 Traversal + 2 Session + 2 Folder + 4 Mutation + 4 Creation + 4 Specialization + 2 Update + 2 Discovery + 3 Approval + 26 ViewPlacement + 1 Render + 4 Deletion + 3 FolderMutation + 2 CommandStack — Story 14-8 G16 add-image-to-view bumped ViewPlacement 25→26 and total 69→70)", 70, tools.size());
     }
 
     @Test
@@ -103,6 +104,7 @@ public class ToolDiscoveryIntegrationTest {
 
         assertTrue("Missing get-model-info", toolNames.contains("get-model-info"));
         assertTrue("Missing get-element", toolNames.contains("get-element"));
+        assertTrue("Missing find-concept-usage", toolNames.contains("find-concept-usage"));
         assertTrue("Missing get-views", toolNames.contains("get-views"));
         assertTrue("Missing get-view-contents", toolNames.contains("get-view-contents"));
         assertTrue("Missing search-elements", toolNames.contains("search-elements"));
@@ -150,8 +152,13 @@ public class ToolDiscoveryIntegrationTest {
         // Story 8-6: Visual grouping tools
         assertTrue("Missing add-group-to-view", toolNames.contains("add-group-to-view"));
         assertTrue("Missing add-note-to-view", toolNames.contains("add-note-to-view"));
+        // Story 14-6 (G8): View reference placement tool
+        assertTrue("Missing add-view-reference-to-view",
+                toolNames.contains("add-view-reference-to-view"));
         // Story 8-7: View update tool
         assertTrue("Missing update-view", toolNames.contains("update-view"));
+        // Story 14-3 (G6): Model metadata update tool
+        assertTrue("Missing update-model", toolNames.contains("update-model"));
         // Story 9-0a / 11-8: Apply positions tool (renamed from apply-view-layout)
         assertTrue("Missing apply-positions", toolNames.contains("apply-positions"));
         // Story 9-1 / 11-8: Compute layout tool (renamed from layout-view)
@@ -618,6 +625,44 @@ public class ToolDiscoveryIntegrationTest {
         Map<String, Object> operationsProp =
                 (Map<String, Object>) bulkMutateSchema.properties().get("operations");
         assertEquals("bulk-mutate 'operations' should be array type", "array", operationsProp.get("type"));
+        // Contract reconciliation: the operations description must advertise the real enforced
+        // cap (BulkOperation.MAX_OPERATIONS), not the stale "Max 50" that made agents self-throttle.
+        String operationsDescription = (String) operationsProp.get("description");
+        assertNotNull("bulk-mutate 'operations' should have a description", operationsDescription);
+        assertTrue("bulk-mutate 'operations' description should advertise the real cap as 'Max "
+                        + BulkOperation.MAX_OPERATIONS + " operations'",
+                operationsDescription.contains("Max " + BulkOperation.MAX_OPERATIONS + " operations"));
+        assertFalse("bulk-mutate 'operations' description must not advertise the stale 50-op cap",
+                operationsDescription.contains("Max 50") || operationsDescription.contains("max 50"));
+
+        // Story backlog-bulk-mutate-supported-tools-advertising-completeness:
+        // Both advertised supported-tools enumerations — the operations[].tool property
+        // description AND the tool-level description — must name EVERY tool the bulk path
+        // actually dispatches (BulkOperation.SUPPORTED_TOOLS). Both are built from
+        // BulkOperation.SUPPORTED_TOOLS_ORDERED, so this guard fails the build if a tool is
+        // ever added to the set but not advertised (the drift this story fixed).
+        Map<String, Object> bulkOpItemSchema =
+                (Map<String, Object>) operationsProp.get("items");
+        assertNotNull("bulk-mutate 'operations' should have an items schema", bulkOpItemSchema);
+        Map<String, Object> bulkOpItemProperties =
+                (Map<String, Object>) bulkOpItemSchema.get("properties");
+        assertNotNull("bulk-mutate operations item should have properties", bulkOpItemProperties);
+        Map<String, Object> bulkOpToolProp =
+                (Map<String, Object>) bulkOpItemProperties.get("tool");
+        assertNotNull("bulk-mutate operations item should have a 'tool' property", bulkOpToolProp);
+        String bulkToolPropDescription = (String) bulkOpToolProp.get("description");
+        assertNotNull("bulk-mutate operations 'tool' property should have a description",
+                bulkToolPropDescription);
+        String bulkMutateToolDescription = findTool("bulk-mutate").description();
+        assertNotNull("bulk-mutate should have a tool-level description", bulkMutateToolDescription);
+        for (String supportedTool : BulkOperation.SUPPORTED_TOOLS) {
+            assertTrue("bulk-mutate 'tool' property description must advertise supported tool '"
+                            + supportedTool + "'",
+                    advertisesBulkTool(bulkToolPropDescription, supportedTool));
+            assertTrue("bulk-mutate tool-level description must advertise supported tool '"
+                            + supportedTool + "'",
+                    advertisesBulkTool(bulkMutateToolDescription, supportedTool));
+        }
 
         // Story 7-7: View placement tools
         // add-to-view: requires viewId, elementId; optional x, y, width, height, autoConnect
@@ -830,6 +875,9 @@ public class ToolDiscoveryIntegrationTest {
                 props.containsKey("scale"));
         assertTrue("export-view should have 'inline' property",
                 props.containsKey("inline"));
+        // Story 14-4: quality prop added
+        assertTrue("export-view should have 'quality' property",
+                props.containsKey("quality"));
 
         assertNotNull("export-view should have required list", schema.required());
         assertTrue("export-view should require 'viewId'",
@@ -840,13 +888,18 @@ public class ToolDiscoveryIntegrationTest {
                 schema.required().contains("scale"));
         assertFalse("export-view 'inline' should be optional",
                 schema.required().contains("inline"));
+        assertFalse("export-view 'quality' should be optional",
+                schema.required().contains("quality"));
 
-        // Verify format enum values
+        // Verify format enum values — Story 14-4 expanded to 4 values
         Map<String, Object> formatProp = (Map<String, Object>) props.get("format");
         assertNotNull("format property should have enum", formatProp.get("enum"));
         List<String> formatEnum = (List<String>) formatProp.get("enum");
         assertTrue("format enum should contain 'png'", formatEnum.contains("png"));
+        assertTrue("format enum should contain 'jpg'", formatEnum.contains("jpg"));
         assertTrue("format enum should contain 'svg'", formatEnum.contains("svg"));
+        assertTrue("format enum should contain 'pdf'", formatEnum.contains("pdf"));
+        assertEquals("format enum should be exactly 4 values", 4, formatEnum.size());
     }
 
     @SuppressWarnings("unchecked")
@@ -909,6 +962,20 @@ public class ToolDiscoveryIntegrationTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Tool not found: " + toolName))
                 .tool();
+    }
+
+    /**
+     * True if {@code description} advertises {@code tool} as a complete, delimited token —
+     * not merely as a prefix of a longer tool name. Tool names are joined with ", " in the
+     * served descriptions, and the final entry is either at end-of-string (the toolProp
+     * description) or followed by ". " (the tool-level description). Matching {@code tool}
+     * followed by ',' or '.' or end-of-string therefore avoids a substring false-pass such
+     * as "update-view" being satisfied by "update-view-object" (which continues with '-').
+     */
+    private static boolean advertisesBulkTool(String description, String tool) {
+        return description.contains(tool + ",")
+                || description.contains(tool + ".")
+                || description.endsWith(tool);
     }
 
 }

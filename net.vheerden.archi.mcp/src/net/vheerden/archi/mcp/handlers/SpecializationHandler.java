@@ -93,9 +93,22 @@ public class SpecializationHandler {
                 + "binds to (e.g., 'Node', 'BusinessActor', 'ApplicationComponent', "
                 + "'FlowRelationship'). Must be a concrete (non-abstract) ArchiMate concept type.");
 
+        Map<String, Object> imagePathProp = new LinkedHashMap<>();
+        imagePathProp.put("type", "string");
+        imagePathProp.put("description",
+                "Optional archive imagePath returned by add-image-to-model or "
+                + "list-model-images. When set, Archi renders this image as the "
+                + "specialization's icon on every element/relationship of this "
+                + "specialization. Format: 'images/<sha1>.png'. Must resolve to "
+                + "existing bytes in the model archive — typo'd paths are rejected "
+                + "with IMAGE_NOT_FOUND. Omit to leave the specialization without "
+                + "an icon (Archi falls back to the default ArchiMate icon for "
+                + "the conceptType).");
+
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("name", nameProp);
         properties.put("conceptType", conceptTypeProp);
+        properties.put("imagePath", imagePathProp);
 
         McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
                 "object", properties, List.of("name", "conceptType"), null, null, null);
@@ -112,9 +125,16 @@ public class SpecializationHandler {
                         + "'specialization' parameter — that auto-creates the profile and the "
                         + "element in a single undoable operation. "
                         + "Required: name, conceptType. "
+                        + "Optionally accepts imagePath to set the specialization's icon "
+                        + "(must be an archive path from add-image-to-model or "
+                        + "list-model-images). Idempotent re-creation by name+conceptType "
+                        + "STILL returns 'created: false' even if the supplied imagePath "
+                        + "differs from the existing one — use update-specialization to "
+                        + "change the icon on an existing specialization. "
                         + "Related: list-specializations (browse), get-specialization-usage "
-                        + "(audit), update-specialization (rename), delete-specialization "
-                        + "(remove), create-element/create-relationship (inline auto-create).")
+                        + "(audit), update-specialization (rename / set icon), "
+                        + "delete-specialization (remove), create-element/create-relationship "
+                        + "(inline auto-create).")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -134,9 +154,10 @@ public class SpecializationHandler {
             Map<String, Object> args = request.arguments();
             String name = HandlerUtils.requireStringParam(args, "name");
             String conceptType = HandlerUtils.requireStringParam(args, "conceptType");
+            String imagePath = HandlerUtils.optionalStringParam(args, "imagePath");
 
             MutationResult<Map<String, Object>> result = accessor.createSpecialization(
-                    sessionId, name, conceptType);
+                    sessionId, name, conceptType, imagePath);
 
             return HandlerUtils.formatMutationResponse(result.entity(), result,
                     buildCreateNextSteps(result), accessor, formatter);
@@ -190,32 +211,58 @@ public class SpecializationHandler {
 
         Map<String, Object> newNameProp = new LinkedHashMap<>();
         newNameProp.put("type", "string");
-        newNameProp.put("description", "New specialization name (must be non-blank). "
+        newNameProp.put("description", "Optional new specialization name. "
                 + "Refuses to merge: if a specialization named '<newName>' already exists for "
-                + "this conceptType, the operation fails.");
+                + "this conceptType, the operation fails. Omit to leave the name unchanged. "
+                + "newName is optional — at least one of newName / imagePath / clearImagePath "
+                + "must be supplied.");
+
+        Map<String, Object> imagePathProp = new LinkedHashMap<>();
+        imagePathProp.put("type", "string");
+        imagePathProp.put("description",
+                "Optional. Set or change the specialization's icon. Archive imagePath returned "
+                + "by add-image-to-model or list-model-images. Must resolve to existing bytes "
+                + "in the model archive — typo'd paths are rejected with IMAGE_NOT_FOUND. "
+                + "Omit to leave the icon unchanged. Mutually exclusive with clearImagePath.");
+
+        Map<String, Object> clearImagePathProp = new LinkedHashMap<>();
+        clearImagePathProp.put("type", "boolean");
+        clearImagePathProp.put("description",
+                "Optional. Set to true to explicitly clear the specialization's icon — the "
+                + "specialization falls back to the default ArchiMate icon for the conceptType. "
+                + "Mutually exclusive with imagePath. Mirrors the clearViewpoint / clearPurpose "
+                + "pattern on update-view / update-model.");
 
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("name", nameProp);
         properties.put("conceptType", conceptTypeProp);
         properties.put("newName", newNameProp);
+        properties.put("imagePath", imagePathProp);
+        properties.put("clearImagePath", clearImagePathProp);
 
         McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
-                "object", properties, List.of("name", "conceptType", "newName"),
+                "object", properties, List.of("name", "conceptType"),
                 null, null, null);
 
         McpSchema.Tool tool = McpSchema.Tool.builder()
                 .name("update-specialization")
-                .description("[Mutation] Rename an existing specialization (profile). "
-                        + "Updates the profile *definition*; every element and relationship that "
-                        + "references this specialization automatically reflects the new name. "
+                .description("[Mutation] Update an existing specialization (profile) — rename "
+                        + "and/or change its icon. Updates the profile *definition*; every "
+                        + "element and relationship that references this specialization "
+                        + "automatically reflects the changes. "
                         + "Refuses to merge: if a specialization named '<newName>' already "
                         + "exists for this conceptType, the operation fails with "
                         + "INVALID_PARAMETER. To merge two specializations, manually re-assign "
                         + "the affected elements via update-element first, then delete the "
                         + "now-empty profile. "
-                        + "Required: name, conceptType, newName. "
+                        + "Required: name, conceptType. At least one of newName, imagePath, "
+                        + "or clearImagePath=true must be supplied. "
+                        + "imagePath sets/changes the icon; clearImagePath=true explicitly "
+                        + "clears it. Mutually exclusive — providing both is rejected with "
+                        + "INVALID_PARAMETER. Omit both to leave the icon unchanged. "
                         + "Related: get-specialization-usage (preview impact), "
-                        + "list-specializations, delete-specialization.")
+                        + "list-specializations (now surfaces imagePath), "
+                        + "delete-specialization, add-image-to-model (import an icon first).")
                 .inputSchema(inputSchema)
                 .build();
 
@@ -235,10 +282,13 @@ public class SpecializationHandler {
             Map<String, Object> args = request.arguments();
             String name = HandlerUtils.requireStringParam(args, "name");
             String conceptType = HandlerUtils.requireStringParam(args, "conceptType");
-            String newName = HandlerUtils.requireStringParam(args, "newName");
+            // Story 14-8: newName is now optional — at-least-one-of guard enforced at accessor.
+            String newName = HandlerUtils.optionalStringParam(args, "newName");
+            String imagePath = HandlerUtils.optionalStringParam(args, "imagePath");
+            boolean clearImagePath = HandlerUtils.optionalBooleanParam(args, "clearImagePath");
 
             MutationResult<Map<String, Object>> result = accessor.updateSpecialization(
-                    sessionId, name, conceptType, newName);
+                    sessionId, name, conceptType, newName, imagePath, clearImagePath);
 
             return HandlerUtils.formatMutationResponse(result.entity(), result,
                     buildUpdateNextSteps(result), accessor, formatter);

@@ -2,14 +2,21 @@ package net.vheerden.archi.mcp.response.dto;
 
 import static org.junit.Assert.*;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.junit.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * Tests for {@link ModelInfoDto} record.
+ *
+ * <p>Story 14-3 (G6): extended with purpose + properties read-side parity tests.</p>
  */
 public class ModelInfoDtoTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
     public void shouldCreateWithAllFields() {
@@ -59,5 +66,64 @@ public class ModelInfoDtoTest {
         ModelInfoDto dto2 = new ModelInfoDto("Model", 5, 3, 1, 0, dist, relDist, layerDist);
         assertEquals(dto1, dto2);
         assertEquals(dto1.hashCode(), dto2.hashCode());
+    }
+
+    // ---- Story 14-3 (G6): purpose + properties + back-compat ctor ----
+
+    @Test
+    public void shouldOmitPurposeFromJson_whenNull_AC11() throws Exception {
+        // Legacy 8-arg ctor → purpose + properties default to null
+        ModelInfoDto dto = new ModelInfoDto("Model", 5, 3, 1, 0,
+                Map.of(), Map.of(), Map.of());
+        String json = MAPPER.writeValueAsString(dto);
+        assertFalse("purpose=null should be omitted via @JsonInclude(NON_NULL)",
+                json.contains("\"purpose\""));
+        assertFalse("properties=null should be omitted via @JsonInclude(NON_NULL)",
+                json.contains("\"properties\""));
+    }
+
+    @Test
+    public void shouldIncludePurposeInJson_whenPopulated_AC11() throws Exception {
+        ModelInfoDto dto = new ModelInfoDto("Model", "Strategic EA", null,
+                5, 3, 1, 0, Map.of(), Map.of(), Map.of());
+        String json = MAPPER.writeValueAsString(dto);
+        assertTrue("purpose value should appear in JSON when populated",
+                json.contains("\"purpose\":\"Strategic EA\""));
+    }
+
+    @Test
+    public void shouldOmitPropertiesFromJson_whenNull_AC11() throws Exception {
+        // Populated purpose but null properties — only purpose should serialize
+        ModelInfoDto dto = new ModelInfoDto("Model", "Purpose only", null,
+                5, 3, 1, 0, Map.of(), Map.of(), Map.of());
+        String json = MAPPER.writeValueAsString(dto);
+        assertTrue(json.contains("\"purpose\":\"Purpose only\""));
+        assertFalse("properties=null should be omitted", json.contains("\"properties\""));
+    }
+
+    @Test
+    public void shouldDelegateToCanonicalCtor_whenBackCompat8FieldCtorUsed_AC11() {
+        // The 8-arg back-compat ctor delegates to the canonical 10-arg form with null purpose/properties
+        ModelInfoDto dto = new ModelInfoDto("Model", 5, 3, 1, 0,
+                Map.of("Actor", 5), Map.of("Serving", 3), Map.of("Business", 5));
+
+        assertEquals("Model", dto.name());
+        assertNull("8-arg ctor should set purpose to null", dto.purpose());
+        assertNull("8-arg ctor should set properties to null", dto.properties());
+        assertEquals(5, dto.elementCount());
+        assertEquals(3, dto.relationshipCount());
+        assertEquals(1, dto.viewCount());
+        assertEquals(Map.of("Actor", 5), dto.elementTypeDistribution());
+    }
+
+    @Test
+    public void shouldIncludePropertiesInJson_whenPopulated_AC11() throws Exception {
+        Map<String, String> props = new LinkedHashMap<>();
+        props.put("Author", "Jane");
+        ModelInfoDto dto = new ModelInfoDto("Model", null, props,
+                5, 3, 1, 0, Map.of(), Map.of(), Map.of());
+        String json = MAPPER.writeValueAsString(dto);
+        assertTrue("populated properties should appear in JSON",
+                json.contains("\"properties\":{\"Author\":\"Jane\"}"));
     }
 }

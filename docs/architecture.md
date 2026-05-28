@@ -79,26 +79,27 @@ flowchart TD
 
 ### Layer 2: Handlers (`handlers/`)
 
-Eighteen handler classes implement all 60 MCP tools:
+Nineteen handler classes implement all 72 MCP tools (the SpecializationHandler was added in v1.3; the adjust/apply spacing tools in v1.4; `update-model`, `find-concept-usage`, `add-view-reference-to-view`, and `add-image-to-view` in v1.5):
 
 | Handler | Tools | Domain |
 |---------|-------|--------|
-| ModelQueryHandler | get-model-info, get-element | Element/model queries |
+| ModelQueryHandler | get-model-info, get-element, update-model, find-concept-usage, list-specializations | Model-level queries, model metadata writes, specialization browse, reverse where-used |
 | ViewHandler | get-views, get-view-contents, update-view | View queries and updates |
 | SearchHandler | search-elements, search-relationships | Full-text search for elements and relationships |
 | TraversalHandler | get-relationships | Direct + multi-hop relationship traversal |
 | ElementCreationHandler | create-element, create-relationship, create-view, clone-view | Element, relationship, and view creation |
 | ElementUpdateHandler | update-element, update-relationship | Element and relationship property updates |
 | DiscoveryHandler | get-or-create-element, search-and-create | Find-or-create patterns |
-| ViewPlacementHandler | add-to-view, add-group-to-view, add-note-to-view, add-connection-to-view, update-view-object, update-view-connection, remove-from-view, clear-view, apply-positions, compute-layout, assess-layout, layout-within-group, layout-flat-view, auto-route-connections, auto-connect-view, auto-layout-and-route, arrange-groups, optimize-group-order, detect-hub-elements, resize-elements-to-fit | View composition, layout, routing, analysis |
+| SpecializationHandler | create-specialization, update-specialization, delete-specialization, get-specialization-usage | Specialization (profile) management with icon support |
+| ViewPlacementHandler | add-to-view, add-group-to-view, add-note-to-view, add-view-reference-to-view, add-image-to-view, add-connection-to-view, update-view-object, update-view-connection, remove-from-view, clear-view, apply-positions, compute-layout, assess-layout, layout-within-group, layout-flat-view, auto-route-connections, auto-connect-view, auto-layout-and-route, arrange-groups, optimize-group-order, detect-hub-elements, resize-elements-to-fit, adjust-view-spacing, apply-element-spacing-recommendations, apply-group-spacing-recommendations, apply-spacing-recommendations | View composition, layout, routing, analysis, spacing |
 | FolderHandler | get-folders, get-folder-tree | Folder structure queries |
 | FolderMutationHandler | create-folder, update-folder, move-to-folder | Folder mutations |
-| DeletionHandler | delete-element, delete-relationship, delete-view, delete-folder | Cascade deletion |
+| DeletionHandler | delete-element, delete-relationship, delete-view, delete-folder | Cascade deletion (including view-reference visual placeholders on delete-view) |
 | MutationHandler | bulk-mutate, begin-batch, end-batch, get-batch-status | Batch operations |
 | ApprovalHandler | set-approval-mode, list-pending-approvals, decide-mutation | Human-in-the-loop approval |
 | SessionHandler | set-session-filter, get-session-filters | Session-scoped filters |
 | CommandStackHandler | undo, redo | Undo/redo operations |
-| RenderHandler | export-view | PNG/SVG diagram export |
+| RenderHandler | export-view | PNG / JPG / SVG / PDF diagram export |
 | ImageHandler | add-image-to-model, list-model-images | Image import and inventory |
 | ResourceHandler | *(registers MCP resources, not tools)* | Static reference materials |
 
@@ -190,7 +191,7 @@ stateDiagram-v2
 5. `wireCommandRegistryServers()` — connect tool registry to running MCP server instances
 6. `wireResourceRegistryServers()` — connect resource registry to running MCP server instances
 7. `initializeModelAccessor()` — create ArchiModelAccessorImpl, register model change listeners
-8. `initializeHandlers()` — instantiate all 18 handlers, each registers its tools via CommandRegistry
+8. `initializeHandlers()` — instantiate all 19 handlers, each registers its tools via CommandRegistry
 
 **Preference constants** (defaults in `McpPlugin`):
 

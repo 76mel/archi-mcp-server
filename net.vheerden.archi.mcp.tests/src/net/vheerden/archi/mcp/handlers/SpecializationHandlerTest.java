@@ -142,6 +142,102 @@ public class SpecializationHandlerTest {
         assertNotNull(parsed.get("result"));
     }
 
+    // ---- Story 14-8 (G16) AXIS B — imagePath schema introspection ----
+
+    @Test
+    public void shouldAdvertiseImagePathOnCreateSpecialization_AC3() {
+        McpSchema.Tool tool = findTool("create-specialization");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>)
+                tool.inputSchema().properties();
+        assertTrue("create-specialization schema should advertise imagePath",
+                properties.containsKey("imagePath"));
+        // Required list stays at name + conceptType (imagePath optional).
+        List<String> required = tool.inputSchema().required();
+        assertTrue(required.contains("name"));
+        assertTrue(required.contains("conceptType"));
+        assertEquals("required size unchanged at 2 (AC3 — imagePath is optional)",
+                2, required.size());
+    }
+
+    @Test
+    public void shouldAdvertiseImagePathAndClearImagePathOnUpdate_AC4() {
+        McpSchema.Tool tool = findTool("update-specialization");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>)
+                tool.inputSchema().properties();
+        assertTrue("update-specialization schema should advertise imagePath",
+                properties.containsKey("imagePath"));
+        assertTrue("update-specialization schema should advertise clearImagePath",
+                properties.containsKey("clearImagePath"));
+        // Required list relaxed from [name, conceptType, newName] → [name, conceptType].
+        List<String> required = tool.inputSchema().required();
+        assertTrue(required.contains("name"));
+        assertTrue(required.contains("conceptType"));
+        assertEquals("AC4: newName relaxed to optional (at-least-one-of guard)",
+                2, required.size());
+    }
+
+    @Test
+    public void shouldDescribeImagePathClearSemantic_inDescriptions_AC3_AC4() {
+        String createDesc = findTool("create-specialization").description();
+        String updateDesc = findTool("update-specialization").description();
+        assertTrue("create-spec description should reference imagePath",
+                createDesc.contains("imagePath"));
+        assertTrue("update-spec description should reference imagePath",
+                updateDesc.contains("imagePath"));
+        assertTrue("update-spec description should reference clearImagePath",
+                updateDesc.contains("clearImagePath"));
+        assertTrue("update-spec description should call out mutex",
+                updateDesc.contains("Mutually exclusive")
+                        || updateDesc.contains("mutually exclusive"));
+    }
+
+    @Test
+    public void shouldPassImagePathThroughHandler_OnCreate_AC3() throws Exception {
+        McpSchema.CallToolResult result = call("create-specialization",
+                Map.of("name", "Cloud Server", "conceptType", "Node",
+                        "imagePath", "images/cloud.png"));
+        assertEquals(false, result.isError());
+        Map<String, Object> parsed = parse(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> resultMap = (Map<String, Object>) parsed.get("result");
+        assertEquals("Stub BaseTestAccessor should echo imagePath",
+                "images/cloud.png", resultMap.get("imagePath"));
+    }
+
+    @Test
+    public void shouldPassImagePathThroughHandler_OnUpdate_AC4() throws Exception {
+        McpSchema.CallToolResult result = call("update-specialization",
+                Map.of("name", "Cloud Server", "conceptType", "Node",
+                        "imagePath", "images/new.png"));
+        assertEquals(false, result.isError());
+        Map<String, Object> parsed = parse(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> resultMap = (Map<String, Object>) parsed.get("result");
+        assertEquals("Update should echo new imagePath",
+                "images/new.png", resultMap.get("imagePath"));
+    }
+
+    @Test
+    public void shouldAllowUpdateWithOnlyImagePath_AC4() throws Exception {
+        // AXIS B relaxation: newName no longer required when imagePath supplied.
+        // Handler boundary parses newName as optional — accessor enforces the
+        // at-least-one-of guard. With imagePath supplied, this should succeed.
+        McpSchema.CallToolResult result = call("update-specialization",
+                Map.of("name", "Cloud Server", "conceptType", "Node",
+                        "imagePath", "images/x.png"));
+        assertEquals("AC4 — update with only imagePath should succeed (no newName)",
+                false, result.isError());
+    }
+
+    @Test
+    public void shouldRegisterFourTools_unchanged_AC4() {
+        // Per AC4: AXIS B extends EXISTING tool schemas, does not add new tools.
+        // Tool count STAYS at 4 (create / update / delete / get-usage).
+        assertEquals(4, registry.getToolSpecifications().size());
+    }
+
     // ---- helpers ----
 
     private McpSchema.Tool findTool(String name) {

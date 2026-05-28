@@ -45,3 +45,4 @@ Generate a comprehensive summary of an ArchiMate model's architecture landscape,
 - Clear filters between layers with `set-session-filter` with `clear: true`
 - For large models, prioritise views over exhaustive element listing
 - Use `exclude: ["properties"]` to reduce token usage when properties are not relevant to the summary
+- To compose a single index/landscape view that visually links to each layer view, use `add-view-reference-to-view` — drops a clickable thumbnail of the referenced view onto the target view (the referenced view's name updates dynamically if renamed).

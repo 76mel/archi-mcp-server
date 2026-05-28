@@ -86,7 +86,7 @@ public final class FieldSelector {
     public static final Set<String> VALID_EXCLUDE_FIELDS = Set.of(
             "documentation", "properties", "layer", "type", "specialization",
             "viewpointType", "connectionRouterType", "folderPath",
-            "visualMetadata", "connections", "groups", "notes");
+            "visualMetadata", "connections", "groups", "notes", "images");
 
     // ---- Preset field sets per DTO type ----
 
@@ -107,13 +107,19 @@ public final class FieldSelector {
             "id", "name", "type", "path", "elementCount", "subfolderCount");
     private static final Set<String> FOLDER_FULL = FOLDER_STANDARD; // no extra fields yet
 
-    // Relationship field presets (Story C1: search-relationships)
+    // Relationship field presets (Story C1: search-relationships).
+    // Story 14-7 (G1): accessType / associationDirected / influenceStrength are core
+    // ArchiMate semantic attributes (closer to type/sourceId/targetId than to documentation),
+    // included in STANDARD and FULL. NON_NULL discipline upstream means zero cost for
+    // relationships that aren't the matching subtype.
     private static final Set<String> RELATIONSHIP_MINIMAL = Set.of("id", "name");
     private static final Set<String> RELATIONSHIP_STANDARD = Set.of(
-            "id", "name", "type", "sourceId", "targetId");
+            "id", "name", "type", "sourceId", "targetId",
+            "accessType", "associationDirected", "influenceStrength");
     private static final Set<String> RELATIONSHIP_FULL = Set.of(
             "id", "name", "type", "specialization", "sourceId", "targetId",
-            "documentation", "properties", "sourceName", "targetName");
+            "documentation", "properties", "sourceName", "targetName",
+            "accessType", "associationDirected", "influenceStrength");
     // Alias for backward compatibility (used by applyToRelationship for non-search contexts)
     private static final Set<String> RELATIONSHIP_ALL = RELATIONSHIP_STANDARD;
 
@@ -155,6 +161,10 @@ public final class FieldSelector {
         if (dto.properties() != null && !dto.properties().isEmpty()) map.put("properties", dto.properties());
         if (dto.sourceName() != null) map.put("sourceName", dto.sourceName());
         if (dto.targetName() != null) map.put("targetName", dto.targetName());
+        // Story 14-7 (G1): surface semantic-attribute fields when populated (NON_NULL discipline).
+        if (dto.accessType() != null) map.put("accessType", dto.accessType());
+        if (dto.associationDirected() != null) map.put("associationDirected", dto.associationDirected());
+        if (dto.influenceStrength() != null) map.put("influenceStrength", dto.influenceStrength());
         return map;
     }
 
@@ -408,6 +418,13 @@ public final class FieldSelector {
         if (dto.notes() != null) {
             if (excludeFields == null || !excludeFields.contains("notes")) {
                 map.put("notes", dto.notes());
+            }
+        }
+
+        // Story 14-8 / G16: images — include unless excluded
+        if (dto.images() != null) {
+            if (excludeFields == null || !excludeFields.contains("images")) {
+                map.put("images", dto.images());
             }
         }
 

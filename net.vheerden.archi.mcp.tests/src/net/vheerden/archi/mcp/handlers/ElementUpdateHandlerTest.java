@@ -29,6 +29,7 @@ import net.vheerden.archi.mcp.response.ErrorCode;
 import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.ElementDto;
 import net.vheerden.archi.mcp.response.dto.RelationshipDto;
+import net.vheerden.archi.mcp.response.dto.RelationshipSemanticAttributes;
 
 import org.eclipse.gef.commands.Command;
 
@@ -504,6 +505,80 @@ public class ElementUpdateHandlerTest {
         assertEquals("INVALID_PARAMETER", error.get("code"));
     }
 
+    // ---- Story 14-7 (G1) tests ----
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void shouldAdvertiseG1ParamsInUpdateRelationshipSchema_AC3() {
+        Map<String, Object> properties = registry.getToolSpecifications().stream()
+                .filter(spec -> "update-relationship".equals(spec.tool().name()))
+                .findFirst()
+                .orElseThrow()
+                .tool().inputSchema().properties();
+
+        assertTrue("schema should advertise accessType", properties.containsKey("accessType"));
+        assertTrue("schema should advertise associationDirected",
+                properties.containsKey("associationDirected"));
+        assertTrue("schema should advertise influenceStrength",
+                properties.containsKey("influenceStrength"));
+
+        Map<String, Object> accessTypeProp = (Map<String, Object>) properties.get("accessType");
+        List<?> enumValues = (List<?>) accessTypeProp.get("enum");
+        assertTrue(enumValues.contains("access"));
+        assertTrue(enumValues.contains("read"));
+        assertTrue(enumValues.contains("write"));
+        assertTrue(enumValues.contains("readwrite"));
+    }
+
+    @Test
+    public void shouldPassInfluenceStrengthThroughHandler_AC3() throws Exception {
+        Map<String, Object> args = new HashMap<>();
+        args.put("id", "rel-1");
+        args.put("influenceStrength", "+");
+        callRelTool(args);
+        assertNotNull(accessor.capturedRelationshipSemanticAttributes);
+        assertEquals("+", accessor.capturedRelationshipSemanticAttributes.influenceStrength());
+        assertNull(accessor.capturedRelationshipSemanticAttributes.accessType());
+        assertNull(accessor.capturedRelationshipSemanticAttributes.associationDirected());
+    }
+
+    @Test
+    public void shouldRejectInfluenceStrengthOnNonInfluence_atHandler_AC7() throws Exception {
+        accessor.setUpdateRelationshipBehavior((sessionId, id, name, doc, properties) -> {
+            throw new ModelAccessException(
+                    "influenceStrength only applies to InfluenceRelationship; got CompositionRelationship.",
+                    ErrorCode.INVALID_PARAMETER,
+                    null,
+                    "Omit influenceStrength, or update a relationship of type InfluenceRelationship.",
+                    null);
+        });
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("id", "rel-comp");
+        args.put("influenceStrength", "+");
+        McpSchema.CallToolResult result = callRelTool(args);
+        Map<String, Object> parsed = parseResult(result);
+
+        assertTrue("Should be an error", result.isError());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) parsed.get("error");
+        assertEquals("INVALID_PARAMETER", error.get("code"));
+        assertTrue(((String) error.get("message")).contains("influenceStrength"));
+    }
+
+    @Test
+    public void shouldExtendNoFieldsToUpdateGuard_withG1Fields_AC3() throws Exception {
+        // When only G1 fields are supplied (no name/documentation/properties/specialization),
+        // the handler should still pass the bundle through (no "no fields" error at handler).
+        // The "at least one of" guard moved to the prepare boundary handles enforcement.
+        Map<String, Object> args = new HashMap<>();
+        args.put("id", "rel-1");
+        args.put("accessType", "read");
+        callRelTool(args);
+        assertNotNull(accessor.capturedRelationshipSemanticAttributes);
+        assertEquals("read", accessor.capturedRelationshipSemanticAttributes.accessType());
+    }
+
     // ---- Helper methods ----
 
     private McpSchema.CallToolResult callRelTool(Map<String, Object> args) throws Exception {
@@ -604,6 +679,7 @@ public class ElementUpdateHandlerTest {
 
         String capturedElementSpecialization;
         String capturedRelationshipSpecialization;
+        RelationshipSemanticAttributes capturedRelationshipSemanticAttributes;
 
         @Override
         public MutationResult<ElementDto> updateElement(String sessionId, String id,
@@ -616,8 +692,9 @@ public class ElementUpdateHandlerTest {
         @Override
         public MutationResult<RelationshipDto> updateRelationship(String sessionId, String id,
                 String name, String documentation, Map<String, String> properties,
-                String specialization) {
+                String specialization, RelationshipSemanticAttributes semanticAttributes) {
             capturedRelationshipSpecialization = specialization;
+            capturedRelationshipSemanticAttributes = semanticAttributes;
             return updateRelationshipBehavior.apply(sessionId, id, name, documentation, properties);
         }
 

@@ -76,6 +76,29 @@ public class RenderHandlerTest {
 
         assertNotNull(schema.required());
         assertTrue(schema.required().contains("viewId"));
+        // Story 14-4: quality prop added to schema; not in required list
+        assertTrue("Schema should include quality prop (Story 14-4)",
+                props.containsKey("quality"));
+        assertFalse("quality should not be required",
+                schema.required().contains("quality"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void shouldExposeFourFormatEnum_inSchema_Story14_4() {
+        StubAccessor accessor = new StubAccessor(true);
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        McpSchema.Tool tool = findToolSpec("export-view").tool();
+        Map<String, Object> props = tool.inputSchema().properties();
+        Map<String, Object> formatProp = (Map<String, Object>) props.get("format");
+        java.util.List<String> enumValues = (java.util.List<String>) formatProp.get("enum");
+        assertEquals("Schema should expose 4 formats", 4, enumValues.size());
+        assertTrue(enumValues.contains("png"));
+        assertTrue(enumValues.contains("jpg"));
+        assertTrue(enumValues.contains("svg"));
+        assertTrue(enumValues.contains("pdf"));
     }
 
     // ---- Inline PNG export (AC1, AC5) ----
@@ -526,7 +549,380 @@ public class RenderHandlerTest {
         assertEquals("INVALID_PARAMETER", error.get("code"));
     }
 
+    // ---- Story 14-4: JPG routing + alias + content type (AC3, AC5) ----
+
+    @Test
+    public void shouldRouteFormatJpg_toJpegRenderer_whenInvoked_AC3() {
+        StubAccessor accessor = new StubAccessor(true, createDefaultJpgResult(90));
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        invokeExportView("view-1", "jpg", null, null);
+
+        assertEquals("jpg", accessor.lastFormat);
+    }
+
+    @Test
+    public void shouldNormaliseJpegAliasToJpg_whenFormatIsJpeg_AC3() {
+        StubAccessor accessor = new StubAccessor(true, createDefaultJpgResult(90));
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        invokeExportView("view-1", "jpeg", null, null);
+
+        assertEquals("Handler should normalise 'jpeg' to 'jpg' before accessor dispatch",
+                "jpg", accessor.lastFormat);
+    }
+
+    @Test
+    public void shouldReturnImageContentJpeg_whenInlineJpg_AC5() {
+        byte[] jpgBytes = new byte[] { (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0 };
+        ExportViewResultDto metadata = new ExportViewResultDto(
+                "view-1", "Test View", "jpg", "image/jpeg", 800, 600, null, 120);
+        ExportResult exportResult = new ExportResult(metadata, jpgBytes, null);
+        StubAccessor accessor = new StubAccessor(true, exportResult);
+
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeExportView("view-1", "jpg", null, null);
+
+        assertFalse(result.isError());
+        assertEquals(2, result.content().size());
+        assertTrue(result.content().get(0) instanceof McpSchema.TextContent);
+        assertTrue(result.content().get(1) instanceof McpSchema.ImageContent);
+        McpSchema.ImageContent imageContent =
+                (McpSchema.ImageContent) result.content().get(1);
+        assertEquals("image/jpeg", imageContent.mimeType());
+        assertEquals(Base64.getEncoder().encodeToString(jpgBytes), imageContent.data());
+    }
+
+    // ---- Story 14-4: PDF routing + EmbeddedResource (AC2, AC5) ----
+
+    @Test
+    public void shouldRouteFormatPdf_toPdfRenderer_whenInvoked_AC2() {
+        StubAccessor accessor = new StubAccessor(true, createDefaultPdfResult());
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        invokeExportView("view-1", "pdf", null, null);
+
+        assertEquals("pdf", accessor.lastFormat);
+    }
+
+    @Test
+    public void shouldReturnEmbeddedResourcePdf_whenInlinePdf_AC5() {
+        byte[] pdfBytes = new byte[] { '%', 'P', 'D', 'F', '-', '1', '.', '4' };
+        ExportViewResultDto metadata = new ExportViewResultDto(
+                "view-pdf-1", "Pdf View", "pdf", "application/pdf", null, null, null, 250);
+        ExportResult exportResult = new ExportResult(metadata, pdfBytes, null);
+        StubAccessor accessor = new StubAccessor(true, exportResult);
+
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeExportView("view-pdf-1", "pdf", null, null);
+
+        assertFalse(result.isError());
+        assertEquals(2, result.content().size());
+        assertTrue("First content should be TextContent (metadata)",
+                result.content().get(0) instanceof McpSchema.TextContent);
+        assertTrue("Second content should be EmbeddedResource for PDF",
+                result.content().get(1) instanceof McpSchema.EmbeddedResource);
+        McpSchema.EmbeddedResource embedded =
+                (McpSchema.EmbeddedResource) result.content().get(1);
+        assertTrue("Embedded resource should wrap BlobResourceContents",
+                embedded.resource() instanceof McpSchema.BlobResourceContents);
+        McpSchema.BlobResourceContents blob =
+                (McpSchema.BlobResourceContents) embedded.resource();
+        assertEquals("application/pdf", blob.mimeType());
+        assertEquals(Base64.getEncoder().encodeToString(pdfBytes), blob.blob());
+    }
+
+    @Test
+    public void shouldUseArchiExportUri_inPdfBlobResource_AC5() {
+        byte[] pdfBytes = new byte[] { '%', 'P', 'D', 'F', '-' };
+        ExportViewResultDto metadata = new ExportViewResultDto(
+                "abc-123", "View", "pdf", "application/pdf", null, null, null, 50);
+        ExportResult exportResult = new ExportResult(metadata, pdfBytes, null);
+        StubAccessor accessor = new StubAccessor(true, exportResult);
+
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeExportView("abc-123", "pdf", null, null);
+
+        McpSchema.EmbeddedResource embedded =
+                (McpSchema.EmbeddedResource) result.content().get(1);
+        McpSchema.BlobResourceContents blob =
+                (McpSchema.BlobResourceContents) embedded.resource();
+        assertEquals("archi://export/abc-123.pdf", blob.uri());
+    }
+
+    // ---- Story 14-4: quality param validation + default (AC4) ----
+
+    @Test
+    public void shouldRejectQualityZero_whenFormatJpg_AC4() throws Exception {
+        StubAccessor accessor = new StubAccessor(true, createDefaultJpgResult(90));
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "view-1");
+        args.put("format", "jpg");
+        args.put("quality", 0);
+
+        McpSchema.CallToolResult result = invokeExportViewWithArgs(args);
+
+        assertTrue(result.isError());
+        Map<String, Object> envelope = parseJson(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) envelope.get("error");
+        assertEquals("INVALID_PARAMETER", error.get("code"));
+    }
+
+    @Test
+    public void shouldRejectQualityAboveHundred_whenFormatJpg_AC4() throws Exception {
+        StubAccessor accessor = new StubAccessor(true, createDefaultJpgResult(90));
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "view-1");
+        args.put("format", "jpg");
+        args.put("quality", 101);
+
+        McpSchema.CallToolResult result = invokeExportViewWithArgs(args);
+
+        assertTrue(result.isError());
+        Map<String, Object> envelope = parseJson(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) envelope.get("error");
+        assertEquals("INVALID_PARAMETER", error.get("code"));
+    }
+
+    @Test
+    public void shouldAcceptQualityOne_whenFormatJpg_AC4() {
+        StubAccessor accessor = new StubAccessor(true, createDefaultJpgResult(1));
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "view-1");
+        args.put("format", "jpg");
+        args.put("quality", 1);
+
+        McpSchema.CallToolResult result = invokeExportViewWithArgs(args);
+
+        assertFalse(result.isError());
+        assertEquals(1, accessor.lastQuality);
+    }
+
+    @Test
+    public void shouldAcceptQualityHundred_whenFormatJpg_AC4() {
+        StubAccessor accessor = new StubAccessor(true, createDefaultJpgResult(100));
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "view-1");
+        args.put("format", "jpg");
+        args.put("quality", 100);
+
+        McpSchema.CallToolResult result = invokeExportViewWithArgs(args);
+
+        assertFalse(result.isError());
+        assertEquals(100, accessor.lastQuality);
+    }
+
+    @Test
+    public void shouldDefaultQualityToNinety_whenFormatJpgAndQualityOmitted_AC4() {
+        StubAccessor accessor = new StubAccessor(true, createDefaultJpgResult(90));
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        invokeExportView("view-1", "jpg", null, null);
+
+        assertEquals("Default quality should be 90 when omitted",
+                90, accessor.lastQuality);
+    }
+
+    @Test
+    public void shouldIgnoreQuality_whenFormatPng_AC4() {
+        StubAccessor accessor = new StubAccessor(true, createDefaultPngResult());
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "view-1");
+        args.put("format", "png");
+        args.put("quality", 50);
+
+        McpSchema.CallToolResult result = invokeExportViewWithArgs(args);
+
+        assertFalse("PNG should accept quality param without error", result.isError());
+        // quality is passed through but is irrelevant for PNG; lossless rendering ignores it
+        assertEquals(50, accessor.lastQuality);
+    }
+
+    @Test
+    public void shouldIgnoreQuality_whenFormatPdf_AC4() {
+        StubAccessor accessor = new StubAccessor(true, createDefaultPdfResult());
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "view-1");
+        args.put("format", "pdf");
+        args.put("quality", 50);
+
+        McpSchema.CallToolResult result = invokeExportViewWithArgs(args);
+
+        assertFalse("PDF should accept quality param without error", result.isError());
+        assertEquals(50, accessor.lastQuality);
+    }
+
+    @Test
+    public void shouldIgnoreQuality_whenFormatSvg_AC4() {
+        String svgXml = "<svg/>";
+        ExportViewResultDto metadata = new ExportViewResultDto(
+                "view-1", "Test View", "svg", "image/svg+xml", null, null, null, 80);
+        ExportResult exportResult = new ExportResult(metadata, null, svgXml);
+        StubAccessor accessor = new StubAccessor(true, exportResult);
+
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "view-1");
+        args.put("format", "svg");
+        args.put("quality", 50);
+
+        McpSchema.CallToolResult result = invokeExportViewWithArgs(args);
+
+        assertFalse("SVG should accept quality param without error", result.isError());
+        assertEquals(50, accessor.lastQuality);
+    }
+
+    // ---- Story 14-4: Unsupported format rejection (AC9) ----
+
+    @Test
+    public void shouldRejectUnsupportedFormat_AC9() throws Exception {
+        StubAccessor accessor = new StubAccessor(true);
+        // Accessor's INVALID_PARAMETER for unknown formats; the handler propagates it.
+        accessor.throwOnExport = new ModelAccessException(
+                "Unsupported export format: tiff. Supported formats: png, jpg, svg, pdf",
+                ErrorCode.INVALID_PARAMETER,
+                null,
+                "Use one of: png, jpg, svg, pdf",
+                null);
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeExportView("view-1", "tiff", null, null);
+
+        assertTrue(result.isError());
+        Map<String, Object> envelope = parseJson(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) envelope.get("error");
+        assertEquals("INVALID_PARAMETER", error.get("code"));
+    }
+
+    // ---- Story 14-4: per-format nextSteps (AC10) ----
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void shouldEmitPdfInlineNextSteps_whenInlinePdf_AC10() throws Exception {
+        StubAccessor accessor = new StubAccessor(true, createDefaultPdfResult());
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeExportView("view-1", "pdf", null, null);
+
+        assertFalse(result.isError());
+        McpSchema.TextContent meta = (McpSchema.TextContent) result.content().get(0);
+        Map<String, Object> parsed = objectMapper.readValue(meta.text(),
+                new TypeReference<Map<String, Object>>() {});
+        java.util.List<String> nextSteps = (java.util.List<String>) parsed.get("nextSteps");
+        assertNotNull(nextSteps);
+        assertFalse(nextSteps.isEmpty());
+        boolean mentionsPng = nextSteps.stream()
+                .anyMatch(s -> s.contains("format 'png'"));
+        assertTrue("PDF inline nextSteps should mention 'format \\'png\\'' for vision review",
+                mentionsPng);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void shouldEmitJpgFileNextSteps_whenInlineFalseJpg_AC10() throws Exception {
+        ExportViewResultDto metadata = new ExportViewResultDto(
+                "view-1", "View", "jpg", "image/jpeg", 800, 600,
+                "/tmp/archi-mcp-export/view-1.jpg", 100);
+        ExportResult exportResult = new ExportResult(metadata, null, null);
+        StubAccessor accessor = new StubAccessor(true, exportResult);
+
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "view-1");
+        args.put("format", "jpg");
+        args.put("inline", false);
+
+        McpSchema.CallToolResult result = invokeExportViewWithArgs(args);
+
+        Map<String, Object> envelope = parseJson(result);
+        java.util.List<String> nextSteps = (java.util.List<String>) envelope.get("nextSteps");
+        assertNotNull(nextSteps);
+        boolean mentionsPng = nextSteps.stream()
+                .anyMatch(s -> s.contains("'png'"));
+        assertTrue("JPG file nextSteps should suggest PNG alternative", mentionsPng);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void shouldEmitPdfFileNextSteps_whenInlineFalsePdf_AC10() throws Exception {
+        ExportViewResultDto metadata = new ExportViewResultDto(
+                "view-1", "View", "pdf", "application/pdf", null, null,
+                "/tmp/archi-mcp-export/view-1.pdf", 200);
+        ExportResult exportResult = new ExportResult(metadata, null, null);
+        StubAccessor accessor = new StubAccessor(true, exportResult);
+
+        RenderHandler handler = new RenderHandler(accessor, formatter, registry);
+        handler.registerTools();
+
+        Map<String, Object> args = new HashMap<>();
+        args.put("viewId", "view-1");
+        args.put("format", "pdf");
+        args.put("inline", false);
+
+        McpSchema.CallToolResult result = invokeExportViewWithArgs(args);
+
+        Map<String, Object> envelope = parseJson(result);
+        java.util.List<String> nextSteps = (java.util.List<String>) envelope.get("nextSteps");
+        assertNotNull(nextSteps);
+        boolean mentionsPng = nextSteps.stream()
+                .anyMatch(s -> s.contains("'png'"));
+        assertTrue("PDF file nextSteps should suggest PNG alternative for vision review",
+                mentionsPng);
+    }
+
     // ---- Helpers ----
+
+    private ExportResult createDefaultJpgResult(int quality) {
+        byte[] jpgBytes = new byte[] { (byte) 0xFF, (byte) 0xD8, (byte) 0xFF };
+        ExportViewResultDto metadata = new ExportViewResultDto(
+                "view-1", "Test View", "jpg", "image/jpeg", 800, 600, null, 100);
+        // quality is captured by the accessor stub, not encoded into the metadata
+        return new ExportResult(metadata, jpgBytes, null);
+    }
+
+    private ExportResult createDefaultPdfResult() {
+        byte[] pdfBytes = new byte[] { '%', 'P', 'D', 'F', '-', '1', '.', '4' };
+        ExportViewResultDto metadata = new ExportViewResultDto(
+                "view-1", "Test View", "pdf", "application/pdf", null, null, null, 200);
+        return new ExportResult(metadata, pdfBytes, null);
+    }
 
     private ExportResult createDefaultPngResult() {
         byte[] pngBytes = new byte[] { (byte) 0x89, 0x50, 0x4E, 0x47 };
@@ -572,6 +968,7 @@ public class RenderHandlerTest {
         String lastViewId;
         String lastFormat;
         double lastScale;
+        int lastQuality;
         boolean lastInline;
         String lastOutputDirectory;
 
@@ -586,7 +983,7 @@ public class RenderHandlerTest {
 
         @Override
         public ExportResult exportView(String viewId, String format,
-                                        double scale, boolean inline,
+                                        double scale, int quality, boolean inline,
                                         String outputDirectory) {
             if (!isModelLoaded()) {
                 throw new NoModelLoadedException();
@@ -597,6 +994,7 @@ public class RenderHandlerTest {
             this.lastViewId = viewId;
             this.lastFormat = format;
             this.lastScale = scale;
+            this.lastQuality = quality;
             this.lastInline = inline;
             this.lastOutputDirectory = outputDirectory;
             return exportResult;

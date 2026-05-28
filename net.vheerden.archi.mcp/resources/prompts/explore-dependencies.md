@@ -38,3 +38,4 @@ Systematically discover and map dependencies for an ArchiMate element, answering
 - Use `fields: "minimal"` during traversal to reduce token usage, then `get-element` for details on important nodes
 - Set a `set-session-filter` if you're analysing dependencies within a specific layer
 - Check `_meta.isTruncated` — if true, the traversal hit limits and deeper paths may exist
+- For the **visual-footprint** axis (which views and diagram objects reference the element, the orthogonal complement to relationship-chain reachability), call `find-concept-usage` with the element or relationship ID — useful before delete/rename to see every visual reference in one round-trip.

@@ -12,6 +12,15 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * <p><strong>Story 11-2:</strong> Added optional styling fields (fillColor,
  * lineColor, fontColor, opacity, lineWidth). These are omitted from JSON
  * when null (i.e., when the object uses Archi's default styling).</p>
+ *
+ * <p><strong>Story 14-1 (G4):</strong> Added optional {@code labelExpression}
+ * field — Archi's per-view-object dynamic label template (e.g. {@code "${name}"},
+ * {@code "${property:Owner}"}). Omitted from JSON when null (no label expression set).</p>
+ *
+ * <p><strong>Story 14-2 (G5):</strong> Added optional typography fields
+ * ({@code fontName}, {@code fontSize}, {@code fontStyle}), {@code gradient},
+ * {@code borderType} (note-specific), {@code deriveLineColor}, and
+ * {@code outlineOpacity}. All omitted from JSON when at Archi default.</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ViewObjectDto(
@@ -35,13 +44,68 @@ public record ViewObjectDto(
     String imageCoverageWarning,
     String figureType,
     String textAlignment,
-    String verticalTextAlignment
+    String verticalTextAlignment,
+    String labelExpression,
+    String fontName,
+    Integer fontSize,
+    String fontStyle,
+    String gradient,
+    String borderType,
+    Boolean deriveLineColor,
+    Integer outlineOpacity,
+    String lineStyle
 ) {
+
+    /**
+     * Constructor matching the post-{@code 14-1} 22-field shape (no Story 14-2 typography/
+     * gradient/borderType/deriveLineColor/outlineOpacity/lineStyle fields). Delegates to the canonical
+     * 30-field constructor with eight trailing nulls. Preserves existing call sites byte-identically.
+     */
+    public ViewObjectDto(
+            String viewObjectId, String elementId, String elementName, String elementType,
+            int x, int y, int width, int height,
+            String fillColor, String lineColor, String fontColor,
+            Integer opacity, Integer lineWidth,
+            String imagePath, String imagePosition, String showIcon,
+            Double imageCoveragePercent, String imageCoverageWarning,
+            String figureType, String textAlignment, String verticalTextAlignment,
+            String labelExpression) {
+        this(viewObjectId, elementId, elementName, elementType,
+                x, y, width, height,
+                fillColor, lineColor, fontColor, opacity, lineWidth,
+                imagePath, imagePosition, showIcon,
+                imageCoveragePercent, imageCoverageWarning,
+                figureType, textAlignment, verticalTextAlignment,
+                labelExpression,
+                null, null, null, null, null, null, null, null);
+    }
+
+    /**
+     * Constructor matching the pre-{@code 14-1} 21-field shape (no labelExpression).
+     * Delegates to the canonical 30-field constructor with nine trailing nulls.
+     */
+    public ViewObjectDto(
+            String viewObjectId, String elementId, String elementName, String elementType,
+            int x, int y, int width, int height,
+            String fillColor, String lineColor, String fontColor,
+            Integer opacity, Integer lineWidth,
+            String imagePath, String imagePosition, String showIcon,
+            Double imageCoveragePercent, String imageCoverageWarning,
+            String figureType, String textAlignment, String verticalTextAlignment) {
+        this(viewObjectId, elementId, elementName, elementType,
+                x, y, width, height,
+                fillColor, lineColor, fontColor, opacity, lineWidth,
+                imagePath, imagePosition, showIcon,
+                imageCoveragePercent, imageCoverageWarning,
+                figureType, textAlignment, verticalTextAlignment,
+                null,
+                null, null, null, null, null, null, null, null);
+    }
 
     /**
      * Constructor matching the pre-{@code backlog-group-element-styling-surface} 18-field shape
      * (styling + image fields, no figureType/textAlignment/verticalTextAlignment). Delegates to the
-     * canonical 21-field constructor with three trailing nulls.
+     * canonical constructor with trailing nulls.
      */
     public ViewObjectDto(
             String viewObjectId, String elementId, String elementName, String elementType,
@@ -55,7 +119,8 @@ public record ViewObjectDto(
                 fillColor, lineColor, fontColor, opacity, lineWidth,
                 imagePath, imagePosition, showIcon,
                 imageCoveragePercent, imageCoverageWarning,
-                null, null, null);
+                null, null, null, null,
+                null, null, null, null, null, null, null, null);
     }
 
     /**

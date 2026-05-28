@@ -7,8 +7,6 @@ import org.eclipse.gef.commands.Command;
 
 import com.archimatetool.model.IDiagramModelArchimateConnection;
 import com.archimatetool.model.IDiagramModelBendpoint;
-import com.archimatetool.model.IFontAttribute;
-import com.archimatetool.model.ILineObject;
 
 /**
  * GEF Command that replaces the bendpoints of a connection on a view,
@@ -21,6 +19,13 @@ import com.archimatetool.model.ILineObject;
  * <p><strong>Story 11-2:</strong> Added optional styling support
  * (lineColor, lineWidth, fontColor) for connections.</p>
  *
+ * <p><strong>Story 14-2 (G5):</strong> Extended the styling rail with typography
+ * (fontName / fontSize / fontStyle merged through the composite-string
+ * {@code IFontAttribute.setFont(String)}). Note: {@code lineStyle} is a view-object
+ * property in Archi 5.8 — applied by {@link UpdateViewObjectCommand}, NOT on
+ * connections (Task-9 empirical correction; see {@code 14-2-empirical-2026-05-26/EMPIRICAL-FINDINGS.md}).
+ * Constructor arity unchanged — new fields ride the existing {@link StylingParams} parameter.</p>
+ *
  * <p><strong>CRITICAL:</strong> This command MUST be executed via
  * {@code CommandStack.execute()} through {@link MutationDispatcher}.
  * Direct invocation of {@code execute()} bypasses undo tracking.</p>
@@ -31,7 +36,7 @@ public class UpdateViewConnectionCommand extends Command {
     private final List<IDiagramModelBendpoint> oldBendpoints;
     private final List<IDiagramModelBendpoint> newBendpoints;
 
-    // Styling update support (Story 11-2)
+    // Styling update support (Story 11-2 + Story 14-2 G5)
     private final String oldLineColor;
     private final String newLineColor;
     private final String oldFontColor;
@@ -39,6 +44,12 @@ public class UpdateViewConnectionCommand extends Command {
     private final int oldLineWidth;
     private final int newLineWidth;
     private final boolean hasStylingChange;
+
+    // Story 14-2 G5: typography composite string (one captured composite, merged via
+    // StylingHelper.assembleFontString at construction). lineStyle is view-object-only
+    // in Archi 5.8 and is not captured on connections — see UpdateViewObjectCommand.
+    private final String oldFont;
+    private final String newFont;
 
     // Label visibility support (Story 13-1)
     private final Boolean oldNameVisible;
@@ -107,9 +118,11 @@ public class UpdateViewConnectionCommand extends Command {
         this.oldBendpoints = new ArrayList<>(connection.getBendpoints());
         this.newBendpoints = new ArrayList<>(newBendpoints);
 
-        // Styling support (Story 11-2) — connections support lineColor, lineWidth, fontColor
+        // Styling support (Story 11-2 + Story 14-2 G5) — connections support lineColor, lineWidth,
+        // fontColor, and typography (fontName/Size/Style). lineStyle is view-object-only.
         this.hasStylingChange = (styling != null &&
-                (styling.lineColor() != null || styling.lineWidth() != null || styling.fontColor() != null));
+                (styling.lineColor() != null || styling.lineWidth() != null || styling.fontColor() != null
+                 || styling.fontName() != null || styling.fontSize() != null || styling.fontStyle() != null));
 
         if (hasStylingChange) {
             this.oldLineColor = connection.getLineColor();
@@ -119,6 +132,15 @@ public class UpdateViewConnectionCommand extends Command {
             this.newLineColor = (styling.lineColor() != null) ? emptyToNull(styling.lineColor()) : oldLineColor;
             this.newFontColor = (styling.fontColor() != null) ? emptyToNull(styling.fontColor()) : oldFontColor;
             this.newLineWidth = (styling.lineWidth() != null) ? styling.lineWidth() : oldLineWidth;
+
+            // Story 14-2 G5: font composite — capture once, merge via assembleFontString.
+            this.oldFont = connection.getFont();
+            if (styling.fontName() != null || styling.fontSize() != null || styling.fontStyle() != null) {
+                this.newFont = StylingHelper.assembleFontString(
+                        oldFont, styling.fontName(), styling.fontSize(), styling.fontStyle());
+            } else {
+                this.newFont = oldFont;
+            }
         } else {
             this.oldLineColor = null;
             this.newLineColor = null;
@@ -126,6 +148,8 @@ public class UpdateViewConnectionCommand extends Command {
             this.newFontColor = null;
             this.oldLineWidth = 0;
             this.newLineWidth = 0;
+            this.oldFont = null;
+            this.newFont = null;
         }
 
         // Label visibility support (Story 13-1)
@@ -156,7 +180,7 @@ public class UpdateViewConnectionCommand extends Command {
         connection.getBendpoints().clear();
         connection.getBendpoints().addAll(newBendpoints);
         if (hasStylingChange) {
-            applyStyling(newLineColor, newFontColor, newLineWidth);
+            applyStyling(newLineColor, newFontColor, newLineWidth, newFont);
         }
         if (hasNameVisibleChange) {
             connection.setNameVisible(newNameVisible);
@@ -171,7 +195,7 @@ public class UpdateViewConnectionCommand extends Command {
         connection.getBendpoints().clear();
         connection.getBendpoints().addAll(oldBendpoints);
         if (hasStylingChange) {
-            applyStyling(oldLineColor, oldFontColor, oldLineWidth);
+            applyStyling(oldLineColor, oldFontColor, oldLineWidth, oldFont);
         }
         if (hasNameVisibleChange) {
             connection.setNameVisible(oldNameVisible);
@@ -181,10 +205,12 @@ public class UpdateViewConnectionCommand extends Command {
         }
     }
 
-    private void applyStyling(String lineColor, String fontColor, int lineWidth) {
+    private void applyStyling(String lineColor, String fontColor, int lineWidth, String font) {
         connection.setLineColor(lineColor);
         connection.setLineWidth(lineWidth);
         connection.setFontColor(fontColor);
+        // Story 14-2 G5: typography composite (merged via assembleFontString at capture).
+        connection.setFont(font);
     }
 
     /**
@@ -241,4 +267,10 @@ public class UpdateViewConnectionCommand extends Command {
 
     /** Package-visible for testing. */
     int getNewTextPosition() { return newTextPosition; }
+
+    /** Package-visible for testing (Story 14-2 G5). */
+    String getOldFont() { return oldFont; }
+
+    /** Package-visible for testing (Story 14-2 G5). */
+    String getNewFont() { return newFont; }
 }
