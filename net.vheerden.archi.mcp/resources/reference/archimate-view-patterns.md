@@ -249,11 +249,11 @@ When `assess-layout` `nextSteps[]` already names a precondition tool with violat
 | Format | Use When | Returns |
 |--------|----------|---------|
 | `json` (default) | Full element/relationship detail, field selection needed | Standard result with elements, relationships, visualMetadata, groups, notes |
-| `tree` | **Group discovery before layout** — find group viewObjectIds and their children | Compact containment hierarchy with `tree` array + `stats` (totalGroups, ungroupedElements, etc.) |
+| `tree` | **Group discovery before layout** — find group viewObjectIds and their children | Compact containment hierarchy with `tree` array + `stats` (totalGroups, ungroupedElements, etc.) — including ArchiMate-element-container nesting (e.g. ApplicationFunctions inside an ApplicationComponent, SystemSoftware inside a Node) |
 | `graph` | Deduplicated node/edge analysis | `nodes`/`edges` structure |
 | `summary` | Quick natural language overview | Condensed text summary |
 
-**Grouped view tip:** Start with `format=tree` to discover group viewObjectIds and containment structure before calling `layout-within-group`, `arrange-groups`, or `optimize-group-order`. The tree format is much more token-efficient than `json` for this purpose — it returns only viewObjectId, type, name/label, and children.
+**Grouped view tip:** Start with `format=tree` to discover group viewObjectIds and containment structure before calling `layout-within-group`, `arrange-groups`, or `optimize-group-order`. The tree format is much more token-efficient than `json` for this purpose — it returns only viewObjectId, type, name/label, and children. The `children` field appears on element nodes when they contain nested ArchiMate-element children (`parentViewObjectId` chain) — agents detect element-container nesting via `containsKey('children')`.
 
 ## View Composition Workflow (Decision Tree)
 

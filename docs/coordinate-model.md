@@ -235,6 +235,17 @@ The `collectViewContents()` method recursively collects all view objects:
 - **Notes:** id, content, x, y, width, height, parentViewObjectId, styling
 - **Connections:** viewConnectionId, relationshipId, sourceViewObjectId, targetViewObjectId, bendpoints, absoluteBendpoints, sourceAnchor, targetAnchor, textPosition, styling, nameVisible (false when label hidden, omitted when visible)
 
+The **styling** block on `ViewNodeDto`, `ViewGroupDto`, `ViewNoteDto`, and `ViewConnectionDto` surfaces the full set of fields that the corresponding add-/update-tools accept: `labelExpression`, `figureType`, `textAlignment` / `verticalTextAlignment`, `fontName` / `fontSize` / `fontStyle`, `gradient`, `borderType` (notes only), `deriveLineColor`, `outlineOpacity`, and `lineStyle` (connections carry the typography fields and `labelExpression`). Every styling field is serialized under `@JsonInclude(NON_NULL)`, so it appears only when set — a default-styled view-object reads back with the same shape it always had. This makes a styling mutation written via `update-view-object` or `update-view-connection` directly verifiable on the next read.
+
+### Containment Tree (`format: "tree"`)
+
+`get-view-contents` with `format: "tree"` returns the view's containment hierarchy instead of a flat list. The tree descends **both** container kinds symmetrically:
+
+- **Visual groups** (`IDiagramModelGroup`) — always emit a `children` array and a `childCount`.
+- **ArchiMate-element containers** (`IDiagramModelArchimateObject`) — emit `children` and `childCount` **only when they actually contain nested children** (placed via `add-to-view` or `bulk-mutate` with the element's view-object ID as the parent). Element nodes with no children stay leaf-shaped, so the tree wire format is unchanged for views without element-container nesting.
+
+The aggregate `stats.totalElements` counts nested elements regardless of parent type. Pairing the tree view with `layout-within-group` (which accepts both container kinds) lets an agent discover a layoutable element container and arrange its children in two calls.
+
 ### Parent Container Resolution
 
 When placing elements, `resolveParentContainer()` handles three cases:

@@ -145,7 +145,7 @@ The `layout-flat-view` tool positions all top-level elements and groups on a vie
 | Tool | Use Case |
 |------|----------|
 | `layout-flat-view` | Flat views with no groups — automatic positioning with sorting/categorization |
-| `layout-within-group` | Position children inside a specific group container |
+| `layout-within-group` | Position children inside a specific container — a visual group or an ArchiMate-element container |
 | `compute-layout` | Graph-aware layout using Zest algorithms (tree, spring, directed, etc.) |
 | `auto-layout-and-route` | Combined ELK layout + routing in one operation |
 
@@ -155,7 +155,7 @@ The `layout-flat-view` tool positions all top-level elements and groups on a vie
 
 ### layout-within-group
 
-Arranges children within a single group container.
+Arranges children within a single container view-object. The container may be a visual group (`IDiagramModelGroup`) **or** an ArchiMate-element container (`IDiagramModelArchimateObject` — `ApplicationComponent`, `Node`, `ApplicationFunction`, and any other element that holds nested children). The same parameters and behaviour apply to both; only the set of accepted containers is polymorphic. Notes, view-references, and connections cannot be containers and are rejected.
 
 **Parameters:**
 
@@ -171,7 +171,7 @@ Arranges children within a single group container.
 | `autoResize` | false | Resize group to fit children |
 | `recursive` | false | Propagate sizing upward through ancestors |
 
-**Behavior:** Positions direct children only (not recursive into sub-groups). Parent group size changes only if `autoResize=true`. With `recursive=true` and `autoResize=true`, ancestor groups resize to fit.
+**Behavior:** Positions direct children only (not recursive into sub-containers). The container resizes only if `autoResize=true`. With `recursive=true` and `autoResize=true`, ancestor containers resize to fit. When the container is an ArchiMate-element node rather than a group, child coordinates remain relative to that element's top-left corner, consistent with the [coordinate model](coordinate-model.md).
 
 ### arrange-groups
 

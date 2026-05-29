@@ -9810,28 +9810,47 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         "View not found: " + viewId, ErrorCode.VIEW_NOT_FOUND);
             }
 
-            // 2. Validate group exists and is a group
+            // 2. Validate container exists and is a layout-eligible container (Story C1 polymorphic extension).
+            // Accepts native visual groups (IDiagramModelGroup) AND ArchiMate-element view-objects
+            // (IDiagramModelArchimateObject) that have nested children. Notes implement
+            // IDiagramModelContainer in EMF but are excluded per project-context.md coordinate model.
+            // Two locals: 'container' for getChildren() (IDiagramModelContainer) and 'containerObject'
+            // for getBounds() / UpdateViewObjectCommand (IDiagramModelObject) — both runtime subtypes
+            // implement both interfaces as siblings (neither extends the other in Archi's EMF model).
             EObject groupObj = ArchimateModelUtils.getObjectByID(model, groupViewObjectId);
-            if (!(groupObj instanceof IDiagramModelGroup group)) {
+            IDiagramModelContainer container;
+            IDiagramModelObject containerObject;
+            if (groupObj instanceof IDiagramModelGroup group) {
+                container = group;
+                containerObject = group;
+            } else if (groupObj instanceof IDiagramModelArchimateObject elementContainer) {
+                container = elementContainer;
+                containerObject = elementContainer;
+            } else {
                 throw new ModelAccessException(
-                        "Group not found or not a group: " + groupViewObjectId,
+                        "Container not found or not a layout-eligible container: " + groupViewObjectId
+                                + ". Eligible containers: visual groups (IDiagramModelGroup) and "
+                                + "ArchiMate-element view-objects (IDiagramModelArchimateObject — "
+                                + "Components, Nodes, Functions, etc. that have nested children).",
                         ErrorCode.VIEW_OBJECT_NOT_FOUND,
                         null,
-                        "Use get-view-contents to find valid group view object IDs in the 'groups' list.",
+                        "Use get-view-contents to find valid container view-object IDs in the 'groups' "
+                                + "list or in 'visualMetadata' (any element with non-empty children). "
+                                + "Notes, connections, and view-references cannot be containers.",
                         null);
             }
 
-            // 2b. Verify group belongs to the specified view
-            EObject container = group.eContainer();
-            while (container != null && !(container instanceof IArchimateDiagramModel)) {
-                container = container.eContainer();
+            // 2b. Verify container belongs to the specified view
+            EObject ancestor = container.eContainer();
+            while (ancestor != null && !(ancestor instanceof IArchimateDiagramModel)) {
+                ancestor = ancestor.eContainer();
             }
-            if (container == null || !viewId.equals(((IArchimateDiagramModel) container).getId())) {
+            if (ancestor == null || !viewId.equals(((IArchimateDiagramModel) ancestor).getId())) {
                 throw new ModelAccessException(
-                        "Group " + groupViewObjectId + " does not belong to view " + viewId,
+                        "Container " + groupViewObjectId + " does not belong to view " + viewId,
                         ErrorCode.VIEW_OBJECT_NOT_FOUND,
                         null,
-                        "Ensure the groupViewObjectId is from the specified view's groups list.",
+                        "Ensure the groupViewObjectId is from the specified view's groups list or visualMetadata.",
                         null);
             }
 
@@ -9873,7 +9892,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
 
             // 5. Collect direct children (skip notes — Story 11-15)
             List<IDiagramModelObject> children = new ArrayList<>();
-            for (IDiagramModelObject child : group.getChildren()) {
+            for (IDiagramModelObject child : container.getChildren()) {
                 if (child instanceof IDiagramModelNote) {
                     continue; // Notes are not laid out
                 }
@@ -9882,7 +9901,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
 
             if (children.isEmpty()) {
                 throw new ModelAccessException(
-                        "Group has no children to layout",
+                        "Container has no children to layout",
                         ErrorCode.INVALID_PARAMETER);
             }
 
@@ -9917,7 +9936,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         effectiveAutoWidth);
                 break;
             case "grid":
-                IBounds groupBounds = group.getBounds();
+                IBounds groupBounds = containerObject.getBounds();
                 int groupWidth = groupBounds.getWidth();
                 GroupLayoutCalculator.GridLayoutResult gridResult = computeGridLayout(children, startX, startY,
                         resolvedSpacing, resolvedPadding, groupWidth,
@@ -9946,24 +9965,27 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         positions, resolvedPadding, GROUP_LABEL_HEIGHT);
                 newGroupWidth = groupDims[0];
                 newGroupHeight = groupDims[1];
-                IBounds currentBounds = group.getBounds();
-                commands.add(new UpdateViewObjectCommand(group,
+                IBounds currentBounds = containerObject.getBounds();
+                commands.add(new UpdateViewObjectCommand(containerObject,
                         currentBounds.getX(), currentBounds.getY(),
                         newGroupWidth, newGroupHeight));
 
                 // 10a. Recursive auto-resize ancestor groups (Story 11-18)
-                if (recursive) {
-                    ancestorsResized = resizeAncestorGroups(group, commands, resolvedPadding);
+                // OQ-1 (a) DEFAULT — recursion stays group-ancestor-scoped (Story C1).
+                // When the requested container is an ArchiMate-element, the recursion no-ops
+                // (ancestorsResized stays 0) — an honest no-op rather than walking element ancestors.
+                if (recursive && containerObject instanceof IDiagramModelGroup groupForRecursion) {
+                    ancestorsResized = resizeAncestorGroups(groupForRecursion, commands, resolvedPadding);
                 }
             } else {
-                // Check if children overflow the current group bounds
-                IBounds currentBounds = group.getBounds();
+                // Check if children overflow the current container bounds
+                IBounds currentBounds = containerObject.getBounds();
                 int[] requiredDims = computeAutoResizeDimensions(
                         positions, resolvedPadding, GROUP_LABEL_HEIGHT);
                 if (requiredDims[0] > currentBounds.getWidth()
                         || requiredDims[1] > currentBounds.getHeight()) {
                     overflow = true;
-                    logger.debug("Children overflow group bounds: required={}x{}, actual={}x{}",
+                    logger.debug("Children overflow container bounds: required={}x{}, actual={}x{}",
                             requiredDims[0], requiredDims[1],
                             currentBounds.getWidth(), currentBounds.getHeight());
                 }
@@ -14523,8 +14545,18 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
     }
 
     /**
-     * Prepares a remove-from-view mutation: finds the object (element or connection),
-     * collects attached connections for cascade, builds command and DTO.
+     * Prepares a remove-from-view mutation: finds the object (element, group,
+     * note, or connection); for element / group / note resolves the immediate
+     * parent container (the view itself for top-level placements, or a nested
+     * container for nested view-objects); collects attached connections for
+     * cascade-disconnect; builds command and DTO.
+     *
+     * <p>Story B (v1.6): the element branch resolves the real parent via
+     * {@link #findParentContainer(IDiagramModelContainer, IDiagramModelObject)},
+     * sibling-symmetric with the group and note branches (Story 8-6). Before
+     * Story B the element branch passed the view itself as the container,
+     * which silently no-op'd for nested view-objects placed via Story 10-20
+     * element-as-container nesting.</p>
      */
     private PreparedMutation<RemoveFromViewResultDto> prepareRemoveFromView(
             String viewId, String viewObjectId) {
@@ -14556,6 +14588,23 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         null);
             }
 
+            // Story B (v1.6): resolve the real parent container — sibling-symmetric with
+            // the group/note branches below. For top-level objects this is the view;
+            // for nested objects (Story 10-20 element-as-container) this is the
+            // enclosing component / node / group view-object.
+            IDiagramModelContainer parent = findParentContainer(view, diagramObj);
+            if (parent == null) {
+                // Invariant violation between isChildOfView (just returned true) and
+                // findParentContainer — surface as INTERNAL_ERROR, not VIEW_OBJECT_NOT_FOUND,
+                // because the object IS reachable in the container tree.
+                throw new ModelAccessException(
+                        "Parent resolution failed for element on view: " + viewObjectId,
+                        ErrorCode.INTERNAL_ERROR,
+                        null,
+                        null,
+                        null);
+            }
+
             // Collect attached connections
             List<IDiagramModelArchimateConnection> attached = new ArrayList<>();
             for (Object conn : diagramObj.getSourceConnections()) {
@@ -14565,7 +14614,7 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                 if (conn instanceof IDiagramModelArchimateConnection ac) attached.add(ac);
             }
 
-            Command cmd = new RemoveFromViewCommand(diagramObj, view, attached);
+            Command cmd = new RemoveFromViewCommand(diagramObj, parent, attached);
 
             List<String> cascadeIds = attached.isEmpty() ? null
                     : attached.stream().map(IDiagramModelArchimateConnection::getId).toList();
@@ -16024,14 +16073,28 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
     }
 
     /**
-     * Validates a back-reference index.
+     * Validates a back-reference index. Distinguishes self-reference (index ==
+     * current), forward-reference (index > current), and out-of-range (index <
+     * 0 or unknown) so agents reading the error get an actionable hint instead
+     * of one uniform "future operation" message (Story 14-13).
      */
     private void validateBackReference(int refIndex, int currentIndex,
             Map<Integer, String> operationTools) {
-        if (refIndex >= currentIndex) {
+        if (refIndex == currentIndex) {
+            String suggestion = refIndex > 0
+                    ? " Did you mean '$" + (refIndex - 1) + ".id' (the operation immediately before this one)?"
+                    : "";
+            throw new ModelAccessException(
+                    "Back-reference '$" + refIndex + ".id' references the current operation itself "
+                            + "(index " + currentIndex + "). Back-references must point to a previous operation."
+                            + suggestion,
+                    ErrorCode.INVALID_PARAMETER);
+        }
+        if (refIndex > currentIndex) {
             throw new ModelAccessException(
                     "Back-reference '$" + refIndex + ".id' references a future operation "
-                            + "(index " + refIndex + ", current is " + currentIndex + ")",
+                            + "(index " + refIndex + ", current is " + currentIndex + "). "
+                            + "Back-references can only point to operations earlier in the batch.",
                     ErrorCode.INVALID_PARAMETER);
         }
         if (refIndex < 0 || !operationTools.containsKey(refIndex)) {
@@ -18473,7 +18536,18 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                                 StylingHelper.readLineWidth(archimateObject),
                                 ImageHelper.readImagePath(archimateObject),
                                 ImageHelper.readImagePosition(archimateObject),
-                                ImageHelper.readShowIcon(archimateObject)));
+                                ImageHelper.readShowIcon(archimateObject),
+                                StylingHelper.readFigureType(archimateObject),
+                                StylingHelper.readTextAlignment(archimateObject),
+                                StylingHelper.readVerticalTextAlignment(archimateObject),
+                                StylingHelper.readLabelExpression(archimateObject),
+                                StylingHelper.readFontName(archimateObject),
+                                StylingHelper.readFontSize(archimateObject),
+                                StylingHelper.readFontStyle(archimateObject),
+                                StylingHelper.readGradient(archimateObject),
+                                StylingHelper.readDeriveLineColor(archimateObject),
+                                StylingHelper.readOutlineOpacity(archimateObject),
+                                StylingHelper.readLineStyle(archimateObject)));
                     }
                 }
 
@@ -18508,7 +18582,15 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         ImageHelper.readShowIcon(groupObj),
                         StylingHelper.readFigureType(groupObj),
                         StylingHelper.readTextAlignment(groupObj),
-                        StylingHelper.readVerticalTextAlignment(groupObj)));
+                        StylingHelper.readVerticalTextAlignment(groupObj),
+                        StylingHelper.readLabelExpression(groupObj),
+                        StylingHelper.readFontName(groupObj),
+                        StylingHelper.readFontSize(groupObj),
+                        StylingHelper.readFontStyle(groupObj),
+                        StylingHelper.readGradient(groupObj),
+                        StylingHelper.readDeriveLineColor(groupObj),
+                        StylingHelper.readOutlineOpacity(groupObj),
+                        StylingHelper.readLineStyle(groupObj)));
 
                 // Recurse into group's children
                 collectViewContents(groupObj, elements, relationships, visualMetadata,
@@ -18538,7 +18620,16 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                         ImageHelper.readImagePosition(noteObj),
                         ImageHelper.readShowIcon(noteObj),
                         StylingHelper.readTextAlignment(noteObj),
-                        StylingHelper.readVerticalTextAlignment(noteObj)));
+                        StylingHelper.readVerticalTextAlignment(noteObj),
+                        StylingHelper.readLabelExpression(noteObj),
+                        StylingHelper.readFontName(noteObj),
+                        StylingHelper.readFontSize(noteObj),
+                        StylingHelper.readFontStyle(noteObj),
+                        StylingHelper.readGradient(noteObj),
+                        StylingHelper.readBorderType(noteObj),
+                        StylingHelper.readDeriveLineColor(noteObj),
+                        StylingHelper.readOutlineOpacity(noteObj),
+                        StylingHelper.readLineStyle(noteObj)));
                 continue; // Notes are not containers, no recursion needed
             }
 
@@ -18625,7 +18716,11 @@ public class ArchiModelAccessorImpl implements ArchiModelAccessor, PropertyChang
                             StylingHelper.readConnectionLineColor(archimateConn),
                             StylingHelper.readConnectionLineWidth(archimateConn),
                             StylingHelper.readConnectionFontColor(archimateConn),
-                            StylingHelper.readConnectionNameVisible(archimateConn)));
+                            StylingHelper.readConnectionNameVisible(archimateConn),
+                            StylingHelper.readConnectionFontName(archimateConn),
+                            StylingHelper.readConnectionFontSize(archimateConn),
+                            StylingHelper.readConnectionFontStyle(archimateConn),
+                            StylingHelper.readConnectionLabelExpression(archimateConn)));
                 }
             }
         });

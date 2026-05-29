@@ -40,6 +40,10 @@ import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelGroup;
 import com.archimatetool.model.IDiagramModelNote;
 import com.archimatetool.model.IDiagramModelObject;
+import com.archimatetool.model.ITextAlignment;
+import com.archimatetool.model.ITextPosition;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.archimatetool.model.IFeaturesEList;
 import com.archimatetool.model.IFolder;
 import com.archimatetool.model.IMetadata;
@@ -74,6 +78,7 @@ import net.vheerden.archi.mcp.response.dto.ModelInfoDto;
 import net.vheerden.archi.mcp.response.dto.RelationshipDto;
 import net.vheerden.archi.mcp.response.dto.ViewConnectionDto;
 import net.vheerden.archi.mcp.response.dto.ViewContentsDto;
+import net.vheerden.archi.mcp.response.dto.ViewNodeDto;
 import net.vheerden.archi.mcp.response.dto.ViewConnectionSpec;
 import net.vheerden.archi.mcp.response.dto.ViewObjectDto;
 import net.vheerden.archi.mcp.response.dto.ViewPositionSpec;
@@ -708,6 +713,306 @@ public class ArchiModelAccessorImplTest {
         ViewContentsDto contents = result.get();
         assertFalse(contents.relationships().isEmpty());
         assertEquals("ServingRelationship", contents.relationships().get(0).type());
+    }
+
+    // ---- getViewContents v1.5 styling read-back (Story C3) ----
+
+    /**
+     * Shared NON_NULL-configured Jackson mapper, used by the AC-7 omission assertions below
+     * to confirm the wire payload omits Story C3 fields when the EMF source is at Archi default.
+     * Mirrors the production ResponseFormatter configuration at
+     * {@code net.vheerden.archi.mcp.response.ResponseFormatter:40-41}.
+     */
+    private static final ObjectMapper C3_JSON_MAPPER =
+            new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
+    private static String c3SerializeJson(Object dto) {
+        try {
+            return C3_JSON_MAPPER.writeValueAsString(dto);
+        } catch (Exception e) {
+            throw new AssertionError("Jackson serialization failed: " + e.getMessage(), e);
+        }
+    }
+
+    /** AC-1 + AC-7 omission: v1.5 styling fields surface on a styled element; defaults omitted. */
+    @Test
+    public void getViewContents_shouldSurfaceV15StylingFields_onElement() {
+        IArchimateModel model = createTestModelWithViewContents();
+
+        // Pull the styled view-object (first child = actorVisual fixture)
+        IArchimateDiagramModel view = (IArchimateDiagramModel) model.getFolder(FolderType.DIAGRAMS)
+                .getElements().get(0);
+        IDiagramModelArchimateObject actorVisual =
+                (IDiagramModelArchimateObject) view.getChildren().get(0);
+
+        // Apply v1.5 styling surface directly on the EMF object — read path must surface these.
+        actorVisual.setGradient(0);                                     // → "top-bottom"
+        actorVisual.setLineAlpha(128);                                  // → 128 (non-default)
+        actorVisual.setLineStyle(IDiagramModelObject.LINE_STYLE_DASHED);// → "dashed"
+        actorVisual.setDeriveElementLineColor(false);                   // → Boolean.FALSE
+        actorVisual.setFont("Segoe UI|12|1");                           // → name/size/style(bold)
+        actorVisual.setTextAlignment(ITextAlignment.TEXT_ALIGNMENT_LEFT);   // → "left"
+        actorVisual.setTextPosition(ITextPosition.TEXT_POSITION_CENTRE);    // → "centre"
+        actorVisual.getFeatures().putString("labelExpression",
+                "${name}\n[${property:Lifecycle}]", null);
+
+        stubModelManager.setModels(List.of(model));
+        accessor = new ArchiModelAccessorImpl(stubModelManager);
+
+        Optional<ViewContentsDto> result = accessor.getViewContents("view-001");
+
+        assertTrue(result.isPresent());
+        List<ViewNodeDto> vm = result.get().visualMetadata();
+        assertEquals(2, vm.size());
+
+        // Styled element (actorVisual) — index 0
+        ViewNodeDto styled = vm.get(0);
+        assertEquals("top-bottom", styled.gradient());
+        assertEquals(Integer.valueOf(128), styled.outlineOpacity());
+        assertEquals("dashed", styled.lineStyle());
+        assertEquals(Boolean.FALSE, styled.deriveLineColor());
+        assertEquals("Segoe UI", styled.fontName());
+        assertEquals(Integer.valueOf(12), styled.fontSize());
+        assertEquals("bold", styled.fontStyle());
+        assertEquals("left", styled.textAlignment());
+        assertEquals("centre", styled.verticalTextAlignment());
+        assertEquals("${name}\n[${property:Lifecycle}]", styled.labelExpression());
+
+        // AC-7 omission pin: the unstyled sibling (compVisual at index 1) must serialise
+        // to JSON without any of the new C3 field names — wire-cost stays at zero for defaults.
+        ViewNodeDto unstyled = vm.get(1);
+        assertNull(unstyled.gradient());
+        assertNull(unstyled.outlineOpacity());
+        assertNull(unstyled.lineStyle());
+        assertNull(unstyled.deriveLineColor());
+        assertNull(unstyled.fontName());
+        assertNull(unstyled.labelExpression());
+        String json = c3SerializeJson(unstyled);
+        assertFalse("default-styled JSON must omit gradient: " + json,
+                json.contains("\"gradient\""));
+        assertFalse("default-styled JSON must omit labelExpression: " + json,
+                json.contains("\"labelExpression\""));
+        assertFalse("default-styled JSON must omit fontName: " + json,
+                json.contains("\"fontName\""));
+        assertFalse("default-styled JSON must omit lineStyle: " + json,
+                json.contains("\"lineStyle\""));
+        assertFalse("default-styled JSON must omit deriveLineColor: " + json,
+                json.contains("\"deriveLineColor\""));
+        assertFalse("default-styled JSON must omit outlineOpacity: " + json,
+                json.contains("\"outlineOpacity\""));
+    }
+
+    /** AC-2 + AC-7 omission: v1.5 styling fields surface on a styled group; defaults omitted. */
+    @Test
+    public void getViewContents_shouldSurfaceV15StylingFields_onGroup() {
+        IArchimateModel model = createTestModelWithViewContents();
+        IArchimateDiagramModel view = (IArchimateDiagramModel) model.getFolder(FolderType.DIAGRAMS)
+                .getElements().get(0);
+
+        // Styled group
+        IDiagramModelGroup styledGroup = IArchimateFactory.eINSTANCE.createDiagramModelGroup();
+        styledGroup.setId("grp-styled-1");
+        styledGroup.setName("Styled Group");
+        styledGroup.setBounds(500, 100, 200, 200);
+        styledGroup.setBorderType(IDiagramModelGroup.BORDER_RECTANGLE); // → "rectangular"
+        styledGroup.setGradient(1);                                     // → "left-right"
+        styledGroup.setLineAlpha(200);                                  // → 200
+        styledGroup.setLineStyle(IDiagramModelObject.LINE_STYLE_DOTTED);// → "dotted"
+        styledGroup.setDeriveElementLineColor(false);                   // → Boolean.FALSE
+        styledGroup.setFont("Verdana|14|2");                            // → italic
+        styledGroup.getFeatures().putString("labelExpression",
+                "${name} (${property:Tier})", null);
+        view.getChildren().add(styledGroup);
+
+        // Default-styled group for AC-7 omission pin
+        IDiagramModelGroup defaultGroup = IArchimateFactory.eINSTANCE.createDiagramModelGroup();
+        defaultGroup.setId("grp-default-1");
+        defaultGroup.setName("Default Group");
+        defaultGroup.setBounds(800, 100, 200, 200);
+        view.getChildren().add(defaultGroup);
+
+        stubModelManager.setModels(List.of(model));
+        accessor = new ArchiModelAccessorImpl(stubModelManager);
+
+        Optional<ViewContentsDto> result = accessor.getViewContents("view-001");
+        assertTrue(result.isPresent());
+        List<ViewGroupDto> groups = result.get().groups();
+        assertEquals(2, groups.size());
+
+        ViewGroupDto styled = groups.stream()
+                .filter(g -> "grp-styled-1".equals(g.viewObjectId()))
+                .findFirst().orElseThrow();
+        assertEquals("rectangular", styled.figureType());
+        assertEquals("left-right", styled.gradient());
+        assertEquals(Integer.valueOf(200), styled.outlineOpacity());
+        assertEquals("dotted", styled.lineStyle());
+        assertEquals(Boolean.FALSE, styled.deriveLineColor());
+        assertEquals("Verdana", styled.fontName());
+        assertEquals(Integer.valueOf(14), styled.fontSize());
+        assertEquals("italic", styled.fontStyle());
+        assertEquals("${name} (${property:Tier})", styled.labelExpression());
+
+        // AC-7 omission
+        ViewGroupDto unstyled = groups.stream()
+                .filter(g -> "grp-default-1".equals(g.viewObjectId()))
+                .findFirst().orElseThrow();
+        assertNull(unstyled.figureType());
+        assertNull(unstyled.gradient());
+        assertNull(unstyled.labelExpression());
+        assertNull(unstyled.fontName());
+        String json = c3SerializeJson(unstyled);
+        assertFalse("default-styled group JSON must omit gradient: " + json,
+                json.contains("\"gradient\""));
+        assertFalse("default-styled group JSON must omit labelExpression: " + json,
+                json.contains("\"labelExpression\""));
+        assertFalse("default-styled group JSON must omit lineStyle: " + json,
+                json.contains("\"lineStyle\""));
+        assertFalse("default-styled group JSON must omit figureType: " + json,
+                json.contains("\"figureType\""));
+        assertFalse("default-styled group JSON must omit fontName: " + json,
+                json.contains("\"fontName\""));
+    }
+
+    /** AC-3 + AC-7 omission: v1.5 styling + note-only borderType surface; defaults omitted. */
+    @Test
+    public void getViewContents_shouldSurfaceV15StylingFields_onNote() {
+        IArchimateModel model = createTestModelWithViewContents();
+        IArchimateDiagramModel view = (IArchimateDiagramModel) model.getFolder(FolderType.DIAGRAMS)
+                .getElements().get(0);
+
+        // Styled note
+        IDiagramModelNote styledNote = IArchimateFactory.eINSTANCE.createDiagramModelNote();
+        styledNote.setId("note-styled-1");
+        styledNote.setContent("Author note");
+        styledNote.setBounds(500, 400, 200, 80);
+        styledNote.setBorderType(IDiagramModelNote.BORDER_RECTANGLE); // → "rectangle"
+        styledNote.setGradient(3);                                    // → "bottom-top"
+        styledNote.setLineAlpha(64);                                  // → 64
+        styledNote.setLineStyle(IDiagramModelObject.LINE_STYLE_DASHED); // → "dashed"
+        styledNote.setFont("Tahoma|10|1");                            // → name/size/style(bold)
+        styledNote.getFeatures().putString("labelExpression",
+                "${property:Author}", null);
+        view.getChildren().add(styledNote);
+
+        // Default-styled note for AC-7 omission pin
+        IDiagramModelNote defaultNote = IArchimateFactory.eINSTANCE.createDiagramModelNote();
+        defaultNote.setId("note-default-1");
+        defaultNote.setContent("Plain note");
+        defaultNote.setBounds(800, 400, 200, 80);
+        view.getChildren().add(defaultNote);
+
+        stubModelManager.setModels(List.of(model));
+        accessor = new ArchiModelAccessorImpl(stubModelManager);
+
+        Optional<ViewContentsDto> result = accessor.getViewContents("view-001");
+        assertTrue(result.isPresent());
+        List<ViewNoteDto> notes = result.get().notes();
+        assertEquals(2, notes.size());
+
+        ViewNoteDto styled = notes.stream()
+                .filter(n -> "note-styled-1".equals(n.viewObjectId()))
+                .findFirst().orElseThrow();
+        assertEquals("rectangle", styled.borderType());
+        assertEquals("bottom-top", styled.gradient());
+        assertEquals(Integer.valueOf(64), styled.outlineOpacity());
+        assertEquals("dashed", styled.lineStyle());
+        assertEquals("Tahoma", styled.fontName());
+        assertEquals(Integer.valueOf(10), styled.fontSize());
+        assertEquals("bold", styled.fontStyle());
+        assertEquals("${property:Author}", styled.labelExpression());
+
+        // AC-7 omission
+        ViewNoteDto unstyled = notes.stream()
+                .filter(n -> "note-default-1".equals(n.viewObjectId()))
+                .findFirst().orElseThrow();
+        assertNull(unstyled.borderType());
+        assertNull(unstyled.gradient());
+        assertNull(unstyled.labelExpression());
+        assertNull(unstyled.fontName());
+        String json = c3SerializeJson(unstyled);
+        assertFalse("default-styled note JSON must omit borderType: " + json,
+                json.contains("\"borderType\""));
+        assertFalse("default-styled note JSON must omit gradient: " + json,
+                json.contains("\"gradient\""));
+        assertFalse("default-styled note JSON must omit labelExpression: " + json,
+                json.contains("\"labelExpression\""));
+        assertFalse("default-styled note JSON must omit lineStyle: " + json,
+                json.contains("\"lineStyle\""));
+        assertFalse("default-styled note JSON must omit fontName: " + json,
+                json.contains("\"fontName\""));
+    }
+
+    /** AC-4 + AC-7 omission: connection typography + labelExpression surface; defaults omitted. */
+    @Test
+    public void getViewContents_shouldSurfaceV15StylingFields_onConnection() {
+        IArchimateModel model = createTestModelWithViewContents();
+        IArchimateDiagramModel view = (IArchimateDiagramModel) model.getFolder(FolderType.DIAGRAMS)
+                .getElements().get(0);
+
+        // The fixture connection (created in createTestModelWithViewContents but not attached
+        // to the view's children list). Style it explicitly and attach it now.
+        IDiagramModelArchimateObject actorVisual =
+                (IDiagramModelArchimateObject) view.getChildren().get(0);
+        IDiagramModelArchimateObject compVisual =
+                (IDiagramModelArchimateObject) view.getChildren().get(1);
+
+        // Styled connection
+        IDiagramModelArchimateConnection styledConn = IArchimateFactory.eINSTANCE
+                .createDiagramModelArchimateConnection();
+        styledConn.setId("conn-styled-1");
+        styledConn.setArchimateRelationship((IArchimateRelationship) model
+                .getFolder(FolderType.RELATIONS).getElements().get(0));
+        styledConn.setFont("Verdana|11|2");                 // → italic
+        styledConn.getFeatures().putString("labelExpression",
+                "${name} via ${property:Channel}", null);
+        styledConn.connect(compVisual, actorVisual);
+
+        // Default-styled second connection for AC-7 omission pin (reuses same relationship —
+        // de-dup is on relationship-id, but each visual connection carries its own viewConnectionId)
+        IDiagramModelArchimateConnection defaultConn = IArchimateFactory.eINSTANCE
+                .createDiagramModelArchimateConnection();
+        defaultConn.setId("conn-default-1");
+        defaultConn.setArchimateRelationship((IArchimateRelationship) model
+                .getFolder(FolderType.RELATIONS).getElements().get(0));
+        defaultConn.connect(compVisual, actorVisual);
+
+        stubModelManager.setModels(List.of(model));
+        accessor = new ArchiModelAccessorImpl(stubModelManager);
+
+        Optional<ViewContentsDto> result = accessor.getViewContents("view-001");
+        assertTrue(result.isPresent());
+        List<ViewConnectionDto> conns = result.get().connections();
+        // Fixture creates 1 latent unstyled connection (createTestModelWithViewContents) +
+        // 2 added here → at least 2 from this test; >= 2 keeps the assertion robust to
+        // future fixture changes.
+        assertTrue("expected at least 2 connections, found " + conns.size(),
+                conns.size() >= 2);
+
+        ViewConnectionDto styled = conns.stream()
+                .filter(c -> "conn-styled-1".equals(c.viewConnectionId()))
+                .findFirst().orElseThrow();
+        assertEquals("Verdana", styled.fontName());
+        assertEquals(Integer.valueOf(11), styled.fontSize());
+        assertEquals("italic", styled.fontStyle());
+        assertEquals("${name} via ${property:Channel}", styled.labelExpression());
+
+        // AC-7 omission
+        ViewConnectionDto unstyled = conns.stream()
+                .filter(c -> "conn-default-1".equals(c.viewConnectionId()))
+                .findFirst().orElseThrow();
+        assertNull(unstyled.fontName());
+        assertNull(unstyled.fontSize());
+        assertNull(unstyled.fontStyle());
+        assertNull(unstyled.labelExpression());
+        String json = c3SerializeJson(unstyled);
+        assertFalse("default-styled connection JSON must omit fontName: " + json,
+                json.contains("\"fontName\""));
+        assertFalse("default-styled connection JSON must omit fontSize: " + json,
+                json.contains("\"fontSize\""));
+        assertFalse("default-styled connection JSON must omit fontStyle: " + json,
+                json.contains("\"fontStyle\""));
+        assertFalse("default-styled connection JSON must omit labelExpression: " + json,
+                json.contains("\"labelExpression\""));
     }
 
     // ---- getRootFolders tests ----
@@ -3635,6 +3940,88 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
+    // ---- executeBulk back-reference create-view tests (Story 14-13) ----
+
+    @Test
+    public void shouldExecuteBulk_shouldHandleBackRef_createViewThenAddToView() {
+        // Story 14-13 (AC-1): 1708 reproducer — create-view at [0],
+        // add-to-view with viewId: "$0.id" at [1]. Op N+1 referencing $N
+        // where N is create-view must succeed end-to-end.
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        List<BulkOperation> ops = List.of(
+                new BulkOperation("create-view",
+                        Map.of("name", "Test View 14-13", "viewpoint", "physical")),
+                new BulkOperation("add-to-view",
+                        Map.of("viewId", "$0.id", "elementId", "ba-001",
+                                "x", 100, "y", 100))
+        );
+
+        BulkMutationResult result = accessor.executeBulk("default", ops, null, false);
+
+        assertNotNull(result);
+        assertTrue(result.allSucceeded());
+        assertEquals(2, result.totalOperations());
+        assertEquals("created", result.operations().get(0).action());
+        assertEquals("placed", result.operations().get(1).action());
+    }
+
+    @Test
+    public void shouldRejectBackRef_whenReferencesSelf() {
+        // Story 14-13 (AC-3): self-reference at op 0 (refIndex-1 = -1 is not a valid suggestion).
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        List<BulkOperation> ops = List.of(
+                new BulkOperation("create-element",
+                        Map.of("type", "ApplicationComponent", "name", "$0.id"))
+        );
+
+        try {
+            accessor.executeBulk("default", ops, null, false);
+            fail("Expected ModelAccessException");
+        } catch (ModelAccessException e) {
+            assertEquals(ErrorCode.BULK_VALIDATION_FAILED, e.getErrorCode());
+            assertTrue("expected self-ref phrasing, got: " + e.getMessage(),
+                    e.getMessage().contains("references the current operation itself"));
+            assertTrue("expected index 0 in message, got: " + e.getMessage(),
+                    e.getMessage().contains("index 0"));
+            assertFalse("expected NO 'Did you mean' suggestion for refIndex=0, got: " + e.getMessage(),
+                    e.getMessage().contains("Did you mean"));
+        }
+    }
+
+    @Test
+    public void shouldRejectBackRef_whenReferencesSelf_includesSuggestion() {
+        // Story 14-13 (AC-3-bis): self-reference at op 1 — suggestion points to $0.id.
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        List<BulkOperation> ops = List.of(
+                new BulkOperation("create-element",
+                        Map.of("type", "ApplicationComponent", "name", "First")),
+                new BulkOperation("create-element",
+                        Map.of("type", "ApplicationComponent", "name", "$1.id"))
+        );
+
+        try {
+            accessor.executeBulk("default", ops, null, false);
+            fail("Expected ModelAccessException");
+        } catch (ModelAccessException e) {
+            assertEquals(ErrorCode.BULK_VALIDATION_FAILED, e.getErrorCode());
+            assertTrue("expected self-ref phrasing, got: " + e.getMessage(),
+                    e.getMessage().contains("references the current operation itself"));
+            assertTrue("expected index 1 in message, got: " + e.getMessage(),
+                    e.getMessage().contains("index 1"));
+            assertTrue("expected 'Did you mean '$0.id'' suggestion, got: " + e.getMessage(),
+                    e.getMessage().contains("Did you mean '$0.id'"));
+        }
+    }
+
     // ---- executeBulk group/note back-reference tests (Story 9-8 code review) ----
 
     @Test
@@ -6317,6 +6704,273 @@ public class ArchiModelAccessorImplTest {
         assertNotNull(result);
         assertTrue("Group should be resized", result.entity().groupResized());
         assertEquals("No ancestors for top-level group", 0, result.entity().ancestorsResized());
+    }
+
+    // ---- layoutWithinGroup polymorphic container extension (Story C1) ----
+
+    /**
+     * AC-1: ApplicationComponent containing ApplicationFunctions accepts row arrangement.
+     * Replaces the v1.5 VIEW_OBJECT_NOT_FOUND rejection with successful layout.
+     */
+    @Test
+    public void layoutWithinGroup_shouldAcceptApplicationComponentContainer_rowArrangement() {
+        IArchimateFactory factory = IArchimateFactory.eINSTANCE;
+        IArchimateModel model = createTestModel();
+
+        // Dedicated ApplicationComponent for this test (avoids fixture-order coupling on ac-001)
+        IArchimateElement compElem = factory.createApplicationComponent();
+        compElem.setId("ac-c1-row");
+        compElem.setName("Order Service");
+        model.getFolder(FolderType.APPLICATION).getElements().add(compElem);
+
+        // Add 3 ApplicationFunction children to the application folder
+        IArchimateElement func1 = factory.createApplicationFunction();
+        func1.setId("af-001");
+        func1.setName("Capture Order");
+        model.getFolder(FolderType.APPLICATION).getElements().add(func1);
+        IArchimateElement func2 = factory.createApplicationFunction();
+        func2.setId("af-002");
+        func2.setName("Validate Order");
+        model.getFolder(FolderType.APPLICATION).getElements().add(func2);
+        IArchimateElement func3 = factory.createApplicationFunction();
+        func3.setId("af-003");
+        func3.setName("Persist Order");
+        model.getFolder(FolderType.APPLICATION).getElements().add(func3);
+
+        // Get the empty view and attach an ApplicationComponent visual with nested functions
+        IArchimateDiagramModel view = (IArchimateDiagramModel) model.getFolder(FolderType.DIAGRAMS)
+                .getElements().get(0);
+        IDiagramModelArchimateObject compVo = factory.createDiagramModelArchimateObject();
+        compVo.setId("comp-vo-1");
+        compVo.setArchimateElement(compElem);
+        compVo.setBounds(50, 50, 400, 200);
+        view.getChildren().add(compVo);
+
+        // Nest 3 ApplicationFunctions inside compVo
+        IDiagramModelArchimateObject f1Vo = factory.createDiagramModelArchimateObject();
+        f1Vo.setId("af-vo-1");
+        f1Vo.setArchimateElement(func1);
+        f1Vo.setBounds(5, 5, 120, 50);
+        compVo.getChildren().add(f1Vo);
+        IDiagramModelArchimateObject f2Vo = factory.createDiagramModelArchimateObject();
+        f2Vo.setId("af-vo-2");
+        f2Vo.setArchimateElement(func2);
+        f2Vo.setBounds(5, 60, 120, 50);
+        compVo.getChildren().add(f2Vo);
+        IDiagramModelArchimateObject f3Vo = factory.createDiagramModelArchimateObject();
+        f3Vo.setId("af-vo-3");
+        f3Vo.setArchimateElement(func3);
+        f3Vo.setBounds(5, 115, 120, 50);
+        compVo.getChildren().add(f3Vo);
+
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        MutationResult<LayoutWithinGroupResultDto> result =
+                accessor.layoutWithinGroup("default", "view-001", "comp-vo-1",
+                        "row", 40, 10, 120, 50, false, false, null, false);
+
+        assertNotNull(result);
+        assertEquals("view-001", result.entity().viewId());
+        assertEquals("comp-vo-1", result.entity().groupViewObjectId());
+        assertEquals("row", result.entity().arrangement());
+        assertEquals(3, result.entity().elementsRepositioned());
+        // Row layout: startX=padding=10, startY=padding+GROUP_LABEL_HEIGHT(24)=34
+        assertEquals("First function x", 10, f1Vo.getBounds().getX());
+        assertEquals("First function y", 34, f1Vo.getBounds().getY());
+        assertEquals("Second function x", 10 + 120 + 40, f2Vo.getBounds().getX());
+        assertEquals("Second function y", 34, f2Vo.getBounds().getY());
+        assertEquals("Third function x", 10 + 2 * (120 + 40), f3Vo.getBounds().getX());
+    }
+
+    /**
+     * AC-1-tris: ApplicationComponent containing ApplicationFunctions accepts grid arrangement
+     * with explicit columns=2.
+     */
+    @Test
+    public void layoutWithinGroup_shouldAcceptApplicationComponentContainer_gridArrangement() {
+        IArchimateFactory factory = IArchimateFactory.eINSTANCE;
+        IArchimateModel model = createTestModel();
+
+        // Dedicated ApplicationComponent for this test (avoids fixture-order coupling on ac-001)
+        IArchimateElement compElem = factory.createApplicationComponent();
+        compElem.setId("ac-c1-grid");
+        compElem.setName("Order Service Grid");
+        model.getFolder(FolderType.APPLICATION).getElements().add(compElem);
+
+        IArchimateElement func1 = factory.createApplicationFunction();
+        func1.setId("af-001");
+        func1.setName("Func A");
+        model.getFolder(FolderType.APPLICATION).getElements().add(func1);
+        IArchimateElement func2 = factory.createApplicationFunction();
+        func2.setId("af-002");
+        func2.setName("Func B");
+        model.getFolder(FolderType.APPLICATION).getElements().add(func2);
+        IArchimateElement func3 = factory.createApplicationFunction();
+        func3.setId("af-003");
+        func3.setName("Func C");
+        model.getFolder(FolderType.APPLICATION).getElements().add(func3);
+
+        IArchimateDiagramModel view = (IArchimateDiagramModel) model.getFolder(FolderType.DIAGRAMS)
+                .getElements().get(0);
+        IDiagramModelArchimateObject compVo = factory.createDiagramModelArchimateObject();
+        compVo.setId("comp-vo-grid");
+        compVo.setArchimateElement(compElem);
+        compVo.setBounds(0, 0, 400, 300);
+        view.getChildren().add(compVo);
+
+        IDiagramModelArchimateObject f1Vo = factory.createDiagramModelArchimateObject();
+        f1Vo.setArchimateElement(func1);
+        f1Vo.setBounds(0, 0, 120, 50);
+        compVo.getChildren().add(f1Vo);
+        IDiagramModelArchimateObject f2Vo = factory.createDiagramModelArchimateObject();
+        f2Vo.setArchimateElement(func2);
+        f2Vo.setBounds(0, 0, 120, 50);
+        compVo.getChildren().add(f2Vo);
+        IDiagramModelArchimateObject f3Vo = factory.createDiagramModelArchimateObject();
+        f3Vo.setArchimateElement(func3);
+        f3Vo.setBounds(0, 0, 120, 50);
+        compVo.getChildren().add(f3Vo);
+
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        MutationResult<LayoutWithinGroupResultDto> result =
+                accessor.layoutWithinGroup("default", "view-001", "comp-vo-grid",
+                        "grid", 40, 10, 120, 50, false, false, 2, false);
+
+        assertNotNull(result);
+        assertEquals("grid", result.entity().arrangement());
+        assertEquals(3, result.entity().elementsRepositioned());
+        assertNotNull("columnsUsed populated for grid arrangement", result.entity().columnsUsed());
+        assertEquals("Explicit columns=2 should be used", Integer.valueOf(2),
+                result.entity().columnsUsed());
+    }
+
+    /**
+     * AC-2: Node containing SystemSoftware + Artifacts accepts grid arrangement (auto-columns).
+     */
+    @Test
+    public void layoutWithinGroup_shouldAcceptNodeContainer_gridArrangement() {
+        IArchimateFactory factory = IArchimateFactory.eINSTANCE;
+        IArchimateModel model = createTestModel();
+
+        IArchimateElement node = factory.createNode();
+        node.setId("node-001");
+        node.setName("App Server");
+        model.getFolder(FolderType.TECHNOLOGY).getElements().add(node);
+        IArchimateElement sysSoft = factory.createSystemSoftware();
+        sysSoft.setId("sys-001");
+        sysSoft.setName("Tomcat 10");
+        model.getFolder(FolderType.TECHNOLOGY).getElements().add(sysSoft);
+        IArchimateElement artifact1 = factory.createArtifact();
+        artifact1.setId("art-001");
+        artifact1.setName("orders.war");
+        model.getFolder(FolderType.TECHNOLOGY).getElements().add(artifact1);
+        IArchimateElement artifact2 = factory.createArtifact();
+        artifact2.setId("art-002");
+        artifact2.setName("config.yaml");
+        model.getFolder(FolderType.TECHNOLOGY).getElements().add(artifact2);
+
+        IArchimateDiagramModel view = (IArchimateDiagramModel) model.getFolder(FolderType.DIAGRAMS)
+                .getElements().get(0);
+        IDiagramModelArchimateObject nodeVo = factory.createDiagramModelArchimateObject();
+        nodeVo.setId("node-vo-1");
+        nodeVo.setArchimateElement(node);
+        nodeVo.setBounds(100, 100, 500, 400);
+        view.getChildren().add(nodeVo);
+
+        IDiagramModelArchimateObject ssVo = factory.createDiagramModelArchimateObject();
+        ssVo.setArchimateElement(sysSoft);
+        ssVo.setBounds(0, 0, 120, 50);
+        nodeVo.getChildren().add(ssVo);
+        IDiagramModelArchimateObject a1Vo = factory.createDiagramModelArchimateObject();
+        a1Vo.setArchimateElement(artifact1);
+        a1Vo.setBounds(0, 0, 120, 50);
+        nodeVo.getChildren().add(a1Vo);
+        IDiagramModelArchimateObject a2Vo = factory.createDiagramModelArchimateObject();
+        a2Vo.setArchimateElement(artifact2);
+        a2Vo.setBounds(0, 0, 120, 50);
+        nodeVo.getChildren().add(a2Vo);
+
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        MutationResult<LayoutWithinGroupResultDto> result =
+                accessor.layoutWithinGroup("default", "view-001", "node-vo-1",
+                        "grid", 40, 10, 120, 50, false, false, null, false);
+
+        assertNotNull(result);
+        assertEquals("grid", result.entity().arrangement());
+        assertEquals(3, result.entity().elementsRepositioned());
+        assertNotNull("columnsUsed auto-derived from container width",
+                result.entity().columnsUsed());
+    }
+
+    /**
+     * AC-5: A note view-object is rejected as a container with VIEW_OBJECT_NOT_FOUND.
+     * Notes implement IDiagramModelContainer in EMF but are excluded per project-context.md.
+     */
+    @Test
+    public void layoutWithinGroup_shouldRejectNoteAsContainer_returnsViewObjectNotFound() {
+        IArchimateFactory factory = IArchimateFactory.eINSTANCE;
+        IArchimateModel model = createTestModel();
+
+        IArchimateDiagramModel view = (IArchimateDiagramModel) model.getFolder(FolderType.DIAGRAMS)
+                .getElements().get(0);
+        IDiagramModelNote note = factory.createDiagramModelNote();
+        note.setId("note-1");
+        note.setBounds(50, 50, 200, 100);
+        view.getChildren().add(note);
+
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        try {
+            accessor.layoutWithinGroup("default", "view-001", "note-1",
+                    "row", null, null, null, null, false, false, null, false);
+            fail("Expected ModelAccessException for note-as-container rejection");
+        } catch (ModelAccessException e) {
+            assertEquals(ErrorCode.VIEW_OBJECT_NOT_FOUND, e.getErrorCode());
+            assertTrue("Message should describe layout-eligible containers, was: " + e.getMessage(),
+                    e.getMessage().contains("layout-eligible container"));
+        }
+    }
+
+    /**
+     * AC-4: An ArchiMate-element container with no children rejects with INVALID_PARAMETER.
+     * Message generalized from "Group has no children" to "Container has no children".
+     */
+    @Test
+    public void layoutWithinGroup_shouldRejectArchiMateContainerWithNoChildren_returnsInvalidParameter() {
+        IArchimateFactory factory = IArchimateFactory.eINSTANCE;
+        IArchimateModel model = createTestModel();
+
+        // Dedicated ApplicationComponent for this test (avoids fixture-order coupling on ac-001)
+        IArchimateElement emptyCompElem = factory.createApplicationComponent();
+        emptyCompElem.setId("ac-c1-empty");
+        emptyCompElem.setName("Empty Component");
+        model.getFolder(FolderType.APPLICATION).getElements().add(emptyCompElem);
+
+        IArchimateDiagramModel view = (IArchimateDiagramModel) model.getFolder(FolderType.DIAGRAMS)
+                .getElements().get(0);
+        IDiagramModelArchimateObject emptyCompVo = factory.createDiagramModelArchimateObject();
+        emptyCompVo.setId("comp-empty");
+        emptyCompVo.setArchimateElement(emptyCompElem);
+        emptyCompVo.setBounds(50, 50, 200, 100);
+        view.getChildren().add(emptyCompVo);
+
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        try {
+            accessor.layoutWithinGroup("default", "view-001", "comp-empty",
+                    "row", null, null, null, null, false, false, null, false);
+            fail("Expected ModelAccessException for empty-container rejection");
+        } catch (ModelAccessException e) {
+            assertEquals(ErrorCode.INVALID_PARAMETER, e.getErrorCode());
+            assertEquals("Container has no children to layout", e.getMessage());
+        }
     }
 
     // ---- arrange-groups tests (Story 11-20) ----

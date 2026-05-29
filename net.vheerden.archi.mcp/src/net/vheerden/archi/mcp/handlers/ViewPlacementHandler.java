@@ -3112,8 +3112,9 @@ public class ViewPlacementHandler {
         Map<String, Object> groupViewObjectIdProp = new LinkedHashMap<>();
         groupViewObjectIdProp.put("type", "string");
         groupViewObjectIdProp.put("description",
-                "View object ID of the group to layout children within "
-                + "(from get-view-contents groups list)");
+                "View object ID of the container (visual group OR ArchiMate-element with "
+                + "nested children) to layout children within. From get-view-contents: "
+                + "groups list OR any element in visualMetadata whose children list is non-empty.");
 
         Map<String, Object> arrangementProp = new LinkedHashMap<>();
         arrangementProp.put("type", "string");
@@ -3190,7 +3191,9 @@ public class ViewPlacementHandler {
         McpSchema.Tool tool = McpSchema.Tool.builder()
                 .name("layout-within-group")
                 .description("[Mutation] Arrange child elements within a visual group "
-                        + "using row, column, or grid patterns. Computes positions "
+                        + "OR an ArchiMate-element container (e.g. ApplicationComponent, "
+                        + "Node, ApplicationFunction) using row, column, or grid patterns. "
+                        + "Computes positions "
                         + "server-side so the LLM doesn't need to calculate coordinates. "
                         + "Only repositions direct children of the specified group (not "
                         + "recursive into sub-groups). Use 'columns' to control grid shape "

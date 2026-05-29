@@ -18,6 +18,16 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * <p><strong>Story C4:</strong> Added optional image fields (imagePath,
  * imagePosition, showIcon). Omitted from JSON when null.</p>
+ *
+ * <p><strong>Story C3 (v1.6):</strong> Closes the read-back symmetry gap surfaced by the
+ * 2026-05-28 1708 labelExpression probe. Adds {@code figureType}, {@code textAlignment},
+ * {@code verticalTextAlignment} (predecessor styling row), {@code labelExpression}
+ * (14-1 G4), and {@code fontName}/{@code fontSize}/{@code fontStyle}/{@code gradient}/
+ * {@code deriveLineColor}/{@code outlineOpacity}/{@code lineStyle} (14-2 G5) so that
+ * {@code get-view-contents} surfaces every v1.5 styling field that the corresponding
+ * write tools accept. Field order mirrors {@link ViewObjectDto} so JSON property order
+ * is identical across add-/update-/read paths. {@code borderType} is intentionally
+ * absent (note-only). All fields are omitted from JSON when null via NON_NULL.</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ViewNodeDto(
@@ -35,10 +45,23 @@ public record ViewNodeDto(
     Integer lineWidth,
     String imagePath,
     String imagePosition,
-    String showIcon
+    String showIcon,
+    String figureType,
+    String textAlignment,
+    String verticalTextAlignment,
+    String labelExpression,
+    String fontName,
+    Integer fontSize,
+    String fontStyle,
+    String gradient,
+    Boolean deriveLineColor,
+    Integer outlineOpacity,
+    String lineStyle
 ) {
     /**
-     * Convenience constructor without image fields (backward compat).
+     * Convenience constructor without image fields or v1.5 styling (backward compat).
+     * Delegates to the canonical 26-field constructor with 14 trailing nulls
+     * (3 image + 11 Story C3 v1.5 styling fields).
      */
     public ViewNodeDto(String viewObjectId, String elementId,
             int x, int y, int width, int height,
@@ -47,7 +70,8 @@ public record ViewNodeDto(
             Integer opacity, Integer lineWidth) {
         this(viewObjectId, elementId, x, y, width, height,
                 parentViewObjectId, fillColor, lineColor, fontColor,
-                opacity, lineWidth, null, null, null);
+                opacity, lineWidth, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /**

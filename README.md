@@ -147,7 +147,7 @@ The server exposes **72 MCP tools** organised into functional categories.
 | `get-model-info` | Model overview — name, `purpose`, custom `properties`, element/relationship/view counts by type and layer, plus specialization count. Read counterpart to `update-model` |
 | `get-element` | Retrieve element(s) by ID (single via `id` or batch via `ids` array) |
 | `get-views` | List views with optional viewpoint type or name filtering |
-| `get-view-contents` | View diagram contents — elements, relationships, visual positions, connection routing, image visuals |
+| `get-view-contents` | View diagram contents — elements, relationships, visual positions, connection routing, image visuals, and the full styling surface (typography, gradient, alignment, line style, `labelExpression`) so styling mutations can be read back and verified. `format: "tree"` returns the containment hierarchy, descending both visual groups **and** ArchiMate-element containers — nested children appear in the parent node's `children` array with a `childCount` |
 | `get-relationships` | Traverse relationships with configurable depth (0-3 hops) or multi-hop chain traversal with direction/type/layer filters |
 | `find-concept-usage` | Reverse where-used lookup — given an element or relationship ID, returns every view and visual object/connection that references it. Inverse of `get-view-contents`. Use before `delete-element` / `delete-relationship` / rename / re-type to see the cross-view footprint in one round-trip |
 
@@ -192,7 +192,7 @@ Specializations are IS-A subtypes of ArchiMate concept types (e.g. "Microservice
 
 ### View Composition (9 tools)
 
-All view-composition tools that place a new visual object (`add-to-view`, `add-group-to-view`, `add-note-to-view`, `add-view-reference-to-view`, `add-image-to-view`) and `update-view-object` accept the full visual styling surface: fill / line / font colour, opacity, line width, line style (`solid` / `dashed` / `dotted` / `none`), typography (`fontName`, `fontSize`, `fontStyle`), gradient, `deriveLineColor`, `outlineOpacity`, `figureType` (`rectangular` / `tabbed`), `textAlignment`, `verticalTextAlignment`, plus note-specific `borderType` (`dogear` / `rectangle` / `none`). Existing calls are byte-identical; supply only the fields you want to set.
+All view-composition tools that place a new visual object (`add-to-view`, `add-group-to-view`, `add-note-to-view`, `add-view-reference-to-view`, `add-image-to-view`) and `update-view-object` accept the full visual styling surface: fill / line / font colour, opacity, line width, line style (`solid` / `dashed` / `dotted` / `none`), typography (`fontName`, `fontSize`, `fontStyle`), gradient, `deriveLineColor`, `outlineOpacity`, `figureType` (`rectangular` / `tabbed`), `textAlignment`, `verticalTextAlignment`, plus note-specific `borderType` (`dogear` / `rectangle` / `none`). Existing calls are byte-identical; supply only the fields you want to set. Every one of these fields reads back through `get-view-contents`, so a styling mutation can be verified after the write.
 
 | Tool | Description |
 |---|---|
@@ -222,7 +222,7 @@ All view-composition tools that place a new visual object (`add-to-view`, `add-g
 | `compute-layout` | Apply an automatic layout algorithm (tree, spring, directed, radial, grid) to a view |
 | `auto-route-connections` | Orthogonal connection routing using clearance-weighted visibility-graph A* pathfinding with corridor directionality, corridor diversity, group-wall awareness, channel-global ordered nudging, and post-routing path straightening. Two modes: `mode: "full"` (default) re-routes whole connections via visibility-graph A*; `mode: "terminals-only"` rectifies only the first/last bendpoint of each connection to make terminal segments orthogonal — best after ELK on grouped views to fix diagonal terminal entries without the crossing inflation a full re-route causes. Optional `autoNudge` mode automatically moves blocking elements (and resizes parent groups to contain them) and re-routes failed connections in a single atomic operation. The response carries a `structuredWarnings: List<{code, message, remediationTool, remediationViolatorIds}>` field for deterministic LLM iteration (most common: `AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP` instructing the agent to run `layout-within-group` on the parent before re-routing) |
 | `auto-layout-and-route` | Two modes: `auto` (default) uses ELK Layered to compute positions AND routes in one operation; `grouped` orchestrates the full grouped-view workflow (layout-within-group + arrange-groups + optimize-group-order + auto-route-connections) atomically. Smart iteration when `targetRating` is set — factor-aware iteration tunes the right knob per tier, with plateau detection to exit early when iterations stop improving the dominant tier |
-| `layout-within-group` | Arrange child elements within a group using row, column, or grid patterns |
+| `layout-within-group` | Arrange child elements inside a container using row, column, or grid patterns. The container may be a visual group **or** an ArchiMate-element container (`ApplicationComponent`, `Node`, `ApplicationFunction`, etc.) that holds nested children — the same `arrangement` / `spacing` / `padding` / `columns` / `autoResize` / `autoWidth` semantics apply to both. Notes, view-references, and connections are rejected as containers |
 | `layout-flat-view` | Automatic layout for flat (non-grouped) views — row, column, or grid arrangement with optional sorting by name/type/layer and category grouping |
 | `arrange-groups` | Position top-level groups relative to each other in grid, row, or column layout. **Density-aware default:** when `spacing` is omitted on a view with inter-group connections, the tool derives a connection-count-aware default (≤ 15 → 80 px, 16–30 → 100 px, > 30 → 120 px). Pass an explicit `spacing` to suppress |
 | `optimize-group-order` | Reorder elements within groups to minimise inter-group edge crossings |
@@ -286,7 +286,7 @@ All view-composition tools that place a new visual object (`add-to-view`, `add-g
 | `begin-batch` | Start batch mode — mutations are queued instead of applied immediately |
 | `end-batch` | Commit all queued mutations atomically, or rollback (discard all) |
 | `get-batch-status` | Check operational mode and queued operation count |
-| `bulk-mutate` | Execute multiple mutations as a single compound command with back-references and optional `continueOnError` |
+| `bulk-mutate` | Execute multiple mutations as a single compound command with 0-indexed back-references (`$N.id` resolves to the result of operation N; a create tool cannot reference its own not-yet-created result) and optional `continueOnError` |
 
 ### Undo / Redo (2 tools)
 

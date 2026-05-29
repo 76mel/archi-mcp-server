@@ -172,7 +172,7 @@ public class PathStraightener {
             TerminalAnchoring sourceAnchoring, TerminalAnchoring targetAnchoring,
             boolean augmented) {
         List<AbsoluteBendpointDto> snapshot = new ArrayList<>(path);
-        eliminateReversalsCore(path, obstacles);
+        eliminateReversalsCore(path, obstacles, augmented);
         if (!checkAnchoringWrap(path, augmented,
                 sourceAnchoring, source, sourceCenter,
                 targetAnchoring, target, targetCenter)) {
@@ -184,6 +184,29 @@ public class PathStraightener {
 
     private static void eliminateReversalsCore(List<AbsoluteBendpointDto> path,
             List<RoutingRect> obstacles) {
+        eliminateReversalsCore(path, obstacles, false);
+    }
+
+    /**
+     * Core reversal-elimination scan.
+     *
+     * <p>C2 (exit-then-return terminal zigzag): when {@code protectTerminals} is true the
+     * path is the stage-4.7i <em>augmented</em> frame — sentinel source/target centers occupy
+     * index {@code 0} and {@code size - 1}, so the real terminal anchors sit at index {@code 1}
+     * and {@code size - 2}. A collapse removes the range {@code [i+1 .. j]}; if that range
+     * covers a terminal anchor ({@code i == 0} → index 1; {@code j >= size - 2} → the target
+     * anchor) the B71 wrap ({@link #eliminateReversals(List, List, RoutingRect, RoutingRect,
+     * int[], int[], TerminalAnchoring, TerminalAnchoring, boolean)}) would roll the entire pass
+     * back, so the otherwise-valid narrower interior collapse never commits and an
+     * exit-then-return overshoot at a terminal survives. Skipping anchor-deleting pairs confines
+     * the scan to interior collapses — anchors may still be collapse <em>endpoints</em> but are
+     * never <em>removed</em> — so the overshoot body collapses while both terminals stay
+     * byte-identical. The guard only blocks collapses that today always trip the B71 rollback to
+     * net no-change, so every currently-kept collapse is unaffected (byte-identical preservation).
+     * The legacy {@code (path, obstacles)} overload passes {@code false} — unchanged behaviour.
+     */
+    private static void eliminateReversalsCore(List<AbsoluteBendpointDto> path,
+            List<RoutingRect> obstacles, boolean protectTerminals) {
         if (path.size() < 4) {
             return;
         }
@@ -199,6 +222,12 @@ public class PathStraightener {
             for (int i = 0; i < path.size() - 3; i++) {
                 for (int j = path.size() - 2; j > i; j--) {
                     if (i == 0 && j + 1 == path.size() - 1) {
+                        continue;
+                    }
+                    // C2: never collapse across a terminal anchor in the augmented frame
+                    // (anchors at index 1 / size-2 of the CURRENT path — size is live,
+                    // re-read each guard evaluation, not entry-snapped) — see Javadoc.
+                    if (protectTerminals && (i == 0 || j >= path.size() - 2)) {
                         continue;
                     }
 

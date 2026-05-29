@@ -649,6 +649,135 @@ public class ViewHandlerTreeFormatTest {
         assertNotNull(meta.get("modelVersion"));
     }
 
+    // ---- Tree format element-container nesting (Story C1f) ----
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void shouldNestElementChildren_underApplicationComponentContainer() throws Exception {
+        // AC-1: ApplicationComponent containing 3 nested ApplicationFunctions
+        // (the literal Probe 5 View F 1708 case).
+        TreeStubAccessor accessor = new TreeStubAccessor("component-with-functions");
+        ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeWithFormat("view-component-with-functions", "tree");
+        assertFalse(result.isError());
+
+        Map<String, Object> envelope = parseJson(result);
+        Map<String, Object> resultMap = (Map<String, Object>) envelope.get("result");
+        List<Map<String, Object>> tree = (List<Map<String, Object>>) resultMap.get("tree");
+
+        // Single top-level element node: the ApplicationComponent container.
+        assertEquals(1, tree.size());
+        Map<String, Object> comp = tree.get(0);
+        assertEquals("vo-comp-1", comp.get("viewObjectId"));
+        assertEquals("element", comp.get("type"));
+        assertEquals("Mobile Banking App", comp.get("name"));
+        assertEquals("ApplicationComponent", comp.get("elementType"));
+        assertEquals(3, comp.get("childCount"));
+
+        List<Map<String, Object>> children = (List<Map<String, Object>>) comp.get("children");
+        assertEquals(3, children.size());
+
+        // Children order = visualMetadata insertion order (vo-fn-1, vo-fn-2, vo-fn-3).
+        String[] expectedVoIds = {"vo-fn-1", "vo-fn-2", "vo-fn-3"};
+        String[] expectedNames = {"Account Inquiry", "Payment Submission", "Statement Download"};
+        for (int i = 0; i < 3; i++) {
+            Map<String, Object> child = children.get(i);
+            assertEquals(expectedVoIds[i], child.get("viewObjectId"));
+            assertEquals("element", child.get("type"));
+            assertEquals(expectedNames[i], child.get("name"));
+            assertEquals("ApplicationFunction", child.get("elementType"));
+            // Leaf elements emit NO children / childCount fields.
+            assertFalse("leaf element must not emit children", child.containsKey("children"));
+            assertFalse("leaf element must not emit childCount", child.containsKey("childCount"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void shouldNestElementChildren_underNodeContainer_inTechZonesView() throws Exception {
+        // AC-2: Node containing a nested SystemSoftware child, via the existing
+        // tech-zones fixture (vo-sw parented under vo-app at fixture line ~820).
+        TreeStubAccessor accessor = new TreeStubAccessor("tech-zones");
+        ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeWithFormat("view-tech-zones", "tree");
+        assertFalse(result.isError());
+
+        Map<String, Object> envelope = parseJson(result);
+        Map<String, Object> resultMap = (Map<String, Object>) envelope.get("result");
+        List<Map<String, Object>> tree = (List<Map<String, Object>>) resultMap.get("tree");
+
+        // Locate the Application Zone group, then the App Server Node inside it.
+        Map<String, Object> appZone = tree.stream()
+                .filter(n -> "group".equals(n.get("type")) && "grp-appz".equals(n.get("viewObjectId")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No grp-appz group in tree"));
+
+        List<Map<String, Object>> zoneChildren = (List<Map<String, Object>>) appZone.get("children");
+        Map<String, Object> appNode = zoneChildren.stream()
+                .filter(n -> "vo-app".equals(n.get("viewObjectId")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("App Server Node not found inside grp-appz"));
+
+        assertEquals("element", appNode.get("type"));
+        assertEquals("Node", appNode.get("elementType"));
+        assertEquals(1, appNode.get("childCount"));
+
+        List<Map<String, Object>> nodeChildren = (List<Map<String, Object>>) appNode.get("children");
+        assertEquals(1, nodeChildren.size());
+        Map<String, Object> sw = nodeChildren.get(0);
+        assertEquals("vo-sw", sw.get("viewObjectId"));
+        assertEquals("element", sw.get("type"));
+        assertEquals("App Runtime", sw.get("name"));
+        assertEquals("SystemSoftware", sw.get("elementType"));
+        assertFalse("nested SystemSoftware leaf must not emit children", sw.containsKey("children"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void shouldNotEmitChildrenField_onLeafElement_inFlatView() throws Exception {
+        // AC-3: regression pin — flat view with no element-container nesting.
+        // Every element node renders byte-identically to v1.5 (no children/childCount).
+        TreeStubAccessor accessor = new TreeStubAccessor("flat");
+        ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeWithFormat("view-flat", "tree");
+        Map<String, Object> envelope = parseJson(result);
+        Map<String, Object> resultMap = (Map<String, Object>) envelope.get("result");
+        List<Map<String, Object>> tree = (List<Map<String, Object>>) resultMap.get("tree");
+
+        assertEquals(2, tree.size());
+        for (Map<String, Object> node : tree) {
+            assertEquals("element", node.get("type"));
+            assertFalse("flat-view leaf must not emit children", node.containsKey("children"));
+            assertFalse("flat-view leaf must not emit childCount", node.containsKey("childCount"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void shouldKeepTotalElementsPolymorphicCorrect_acrossNestingLevels() throws Exception {
+        // AC-4: stats.totalElements counts every visualMetadata entry regardless of parent
+        // type; ungroupedElements counts only root-level (parentViewObjectId == null) elements.
+        TreeStubAccessor accessor = new TreeStubAccessor("component-with-functions");
+        ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
+        handler.registerTools();
+
+        McpSchema.CallToolResult result = invokeWithFormat("view-component-with-functions", "tree");
+        Map<String, Object> envelope = parseJson(result);
+        Map<String, Object> resultMap = (Map<String, Object>) envelope.get("result");
+        Map<String, Object> stats = (Map<String, Object>) resultMap.get("stats");
+
+        assertEquals(4, stats.get("totalElements"));   // 1 component + 3 functions
+        assertEquals(1, stats.get("ungroupedElements")); // only the component is root
+        assertEquals(0, stats.get("totalGroups"));
+        assertEquals(0, stats.get("totalNotes"));
+    }
+
     // ---- Helper Methods ----
 
     private McpSchema.CallToolResult invokeWithFormat(String viewId, String format) {
@@ -696,7 +825,9 @@ public class ViewHandlerTreeFormatTest {
                     new ViewDto("view-flat", "Flat View", null, "Views"),
                     new ViewDto("view-empty", "Empty View", null, "Views"),
                     new ViewDto("view-orphan", "Orphan Element View", null, "Views"),
-                    new ViewDto("view-tech-zones", "Technology Zones View", null, "Views"));
+                    new ViewDto("view-tech-zones", "Technology Zones View", null, "Views"),
+                    new ViewDto("view-component-with-functions", "Component with Functions View",
+                            null, "Views"));
         }
 
         @Override
@@ -713,6 +844,7 @@ public class ViewHandlerTreeFormatTest {
                 case "view-empty" -> Optional.of(createEmptyView());
                 case "view-orphan" -> Optional.of(createOrphanElementView());
                 case "view-tech-zones" -> Optional.of(createTechZonesView());
+                case "view-component-with-functions" -> Optional.of(createComponentWithFunctionsView());
                 default -> Optional.empty();
             };
         }
@@ -845,6 +977,33 @@ public class ViewHandlerTreeFormatTest {
 
             return new ViewContentsDto("view-orphan", "Orphan Element View", null, null,
                     List.of(), List.of(), visualMetadata, List.of(), List.of(), List.of());
+        }
+
+        /**
+         * View F (1708 retail-bank) shape: 1 ApplicationComponent on canvas
+         * with 3 nested ApplicationFunctions (parentViewObjectId = component).
+         * Closes the Probe 5 case from c1-empirical-2026-05-29 (Story C1f).
+         */
+        private ViewContentsDto createComponentWithFunctionsView() {
+            List<ElementDto> elements = List.of(
+                    ElementDto.standard("comp-1", "Mobile Banking App", "ApplicationComponent",
+                            null, "Application", null, null),
+                    ElementDto.standard("fn-1", "Account Inquiry", "ApplicationFunction",
+                            null, "Application", null, null),
+                    ElementDto.standard("fn-2", "Payment Submission", "ApplicationFunction",
+                            null, "Application", null, null),
+                    ElementDto.standard("fn-3", "Statement Download", "ApplicationFunction",
+                            null, "Application", null, null));
+
+            List<ViewNodeDto> visualMetadata = List.of(
+                    new ViewNodeDto("vo-comp-1", "comp-1", 100, 50, 400, 250),
+                    new ViewNodeDto("vo-fn-1", "fn-1", 10, 30, 120, 55, "vo-comp-1"),
+                    new ViewNodeDto("vo-fn-2", "fn-2", 140, 30, 120, 55, "vo-comp-1"),
+                    new ViewNodeDto("vo-fn-3", "fn-3", 270, 30, 120, 55, "vo-comp-1"));
+
+            return new ViewContentsDto("view-component-with-functions",
+                    "Component with Functions View", null, null,
+                    elements, List.of(), visualMetadata, List.of(), List.of(), List.of());
         }
     }
 }

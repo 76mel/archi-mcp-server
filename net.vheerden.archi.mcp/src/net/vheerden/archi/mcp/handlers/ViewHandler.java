@@ -1085,6 +1085,8 @@ public class ViewHandler {
         Map<String, List<Map<String, Object>>> childrenByParent = new LinkedHashMap<>();
         // Track group nodes by viewObjectId for later nesting
         Map<String, Map<String, Object>> groupNodes = new LinkedHashMap<>();
+        // Track element nodes by viewObjectId for later element-container children attachment (Story C1f)
+        Map<String, Map<String, Object>> elementNodes = new LinkedHashMap<>();
 
         // Stats counters
         int totalElements = 0;
@@ -1104,6 +1106,10 @@ public class ViewHandler {
                     treeNode.put("name", element.name());
                     treeNode.put("elementType", element.type());
                 }
+
+                // Index every element node (including orphans) for the element-container
+                // children attachment pass below (Story C1f).
+                elementNodes.put(node.viewObjectId(), treeNode);
 
                 String parent = node.parentViewObjectId();
                 childrenByParent.computeIfAbsent(
@@ -1180,6 +1186,24 @@ public class ViewHandler {
                 if (parent == null) {
                     childrenByParent.computeIfAbsent(TREE_ROOT_KEY, k -> new ArrayList<>()).add(groupNode);
                 }
+            }
+        }
+
+        // Third pass: attach element-container children to element-nodes (Story C1f).
+        // Group nodes already have their children attached above. This pass picks up
+        // elements whose parentViewObjectId is another element (IDiagramModelArchimateObject
+        // as container, per Story 10-20 element-to-element nesting and Story C1
+        // polymorphic layout-within-group). Reference-aliasing through childrenByParent
+        // means arbitrary-depth chains (Node→SystemSoftware→DataObject) resolve correctly
+        // in a single pass. Element-nodes emit children/childCount ONLY when count > 0,
+        // preserving byte-identical output for leaf elements (asymmetric-by-design with
+        // group nodes, which always emit).
+        for (Map.Entry<String, Map<String, Object>> entry : elementNodes.entrySet()) {
+            List<Map<String, Object>> elementChildren = childrenByParent.get(entry.getKey());
+            if (elementChildren != null && !elementChildren.isEmpty()) {
+                Map<String, Object> elemNode = entry.getValue();
+                elemNode.put("childCount", elementChildren.size());
+                elemNode.put("children", elementChildren);
             }
         }
 

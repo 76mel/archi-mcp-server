@@ -13,6 +13,15 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * <p><strong>Story 11-2:</strong> Added optional styling fields (fillColor,
  * lineColor, fontColor, opacity, lineWidth). Omitted from JSON when null.</p>
+ *
+ * <p><strong>Story C3 (v1.6):</strong> Closes the read-back symmetry gap. Adds
+ * {@code labelExpression} (14-1 G4) and {@code fontName}/{@code fontSize}/{@code fontStyle}/
+ * {@code gradient}/{@code deriveLineColor}/{@code outlineOpacity}/{@code lineStyle}
+ * (14-2 G5) so that {@code get-view-contents} surfaces every v1.5 styling field that the
+ * write tools accept. {@code borderType} is intentionally absent — groups own the
+ * orthogonal {@code figureType} (tabbed/rectangular) surface per 14-2 AC6 disambiguation;
+ * dogear/rectangle/none semantics belong on {@link ViewNoteDto} only. All fields are
+ * omitted from JSON when null via NON_NULL.</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ViewGroupDto(
@@ -34,13 +43,22 @@ public record ViewGroupDto(
     String showIcon,
     String figureType,
     String textAlignment,
-    String verticalTextAlignment
+    String verticalTextAlignment,
+    String labelExpression,
+    String fontName,
+    Integer fontSize,
+    String fontStyle,
+    String gradient,
+    Boolean deriveLineColor,
+    Integer outlineOpacity,
+    String lineStyle
 ) {
 
     /**
      * Constructor matching the pre-{@code backlog-group-element-styling-surface} 16-field shape
      * (styling + image fields, no figureType/textAlignment/verticalTextAlignment). Delegates to the
-     * canonical 19-field constructor with three trailing nulls.
+     * canonical 27-field constructor with eleven trailing nulls
+     * (3 predecessor styling row + 8 Story C3 v1.5 styling fields).
      */
     public ViewGroupDto(
             String viewObjectId, String label,
@@ -53,7 +71,32 @@ public record ViewGroupDto(
                 parentViewObjectId, childViewObjectIds,
                 fillColor, lineColor, fontColor, opacity, lineWidth,
                 imagePath, imagePosition, showIcon,
-                null, null, null);
+                null, null, null,
+                null, null, null, null, null, null, null, null);
+    }
+
+    /**
+     * Constructor matching the pre-{@code Story C3} 19-field shape
+     * (predecessor styling row added figureType/textAlignment/verticalTextAlignment, but no
+     * Story C3 labelExpression / fontName / fontSize / fontStyle / gradient / deriveLineColor /
+     * outlineOpacity / lineStyle). Delegates to the canonical 27-field constructor with eight
+     * trailing nulls for the Story C3 v1.5 styling fields. Preserves existing
+     * prepareAddGroupToView call sites byte-identically.
+     */
+    public ViewGroupDto(
+            String viewObjectId, String label,
+            int x, int y, int width, int height,
+            String parentViewObjectId, List<String> childViewObjectIds,
+            String fillColor, String lineColor, String fontColor,
+            Integer opacity, Integer lineWidth,
+            String imagePath, String imagePosition, String showIcon,
+            String figureType, String textAlignment, String verticalTextAlignment) {
+        this(viewObjectId, label, x, y, width, height,
+                parentViewObjectId, childViewObjectIds,
+                fillColor, lineColor, fontColor, opacity, lineWidth,
+                imagePath, imagePosition, showIcon,
+                figureType, textAlignment, verticalTextAlignment,
+                null, null, null, null, null, null, null, null);
     }
 
     /**

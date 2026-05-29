@@ -258,6 +258,15 @@ Operations can reference results from earlier operations using `$N.id`:
 }
 ```
 
+Back-references are **0-indexed**: `$0.id` is the result of the first operation. A reference may only point *backward* — to an operation that has already produced a result.
+
+**Reference validation** distinguishes two failure modes with separate, actionable messages:
+
+- **Self-reference** — `$N.id` inside operation N. A create tool cannot reference its own not-yet-created result. When a previous operation exists, the error includes a `Did you mean $(N-1).id?` suggestion.
+- **Forward-reference** — `$N.id` where N is a *later* operation. The referenced result does not exist yet.
+
+Both reject with `INVALID_PARAMETER`; the distinct diagnostics let a caller tell an operator off-by-one apart from a forward-reference mistake on the first response.
+
 ### Failure Semantics
 
 **All-or-nothing** (`continueOnError=false`, default):

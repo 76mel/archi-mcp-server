@@ -760,6 +760,18 @@ final class StylingHelper {
         return mapIntToLineStyle(obj.getLineStyle());
     }
 
+    /**
+     * Reads the labelExpression IFeatures entry on a view object (Story 14-1 G4 read-back,
+     * surfaced via {@code get-view-contents} by Story C3 v1.6). Returns null when the feature
+     * is absent or stored as empty-string. Mirrors the empty-to-null normalization in
+     * {@code ArchiModelAccessorImpl.computePostLabelExpression} so the DTO field is omitted
+     * via {@code @JsonInclude(NON_NULL)} when the view-object is at Archi default.
+     */
+    static String readLabelExpression(IDiagramModelObject obj) {
+        String value = obj.getFeatures().getString("labelExpression", null);
+        return (value == null || value.isEmpty()) ? null : value;
+    }
+
     // ---- Post-styling computation ----
 
     static String computePostStylingColor(String currentValue, String stylingValue) {
@@ -905,6 +917,19 @@ final class StylingHelper {
 
     static String readConnectionFontStyle(IDiagramModelConnection conn) {
         return parseFontStyle(conn.getFont());
+    }
+
+    /**
+     * Reads the labelExpression IFeatures entry on a view connection (Story C3 v1.6).
+     * {@code IDiagramModelConnection} transitively implements {@code IFeatures} via
+     * {@code IConnectable → IDiagramModelComponent → IArchimateModelObject → IFeatures}
+     * (verified via {@code javap} during the Story C3 Task 0 disambiguation gate, OQ-1
+     * disposition (a) DEFAULT). Returns null when the feature is absent or stored as
+     * empty-string. Mirrors the empty-to-null normalization of {@link #readLabelExpression}.
+     */
+    static String readConnectionLabelExpression(IDiagramModelConnection conn) {
+        String value = conn.getFeatures().getString("labelExpression", null);
+        return (value == null || value.isEmpty()) ? null : value;
     }
 
 }
