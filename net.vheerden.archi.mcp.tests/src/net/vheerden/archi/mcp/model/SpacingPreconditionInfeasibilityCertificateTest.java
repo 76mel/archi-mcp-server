@@ -11,18 +11,16 @@ import org.junit.Test;
 import net.vheerden.archi.mcp.model.SpacingPreconditionInfeasibilityCertificate.Decision;
 
 /**
- * JUnit pin for the SOUND one-sided pre-routing infeasibility certificate
- * (Story `backlog-st-spacing-precondition-structural-reflow` row 777, AC-5).
+ * JUnit pin for the SOUND one-sided pre-routing infeasibility certificate.
  * Pure-unit (no OSGi; no transitive class-loading of
  * {@code ArchiModelAccessorImpl} / EMF) — the certificate ARITHMETIC is a
  * pure static, exactly like {@code SpacingControlLoop.classifyDensityTermination};
- * the EMF read-sites are the thin caller (AC-4: {@code SpacingControlLoop} is
+ * the EMF read-sites are the thin caller ({@code SpacingControlLoop} is
  * byte-frozen — this suite does NOT touch the {@code SpacingControlLoop*}
  * suites).
  *
  * <p><strong>Calibration anchors</strong> — captured READ-ONLY from the live
- * canonical sources (Task-0.3 spike,
- * {@code st-spacing-precondition-empirical-2026-05-18/spike-geometry-2026-05-18.md}),
+ * canonical sources,
  * absolute element-union bounds (group-relative child coords resolved):</p>
  * <ul>
  *   <li><strong>ST (RED-by-construction anchor)</strong>
@@ -30,7 +28,7 @@ import net.vheerden.archi.mcp.model.SpacingPreconditionInfeasibilityCertificate.
  *       Architecture": 23 elements, element-union bbox 994&times;975 =
  *       969150 px&sup2;, avgElementBoxDim = mean((w+h)/2) = 130.7px ⇒
  *       idealUniformAvg(N=23) = &radic;(969150/23) &minus; 130.7 = 74.57 &lt;
- *       100 ⇒ <em>provablyInfeasible = TRUE</em>. Reproduces the row-776
+ *       100 ⇒ <em>provablyInfeasible = TRUE</em>. Reproduces the
  *       code-certain probe loop-max ceiling 73.8 (escalation +72px AND a
  *       perfect hub-resize HPQ 0.18&rarr;1.0) within 1% — a tight, sound
  *       upper bound, not a loose one. Robust at N=27 (58.76 &lt; 100).</li>
@@ -49,7 +47,7 @@ import net.vheerden.archi.mcp.model.SpacingPreconditionInfeasibilityCertificate.
  * Type-II miss (under-claim ⇒ fall straight through to the existing,
  * correct, zero-regression below-regime {@code budget_exhausted}). Degenerate
  * inputs NEVER fire (Type-II safe). It therefore cannot produce the
- * reflow-claimed-while-below-regime AC-4 FAIL; the OFFER's honest claim is
+ * reflow-claimed-while-below-regime FAIL; the OFFER's honest claim is
  * the narrower provably-true "input infeasible on its current canvas by
  * spacing/hub alone", NOT "reflow will succeed" (consent-gated, never an
  * auto-act).</p>
@@ -61,7 +59,7 @@ public class SpacingPreconditionInfeasibilityCertificateTest {
     private static final int REGIME_EXCELLENT =
             SpacingControlLoop.DENSITY_REGIME_EXCELLENT_PX;        // 124
 
-    // Captured pinned geometry (Task-0.3 spike — durable record).
+    // Captured pinned geometry (durable record).
     private static final double ST_AREA = 969150.0;   // 994 x 975
     private static final double ST_AVG_BOX = 130.7;
     private static final double HH_AREA = 2868900.0;  // 1460 x 1965
@@ -119,8 +117,8 @@ public class SpacingPreconditionInfeasibilityCertificateTest {
         assertTrue("OFFER names the hub extent", offer.contains("214")
                 && offer.contains("68"));
         assertTrue("OFFER names the hub fan-out", offer.contains("7"));
-        // Consent-gated, text/affordance ONLY — NEVER auto-reflow (row-773
-        // AC-13 / row-775 surface+offer+consent boundary, absolute).
+        // Consent-gated, text/affordance ONLY — NEVER auto-reflow
+        // (surface+offer+consent boundary, absolute).
         assertTrue("OFFER must be consent-gated (explicit consent language)",
                 offer.toLowerCase().contains("consent"));
         assertTrue("OFFER must state the view is preserved unchanged",

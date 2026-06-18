@@ -20,14 +20,14 @@ import com.archimatetool.model.IDiagramModelReference;
 import com.archimatetool.model.IFolder;
 
 /**
- * GEF Command that deletes an ArchiMate view (diagram) from the model (Story 8-4).
+ * GEF Command that deletes an ArchiMate view (diagram) from the model.
  *
  * <p>On execute, captures all children and connections (same pattern as
  * {@link ClearViewCommand}), disconnects connections, clears children, and
  * removes the view from its parent folder. The underlying model elements
  * and relationships are NOT deleted.</p>
  *
- * <p><strong>Cascade (Story 14-6.1):</strong> also captures every
+ * <p><strong>Cascade:</strong> also captures every
  * {@link IDiagramModelReference} placeholder elsewhere in the model whose
  * {@code getReferencedModel()} is this view, and removes them on execute /
  * restores them on undo. Mirrors Archi GUI's

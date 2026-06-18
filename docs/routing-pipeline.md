@@ -56,8 +56,8 @@ flowchart TD
     L6 --> L7["Stage 4.7k: Center-\nTermination Fix"]
     L7 --> L8["Stage 4.7m: Interior\nTerminal BP Fix"]
     L8 --> L9["Stage 4.7n: Orthogonality\nEnforcement"]
-    L9 --> L9o["Stage 4.7o: Channel-Global\nOrdered Nudging (B69-B)"]
-    L9o --> L9p["Stage 4.7p: Source/Target\nSelf-Hug Correction (B72-a)"]
+    L9 --> L9o["Stage 4.7o: Channel-Global\nOrdered Nudging"]
+    L9o --> L9p["Stage 4.7p: Source/Target\nSelf-Hug Correction"]
     L9p --> L9q["Stage 4.7q: Terminal-Anchored\nCoincident Reconciliation"]
     L9q --> M["Label Position Optimization"]
     M --> N["Final Validation"]
@@ -87,7 +87,7 @@ flowchart TD
 
 ## Pipeline Invariants
 
-### Perimeter-Terminal Immutability (B71)
+### Perimeter-Terminal Immutability
 
 Once `EdgeAttachmentCalculator` selects a terminal face for a connection, that face is immutable across all subsequent post-processing stages. The selected face is captured in a `TerminalAnchoring(Face)` record (`model/routing/TerminalAnchoring.java`). When a downstream stage needs to swap the face — for example, a self-hug correction in Stage 4.7p — the swap and its dependent terminal-segment update are applied as a single atomic mutation across the five wrap sites:
 
@@ -97,7 +97,7 @@ Once `EdgeAttachmentCalculator` selects a terminal face for a connection, that f
 4. Center-termination fix
 5. Interior-BP fix
 
-This prevents the pre-B71 failure mode where a downstream stage moved a terminal away from the face the router had reserved port allocation for, collapsing hub-port distribution and producing fan-in bundles.
+This prevents the earlier failure mode where a downstream stage moved a terminal away from the face the router had reserved port allocation for, collapsing hub-port distribution and producing fan-in bundles.
 
 The invariant is JUnit-protected by `V4OracleQualityRegressionTest`, which pins:
 
@@ -188,7 +188,7 @@ g = edgeCost + bendCost + directionCost + congestionCost + clearanceCost
 
   edgeCost              = effectiveDistance to neighbor
                           effectiveDistance = distance * (1 + occupancyWeight * occupancy)
-                          where occupancy = number of prior paths using this corridor (B47)
+                          where occupancy = number of prior paths using this corridor
   bendCost              = bendPenalty (30px) if direction changes, 0 if same direction
   directionCost         = DIRECTION_PENALTY (15px) if moving away from target on dominant axis
   congestionCost        = congestionWeight (5.0) * edgeDensity (if density >= 2)
@@ -303,19 +303,19 @@ Returns `null` if the resulting spacing would be less than `MIN_SEPARATION` (8px
 
 **Fixed-delta fallback** (`applyFixedDeltaOffsets()`): original stacking behavior. First segment anchors in place; remaining segments offset by `offsetDelta * ordinal` (10px default). Tries positive direction first, then negative if blocked by obstacles.
 
-### Perimeter-Terminal Preservation (B70)
+### Perimeter-Terminal Preservation
 
-Coincident detection skips segments whose endpoints are perimeter terminals — i.e. terminal bendpoints anchored by `TerminalAnchoring(Face)` on a hub element. The same guard is applied in the `collapseBends` post-pass. Without this guard, redistributing two perimeter-terminal segments to separate corridors collapses B9 hub-port distribution back into a single bundled attachment, undoing the work of Phase 1.1 and Stage 4.7m. The guard preserves hub-port quality through the full pipeline at the cost of leaving a small number of intentional perimeter-anchored coincidences for downstream channel nudging to address.
+Coincident detection skips segments whose endpoints are perimeter terminals — i.e. terminal bendpoints anchored by `TerminalAnchoring(Face)` on a hub element. The same guard is applied in the `collapseBends` post-pass. Without this guard, redistributing two perimeter-terminal segments to separate corridors collapses hub-port distribution back into a single bundled attachment, undoing the work of Phase 1.1 and Stage 4.7m. The guard preserves hub-port quality through the full pipeline at the cost of leaving a small number of intentional perimeter-anchored coincidences for downstream channel nudging to address.
 
 **Source:** `model/routing/CoincidentSegmentDetector.java`
 
 ## Channel-Global Ordered Nudging
 
-### B69-B / Stage 4.7o
+### Stage 4.7o
 
 `ChannelNudgingPass` is a global post-pass that runs after coincident-segment detection and before the post-processing stages, redistributing parallel segment runs across obstacle-bounded corridors. It implements the channel-centring + ordered-nudging pattern from [4] and the channel-grouping primitive from libavoid's `performUnifyingNudgingPreprocessingStep` ([12]).
 
-**Channel keying.** Where the previous corridor-occupancy work (B47) reused `(axis, sharedCoord)` keys, `ChannelKey` is `(axis, gapLow, gapHigh)` — the perpendicular obstacle-bounded gap that contains the segment run. Two parallel runs at the same shared coordinate but in different inter-obstacle gaps are now distinct channels and nudged independently. This eliminated the regression where a single key collected runs from both sides of a separating obstacle.
+**Channel keying.** Where the previous corridor-occupancy work reused `(axis, sharedCoord)` keys, `ChannelKey` is `(axis, gapLow, gapHigh)` — the perpendicular obstacle-bounded gap that contains the segment run. Two parallel runs at the same shared coordinate but in different inter-obstacle gaps are now distinct channels and nudged independently. This eliminated the regression where a single key collected runs from both sides of a separating obstacle.
 
 ```text
 ChannelKey(axis, gapLow, gapHigh)
@@ -335,7 +335,7 @@ gapHigh  = nearest obstacle boundary on the perpendicular-high side
 
 **Toggle.** The `enableChannelNudging` parameter on `auto-route-connections` defaults to `true`. Setting `false` disables Stage 4.7o entirely (used for diagnostic comparison runs).
 
-**Diagnostic.** Setting `-Darchi.mcp.b69b.diagnostic=true` enables verbose channel-by-channel logging via `ChannelNudgingPass.DIAGNOSTIC_PROPERTY`.
+**Diagnostic.** Setting `-Darchi.mcp.channelnudging.diagnostic=true` enables verbose channel-by-channel logging via `ChannelNudgingPass.DIAGNOSTIC_PROPERTY`.
 
 **Source:** `model/routing/ChannelNudgingPass.java`, `model/routing/RoutingPipeline.java`
 
@@ -397,9 +397,9 @@ When multiple connections attach to the same face of an element:
 3. Distribute attachment points evenly across the face with 15px corner margin
 4. If face is too narrow: center with 8px minimum spacing
 
-### Capacity-Aware Port Distribution (B73)
+### Capacity-Aware Port Distribution
 
-Hub elements that have not been resized to fit their connection count produce a face slot count below the connection count. Pre-B73, the calculator collapsed all over-capacity connections to a single attachment point; the routing pipeline subsequently received a degenerate fan-in geometry and could not recover hub-port distribution.
+Hub elements that have not been resized to fit their connection count produce a face slot count below the connection count. Before this distribution, the calculator collapsed all over-capacity connections to a single attachment point; the routing pipeline subsequently received a degenerate fan-in geometry and could not recover hub-port distribution.
 
 In v1.4, when face slot count is below connection count, the calculator distributes attachment points proportionally across the available face length using the same crossing-consistent order as the standard distribution path. The user is still encouraged to resize the hub (see [Hub Element Detection in the Layout Engine doc](layout-engine.md#hub-element-detection)) — the proportional distribution is a fallback that prevents the worst-case visual regression rather than a substitute for sufficient face capacity.
 
@@ -445,7 +445,7 @@ After path cleanup and endpoint pass-through correction, four post-processing st
 
 Re-runs `correctSelfElementPassThrough()` for both source and target elements. This catches pass-throughs introduced by edge attachment (Stage 4) that were not addressed by the initial endpoint correction. While often ineffective for self-element geometry (detours loop back to the source face), it is retained as defense-in-depth.
 
-> **Rating note (B54):** Self-element pass-throughs that survive this safety net are reported by `assess-layout` for visibility but **excluded from the overall rating**. Cross-element pass-throughs continue to penalise the rating as before. See [Layout Engine — Pass-Throughs](layout-engine.md#pass-throughs).
+> **Rating note:** Self-element pass-throughs that survive this safety net are reported by `assess-layout` for visibility but **excluded from the overall rating**. Cross-element pass-throughs continue to penalise the rating as before. See [Layout Engine — Pass-Throughs](layout-engine.md#pass-throughs).
 
 ### Stage 4.7g: Late-Stage Path Simplification
 
@@ -471,7 +471,7 @@ The `PathStraightener` applies four correction passes in order:
 
 2. **Direction reversal elimination** — Iteratively finds the largest reversal (outermost pair of segments with opposite directions on the same axis). If start and end are collinear, collapses directly. Otherwise, tries L-turn replacement (horizontal-first, then vertical-first). Safety bound: `maxIterations = path.size()`.
 
-   When invoked on the terminal-augmented path (with the prepended/appended terminal anchors — see below), a `protectTerminals` guard confines the collapse to the route *interior*: terminal anchors may remain collapse endpoints but are never themselves removed. This is what lets `auto-route-connections` **self-heal the "exit-then-return" terminal zigzag** — a connection that overshoots past its target's far edge and doubles back to attach. Previously the pass could greedily match the widest reversal and delete a terminal anchor along with the overshoot; the perimeter-terminal-immutability guard ([B71](#perimeter-terminal-immutability-b71)) then rolled the whole straightening pass back, so the overshoot survived until a full re-layout. Confining the collapse to the interior removes the overshoot in place while keeping both terminal attachment points byte-identical. When a foreign element genuinely blocks the straightened corridor, the obstacle check declines the collapse and the route is left untouched.
+   When invoked on the terminal-augmented path (with the prepended/appended terminal anchors — see below), a `protectTerminals` guard confines the collapse to the route *interior*: terminal anchors may remain collapse endpoints but are never themselves removed. This is what lets `auto-route-connections` **self-heal the "exit-then-return" terminal zigzag** — a connection that overshoots past its target's far edge and doubles back to attach. Previously the pass could greedily match the widest reversal and delete a terminal anchor along with the overshoot; the perimeter-terminal-immutability guard ([the perimeter-terminal immutability invariant](#perimeter-terminal-immutability)) then rolled the whole straightening pass back, so the overshoot survived until a full re-layout. Confining the collapse to the interior removes the overshoot in place while keeping both terminal attachment points byte-identical. When a foreign element genuinely blocks the straightened corridor, the obstacle check declines the collapse and the route is left untouched.
 
 3. **Staircase jog collapse** — Detects H-V(jog)-H or V-H(jog)-V patterns where the perpendicular step is within threshold. Shifts the first point to align with the fourth point's axis, removing the two intermediate points. Validates that the resulting segments are obstacle-free.
 
@@ -519,7 +519,7 @@ This catches edge cases where cleanup stages (deduplication, collinear removal) 
 
 **Source:** `model/routing/RoutingPipeline.java`
 
-### Stage 4.7p: Source / Target Self-Hug Correction (B72-a)
+### Stage 4.7p: Source / Target Self-Hug Correction
 
 When a route's first or last interior segment runs along its own source or target element's perimeter on the way to the opposite endpoint, the connection visually overlaps the element edge — distinct from a pass-through but equally hard to read. `correctSourceFaceHug()` and `correctTargetFaceHug()` detect runs colinear with a face line of the source/target rectangle and shift the offending segment outward into the nearest free corridor.
 
@@ -531,7 +531,7 @@ This is an empirical fix — there is no published algorithm for "perimeter-hugg
 
 ### Stage 4.7q: Terminal-Anchored Coincident Reconciliation
 
-A final reconciliation pass for coincident segments that earlier stages cannot separate because both endpoints are pinned by `TerminalAnchoring(Face)`. Stages 4.7h and 4.7p+1 use the four-argument detector overload that respects perimeter-terminal preservation (B70); Stage 4.7q runs the channel-centring rationale from [4] on the residual to choose the least-bad placement, accepting one offset rather than producing a coincidence.
+A final reconciliation pass for coincident segments that earlier stages cannot separate because both endpoints are pinned by `TerminalAnchoring(Face)`. Stages 4.7h and 4.7p+1 use the four-argument detector overload that respects perimeter-terminal preservation; Stage 4.7q runs the channel-centring rationale from [4] on the residual to choose the least-bad placement, accepting one offset rather than producing a coincidence.
 
 V4 oracle measurement: legacy `coincidentSegmentCount` 12 → 2 with `hubPortQualityScore` 0.78 preserved. (The legacy metric is the one the regression test bounds via the constant named `M5_CEILING` — distinct from the new M4 `connectionEdgeCoincidenceCount` introduced in the v1.4 assessor redesign.)
 
@@ -559,7 +559,7 @@ After all pipeline stages (simplification, nudging, edge attachment, cleanup), t
 
 ### Detection
 
-The `correctEndpointPassThroughs()` method checks each routed connection. Segment-versus-rectangle clipping uses Liang-Barsky [16]:
+The `correctEndpointPassThroughs()` method checks each routed connection. Segment-versus-rectangle clipping uses Liang-Barsky [13]:
 
 1. Identifies bendpoints that fall inside the source or target element's bounding box
 2. Detects segments that cross through endpoint elements (not just near edges)
@@ -577,7 +577,7 @@ When a pass-through is detected:
 
 At the routing level, `routeConnection()` checks if the initial route passes through a source or target element. If detected, it re-routes with the offending element(s) added as obstacles using `calculateEdgePort()` edge ports.
 
-### Self-Element Pass-Through Backstop (B45, v1.4)
+### Self-Element Pass-Through Backstop (v1.4)
 
 Empirical pass-through correction stages (4.7f safety net, 4.7m interior-BP fix) cannot always converge for self-element geometry — detours frequently loop back to the source face. v1.4 introduces an assessment-side backstop: `LayoutQualityAssessor.terminalSegmentOverPenetrates()` (Option α F3) detects the residual cases at measurement time using the unclipped path against the assessment node, regardless of whether the pipeline managed to clear them. Live verification across four model states reports zero self-element pass-throughs after the predicate landed.
 
@@ -587,7 +587,7 @@ The predicate runs in the assessor, not in the routing pipeline. It does not cha
 
 ## Hub-Perimeter Routing Stage
 
-`HubPerimeterRoutingStage` routes hub-incident segments along the hub's perimeter so that connections fanning out of a high-degree element spread across its faces instead of bundling onto one attachment region. It is part of the hub-perimeter routing programme that also includes the capacity-aware port distribution (B73) and the perimeter-terminal immutability invariant (B71).
+`HubPerimeterRoutingStage` routes hub-incident segments along the hub's perimeter so that connections fanning out of a high-degree element spread across its faces instead of bundling onto one attachment region. It is part of the hub-perimeter routing programme that also includes the capacity-aware port distribution and the perimeter-terminal immutability invariant.
 
 The stage is, by design, scoped to **multi-bendpoint geometry**. On simple L-shaped routes — size-3 paths whose only candidate segments are terminal-incident and therefore outside the stage's partitioner range — the stage is a documented structural no-op: the partitioner loop has an empty range and produces no change. This is intentional, not a defect; such routes are handled by terminal edge attachment and the Stage 4.7 post-processing chain. The stage targets the longer multi-segment routes typical of a hub-and-spoke integration view.
 
@@ -597,7 +597,7 @@ Like the other v1.4 hub-and-spoke work, the stage is scoped at the structural le
 
 ## Terminal-Segment Corridor Migration
 
-`TerminalSegmentCorridorMigrator` (Axis-3 of the hub-perimeter routing programme, "HPRPS Track-A") is a post-routing stage that migrates a connection's terminal segment onto a better-fitting parallel corridor when the terminal-incident segment is the one creating edge coincidence. Earlier corridor work (channel-global ordered nudging, coincident-segment detection) operates on interior segments and deliberately preserves perimeter terminals under the B71 invariant; this stage closes the remaining gap for the terminal segment itself, moving it as a unit so the perimeter anchor is respected.
+`TerminalSegmentCorridorMigrator` (Axis-3 of the hub-perimeter routing programme) is a post-routing stage that migrates a connection's terminal segment onto a better-fitting parallel corridor when the terminal-incident segment is the one creating edge coincidence. Earlier corridor work (channel-global ordered nudging, coincident-segment detection) operates on interior segments and deliberately preserves perimeter terminals under the perimeter-terminal immutability invariant; this stage closes the remaining gap for the terminal segment itself, moving it as a unit so the perimeter anchor is respected.
 
 It reduces terminal-incident `connectionEdgeCoincidenceCount` on multi-bendpoint routes. Scoped at the structural level; it is the v1.4-final-scope portion of the corridor-migration track.
 
@@ -682,7 +682,7 @@ When `autoNudge: true` and routing failures exist with move recommendations:
 - `clear` strategy ignores autoNudge (straight lines have no pass-throughs)
 - Overlapping sibling elements detected via `OverlapResolver.hasOverlappingElements()` — if sibling overlaps exist, autoNudge is skipped, a `structuredWarnings[]` entry is emitted (see "Structured Warnings" below), and standard failure reporting is used (overlapping geometry creates degenerate routing conditions). Containment overlaps (parent-child nesting, e.g., ApplicationFunction inside ApplicationComponent) are excluded from this check.
 
-### Post-routing Overflow-Detection Pass (B15 Closure)
+### Post-routing Overflow-Detection Pass
 
 After the nudge loop completes (or is skipped), a post-pass iterates every visual object on the view and checks whether any child element's position now lies outside its parent group's bounds. For each violation, the pass calls the shared `resizeParentGroupIfNeeded` helper to grow the parent. The pass is gated by `effectiveAutoNudge` (preserves caller intent — non-autoNudge calls do not trigger parent resizes).
 
@@ -793,7 +793,7 @@ Returned in the `AutoRouteResultDto.nudgedElements` list when `autoNudge` is ena
 | `DEFAULT_CONGESTION_WEIGHT` | 5.0 | A* congestion cost multiplier (density >= 2) |
 | `DEFAULT_CLEARANCE_WEIGHT` | 75.0 | A* clearance cost multiplier (inversely proportional to perpendicular clearance) |
 | `DEFAULT_DIRECTIONALITY_WEIGHT` | 30.0 | A* corridor directionality cost (cosine-based penalty for edges not moving toward target) |
-| `DEFAULT_OCCUPANCY_WEIGHT` | 0.75 | A* corridor occupancy cost multiplier — multiplicative penalty for corridors already carrying traffic (B47) |
+| `DEFAULT_OCCUPANCY_WEIGHT` | 0.75 | A* corridor occupancy cost multiplier — multiplicative penalty for corridors already carrying traffic |
 | `MAX_EFFECTIVE_CLEARANCE` | 60.0px | Clearance cap — prevents exterior corridors from becoming artificially attractive |
 
 ### Visibility Graph (OrthogonalVisibilityGraph)
@@ -829,9 +829,9 @@ Returned in the `AutoRouteResultDto.nudgedElements` list when `autoNudge` is ena
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `enableChannelNudging` (param) | `true` | Toggle for Stage 4.7o (B69-B). False disables channel-global nudging entirely. |
+| `enableChannelNudging` (param) | `true` | Toggle for Stage 4.7o. False disables channel-global nudging entirely. |
 | `MIN_CLEARANCE_PX` | source-defined | Per-side clearance preserved within each `ChannelKey` gap during distribution. |
-| `DIAGNOSTIC_PROPERTY` | `archi.mcp.b69b.diagnostic` | System-property toggle for verbose channel-by-channel logging. |
+| `DIAGNOSTIC_PROPERTY` | `archi.mcp.channelnudging.diagnostic` | System-property toggle for verbose channel-by-channel logging. |
 
 ### Coincident Detection (CoincidentSegmentDetector)
 
@@ -863,7 +863,7 @@ Returned in the `AutoRouteResultDto.nudgedElements` list when `autoNudge` is ena
 [8]: bibliography.md#ref-8
 [9]: bibliography.md#ref-9
 [12]: bibliography.md#ref-12
-[16]: bibliography.md#ref-16
+[13]: bibliography.md#ref-13
 
 See [Bibliography](bibliography.md) for full citations.
 

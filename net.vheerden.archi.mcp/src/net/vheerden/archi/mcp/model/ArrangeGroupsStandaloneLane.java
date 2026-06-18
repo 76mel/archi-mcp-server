@@ -20,7 +20,7 @@ import com.archimatetool.model.INode;
 import com.archimatetool.model.IPath;
 
 /**
- * Story backlog-arrange-groups-standalone-element-lane (Option A — reserve centre lane).
+ * Standalone-element lane for arrange-groups (Option A — reserve centre lane).
  *
  * <p>Classifies a view's top-level non-group children as qualifying lane targets for
  * {@code arrange-groups}, assigns each qualifier to an inter-group gap, and computes
@@ -31,7 +31,7 @@ import com.archimatetool.model.IPath;
  *
  * <p>Wired only when {@code arrangement="topology"} is in effect at {@code arrangeGroups}
  * (and the resulting layout axis is row or column, not grid). Direct row/column/grid
- * calls and zero-qualifier views preserve byte-identical behaviour (Gate 2 / AC-3).</p>
+ * calls and zero-qualifier views preserve byte-identical behaviour.</p>
  *
  * <p>A qualifier is a top-level non-group, non-Note {@code IDiagramModelArchimateObject}
  * whose {@code IArchimateConcept} is {@link INode}, {@link IDevice}, {@link IPath}, or

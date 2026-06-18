@@ -6,7 +6,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Pure-geometry helper for label clearance in routed connections (Story 10-8).
+ * Pure-geometry helper for label clearance in routed connections.
  * Computes estimated label bounding rectangles along a routed path and checks
  * for overlap with element obstacles.
  *

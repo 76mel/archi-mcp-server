@@ -58,7 +58,6 @@ Rating levels run `excellent` → `good` → `fair` → `poor`. The **M6** overa
 - **Visibility graph** — The graph of obstacle-free straight-line connections the router searches over.
 - **A\* pathfinding** — The shortest-path search the router runs over the visibility graph, weighted by clearance and corridor preferences.
 - **ELK (Eclipse Layout Kernel)** — The external layout library used for automatic hierarchical (`Layered`) placement of elements.
-- **Zest** — The Eclipse graph-layout library behind the `compute-layout` tree, spring, directed, radial, and grid presets.
 - **Precondition** — A property of the view's geometry (hub sizing, inter-element spacing, inter-group arrangement) that must hold *before* routing. The pipeline can refine routes but cannot create these conditions; see the `archimate://prompts/routing-preconditions-checklist` resource.
 - **Density floor / reflow** — The point at which a view has too many elements for its area and no amount of spacing can satisfy a precondition. The spacing tools detect this and offer a structural *reflow* (repositioning elements) rather than churning.
 

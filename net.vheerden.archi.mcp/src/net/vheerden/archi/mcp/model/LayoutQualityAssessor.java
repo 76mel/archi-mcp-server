@@ -15,7 +15,7 @@ import net.vheerden.archi.mcp.model.routing.CoincidentSegmentDetector;
 import net.vheerden.archi.mcp.model.routing.CoincidentSegmentDiagnostic;
 
 /**
- * Stateless pure-geometry computation for layout quality assessment (Story 9-2).
+ * Stateless pure-geometry computation for layout quality assessment.
  * No EMF imports — operates on {@link AssessmentNode} and {@link AssessmentConnection} records.
  *
  * <p>All coordinates are expected to be in absolute canvas space. The accessor is
@@ -29,17 +29,15 @@ class LayoutQualityAssessor {
 
     private static final int MAX_DESCRIPTIONS = 10;
     private static final double ALIGNMENT_TOLERANCE = 5.0;
-    /** Angular threshold (degrees) for non-orthogonal terminal detection (B57). */
+    /** Angular threshold (degrees) for non-orthogonal terminal detection. */
     private static final double NON_ORTH_ANGLE_THRESHOLD = 5.0;
     /**
-     * M1 visible-segment-length guard (story Calibration.M1ManualOracle21, 2026-04-27):
+     * Visible-segment-length guard (2026-04-27):
      * when a candidate non-orthogonal terminal's visible (post-clip) segment length is
      * below this threshold, the diagonal is sub-perceptible at typical Archi zoom levels
      * and is silently skipped. Calibrated against the V4 manual oracle view
      * (id-3b2665e3ff6840708dbed2b3d1415613): 20 of 21 violators were 1.0–1.3px visible,
      * produced by Archi storing manually-routed BPs 1px off the perimeter face line.
-     * See {@code backlog-assessor-calibration-manual-oracle-non-orth-21.md}
-     * Dev Notes &sect; Threshold rationale.
      */
     static final double VISIBLE_DIAGONAL_MIN_PX = 3.0;
     private static final double OFF_CANVAS_THRESHOLD = 10000.0;
@@ -62,10 +60,10 @@ class LayoutQualityAssessor {
     static final int FAIR_MAX_CROSSINGS = 30;
     static final int FAIR_MAX_PASS_THROUGHS = 3;
 
-    // Density-aware crossing thresholds (Story 11-12, 11-22)
+    // Density-aware crossing thresholds
     /** Crossings per connection ratio: moderate impact threshold. */
     static final double CROSSING_RATIO_MODERATE = 4.0;
-    /** Story 11-22: crossings/connection ratio below this is "good" quality. */
+    /** Crossings/connection ratio below this is "good" quality. */
     static final double CROSSING_RATIO_GOOD = 1.5;
 
     /**
@@ -77,17 +75,17 @@ class LayoutQualityAssessor {
     static final double PASS_THROUGH_INSET = 10.0;
 
     /**
-     * Inset for self-element pass-through detection (Story 13-4).
+     * Inset for self-element pass-through detection.
      * Smaller than PASS_THROUGH_INSET to match the router's 5px tolerance,
      * ensuring the assessor safety net catches everything the router detects.
      */
     static final double SELF_ELEMENT_INSET = 5.0;
 
-    // Coincident segment thresholds (Story B38)
+    // Coincident segment thresholds
     static final int GOOD_MAX_COINCIDENT = 3;
     static final int FAIR_MAX_COINCIDENT = 8;
 
-    // Non-orthogonal terminal density thresholds (B58)
+    // Non-orthogonal terminal density thresholds
     /** Non-orth terminals per connection ratio: at or below this is "good" quality. */
     static final double NON_ORTH_RATIO_GOOD = 0.10;
     /** Non-orth terminals per connection ratio: at or below this is "fair" quality. */
@@ -96,7 +94,7 @@ class LayoutQualityAssessor {
     /** Above this element count, add a performance warning to suggestions. */
     static final int LARGE_VIEW_WARNING_THRESHOLD = 500;
 
-    // ---- Assessor.Redesign (M1-M6) constants (2026-04-26) ----
+    // ---- Assessor.Redesign metric constants (2026-04-26) ----
 
     /**
      * Tolerance (px) for testing whether a bendpoint lies on an element's perimeter line (M1).
@@ -130,7 +128,7 @@ class LayoutQualityAssessor {
     static final double EDGE_COINCIDENCE_MIN_OVERLAP_PX = 10.0;
 
     /**
-     * Public canonical hub-detection threshold (Story routing-preconditions, 2026-05-04).
+     * Public canonical hub-detection threshold (2026-05-04).
      * Elements with at or above this number of connections are CANDIDATE HUBS for the
      * agent's pre-routing analysis. This is the single public number cited in
      * {@code CLAUDE.md}, {@code README.md}, {@code archimate-view-patterns.md}, the
@@ -154,7 +152,7 @@ class LayoutQualityAssessor {
      * Internal threshold for the M5 hub-port-quality metric — minimum face-count to
      * participate in M5 scoring. Below this the metric is vacuous (a single face is
      * trivially balanced). Distinct from {@link #HUB_DETECTION_THRESHOLD} (public, 5).
-     * Renamed from {@code HUB_FACE_MIN_CONNECTIONS} in Story routing-preconditions, 2026-05-04.
+     * Renamed from {@code HUB_FACE_MIN_CONNECTIONS}, 2026-05-04.
      */
     static final int M5_FACE_GUARD_MIN_CONNECTIONS = 4;
 
@@ -182,20 +180,20 @@ class LayoutQualityAssessor {
     static final int EDGE_COINCIDENCE_FAIR_MAX = 5;
 
     /**
-     * A-gated escalation threshold (story W3 backlog-terminal-egress-edge-hug-quality, 2026-05-21).
+     * A-gated escalation threshold (2026-05-21).
      * M4 {@code connectionEdgeCoincidence} is normally Tier-2R (cap-fair). When the count reaches or
      * exceeds this value the edge-hug is "egregious" and escalates to Tier-1R, so {@code overall}
      * reads "poor" instead of being masked at "fair". Anchored at 7 = the Retail Bank View G count
-     * the owner flagged by eye (2026-05-19); the common 1-5 forced-hug case stays cap-fair. MUST be
+     * flagged by eye (2026-05-19); the common 1-5 forced-hug case stays cap-fair. MUST be
      * &gt; {@link #EDGE_COINCIDENCE_FAIR_MAX} for the escalation to be meaningful (below FAIR_MAX the
-     * breakdown rating is not yet "poor", so escalating it would not change overall). Owner-ratified
-     * via party-mode 2026-05-21 as the regression guardrail beside the Lever-B router fix; live
+     * breakdown rating is not yet "poor", so escalating it would not change overall). Validated
+     * 2026-05-21 as the regression guardrail beside the Lever-B router fix; live
      * geometry proved an egregious count is router-eliminable, not a topology floor.
      */
     static final int EDGE_COINCIDENCE_EGREGIOUS_MAX = 7;
 
     // ---- Assessor.Redesign Successor D — parallelConnectionGap metric constants ----
-    // (Story backlog-assessor-add-parallelconnectiongap-metric, 2026-05-12)
+    // (2026-05-12)
 
     /**
      * Tolerance (px) for testing whether a bendpoint pair forms an axis-aligned segment
@@ -242,12 +240,12 @@ class LayoutQualityAssessor {
     /**
      * Runs full layout quality assessment on the given nodes and connections.
      *
-     * @param includeViolatorIds if true, collects per-metric violator IDs (B55)
+     * @param includeViolatorIds if true, collects per-metric violator IDs
      */
     LayoutAssessmentResult assess(List<AssessmentNode> nodes,
                                    List<AssessmentConnection> connections,
                                    boolean includeViolatorIds) {
-        // Story 11-15: Separate notes from layout nodes.
+        // Separate notes from layout nodes.
         // Notes are excluded from all scoring metrics but used for informational overlap detection.
         List<AssessmentNode> layoutNodes = new ArrayList<>();
         List<AssessmentNode> noteNodes = new ArrayList<>();
@@ -259,7 +257,7 @@ class LayoutQualityAssessor {
             }
         }
 
-        // Build transitive containment set for exclusions (Story 9-0d: transitive closure)
+        // Build transitive containment set for exclusions (transitive closure)
         Set<String> containmentPairs = buildContainmentPairs(layoutNodes);
 
         // Single-pass overlap detection: sibling + containment counts (notes excluded)
@@ -267,11 +265,11 @@ class LayoutQualityAssessor {
         int crossingCount = countEdgeCrossings(connections);
         double avgSpacing = computeAverageSpacing(layoutNodes, containmentPairs);
         int alignment = computeAlignmentScore(layoutNodes);
-        // Label overlap detection (Story 10-8) — must precede rating/suggestions
+        // Label overlap detection — must precede rating/suggestions
         LabelOverlapResult labelResult = countLabelOverlaps(connections, layoutNodes);
         BoundaryViolationResult boundaryResult = detectBoundaryViolations(layoutNodes, includeViolatorIds);
         PassThroughResult passThroughResult = detectPassThroughs(connections, layoutNodes, includeViolatorIds);
-        // Story 11-12: count groups for group-aware suggestions
+        // Count groups for group-aware suggestions
         boolean hasGroups = false;
         for (AssessmentNode node : layoutNodes) {
             if (node.isGroup()) {
@@ -279,18 +277,18 @@ class LayoutQualityAssessor {
                 break;
             }
         }
-        // Story 11-23: Coincident segment detection (B55: optional violator IDs)
+        // Coincident segment detection (optional violator IDs)
         CoincidentSegmentDetector.CoincidentSegmentResult coincidentResult =
                 coincidentDetector.detectCoincidentSegments(connections, includeViolatorIds);
         int coincidentSegmentCount = coincidentResult.count();
-        // B76-diag: optional categorization of coincident segments (gated by system property).
+        // Optional categorization of coincident segments (gated by system property).
         // Emits per-pair log with TERMINAL_APPROACH / GAP_CROSSING / WITHIN_GROUP tags.
         // Zero cost when property unset.
         if (Boolean.getBoolean("archi.mcp.diag.coincident") && !connections.isEmpty()) {
             emitCoincidentDiagnostic(connections, layoutNodes);
         }
-        // B38 + M1: Non-orthogonal terminal detection — post-clip visible segment.
-        // M1 correction: bendpoints on or inside source/target element bounds are
+        // Non-orthogonal terminal detection — post-clip visible segment.
+        // Correction: bendpoints on or inside source/target element bounds are
         // not counted (Archi clips the rendered line at the perimeter).
         NonOrthogonalTerminalResult nonOrthResult =
                 countNonOrthogonalTerminals(connections, layoutNodes, includeViolatorIds);
@@ -304,24 +302,24 @@ class LayoutQualityAssessor {
                 countConnectionEdgeCoincidence(connections, layoutNodes, includeViolatorIds);
         HubPortQualityResult hubPortResult =
                 computeHubPortQuality(connections, layoutNodes, includeViolatorIds);
-        // R8 Corridor Utilisation (Story WCU.RegressionTest, 2026-05-03).
+        // R8 Corridor Utilisation (2026-05-03).
         R8CorridorUtilisationResult corridorUtilisationResult =
                 computeR8CorridorUtilisation(connections, layoutNodes, includeViolatorIds);
-        // Successor D parallelConnectionGap (Story backlog-assessor-add-parallelconnectiongap-metric,
-        // 2026-05-12). Informational only — does NOT contribute to rating/suggestions per AC-9/AC-10.
+        // Successor D parallelConnectionGap (2026-05-12).
+        // Informational only — does NOT contribute to rating/suggestions.
         ParallelConnectionGapResult parallelGapResult =
                 computeParallelConnectionGap(connections, includeViolatorIds);
 
-        // B53: Informational detection (label truncation, parent label obscured, image sibling overlap).
-        // Hoisted above the rating call under M6 — these contribute to layoutRating (parentLabelObscured
+        // Informational detection (label truncation, parent label obscured, image sibling overlap).
+        // Hoisted above the rating call — these contribute to layoutRating (parentLabelObscured
         // promoted Tier 1L) and routingRating (labelTruncation promoted Tier 2R).
         LabelTruncationResult labelTruncResult = detectLabelTruncation(layoutNodes);
         ParentLabelObscuredResult parentLabelResult = detectParentLabelObscuredByChild(layoutNodes);
         ImageSiblingOverlapResult imageSiblingResult = detectImageSiblingOverlap(layoutNodes);
 
-        // Rating and suggestions use sibling overlaps only (Story 9-0d)
-        // Story 11-19, B38, M6: two-dimensional rating (layout-tier × routing-tier × min combiner).
-        // B54: Rating uses cross-element PT count only (self-element PTs don't penalise)
+        // Rating and suggestions use sibling overlaps only
+        // Two-dimensional rating (layout-tier × routing-tier × min combiner).
+        // Rating uses cross-element PT count only (self-element PTs don't penalise)
         List<String> offCanvas = detectOffCanvas(layoutNodes);
         RatingResult ratingResult = computeRatingWithBreakdown(
                 overlapResult.siblingCount(), crossingCount, avgSpacing, alignment,
@@ -342,17 +340,17 @@ class LayoutQualityAssessor {
                 interiorResult.count(), zigzagResult.count(),
                 edgeCoincidenceResult.count(), hubPortResult.viewAggregate());
 
-        // Story 11-12: density-aware crossing metric
+        // Density-aware crossing metric
         double crossingsPerConnection = connections.size() > 0
                 ? (double) crossingCount / connections.size() : 0.0;
 
-        // Story 11-15: informational note-overlap detection (notes vs layout nodes)
+        // Informational note-overlap detection (notes vs layout nodes)
         NoteOverlapResult noteOverlapResult = countNoteOverlaps(noteNodes, layoutNodes);
 
-        // Story 11-29: Compute bounding box of ALL visual content (elements + groups + notes)
+        // Compute bounding box of ALL visual content (elements + groups + notes)
         ContentBounds contentBounds = computeContentBounds(nodes);
 
-        // B55: Build violator IDs map (only when requested, omit empty metrics)
+        // Build violator IDs map (only when requested, omit empty metrics)
         Map<String, Set<String>> violatorIds = null;
         if (includeViolatorIds) {
             violatorIds = new LinkedHashMap<>();
@@ -429,11 +427,10 @@ class LayoutQualityAssessor {
                 hubPortResult.viewAggregate(),
                 includeViolatorIds ? hubPortResult.perFaceDetails() : List.of(),
                 ratingResult.layoutRating(), ratingResult.routingRating(),
-                // R8 Corridor Utilisation (Story WCU.RegressionTest, 2026-05-03)
+                // R8 Corridor Utilisation (2026-05-03)
                 corridorUtilisationResult.viewAggregate(),
                 corridorUtilisationResult.perChannelDetails(),
-                // Successor D parallelConnectionGap (Story
-                // backlog-assessor-add-parallelconnectiongap-metric, 2026-05-12)
+                // Successor D parallelConnectionGap (2026-05-12)
                 parallelGapResult.vAxis().p10(),
                 parallelGapResult.vAxis().narrowGapCount25(),
                 includeViolatorIds ? buildParallelGapDetail(parallelGapResult) : null);
@@ -458,7 +455,7 @@ class LayoutQualityAssessor {
                 a.narrowGapCount15(), a.narrowGapCount25(), a.narrowGapCount40());
     }
 
-    // ---- Containment relationship helpers (Story 9-0d: transitive closure) ----
+    // ---- Containment relationship helpers (transitive closure) ----
 
     /**
      * Builds a set of ALL ancestor-descendant pairs (transitive closure) for
@@ -532,7 +529,7 @@ class LayoutQualityAssessor {
         return ancestors;
     }
 
-    // ---- Overlap Detection (Finding #2: exclude containment, #10: single pass, Story 9-0d: transitive) ----
+    // ---- Overlap Detection (Finding #2: exclude containment, #10: single pass, transitive) ----
 
     /** Combined sibling + containment counts and descriptions from a single pass. */
     record OverlapResult(int siblingCount, int containmentCount,
@@ -556,7 +553,7 @@ class LayoutQualityAssessor {
                 if (isContainmentPair(a, b, containmentPairs)) {
                     containmentCount++;
                 } else if (Objects.equals(a.parentId(), b.parentId())) {
-                    // Story 11-26: Only count overlaps between siblings (same parent).
+                    // Only count overlaps between siblings (same parent).
                     // Elements in different groups near a shared boundary are NOT
                     // sibling overlaps — they are cross-group boundary proximity.
                     siblingCount++;
@@ -594,7 +591,7 @@ class LayoutQualityAssessor {
     /**
      * Counts edge crossings among a list of raw path point lists.
      * Each path is a list of [x, y] points (source center → bendpoints → target center).
-     * Package-visible for use by autoRouteConnections crossing delta (backlog-b14).
+     * Package-visible for use by autoRouteConnections crossing delta.
      */
     static int countPathCrossings(List<List<double[]>> paths) {
         int count = 0;
@@ -751,7 +748,7 @@ class LayoutQualityAssessor {
         }
     }
 
-    // ---- Rating Comparison Utilities (Story 11-16) ----
+    // ---- Rating Comparison Utilities ----
 
     /**
      * Returns the ordinal value of a rating for comparison purposes.
@@ -777,7 +774,7 @@ class LayoutQualityAssessor {
     // ---- Overall Rating (Finding #11: named constants; M6 two-dimensional rating) ----
 
     /**
-     * Result of rating computation including per-metric breakdown (Story 11-19) and
+     * Result of rating computation including per-metric breakdown and
      * the two-dimensional layout/routing decomposition (Assessor.Redesign M6).
      *
      * <p>Under M6, {@code rating} is the worse of {@code layoutRating} and {@code routingRating}
@@ -787,7 +784,7 @@ class LayoutQualityAssessor {
                          String layoutRating, String routingRating) {}
 
     /**
-     * Computes the overall quality rating with per-metric breakdown (Story 11-19).
+     * Computes the overall quality rating with per-metric breakdown.
      * Delegates to the breakdown-aware overload with {@code hasGroups=false} and
      * zero values for the M2-M5 + L1-L3 inputs.
      *
@@ -824,7 +821,7 @@ class LayoutQualityAssessor {
     }
 
     /**
-     * Computes the overall quality rating with per-metric breakdown (Story 11-19, B38, M6).
+     * Computes the overall quality rating with per-metric breakdown (M6).
      *
      * <p><b>M6 model (Assessor.Redesign 2026-04-26):</b> Each metric contributes an individual
      * rating ("pass"/"excellent"/"good"/"fair"/"poor"). The overall rating uses a two-dimensional
@@ -836,7 +833,7 @@ class LayoutQualityAssessor {
      * Per spec, layout is the prerequisite — a view with sibling overlaps is broken regardless
      * of routing quality.</p>
      *
-     * @param hasGroups when true, crossing leniency applies if passThroughCount (cross-element only, B54) &lt;= FAIR_MAX_PASS_THROUGHS
+     * @param hasGroups when true, crossing leniency applies if passThroughCount (cross-element only) &lt;= FAIR_MAX_PASS_THROUGHS
      */
     RatingResult computeRatingWithBreakdown(int overlaps, int crossings,
                                              double avgSpacing, int alignmentScore,
@@ -866,7 +863,7 @@ class LayoutQualityAssessor {
         } else if (crossings < GOOD_MAX_CROSSINGS) {
             crossingRating = "good";
         } else if (connectionCount > 0 && crossingRatio <= CROSSING_RATIO_GOOD) {
-            // Story 11-22: views with low density (≤1.5 crossings/conn) rate "good"
+            // Views with low density (≤1.5 crossings/conn) rate "good"
             // even when absolute count exceeds GOOD_MAX_CROSSINGS
             crossingRating = "good";
         } else if (connectionCount > 0 && crossingRatio <= CROSSING_RATIO_MODERATE) {
@@ -876,7 +873,7 @@ class LayoutQualityAssessor {
         } else {
             crossingRating = "poor";
         }
-        // Story 11-22, B38: grouped-view leniency — one-tier boost (not unconditional floor).
+        // Grouped-view leniency — one-tier boost (not unconditional floor).
         // Under M6, crossings already cap at "good" (Tier 3R), but the leniency still applies
         // to the breakdown rating for diagnostic clarity (a "fair"-rated breakdown with
         // grouped-view conditions becomes "good").
@@ -924,7 +921,7 @@ class LayoutQualityAssessor {
             breakdown.put("passThroughs", "poor");
         }
 
-        // 7. Coincident segments rating (R1 conn-vs-conn — B38)
+        // 7. Coincident segments rating (R1 conn-vs-conn)
         if (coincidentSegments == 0) {
             breakdown.put("coincidentSegments", "pass");
         } else if (coincidentSegments <= GOOD_MAX_COINCIDENT) {
@@ -935,7 +932,7 @@ class LayoutQualityAssessor {
             breakdown.put("coincidentSegments", "poor");
         }
 
-        // 8. Non-orthogonal terminals rating (R2 cap-fair — promoted from R3 under M6, density-aware B58).
+        // 8. Non-orthogonal terminals rating (R2 cap-fair — promoted from R3 under M6, density-aware).
         // M1 corrected definition (visible post-clip segment) flows through `nonOrthogonalTerminals`.
         if (nonOrthogonalTerminals == 0) {
             breakdown.put("nonOrthogonalTerminals", "pass");
@@ -1035,7 +1032,7 @@ class LayoutQualityAssessor {
      * <ul>
      *   <li><b>Tier 1R</b> (critical, no cap): passThroughs, M2 interior, M3 zigzag, conn-vs-conn coincident;
      *       <b>plus M4 edge-coincidence when the count is egregious</b>
-     *       (&ge; {@link #EDGE_COINCIDENCE_EGREGIOUS_MAX} — A-gated escalation, story W3)</li>
+     *       (&ge; {@link #EDGE_COINCIDENCE_EGREGIOUS_MAX} — A-gated escalation)</li>
      *   <li><b>Tier 2R</b> (cap fair=2): M1 nonOrth, M4 edge-coincidence (count &lt; EGREGIOUS), M5 low
      *       hub-port quality, labelOverlaps (promoted), labelTruncations (promoted)</li>
      *   <li><b>Tier 3R</b> (cap good=1): edge crossings</li>
@@ -1047,7 +1044,7 @@ class LayoutQualityAssessor {
                 ratingLevel(breakdown.getOrDefault("interiorTerminations", "pass"))),
                 ratingLevel(breakdown.getOrDefault("zigzags", "pass"))),
                 ratingLevel(breakdown.getOrDefault("coincidentSegments", "pass")));
-        // A-gated escalation (story W3 backlog-terminal-egress-edge-hug-quality, 2026-05-21):
+        // A-gated escalation (2026-05-21):
         // M4 connectionEdgeCoincidence is normally Tier-2R (cap-fair, see tier2 below). An EGREGIOUS
         // count escalates it to Tier-1R so an eye-obvious hug-storm drives overall="poor" instead of
         // being masked at "fair". Spares the common 1-5 forced-hug case. M4 is intentionally also left
@@ -1090,9 +1087,9 @@ class LayoutQualityAssessor {
         };
     }
 
-    // ---- Non-Orthogonal Terminal Detection (B38, M1 corrected post-clip) ----
+    // ---- Non-Orthogonal Terminal Detection (M1 corrected post-clip) ----
 
-    /** Result of non-orthogonal terminal detection (B55: adds violator IDs, B60: adds zero-bendpoint count). */
+    /** Result of non-orthogonal terminal detection (adds violator IDs and zero-bendpoint count). */
     record NonOrthogonalTerminalResult(int count, Set<String> violatorIds, int zeroBendpointCount) {}
 
     /**
@@ -1122,7 +1119,7 @@ class LayoutQualityAssessor {
      * {@code [path[0], path[1]]}: the post-clip segment lies on the same line as the geometric
      * one, so its orthogonality angle is invariant.</p>
      *
-     * <p><b>M1 minimum-visible-length guard (story Calibration.M1ManualOracle21, 2026-04-27):</b>
+     * <p><b>M1 minimum-visible-length guard (2026-04-27):</b>
      * when the visible (post-clip) segment length is &lt; {@link #VISIBLE_DIAGONAL_MIN_PX}, the
      * diagonal is sub-perceptible at typical Archi zoom levels and is silently skipped. This
      * calibrates the metric against hand-routed views (manual oracle
@@ -1141,7 +1138,7 @@ class LayoutQualityAssessor {
      * backwards-compatibility for the @Deprecated 2-arg overload — note that the {@code +∞}
      * return for {@code visibleSegmentLength(null elem)} is load-bearing: returning {@code 0}
      * would make every legacy diagonal flag silently suppressed (round-1 regression on 9
-     * pre-existing b38/b55/b57/b60 tests, fixed in round-2 of Calibration.M1ManualOracle21).</p>
+     * pre-existing tests, fixed in round-2).</p>
      *
      * @param connections      connection paths to evaluate
      * @param layoutNodes      lookup for source/target rectangles (may be empty for legacy callers)
@@ -1164,7 +1161,7 @@ class LayoutQualityAssessor {
             AssessmentNode target = nodeById.get(conn.targetNodeId());
 
             // Source terminal — M1: skip when path[1] is on or inside source rect,
-            // OR (Calibration.M1ManualOracle21) when the visible post-clip segment
+            // OR when the visible post-clip segment
             // is below the perceptibility threshold.
             boolean sourceVisibleNonOrth = false;
             if (!isOnOrInsideElement(path.get(1), source)
@@ -1178,14 +1175,14 @@ class LayoutQualityAssessor {
                 if (collectViolatorIds) {
                     violatorIds.add(conn.id());
                 }
-                // B60: zero-bendpoint = 2-point path (source center + target center, no intermediate BPs)
+                // zero-bendpoint = 2-point path (source center + target center, no intermediate BPs)
                 if (path.size() == 2) {
                     zeroBpCount++;
                 }
                 continue;
             }
             // Target terminal — M1: skip when path[size-2] is on or inside target rect,
-            // OR (Calibration.M1ManualOracle21) when the visible post-clip segment
+            // OR when the visible post-clip segment
             // is below the perceptibility threshold. Note the helper's anchor argument
             // is the target-side element-center (path[last]), bp is the outside BP
             // (path[last - 1]) — the convention is anchor=inside, bp=outside.
@@ -1198,7 +1195,7 @@ class LayoutQualityAssessor {
                 if (collectViolatorIds) {
                     violatorIds.add(conn.id());
                 }
-                // B60: 2-point paths are zero-bendpoint, but for 2-point paths source and target
+                // 2-point paths are zero-bendpoint, but for 2-point paths source and target
                 // terminals are the same segment — already handled above via continue
             }
         }
@@ -1230,7 +1227,7 @@ class LayoutQualityAssessor {
     }
 
     /**
-     * M1 helper (story Calibration.M1ManualOracle21, 2026-04-27): returns the Euclidean
+     * M1 helper (2026-04-27): returns the Euclidean
      * length of the visible (post-clip) portion of segment {@code [anchor, bp]} against
      * {@code elem}. The visible portion runs from the perimeter clip-point to {@code bp}.
      *
@@ -1267,7 +1264,7 @@ class LayoutQualityAssessor {
     }
 
     /**
-     * M1 helper (story Calibration.M1ManualOracle21, 2026-04-27): returns the perimeter
+     * M1 helper (2026-04-27): returns the perimeter
      * intersection point of segment {@code [a, b]} against rect {@code r}, or null if
      * the segment does not cross the perimeter at any {@code t} in {@code (0, 1]}.
      *
@@ -1356,7 +1353,7 @@ class LayoutQualityAssessor {
         double dx = Math.abs(p1[0] - p2[0]);
         double dy = Math.abs(p1[1] - p2[1]);
         if (dx < 1e-9 && dy < 1e-9) return false; // zero-length or near-zero segment
-        // B57: Angular detection — angle in [0°, 90°] quadrant
+        // Angular detection — angle in [0°, 90°] quadrant
         double angleDeg = Math.toDegrees(Math.atan2(dy, dx));
         // Deviation from nearest cardinal axis (0° or 90°)
         double deviation = Math.min(angleDeg, 90.0 - angleDeg);
@@ -1377,7 +1374,7 @@ class LayoutQualityAssessor {
      * <p>Spec live example: a connection whose {@code BP_last} coordinates fall inside the
      * target element rectangle indicates a routing failure where Archi's ChopboxAnchor face
      * selection couldn't resolve the terminal correctly. Tier 1R severity (peer with
-     * passThroughs) per {@code feedback_visual_severity.md} v2.</p>
+     * passThroughs).</p>
      */
     InteriorTerminationResult countInteriorTerminations(
             List<AssessmentConnection> connections, List<AssessmentNode> layoutNodes,
@@ -1533,7 +1530,7 @@ class LayoutQualityAssessor {
      * <p>Spec live example: connection {@code id-74e3ee1e02a84721a3db682cb1b6fb24} (API Mgmt →
      * Internet Banking) horizontal segment at y=150 vs Internet Banking BOTTOM at y=148 (gap
      * 2px). Internet Banking IS the connection's target — under the post-removal rule
-     * (story M4.RemoveSelfExclusion 2026-04-27), this is in scope. Tier 2R severity (cap fair).</p>
+     * (2026-04-27), this is in scope. Tier 2R severity (cap fair).</p>
      */
     EdgeCoincidenceResult countConnectionEdgeCoincidence(
             List<AssessmentConnection> connections, List<AssessmentNode> layoutNodes,
@@ -1615,7 +1612,7 @@ class LayoutQualityAssessor {
 
     // ---- Assessor.Redesign M5: Hub-Port Allocation Quality ----
 
-    /** Result of M5 hub-port quality computation. */
+    /** Result of M5 hub-port quality computation. {@code viewAggregate} = min (worst) hub-face quality. */
     record HubPortQualityResult(double viewAggregate,
                                 List<LayoutAssessmentResult.HubFaceDetail> perFaceDetails,
                                 Set<String> lowQualityElementIds) {}
@@ -1629,7 +1626,9 @@ class LayoutQualityAssessor {
      * quality is {@code distinctSlots / connectionsOnFace} (slot = Y for LEFT/RIGHT, X for
      * TOP/BOTTOM, equality within {@link #HUB_PORT_SLOT_TOLERANCE_PX}px).
      *
-     * <p>View aggregate is the mean of per-hub-face qualities. When no hub face exists, returns
+     * <p>View aggregate is the minimum (worst) of per-hub-face qualities — NOT the mean — so a
+     * single degraded face on an otherwise-healthy hub is surfaced honestly rather than averaged
+     * away (2026-06-14). When no hub face exists, returns
      * 1.0 (no defect signal). Per-face details are populated only when {@code includeViolatorIds}
      * is true; otherwise the list is empty (avoids unnecessary allocation in the common path).</p>
      *
@@ -1673,8 +1672,15 @@ class LayoutQualityAssessor {
                 }
             }
         }
+        // (2026-06-14): the view aggregate is the
+        // WORST hub face (min), NOT the mean across faces. The mean averaged a degraded face (e.g. a
+        // one-sided egress fan-out at q≈0.71) together with healthy faces (q1.0), so a real one-sided
+        // hub never reached the rating — "good" masked "fair" (live View-G IAM probe: RIGHT 7/5 q0.71
+        // buoyed by LEFT 4/4 q1.0 → mean 0.86 "good"). min surfaces the degraded face honestly. A
+        // legitimately-busy SYMMETRIC hub is unaffected (every face at the same quality → min == mean),
+        // so this does not over-flag balanced hubs. M5 stays Tier-2R (capped at "fair"); see :1068.
         double aggregate = hubFaceQualities.isEmpty() ? 1.0
-                : hubFaceQualities.stream().mapToDouble(Double::doubleValue).average().orElse(1.0);
+                : hubFaceQualities.stream().mapToDouble(Double::doubleValue).min().orElse(1.0);
         return new HubPortQualityResult(aggregate,
                 includeViolatorIds ? details : List.of(),
                 lowQualityIds);
@@ -1811,7 +1817,7 @@ class LayoutQualityAssessor {
         return distinct;
     }
 
-    // ---- Assessor.Redesign R8: Corridor-Utilisation (Story WCU.RegressionTest, 2026-05-03) ----
+    // ---- Assessor.Redesign R8: Corridor-Utilisation (2026-05-03) ----
 
     /** R8: minimum parallel-segment length (px) to count as a corridor-traversal segment. */
     static final double R8_MIN_PARALLEL_SEGMENT_LENGTH_PX = 30.0;
@@ -1852,7 +1858,7 @@ class LayoutQualityAssessor {
 
         // 2. Group segments by corridor identity (wall pair). LinkedHashMap preserves
         // first-encounter order so per-channel detail emission and aggregate computation
-        // are deterministic across runs (per Story #5 spike § 5.8 lesson L1: pinned-test
+        // are deterministic across runs (pinned-test
         // calibration requires deterministic algorithm output).
         Map<String, List<R8Segment>> occupantsByCorridor = new LinkedHashMap<>();
         Map<String, R8WallPair> wallsByCorridor = new HashMap<>();
@@ -1972,7 +1978,7 @@ class LayoutQualityAssessor {
     }
 
     // ---- Assessor.Redesign Successor D: parallelConnectionGap ----
-    // (Story backlog-assessor-add-parallelconnectiongap-metric, 2026-05-12.)
+    // (2026-05-12.)
 
     /**
      * Per-axis aggregate of nearest-parallel-overlapping-neighbour gaps for the
@@ -2010,13 +2016,12 @@ class LayoutQualityAssessor {
      * <p>Calibration anchor: V4 manual gold view {@code id-3b2665e3ff6840708dbed2b3d1415613}
      * produced {@code V_p10 = 13.30} under {@link #PARALLEL_GAP_AXIS_TOLERANCE_PX} = 2.0;
      * monotonic owner-perception ordering on 4 reference views (V4 gold &gt; HH source
-     * &gt; ST source = PartyTest H2) validates the metric as perception-aligned (see
-     * {@code feedback_metric_calibration_methodology.md}).</p>
+     * &gt; ST source) validates the metric as perception-aligned.</p>
      *
      * <p><b>INFORMATIONAL ONLY</b> — this metric does NOT contribute to
-     * {@code computeRatingWithBreakdown} or {@code generateSuggestions} in this story
+     * {@code computeRatingWithBreakdown} or {@code generateSuggestions}
      * (matches {@code corridorUtilisationScore} (R8) precedent). The narrow-corridor
-     * defect class (5th unmeasured class in {@code feedback_visual_severity.md} v2) is
+     * defect class (5th unmeasured class) is
      * a structural-floor problem in the routing pipeline; rating-tying would mark all
      * views below the floor as poor regardless of agent improvements. Rating-tying is
      * deferred until Successor C (routing-pipeline narrow-corridor floor closure) ships.</p>
@@ -2145,7 +2150,7 @@ class LayoutQualityAssessor {
 
     // ---- Boundary Violation Detection ----
 
-    /** Result of boundary violation detection (B55: adds violator IDs). */
+    /** Result of boundary violation detection (adds violator IDs). */
     record BoundaryViolationResult(List<String> descriptions, Set<String> violatorIds) {}
 
     BoundaryViolationResult detectBoundaryViolations(List<AssessmentNode> nodes,
@@ -2184,7 +2189,7 @@ class LayoutQualityAssessor {
     // ---- Connection Pass-Through Detection (Finding #3: exclude ancestor groups) ----
 
     /**
-     * Result of pass-through detection separating cross-element and self-element counts (B54).
+     * Result of pass-through detection separating cross-element and self-element counts.
      * The descriptions list contains both types for informational reporting.
      * The crossElementCount is used for rating penalty calculation.
      */
@@ -2247,7 +2252,7 @@ class LayoutQualityAssessor {
                     nodeMap.get(conn.targetNodeId()));
 
             for (AssessmentNode node : nodes) {
-                // Skip source, target, ancestors, descendants, and groups (transparent containers, Story 10-22)
+                // Skip source, target, ancestors, descendants, and groups (transparent containers)
                 if (excludeIds.contains(node.id()) || node.isGroup()) {
                     continue;
                 }
@@ -2298,7 +2303,7 @@ class LayoutQualityAssessor {
     }
 
     /**
-     * Checks if non-terminal segments of a path pass through a node (Story 13-4).
+     * Checks if non-terminal segments of a path pass through a node.
      * For target elements, skips the last segment (which naturally enters the target).
      * For source elements, skips the first segment (which naturally exits the source).
      *
@@ -2569,7 +2574,7 @@ class LayoutQualityAssessor {
         return warnings;
     }
 
-    // ---- Label Overlap Detection (Story 10-8) ----
+    // ---- Label Overlap Detection ----
 
     // Keep in sync with LabelClearance.CHAR_WIDTH etc.
     // (duplicated due to architecture boundary: model vs model.routing)
@@ -2588,7 +2593,7 @@ class LayoutQualityAssessor {
 
     /** Proximity threshold in pixels for label-to-element and label-to-label near-miss detection.
      *  Labels within this distance of an element or another label (but not technically overlapping
-     *  after inset) are flagged as proximity issues. (Story 11-24) */
+     *  after inset) are flagged as proximity issues. */
     static final double LABEL_PROXIMITY_THRESHOLD = 5.0;
 
     record LabelBounds(double x, double y, double width, double height, String connectionId) {}
@@ -2717,7 +2722,7 @@ class LayoutQualityAssessor {
                                 + "' overlaps element '" + node.id() + "'");
                     }
                 } else if (isWithinProximity(label, node.x(), node.y(), node.width(), node.height())) {
-                    // Story 11-24: label-to-element proximity detection
+                    // Label-to-element proximity detection
                     count++;
                     if (descriptions.size() < MAX_DESCRIPTIONS) {
                         descriptions.add("Label on connection '" + label.connectionId()
@@ -2739,7 +2744,7 @@ class LayoutQualityAssessor {
                                 + "' overlaps label on connection '" + b.connectionId() + "'");
                     }
                 } else if (isWithinProximity(a, b.x(), b.y(), b.width(), b.height())) {
-                    // Story 11-24: label-to-label near-miss detection
+                    // Label-to-label near-miss detection
                     count++;
                     if (descriptions.size() < MAX_DESCRIPTIONS) {
                         descriptions.add("Label on connection '" + a.connectionId()
@@ -2749,7 +2754,7 @@ class LayoutQualityAssessor {
             }
         }
 
-        // Story 11-31: Short-segment detection
+        // Short-segment detection
         // When a label's hosting segment is shorter than the label width,
         // the label cannot fit regardless of position. Report specific guidance.
         int shortSegmentCount = 0;
@@ -2854,7 +2859,7 @@ class LayoutQualityAssessor {
     /**
      * Checks if a label's bounding box is within LABEL_PROXIMITY_THRESHOLD of another rectangle
      * without actually overlapping (after inset). This detects "near-miss" situations where
-     * labels are too close to elements or other labels for comfortable reading. (Story 11-24)
+     * labels are too close to elements or other labels for comfortable reading.
      * <p>
      * Expands the target rectangle by the proximity threshold on each side, then checks
      * if the raw (non-inset) label bounds overlap the expanded rectangle.
@@ -2872,12 +2877,12 @@ class LayoutQualityAssessor {
                 && label.y() < ey + eh && label.y() + label.height() > ey;
     }
 
-    // ---- Note Overlap Detection (Story 11-15: informational, not penalizing) ----
+    // ---- Note Overlap Detection (informational, not penalizing) ----
 
     /** Result of note-overlap detection. Informational only — does not affect rating. */
     record NoteOverlapResult(int count, List<String> descriptions) {}
 
-    // ---- Content bounding box (Story 11-29) ----
+    // ---- Content bounding box ----
 
     /**
      * Computes the axis-aligned bounding box of all visual content.
@@ -2934,7 +2939,7 @@ class LayoutQualityAssessor {
         return new NoteOverlapResult(count, descriptions);
     }
 
-    // ---- B53: Informational Detection (label truncation, parent label obscured, image sibling overlap) ----
+    // ---- Informational Detection (label truncation, parent label obscured, image sibling overlap) ----
 
     /** Estimated type icon width in pixels (right-aligned in Archi elements). */
     static final double TYPE_ICON_WIDTH = 16.0;
@@ -2953,7 +2958,24 @@ class LayoutQualityAssessor {
      * if it wraps to multiple lines within the available height.
      * Truncation is detected when the estimated wrapped height exceeds the element height.
      * Skips groups, notes, and elements with null/empty names.
-     * Informational only — does NOT affect rating.
+     *
+     * <p><b>Affects the rating.</b> Since M6 (2026-04-26) the resulting count is wired as a
+     * Tier-2R cap-fair metric: a nonzero count caps {@code routingTier} (and, unless layoutTier is
+     * already worse, the overall rating) at "fair" — see {@code computeRoutingTierLevel} and the
+     * {@code labelTruncations} breakdown entry. It is NOT informational-only (the previous Javadoc
+     * said so — that was true earlier but has been false since M6).
+     *
+     * <p><b>Calibration note</b> (spike 2026-06-14): the
+     * {@code width - TYPE_ICON_WIDTH} horizontal budget and the vertical wrap model were validated
+     * against live Archi rendering and found fail-safe and accurate. In the short-box
+     * (forced-single-line) regime probed — the View-G shape, a 150x26 box — Archi rendered the label
+     * roughly 1.35x wider than the ElementSizer-measured single-line width
+     * ({@link AssessmentNode#labelTextWidth()}); a label measured at 151px truncated in boxes up to
+     * 200px wide and fit single-line only near 210px. So this predicate is, if anything, mildly
+     * under-conservative — not over-conservative — in that regime. Do NOT relax it toward "pass when
+     * {@code width >= labelTextWidth}": that would under-flag boxes Archi actually truncates (verified:
+     * a 141px label in a 150px box still truncates because the type icon consumes ~16px). The real
+     * fix for over-tight boxes is taller/wider geometry (let the label wrap), not a looser predicate.
      */
     LabelTruncationResult detectLabelTruncation(List<AssessmentNode> nodes) {
         int count = 0;
@@ -2989,7 +3011,15 @@ class LayoutQualityAssessor {
 
     /**
      * Detects parents whose label text area is overlapped by their first (topmost) child.
-     * Informational only — does NOT affect rating.
+     *
+     * <p><b>Affects the rating.</b> Since M6 (2026-04-26) the resulting count is promoted to
+     * layout <b>Tier-1L</b> (critical, no cap): {@code computeRatingWithBreakdown} records
+     * {@code parentLabelObscured} as {@code "poor"} when the count is nonzero and folds it into the
+     * Tier-1L level, so a single hit drives {@code layoutRating} to "poor" and vetoes the overall
+     * rating; it is also weighted {@code ×6} in the tier-weighted quality score ({@code tierWeightedScore}
+     * in {@code ArchiModelAccessorImpl}). This is harsher than the sibling {@code labelTruncation} metric,
+     * which only caps routing at "fair" (Tier-2R). It is NOT informational-only (the previous Javadoc
+     * said so — that was true earlier but has been false since M6).
      */
     ParentLabelObscuredResult detectParentLabelObscuredByChild(List<AssessmentNode> nodes) {
         // Build parent→children map from parentId back-references
@@ -3134,10 +3164,10 @@ class LayoutQualityAssessor {
                     + ") — assessment metrics may be slow for very large views.");
         }
 
-        // Story 11-12/11-22: group-aware suggestions.
+        // Group-aware suggestions.
         // Groups: suggest layout-within-group + auto-route-connections.
         // Non-grouped (flat or containment): auto-route-connections / auto-layout-and-route.
-        // Story 11-22: compute-layout (formerly layout-view) removed from all suggestion paths.
+        // compute-layout (formerly layout-view) removed from all suggestion paths.
         if (hasGroups) {
             if (overlaps > 0) {
                 suggestions.add("Found " + overlaps
@@ -3212,13 +3242,13 @@ class LayoutQualityAssessor {
             }
         }
 
-        // Story 11-31: short-segment label suggestion (separate from general label overlap)
+        // Short-segment label suggestion (separate from general label overlap)
         if (shortSegmentCount > 0) {
             suggestions.add(shortSegmentCount + " connection labels exceed available segment length"
                     + " — increase element spacing");
         }
 
-        // B38/B60/B61: non-orthogonal terminal suggestion with ELK-aware text
+        // Non-orthogonal terminal suggestion with ELK-aware text
         if (nonOrthogonalTerminalCount > 0) {
             String elkSuffix = " — these are straight-line connections typical of ELK layout;"
                     + " a full re-route would likely increase crossings."
@@ -3244,7 +3274,7 @@ class LayoutQualityAssessor {
             }
         }
 
-        // Story 11-23 / B68: coincident segment suggestion
+        // Coincident segment suggestion
         if (coincidentSegmentCount > 0) {
             if (hasGroups) {
                 suggestions.add(coincidentSegmentCount + " overlapping connection segments detected"
@@ -3306,7 +3336,7 @@ class LayoutQualityAssessor {
     }
 
     /**
-     * B76-diag: builds element/group context from {@code layoutNodes} and
+     * Builds element/group context from {@code layoutNodes} and
      * invokes {@link CoincidentSegmentDiagnostic#emit} to log a per-pair
      * categorization. Called only when {@code -Darchi.mcp.diag.coincident=true}.
      */

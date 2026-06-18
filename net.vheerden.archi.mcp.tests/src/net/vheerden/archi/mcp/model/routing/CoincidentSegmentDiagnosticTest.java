@@ -13,7 +13,7 @@ import net.vheerden.archi.mcp.model.routing.CoincidentSegmentDiagnostic.GroupRec
 
 /**
  * Tests for {@link CoincidentSegmentDiagnostic} — pure-geometry classification
- * of coincident segments by location (B76 successor scoping).
+ * of coincident segments by location.
  *
  * <p>Priority order under test:
  * TERMINAL_APPROACH > GAP_CROSSING > WITHIN_GROUP > UNCATEGORIZED.</p>

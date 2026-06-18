@@ -20,8 +20,7 @@ import net.vheerden.archi.mcp.response.ErrorCode;
 
 /**
  * Tests for {@link StylingHelper} validate / map / read / apply behaviour for the
- * three new styling fields (figureType, textAlignment, verticalTextAlignment) added
- * by story {@code backlog-group-element-styling-surface}.
+ * three new styling fields (figureType, textAlignment, verticalTextAlignment).
  *
  * <p>All tests use real EMF objects via {@link IArchimateFactory#eINSTANCE} to validate
  * end-to-end mapping (string → int → setter / getter → string) on real Archi model
@@ -31,7 +30,7 @@ import net.vheerden.archi.mcp.response.ErrorCode;
 public class StylingHelperTest {
 
     // ------------------------------------------------------------------
-    // validateStylingParams — figureType branch (AC-11)
+    // validateStylingParams — figureType branch
     // ------------------------------------------------------------------
 
     @Test
@@ -68,7 +67,7 @@ public class StylingHelperTest {
     }
 
     // ------------------------------------------------------------------
-    // validateStylingParams — textAlignment branch (AC-11)
+    // validateStylingParams — textAlignment branch
     // ------------------------------------------------------------------
 
     @Test
@@ -91,7 +90,7 @@ public class StylingHelperTest {
     }
 
     // ------------------------------------------------------------------
-    // validateStylingParams — verticalTextAlignment branch (AC-11, AC-17)
+    // validateStylingParams — verticalTextAlignment branch
     // ------------------------------------------------------------------
 
     @Test
@@ -114,7 +113,7 @@ public class StylingHelperTest {
     }
 
     // ------------------------------------------------------------------
-    // map*ToInt — verified against Archi public constants (AC-7)
+    // map*ToInt — verified against Archi public constants
     // ------------------------------------------------------------------
 
     @Test
@@ -144,7 +143,7 @@ public class StylingHelperTest {
     }
 
     // ------------------------------------------------------------------
-    // read* helpers — return null at Archi default per AC-12
+    // read* helpers — return null at Archi default
     // ------------------------------------------------------------------
 
     @Test
@@ -238,7 +237,7 @@ public class StylingHelperTest {
     }
 
     // ------------------------------------------------------------------
-    // applyStylingToNewObject — dispatches by target type (AC-1, AC-2, AC-3, AC-17)
+    // applyStylingToNewObject — dispatches by target type
     // ------------------------------------------------------------------
 
     @Test

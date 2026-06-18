@@ -6,7 +6,7 @@ import com.archimatetool.model.IDiagramModelContainer;
 import com.archimatetool.model.IDiagramModelGroup;
 
 /**
- * GEF Command that adds a visual group to a view (Story 8-6).
+ * GEF Command that adds a visual group to a view.
  *
  * <p>The group must be fully configured (label, bounds) before this
  * command is created. The command only handles view placement and

@@ -17,12 +17,12 @@ import com.archimatetool.model.IBusinessProcess;
 import com.archimatetool.model.IFolder;
 
 /**
- * Tests for {@link CreateRelationshipCommand} (Story 7-2, B19).
+ * Tests for {@link CreateRelationshipCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * execute (connect + add to folder) and undo (remove + disconnect) behavior.</p>
  *
- * <p><strong>B19:</strong> Tests verify that connect() is deferred to execute(),
+ * <p>Tests verify that connect() is deferred to execute(),
  * not called during preparation. The relationship is NOT connected in setUp().</p>
  */
 public class CreateRelationshipCommandTest {
@@ -49,7 +49,7 @@ public class CreateRelationshipCommandTest {
         target.setName("Order Processing");
         model.getFolder(FolderType.BUSINESS).getElements().add(target);
 
-        // B19: relationship is NOT connected — connect() happens inside execute()
+        // relationship is NOT connected — connect() happens inside execute()
         relationship = factory.createServingRelationship();
         relationship.setName("serves");
     }
@@ -71,7 +71,7 @@ public class CreateRelationshipCommandTest {
 
     @Test
     public void shouldNotBeConnected_beforeExecute() {
-        // B19: verify deferred connect — relationship has no cross-refs before execute
+        // verify deferred connect — relationship has no cross-refs before execute
         new CreateRelationshipCommand(relationship, relationsFolder, source, target);
 
         assertNull("Source should be null before execute",

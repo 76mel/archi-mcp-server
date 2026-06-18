@@ -6,7 +6,7 @@ import com.archimatetool.model.IArchimateDiagramModel;
 import com.archimatetool.model.IFolder;
 
 /**
- * GEF Command that adds an ArchiMate view (diagram) to a folder (Story 7-2).
+ * GEF Command that adds an ArchiMate view (diagram) to a folder.
  *
  * <p>The view must be fully configured (name, viewpoint) before this command
  * is created. The command only handles folder placement and removal (undo).</p>

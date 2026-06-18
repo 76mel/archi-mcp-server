@@ -3,8 +3,7 @@ package net.vheerden.archi.mcp.response.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Data Transfer Object for a standalone image visual on an ArchiMate view
- * (Story 14-8 / G16).
+ * Data Transfer Object for a standalone image visual on an ArchiMate view.
  *
  * <p>Represents an {@code IDiagramModelImage} — a first-class image visual
  * node placed directly on a view (sibling to notes, groups, view-references).
@@ -20,7 +19,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * {@code IDiagramModelImage} actually surfaces in EMF
  * ({@code borderColor} via {@code IBorderObject}, {@code documentation}
  * via {@code IDocumentable}). The {@code add-image-to-view} schema advertises
- * the full 16-field G5 styling surface (Q6 = uniform sibling schemas), but
+ * the full 16-field styling surface (uniform sibling schemas), but
  * Archi's image renderer silently ignores most font/gradient fields —
  * this DTO omits them to avoid round-trip surprises.</p>
  */

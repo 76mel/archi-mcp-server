@@ -3,7 +3,7 @@ package net.vheerden.archi.mcp.model;
 import org.eclipse.gef.commands.Command;
 
 /**
- * A no-op GEF command that performs no action (backlog-b11).
+ * A no-op GEF command that performs no action.
  *
  * <p>Used when a mutation is deduplicated — the entity already exists in the model,
  * so no command stack operation is needed. This allows the PreparedMutation to carry

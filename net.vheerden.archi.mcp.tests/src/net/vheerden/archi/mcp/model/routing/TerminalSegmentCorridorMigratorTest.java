@@ -19,12 +19,12 @@ import net.vheerden.archi.mcp.model.routing.TerminalSegmentCorridorMigrator.Snap
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Unit tests for {@link TerminalSegmentCorridorMigrator} (HPRPS story Task 1 —
+ * Unit tests for {@link TerminalSegmentCorridorMigrator} (HPRPS Task 1 —
  * Track A terminal-segment corridor migration).
  *
  * <p>Pure-geometry: no EMF, no SWT, no PDE. Hand-constructed size-3 L-shape
  * scenarios exercise the evaluate / apply / restore primitives and the two
- * load-bearing guards (the explicit B71 {@code preservesTerminalAnchoring}
+ * load-bearing guards (the explicit {@code preservesTerminalAnchoring}
  * contract call + the Tier-1 self-check) without engaging the full routing
  * pipeline.
  *
@@ -36,7 +36,7 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * {@code E}). The migrator's Tier-1 self-check (stricter than the spike sketch)
  * correctly rejects that geometry. {@link #poc_sourceIncidentRightFace_m4OneToZero_b71True()}
  * proves the <em>identical</em> reachability mechanism (terminal-incident seg0
- * hugs a non-hub element edge; migrate the slot away; B71 orthogonal coord stays
+ * hugs a non-hub element edge; migrate the slot away; terminal orthogonal coord stays
  * on the face line; clean L preserved; M4 1&rarr;0) with {@code E} repositioned so
  * the fixture is honestly Tier-1-clean.
  */
@@ -105,7 +105,7 @@ public class TerminalSegmentCorridorMigratorTest {
 
         mig.apply(pr, paths);
 
-        // B71: terminal orthogonal coord (x) still exactly on the RIGHT face line.
+        // Terminal anchoring: terminal orthogonal coord (x) still exactly on the RIGHT face line.
         assertEquals("terminal x stays on RIGHT face line 181", 181, paths.get(0).get(0).x());
         assertTrue(TerminalAnchoring.preservesTerminalAnchoring(
                 new TerminalAnchoring(Face.RIGHT), H,
@@ -139,7 +139,7 @@ public class TerminalSegmentCorridorMigratorTest {
         MigrationProposal pr = proposals.get(0);
         assertTrue("TOP face slot axis is X → shiftX must be true", pr.shiftX());
         mig.apply(pr, paths);
-        // B71: terminal orthogonal coord (y) still on the TOP face line 99.
+        // Terminal anchoring: terminal orthogonal coord (y) still on the TOP face line 99.
         assertEquals(99, paths.get(0).get(0).y());
         assertTrue(TerminalAnchoring.preservesTerminalAnchoring(
                 new TerminalAnchoring(Face.TOP), s,
@@ -169,7 +169,7 @@ public class TerminalSegmentCorridorMigratorTest {
         assertEquals("target-incident → terminal bp idx = lastIdx (2)", 2, pr.terminalBpIdx());
         assertEquals(1, pr.cornerBpIdx());
         mig.apply(pr, paths);
-        // B71 on the TARGET terminal (idx 2): orthogonal coord (x) stays on U LEFT line 499.
+        // Terminal anchoring on the TARGET terminal (idx 2): orthogonal coord (x) stays on U LEFT line 499.
         assertEquals(499, paths.get(0).get(2).x());
         var reversed = new ArrayList<>(paths.get(0));
         java.util.Collections.reverse(reversed);
@@ -244,7 +244,7 @@ public class TerminalSegmentCorridorMigratorTest {
 
     @Test
     public void noProposal_whenTerminalNotExactlyOnB71FaceLine() {
-        // Terminal at x=180 (on the rect edge, NOT the B71 face line 181) → not our
+        // Terminal at x=180 (on the rect edge, NOT the face line 181) → not our
         // domain (EdgeAttachmentCalculator owns it) → inferAttachedFace null → no proposal.
         RoutingRect e = new RoutingRect(200, 161, 120, 40, "E");
         List<AbsoluteBendpointDto> p = path(bp(180, 160), bp(360, 160), bp(360, 250));

@@ -18,7 +18,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.model.routing.VisNode.NodeType;
 
 /**
- * Tests for {@link OrthogonalVisibilityGraph} (Story 10-6a).
+ * Tests for {@link OrthogonalVisibilityGraph}.
  * Pure-geometry tests — no OSGi runtime required.
  */
 public class OrthogonalVisibilityGraphTest {
@@ -30,7 +30,7 @@ public class OrthogonalVisibilityGraphTest {
         graph = new OrthogonalVisibilityGraph();
     }
 
-    // --- AC #1: Corner points, visibility edges, no edge through obstacles ---
+    // --- Corner points, visibility edges, no edge through obstacles ---
 
     @Test
     public void shouldProduceMultiHopPath_whenObstacleBetweenPorts() {
@@ -109,7 +109,7 @@ public class OrthogonalVisibilityGraphTest {
         }
     }
 
-    // --- AC #2: Performance ---
+    // --- Performance ---
 
     @Test
     public void shouldConstructIn100ms_with30Obstacles() {
@@ -139,7 +139,7 @@ public class OrthogonalVisibilityGraphTest {
                 ms < 100.0);
     }
 
-    // --- AC #3: Multi-hop path around obstacle ---
+    // --- Multi-hop path around obstacle ---
 
     @Test
     public void shouldFindMultiHopPath_whenNoDirectLineOfSight() {
@@ -215,7 +215,7 @@ public class OrthogonalVisibilityGraphTest {
                 pathExists(ports1[0], ports1[1]));
     }
 
-    // --- Boundary condition tests (Story 10-19c) ---
+    // --- Boundary condition tests ---
 
     @Test
     public void shouldBlockSegment_whenGrazingObstacleEdge_inclusiveMode() {
@@ -398,7 +398,7 @@ public class OrthogonalVisibilityGraphTest {
         assertTrue("Path should be multi-hop", path.size() >= 3);
     }
 
-    // --- Edge density computation tests (Story 11-30) ---
+    // --- Edge density computation tests ---
 
     @Test
     public void shouldReturnZeroDensity_whenNoNearbyObstacles() {
@@ -559,7 +559,7 @@ public class OrthogonalVisibilityGraphTest {
         return false;
     }
 
-    // --- B36: Split margin (clearance vs perimeterMargin) ---
+    // --- Split margin (clearance vs perimeterMargin) ---
 
     @Test
     public void shouldUseDefaultPerimeterMarginEqualToMargin_whenSingleArgConstructor() {
@@ -649,7 +649,7 @@ public class OrthogonalVisibilityGraphTest {
 
     @Test
     public void shouldRouteAroundDenseWall_withLargerPerimeterMargin() {
-        // B69-C re-bless: original test called findPath(widePorts[0], widePorts[1])
+        // Re-bless: original test called findPath(widePorts[0], widePorts[1])
         // which uses the default `graph` field, but ports were added to local `gWide`.
         // Fixed: use findPath(gWide, ...) to search the correct graph instance.
         List<RoutingRect> obstacles = new ArrayList<>();

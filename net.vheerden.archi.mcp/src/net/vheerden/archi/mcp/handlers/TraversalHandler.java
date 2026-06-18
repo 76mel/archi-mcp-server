@@ -56,7 +56,7 @@ public class TraversalHandler {
 
     /**
      * Valid ArchiMate relationship type names matching EMF {@code eClass().getName()}.
-     * Confirmed via javap against com.archimatetool.model_5.8.0 (Story 4.3 Task 0).
+     * Confirmed via javap against com.archimatetool.model_5.8.0.
      */
     static final Set<String> VALID_RELATIONSHIP_TYPES = Set.of(
             "AccessRelationship",
@@ -146,7 +146,7 @@ public class TraversalHandler {
                 + "Only used when traverse is true.");
         properties.put("direction", directionProp);
 
-        // Story 4.3: Filter parameters
+        // Filter parameters
         Map<String, Object> excludeTypesProp = new LinkedHashMap<>();
         excludeTypesProp.put("type", "array");
         Map<String, Object> excludeItemsProp = new LinkedHashMap<>();
@@ -279,7 +279,7 @@ public class TraversalHandler {
                 }
             }
 
-            // Extract dryRun (Story 6.2)
+            // Extract dryRun
             boolean dryRun = false;
             if (args != null) {
                 Object dryRunObj = args.get("dryRun");
@@ -327,7 +327,7 @@ public class TraversalHandler {
             String sessionId = (sessionManager != null)
                     ? SessionManager.extractSessionId(exchange) : null;
 
-            // Model version change detection — call ONCE (Story 5.3 + 5.4)
+            // Model version change detection — call ONCE
             String modelVersion = accessor.getModelVersion();
             boolean modelChanged = false;
             if (sessionManager != null && sessionId != null) {
@@ -426,7 +426,7 @@ public class TraversalHandler {
                 }
             }
 
-            // Cache check (Story 5.4) — skip if version just changed or dryRun
+            // Cache check — skip if version just changed or dryRun
             String cacheKey = CacheKeyBuilder.buildCacheKey("relationships-depth", elementId, "depth", depth,
                     "excl-types", CacheKeyBuilder.sortedSetKey(filters.excludeTypes),
                     "incl-types", CacheKeyBuilder.sortedSetKey(filters.includeTypes),
@@ -462,15 +462,15 @@ public class TraversalHandler {
             // Get relationships
             List<RelationshipDto> relationships = accessor.getRelationshipsForElement(elementId);
 
-            // Apply type filters (Story 4.3)
+            // Apply type filters
             relationships = applyTypeFilters(relationships, filters);
 
-            // Apply layer filter (Story 4.3)
+            // Apply layer filter
             if (filters.filterLayer != null) {
                 relationships = applyLayerFilter(relationships, elementId, filters.filterLayer);
             }
 
-            // Dry-run early return for depth mode (Story 6.2)
+            // Dry-run early return for depth mode
             if (dryRun) {
                 logger.info("Dry-run depth mode: {} relationships after filters, depth={}", relationships.size(), depth);
                 int estimatedTokens = CostEstimator.estimateTokensForDepth(relationships.size(), depth);
@@ -604,14 +604,14 @@ public class TraversalHandler {
                 meta.put("warning", warningMessage);
             }
 
-            // Add modelChanged flag if version changed (Story 5.3) — before serialization
+            // Add modelChanged flag if version changed — before serialization
             if (modelChanged) {
                 ResponseFormatter.addModelChangedFlag(envelope);
             }
 
             String jsonResult = formatter.toJsonString(envelope);
 
-            // Store in cache (Story 5.4) — skip when model changed to avoid stale entries
+            // Store in cache — skip when model changed to avoid stale entries
             if (sessionManager != null && sessionId != null && !modelChanged) {
                 sessionManager.putCacheEntry(sessionId, cacheKey, jsonResult);
                 logger.debug("Cache miss, storing result for key: {}", cacheKey);
@@ -637,7 +637,7 @@ public class TraversalHandler {
         }
     }
 
-    // ---- Filter Validation and Application (Story 4.3) ----
+    // ---- Filter Validation and Application ----
 
     /**
      * Validates excludeTypes, includeTypes, and filterLayer parameters.
@@ -889,7 +889,7 @@ public class TraversalHandler {
             expanded.put("target", buildElementResponse(
                     elementMap.get(rel.targetId()), depth, nestedRelationships,
                     fieldPreset, excludeFields));
-            // Story 14-7 (G1): surface semantic-attribute fields when populated (NON_NULL discipline).
+            // Surface semantic-attribute fields when populated (NON_NULL discipline).
             // The handler builds its own Map shape rather than serialising RelationshipDto directly,
             // so the record-level @JsonInclude(NON_NULL) doesn't reach this surface — explicit guards.
             if (rel.accessType() != null) {
@@ -955,7 +955,7 @@ public class TraversalHandler {
         logger.info("Handling traversal for element: {} (filters: excludeTypes={}, includeTypes={}, filterLayer={})",
                 elementId, filters.excludeTypes, filters.includeTypes, filters.filterLayer);
 
-        // Extract progress token for progress notifications (Story 5.5)
+        // Extract progress token for progress notifications
         Object progressToken = extractProgressToken(request);
         if (progressToken != null) {
             logger.debug("Progress token provided for traversal: {}", progressToken);
@@ -1015,7 +1015,7 @@ public class TraversalHandler {
             }
         }
 
-        // Cache check (Story 5.4) — skip if version just changed or dryRun
+        // Cache check — skip if version just changed or dryRun
         String cacheKey = CacheKeyBuilder.buildCacheKey("relationships-traverse", elementId, "maxDepth", maxDepth,
                 "direction", direction,
                 "excl-types", CacheKeyBuilder.sortedSetKey(filters.excludeTypes),
@@ -1049,7 +1049,7 @@ public class TraversalHandler {
             return buildResult(formatter.toJsonString(formatter.formatError(error)), true);
         }
 
-        // Execute traversal via TraversalEngine (Story 7.0a extraction)
+        // Execute traversal via TraversalEngine
         TraversalEngine.ProgressCallback progressCb = (progressToken != null && exchange != null)
                 ? (current, total, msg) -> sendProgress(exchange, progressToken, current, total, msg)
                 : null;
@@ -1065,7 +1065,7 @@ public class TraversalHandler {
         logger.info("Traversal complete for {}: {} elements, {} relationships, truncated={}",
                 elementId, totalElements, totalRels, isTruncated);
 
-        // Dry-run early return for traverse mode (Story 6.2)
+        // Dry-run early return for traverse mode
         if (dryRun) {
             logger.info("Dry-run traverse mode: {} elements, {} relationships discovered", totalElements, totalRels);
             int totalItems = totalElements + totalRels;
@@ -1173,14 +1173,14 @@ public class TraversalHandler {
             meta.put("warning", warningMessage);
         }
 
-        // Add modelChanged flag if version changed (Story 5.3) — before serialization
+        // Add modelChanged flag if version changed — before serialization
         if (modelChanged) {
             ResponseFormatter.addModelChangedFlag(envelope);
         }
 
         String jsonResult = formatter.toJsonString(envelope);
 
-        // Store in cache (Story 5.4) — skip when model changed to avoid stale entries
+        // Store in cache — skip when model changed to avoid stale entries
         if (sessionManager != null && sessionId != null && !modelChanged) {
             sessionManager.putCacheEntry(sessionId, cacheKey, jsonResult);
             logger.debug("Cache miss, storing result for key: {}", cacheKey);
@@ -1189,7 +1189,7 @@ public class TraversalHandler {
         return buildResult(jsonResult, false);
     }
 
-    // ---- Progress Indication Helpers (Story 5.5) ----
+    // ---- Progress Indication Helpers ----
 
     /**
      * Extracts the progress token from a tool request's _meta map.
@@ -1232,7 +1232,7 @@ public class TraversalHandler {
 
     /**
      * Holds parsed filter parameters or an error result if validation failed.
-     * Package-visible for TraversalEngine access (Story 7.0a).
+     * Package-visible for TraversalEngine access.
      */
     static record RelationshipFilters(
             Set<String> excludeTypes,

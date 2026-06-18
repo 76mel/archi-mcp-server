@@ -39,10 +39,11 @@ import com.archimatetool.model.IFolder;
 
 import net.vheerden.archi.mcp.response.ErrorCode;
 import net.vheerden.archi.mcp.response.dto.AddToViewResultDto;
+import net.vheerden.archi.mcp.response.dto.DiagramImageDto;
 
 /**
- * Story 14-8.1 pin tests — wires {@link ArchiModelAccessorImpl#validateImagePathExists}
- * (added by Story 14-8 for {@code add-image-to-view} / {@code create-specialization} /
+ * Pin tests — wires {@link ArchiModelAccessorImpl#validateImagePathExists}
+ * (added for {@code add-image-to-view} / {@code create-specialization} /
  * {@code update-specialization}) into the four pre-existing prepare paths
  * ({@code prepareAddToView}, {@code prepareAddToViewDirect},
  * {@code prepareUpdateViewObject}, {@code prepareUpdateViewObjectDirect}).
@@ -110,7 +111,7 @@ public class ImagePathArchiveValidationTest {
         }
     }
 
-    /** AC-1 — happy path: add-to-view with valid imagePath succeeds. */
+    /** Happy path: add-to-view with valid imagePath succeeds. */
     @Test
     public void shouldAcceptValidImagePath_addToView_AC1() {
         ImageParams imageParams = new ImageParams(knownImagePath, null, null);
@@ -128,7 +129,7 @@ public class ImagePathArchiveValidationTest {
                 knownImagePath, placed.getImagePath());
     }
 
-    /** AC-2 — happy path: update-view-object with valid imagePath succeeds. */
+    /** Happy path: update-view-object with valid imagePath succeeds. */
     @Test
     public void shouldAcceptValidImagePath_updateViewObject_AC2() {
         MutationResult<AddToViewResultDto> addResult = accessor.addToView(
@@ -148,7 +149,7 @@ public class ImagePathArchiveValidationTest {
     }
 
     /**
-     * AC-3 — regression-must-not-happen: empty-string clear sentinel
+     * Regression-must-not-happen: empty-string clear sentinel
      * MUST bypass archive validation and clear the imagePath via
      * {@code setImagePath(null)} per {@code ImageHelper.applyImageToNewObject:82}.
      * If this fails, the validator is misfiring on empty-string and breaking
@@ -176,7 +177,7 @@ public class ImagePathArchiveValidationTest {
                 placed.getImagePath());
     }
 
-    /** AC-4 — reject: add-to-view with typo'd imagePath, no EMF mutation. */
+    /** Reject: add-to-view with typo'd imagePath, no EMF mutation. */
     @Test
     public void shouldRejectInvalidImagePath_addToView_IMAGE_NOT_FOUND_AC4() {
         ImageParams imageParams = new ImageParams("images/doesnotexist.png", null, null);
@@ -195,7 +196,7 @@ public class ImagePathArchiveValidationTest {
                 0, targetView.getChildren().size());
     }
 
-    /** AC-5 — reject: update-view-object with typo'd imagePath, no EMF mutation. */
+    /** Reject: update-view-object with typo'd imagePath, no EMF mutation. */
     @Test
     public void shouldRejectInvalidImagePath_updateViewObject_IMAGE_NOT_FOUND_AC5() {
         MutationResult<AddToViewResultDto> addResult = accessor.addToView(
@@ -222,12 +223,11 @@ public class ImagePathArchiveValidationTest {
     }
 
     /**
-     * AC-9 — cross-surface byte-identity: the reject payload from
+     * Cross-surface byte-identity: the reject payload from
      * {@code add-to-view}, {@code update-view-object}, AND {@code add-image-to-view}
      * MUST be byte-identical (same code, message, suggestedCorrection) when
      * the same typo'd imagePath is passed. This is the mechanical proof of
-     * the sprint-status "byte-identical reject payload across surfaces"
-     * mandate (sprint-status row 844 AC4).
+     * the "byte-identical reject payload across surfaces" requirement.
      */
     @Test
     public void shouldProduceByteIdenticalRejectPayload_acrossAllThreeSurfaces_AC9() {
@@ -266,6 +266,29 @@ public class ImagePathArchiveValidationTest {
         assertEquals("suggestedCorrection identical: update-view-object vs add-image-to-view",
                 fromAddImageToView.getSuggestedCorrection(),
                 fromUpdateViewObject.getSuggestedCorrection());
+    }
+
+    /**
+     * The add-image-to-view approval card names the destination view (targetView = "Target").
+     * Lives here (not in ArchiModelAccessorImplTest) because the proposal builder runs only after the
+     * archive imagePath validation passes, which needs the real {@link IArchiveManager} fixture set up
+     * in this class. The other view-visual sites are covered in ArchiModelAccessorImplTest.
+     */
+    @Test
+    public void shouldNameView_inAddImageToViewDescription_S6h() {
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<DiagramImageDto> result = accessor.addImageToView(
+                "test-session", targetView.getId(), knownImagePath,
+                300, 300, 64, 64, null, null, null, null);
+
+        assertNotNull("Approval mode should produce a proposal", result.proposalContext());
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "test-session", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("add-image-to-view", pending.tool());
+        assertEquals("Add image visual to view 'Target': " + knownImagePath,
+                pending.description());
     }
 
     private ModelAccessException captureReject(Runnable action) {

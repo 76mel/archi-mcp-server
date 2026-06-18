@@ -2,7 +2,7 @@ package net.vheerden.archi.mcp.response.dto;
 
 /**
  * Input specification for a single view object position/size update
- * within an apply-positions operation (Story 9-0a, renamed 11-8).
+ * within an apply-positions operation.
  *
  * <p>At least one of x, y, width, height must be non-null.</p>
  */

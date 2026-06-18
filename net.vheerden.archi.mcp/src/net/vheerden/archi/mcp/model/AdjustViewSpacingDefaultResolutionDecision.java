@@ -2,8 +2,8 @@ package net.vheerden.archi.mcp.model;
 
 /**
  * Pure-unit-testable decision for the density-aware default-resolution code
- * path inside {@code adjustViewSpacing} (Story
- * RoutingPreconditions.InterElement.DensityAwareDefault).
+ * path inside {@code adjustViewSpacing}
+ * (RoutingPreconditions.InterElement.DensityAwareDefault).
  *
  * <p>When {@code interElementDelta} is omitted (parameter is {@code null}) AND
  * the view has a problematic spacing-related metric, the tool derives a
@@ -14,12 +14,12 @@ package net.vheerden.archi.mcp.model;
  * <p>Mirrors {@link ApplyElementSpacingDecision} pattern (the convenience-tool
  * sibling's decision record) — both share the
  * {@link ElementSpacingHeuristic#targetSpacingForConnectionCount(int, boolean)}
- * + {@code clamp-non-negative} heuristic core. AC-7.9 (heuristic-cross-class
- * consistency) is the multi-class tripwire that protects the shared
+ * + {@code clamp-non-negative} heuristic core. The heuristic-cross-class
+ * consistency check is the multi-class tripwire that protects the shared
  * single-source-of-truth.</p>
  *
- * <p><strong>Trigger thresholds (Q4=(a) advisory-placeholder values, pinned
- * by JUnit AC-7.2):</strong></p>
+ * <p><strong>Trigger thresholds (advisory-placeholder values, pinned
+ * by JUnit):</strong></p>
  * <ul>
  *   <li>{@code coincidentSegmentCount > 2}, OR</li>
  *   <li>{@code connectionEdgeCoincidenceCount > 4}.</li>
@@ -27,8 +27,7 @@ package net.vheerden.archi.mcp.model;
  *
  * <p>Revising the trigger thresholds requires a coordinated edit across THREE
  * artefacts: (1) this record, (2) the JUnit test {@code AdjustViewSpacingDefaultResolutionTest},
- * (3) the {@code adjust-view-spacing} tool description. Pinned per
- * {@code feedback_metric_and_regression_test_together.md}.</p>
+ * (3) the {@code adjust-view-spacing} tool description.</p>
  *
  * @param fired           true when the trigger fired (the gate's
  *                        problematic-metric condition was met) — INCLUDING
@@ -107,7 +106,7 @@ public record AdjustViewSpacingDefaultResolutionDecision(
      *                                       (null = omitted = default-
      *                                       resolution candidate; non-null =
      *                                       caller decided, including 0)
-     * @param coincidentSegmentCount         M4 metric from assessLayout
+     * @param coincidentSegmentCount         coincident-segment metric from assessLayout
      * @param connectionEdgeCoincidenceCount edge-coincidence metric from
      *                                       assessLayout
      * @param connectionCount                total visible connections on the
@@ -129,7 +128,7 @@ public record AdjustViewSpacingDefaultResolutionDecision(
      *                                       {@link ElementSpacingHeuristic}
      *                                       to select the hub-aware tier
      *                                       (Row C of the 2026-05-06 rating-
-     *                                       signal investigation, F4 closure).
+     *                                       signal investigation).
      *                                       Caller-provided input — the
      *                                       record stays pure-unit and does
      *                                       NOT scan view contents.
@@ -166,7 +165,7 @@ public record AdjustViewSpacingDefaultResolutionDecision(
         }
 
         // 4. no connections: heuristic is connection-count-driven; surface
-        //    informational reason for transparency (AC-4.5).
+        //    informational reason for transparency.
         if (connectionCount == 0) {
             return new AdjustViewSpacingDefaultResolutionDecision(
                     false, 0,
@@ -175,7 +174,7 @@ public record AdjustViewSpacingDefaultResolutionDecision(
                     TriggerMetric.NONE, 0);
         }
 
-        // 5. trigger evaluation (Q4=(a) advisory-placeholder thresholds)
+        // 5. trigger evaluation (advisory-placeholder thresholds)
         TriggerMetric trigger;
         int triggerValue;
         if (coincidentSegmentCount > 2) {

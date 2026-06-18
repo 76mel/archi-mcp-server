@@ -21,69 +21,66 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
  * V4 Integration Architecture Oracle R8 corridor-utilisation regression test
- * (Story WCU.RegressionTest, the 5th JUnit-protected metric on V4 oracle).
+ * (the 5th JUnit-protected metric on V4 oracle).
  *
  * <p>Pins {@code corridorUtilisationScore} &ge; {@link #R8_FLOOR} on the V4 oracle
  * current-pipeline view by re-routing the V4 oracle fixture on each test run via the
  * routing pipeline (with {@link #LIVE_MCP_PERIMETER_MARGIN}=50, matching the live
- * {@code auto-route-connections} default per Story #4 § Probe-investigation log).
+ * {@code auto-route-connections} default per the probe-investigation log).
  *
- * <p>This test EXTENDS the v1.4 release-gate floor (Stories #1-#4 = HPQ + M5 + M1 pinned)
+ * <p>This test EXTENDS the v1.4 release-gate floor (HPQ + M5 + M1 pinned)
  * with a fourth pinned threshold (R8 = corridor-utilisation). Together with
  * {@link V4OracleQualityRegressionTest} (HPQ + M5 + M1), the v1.4 release gate now has
  * FOUR JUnit-protected metrics on the V4 oracle current-pipeline view.
  *
- * <p>The R8 floor protects the +125% improvement Story #5 landed via the
+ * <p>The R8 floor protects the +125% improvement landed via the
  * divisor-7 width-aware cap relaxation at {@code ChannelNudgingPass.allocateTracks}
  * lines 539-548. Pre-fix V4-oracle R8 spread_ratio was 0.135 (4 hub-to-Producer
  * downlinks bunched in 31 px of a 230 px corridor). Post-fix R8 = 0.304 (downlinks
  * fan out to span 70 px). Floor 0.25 = post-fix 0.304 minus 0.05 stateless-fixture
- * parity buffer (per Story #4 AC-4 precedent: JUnit re-routing of the same fixture
+ * parity buffer (per precedent: JUnit re-routing of the same fixture
  * topology can drift M5 by ±1 unit due to EMF iteration order non-determinism in
  * RoutingPipeline.buildConnectionRoutingOrder tiebreakers; same delta expected for
- * R8) minus 0.005 for B62-2 corridor-diversity tiebreaker non-determinism.
+ * R8) minus 0.005 for corridor-diversity tiebreaker non-determinism.
  *
- * <p><b>Predecessor stories closed:</b>
+ * <p><b>Predecessor work closed:</b>
  * <ul>
- *   <li>Story #1 backlog-assessor-calibration-manual-oracle-non-orth-21
- *       (closed 2026-04-27) — M1 visible-segment-length guard.</li>
- *   <li>Story #2 backlog-coincident-regression-spike-v13-vs-current
- *       (closed 2026-04-28) — bisect named B70-a as primary responsible commit.</li>
- *   <li>Story #3 backlog-coincident-regression-surgical-fix
- *       (closed 2026-04-28) — Approach 3 stage 4.7q reconciler.</li>
- *   <li>Story #4 backlog-hub-port-quality-regression-test
- *       (closed 2026-04-29) — pinned HPQ + M5 + M1 floors.</li>
- *   <li>Story #5 backlog-wide-corridor-utilization
- *       (closed 2026-04-30) — divisor-7 width-aware cap relaxation; R8 0.135 → 0.304.</li>
- *   <li>Story WCU.RegressionTest backlog-wide-corridor-utilization-regression-test
- *       (this — pins R8, the 4th release-gate metric).</li>
+ *   <li>M1 visible-segment-length guard (closed 2026-04-27).</li>
+ *   <li>Coincident-regression bisect (closed 2026-04-28) — named the primary
+ *       responsible commit.</li>
+ *   <li>Coincident-regression surgical fix (closed 2026-04-28) — Approach 3
+ *       stage 4.7q reconciler.</li>
+ *   <li>Hub-port-quality regression test (closed 2026-04-29) — pinned HPQ + M5
+ *       + M1 floors.</li>
+ *   <li>Wide-corridor-utilization fix (closed 2026-04-30) — divisor-7
+ *       width-aware cap relaxation; R8 0.135 → 0.304.</li>
+ *   <li>This test — pins R8, the 4th release-gate metric.</li>
  * </ul>
  *
- * <p><b>Memory anchors:</b>
+ * <p><b>Rationale anchors:</b>
  * <ul>
- *   <li>{@code feedback_metric_and_regression_test_together.md} — canonical pattern.</li>
- *   <li>{@code project_v1_4_release_gate.md} four-story-sequence section.</li>
- *   <li>{@code feedback_visual_severity.md} v2 — R8 corridor-utilisation slot
- *       (inserted between R7 port-allocation and R9 label-overlap by AC-8 of this
- *       story; R10 is now edge-crossings).</li>
- *   <li>{@code feedback_phase1_gap_pattern.md} — silent-failure protocol.</li>
+ *   <li>The metric-and-regression-test-together canonical pattern.</li>
+ *   <li>The four-stage release-gate sequence.</li>
+ *   <li>R8 corridor-utilisation slot (inserted between R7 port-allocation and
+ *       R9 label-overlap; R10 is now edge-crossings).</li>
+ *   <li>The silent-failure protocol.</li>
  * </ul>
  */
 public class V4OracleCorridorUtilisationRegressionTest {
 
     /**
-     * R8 corridor-utilisation floor (Story #5 closure 2026-04-30 anchor + JUnit-MCP
+     * R8 corridor-utilisation floor (divisor-7-fix closure 2026-04-30 anchor + JUnit-MCP
      * parity buffer).
      *
-     * <p>Story #5 closure live-MCP actual: R8 = 0.304 (Story #5 spike § 5.4
+     * <p>Closure live-MCP actual: R8 = 0.304 (spike § 5.4
      * post-divisor-7-fix measurement). v1.3-baseline R8 = 1.013 (saturated, but with
      * catastrophic HPQ = 0.18 — chasing v1.3's R8 would re-introduce its hub-port
      * quality collapse). V4-manual oracle R8 = 0.565 (the user-perceived target;
      * tracked separately as the aspirational quality bar, NOT this floor).
      *
      * <p>Floor 0.25 = post-fix 0.304 minus 0.05 stateless-fixture parity buffer minus
-     * 0.005 B62-2 corridor-diversity tiebreaker non-determinism. The floor PROTECTS
-     * the Story #5 win against future routing changes that silently re-tighten the
+     * 0.005 corridor-diversity tiebreaker non-determinism. The floor PROTECTS
+     * the divisor-7 win against future routing changes that silently re-tighten the
      * width-aware cap formula (e.g., a divisor change from 7 → 8 would bring R8 back
      * down to ~0.20 and fire this assertion).
      */
@@ -125,9 +122,9 @@ public class V4OracleCorridorUtilisationRegressionTest {
     // ---- helpers (mirrors V4OracleQualityRegressionTest.routeAndAssess exactly) ----
 
     private LayoutAssessmentResult routeAndAssess() {
-        // Group/non-group split: groups go to per-connection groupBoundaries (B43-b
-        // group-wall clearance cost), NOT to the obstacles list (which is non-group-only).
-        // See V4OracleQualityRegressionTest.routeAndAssess for the AC-18 rationale.
+        // Group/non-group split: groups go to per-connection groupBoundaries
+        // (group-wall clearance cost), NOT to the obstacles list (which is non-group-only).
+        // See V4OracleQualityRegressionTest.routeAndAssess for the rationale.
         List<RoutingPipeline.ConnectionEndpoints> endpoints = new ArrayList<>();
         for (RoutingPipeline.ConnectionEndpoints ep : fixture.buildConnectionEndpoints()) {
             List<RoutingRect> filteredObstacles = new ArrayList<>();

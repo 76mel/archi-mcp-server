@@ -21,7 +21,7 @@ import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.FolderDto;
 
 /**
- * Tests for {@link FolderMutationHandler} update-folder tool (Story 8-5).
+ * Tests for {@link FolderMutationHandler} update-folder tool.
  */
 public class FolderMutationHandlerUpdateTest {
 

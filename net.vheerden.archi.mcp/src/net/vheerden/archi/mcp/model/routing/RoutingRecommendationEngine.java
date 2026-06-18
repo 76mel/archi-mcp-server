@@ -10,8 +10,8 @@ import java.util.Set;
 import net.vheerden.archi.mcp.model.RoutingRect;
 
 /**
- * Analyzes failed connection routes and recommends element moves to unblock them (Story 10-31).
- * Neighbor-aware: checks for collisions, canvas bounds, and inter-recommendation conflicts (Story 10-33).
+ * Analyzes failed connection routes and recommends element moves to unblock them.
+ * Neighbor-aware: checks for collisions, canvas bounds, and inter-recommendation conflicts.
  * Pure-geometry class — no EMF/SWT dependencies.
  */
 public class RoutingRecommendationEngine {
@@ -30,7 +30,7 @@ public class RoutingRecommendationEngine {
 
     /**
      * Analyzes failed connections and produces move recommendations for blocking elements.
-     * Checks recommendations against neighboring elements to avoid creating overlaps (Story 10-33).
+     * Checks recommendations against neighboring elements to avoid creating overlaps.
      *
      * <p><b>Heuristic limitation:</b> This method tests the direct diagonal line from source center
      * to target center against obstacles. It may miss blockers that only affect orthogonal paths
@@ -103,7 +103,7 @@ public class RoutingRecommendationEngine {
             int dx = info.mergedDx;
             int dy = info.mergedDy;
 
-            // Neighbor collision check (Story 10-33)
+            // Neighbor collision check
             // Exclude only the endpoints of connections this obstacle actually blocks
             if (allElements != null && !allElements.isEmpty()) {
                 int[] clamped = clampForNeighborCollisions(
@@ -112,7 +112,7 @@ public class RoutingRecommendationEngine {
                 dy = clamped[1];
             }
 
-            // Canvas bounds check (Story 10-33)
+            // Canvas bounds check
             int destX = info.obstacle.x() + dx;
             int destY = info.obstacle.y() + dy;
             if (destX < 0) {
@@ -137,7 +137,7 @@ public class RoutingRecommendationEngine {
             return List.of();
         }
 
-        // Inter-recommendation conflict check (Story 10-33)
+        // Inter-recommendation conflict check
         resolveInterRecommendationConflicts(recommendations, blockingMap, allElements);
 
         recommendations.sort((a, b) ->
@@ -167,7 +167,7 @@ public class RoutingRecommendationEngine {
             if (excludeIds.contains(other.id())) {
                 continue;
             }
-            // Skip visual children contained within the element being moved (Story 10-34).
+            // Skip visual children contained within the element being moved.
             // Nested ApplicationFunctions inside ApplicationComponents are not independent
             // neighbors — they move with their parent, so they can't block the parent's move.
             if (other.x() >= element.x() && other.y() >= element.y()

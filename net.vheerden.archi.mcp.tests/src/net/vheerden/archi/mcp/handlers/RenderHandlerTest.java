@@ -76,8 +76,8 @@ public class RenderHandlerTest {
 
         assertNotNull(schema.required());
         assertTrue(schema.required().contains("viewId"));
-        // Story 14-4: quality prop added to schema; not in required list
-        assertTrue("Schema should include quality prop (Story 14-4)",
+        // quality prop added to schema; not in required list
+        assertTrue("Schema should include quality prop",
                 props.containsKey("quality"));
         assertFalse("quality should not be required",
                 schema.required().contains("quality"));
@@ -101,7 +101,7 @@ public class RenderHandlerTest {
         assertTrue(enumValues.contains("pdf"));
     }
 
-    // ---- Inline PNG export (AC1, AC5) ----
+    // ---- Inline PNG export ----
 
     @Test
     public void shouldReturnImageContent_whenInlinePngExport() {
@@ -134,7 +134,7 @@ public class RenderHandlerTest {
         assertEquals(expectedBase64, imageContent.data());
     }
 
-    // ---- Inline SVG export (AC2, AC6) ----
+    // ---- Inline SVG export ----
 
     @Test
     public void shouldReturnTextContent_whenInlineSvgExport() {
@@ -161,7 +161,7 @@ public class RenderHandlerTest {
         assertEquals(svgXml, svgContent.text());
     }
 
-    // ---- File output (AC1) ----
+    // ---- File output ----
 
     @Test
     public void shouldReturnFilePath_whenFileExport() throws Exception {
@@ -192,14 +192,14 @@ public class RenderHandlerTest {
         Map<String, Object> resultMap = (Map<String, Object>) envelope.get("result");
         assertEquals("/tmp/archi-mcp-export/view-1_12345.png", resultMap.get("filePath"));
 
-        // Verify nextSteps are present and meaningful (Finding 13)
+        // Verify nextSteps are present and meaningful
         assertNotNull("nextSteps should be present", envelope.get("nextSteps"));
         @SuppressWarnings("unchecked")
         java.util.List<String> nextSteps = (java.util.List<String>) envelope.get("nextSteps");
         assertFalse("nextSteps should not be empty", nextSteps.isEmpty());
     }
 
-    // ---- Default parameters (AC4, AC7) ----
+    // ---- Default parameters ----
 
     @Test
     public void shouldUseDefaultFormat_whenFormatOmitted() {
@@ -249,7 +249,7 @@ public class RenderHandlerTest {
         assertEquals(2.0, accessor.lastScale, 0.001);
     }
 
-    // ---- Error handling (AC3) ----
+    // ---- Error handling ----
 
     @Test
     public void shouldReturnError_whenViewNotFound() throws Exception {
@@ -322,7 +322,7 @@ public class RenderHandlerTest {
         assertEquals("MODEL_NOT_LOADED", error.get("code"));
     }
 
-    // ---- outputDirectory parameter (Story 13-2) ----
+    // ---- outputDirectory parameter ----
 
     @Test
     public void shouldPassOutputDirectory_whenFileExport() {
@@ -502,7 +502,7 @@ public class RenderHandlerTest {
                 parsed.get("note"));
     }
 
-    // ---- Scale validation (Finding 3/4) ----
+    // ---- Scale validation ----
 
     @Test
     public void shouldReturnError_whenScaleTooLow() throws Exception {
@@ -549,7 +549,7 @@ public class RenderHandlerTest {
         assertEquals("INVALID_PARAMETER", error.get("code"));
     }
 
-    // ---- Story 14-4: JPG routing + alias + content type (AC3, AC5) ----
+    // ---- JPG routing + alias + content type ----
 
     @Test
     public void shouldRouteFormatJpg_toJpegRenderer_whenInvoked_AC3() {
@@ -597,7 +597,7 @@ public class RenderHandlerTest {
         assertEquals(Base64.getEncoder().encodeToString(jpgBytes), imageContent.data());
     }
 
-    // ---- Story 14-4: PDF routing + EmbeddedResource (AC2, AC5) ----
+    // ---- PDF routing + EmbeddedResource ----
 
     @Test
     public void shouldRouteFormatPdf_toPdfRenderer_whenInvoked_AC2() {
@@ -659,7 +659,7 @@ public class RenderHandlerTest {
         assertEquals("archi://export/abc-123.pdf", blob.uri());
     }
 
-    // ---- Story 14-4: quality param validation + default (AC4) ----
+    // ---- quality param validation + default ----
 
     @Test
     public void shouldRejectQualityZero_whenFormatJpg_AC4() throws Exception {
@@ -804,7 +804,7 @@ public class RenderHandlerTest {
         assertEquals(50, accessor.lastQuality);
     }
 
-    // ---- Story 14-4: Unsupported format rejection (AC9) ----
+    // ---- Unsupported format rejection ----
 
     @Test
     public void shouldRejectUnsupportedFormat_AC9() throws Exception {
@@ -828,7 +828,7 @@ public class RenderHandlerTest {
         assertEquals("INVALID_PARAMETER", error.get("code"));
     }
 
-    // ---- Story 14-4: per-format nextSteps (AC10) ----
+    // ---- per-format nextSteps ----
 
     @Test
     @SuppressWarnings("unchecked")

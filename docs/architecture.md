@@ -79,7 +79,7 @@ flowchart TD
 
 ### Layer 2: Handlers (`handlers/`)
 
-Nineteen handler classes implement all 72 MCP tools (the SpecializationHandler was added in v1.3; the adjust/apply spacing tools in v1.4; `update-model`, `find-concept-usage`, `add-view-reference-to-view`, and `add-image-to-view` in v1.5):
+Nineteen handler classes implement all 69 MCP tools (the SpecializationHandler was added in v1.3; the adjust/apply spacing tools in v1.4; `update-model`, `find-concept-usage`, `add-view-reference-to-view`, and `add-image-to-view` in v1.5; the legacy `compute-layout` tool and the two agent-side approval-control tools were removed in v1.7):
 
 | Handler | Tools | Domain |
 |---------|-------|--------|
@@ -91,12 +91,12 @@ Nineteen handler classes implement all 72 MCP tools (the SpecializationHandler w
 | ElementUpdateHandler | update-element, update-relationship | Element and relationship property updates |
 | DiscoveryHandler | get-or-create-element, search-and-create | Find-or-create patterns |
 | SpecializationHandler | create-specialization, update-specialization, delete-specialization, get-specialization-usage | Specialization (profile) management with icon support |
-| ViewPlacementHandler | add-to-view, add-group-to-view, add-note-to-view, add-view-reference-to-view, add-image-to-view, add-connection-to-view, update-view-object, update-view-connection, remove-from-view, clear-view, apply-positions, compute-layout, assess-layout, layout-within-group, layout-flat-view, auto-route-connections, auto-connect-view, auto-layout-and-route, arrange-groups, optimize-group-order, detect-hub-elements, resize-elements-to-fit, adjust-view-spacing, apply-element-spacing-recommendations, apply-group-spacing-recommendations, apply-spacing-recommendations | View composition, layout, routing, analysis, spacing |
+| ViewPlacementHandler | add-to-view, add-group-to-view, add-note-to-view, add-view-reference-to-view, add-image-to-view, add-connection-to-view, update-view-object, update-view-connection, remove-from-view, clear-view, apply-positions, assess-layout, layout-within-group, layout-flat-view, auto-route-connections, auto-connect-view, auto-layout-and-route, arrange-groups, optimize-group-order, detect-hub-elements, resize-elements-to-fit, adjust-view-spacing, apply-element-spacing-recommendations, apply-group-spacing-recommendations, apply-spacing-recommendations | View composition, layout, routing, analysis, spacing |
 | FolderHandler | get-folders, get-folder-tree | Folder structure queries |
 | FolderMutationHandler | create-folder, update-folder, move-to-folder | Folder mutations |
 | DeletionHandler | delete-element, delete-relationship, delete-view, delete-folder | Cascade deletion (including view-reference visual placeholders on delete-view) |
 | MutationHandler | bulk-mutate, begin-batch, end-batch, get-batch-status | Batch operations |
-| ApprovalHandler | set-approval-mode, list-pending-approvals, decide-mutation | Human-in-the-loop approval |
+| ApprovalHandler | list-pending-approvals | Read-only view of the human-owned approval gate (the gate toggle and approve/reject live in the Archi UI / `ApprovalService`, not on the MCP surface) |
 | SessionHandler | set-session-filter, get-session-filters | Session-scoped filters |
 | CommandStackHandler | undo, redo | Undo/redo operations |
 | RenderHandler | export-view | PNG / JPG / SVG / PDF diagram export |
@@ -109,7 +109,6 @@ Nineteen handler classes implement all 72 MCP tools (the SpecializationHandler w
 - `ArchiModelAccessorImpl` — the sole class that imports EMF and ArchimateTool types. Contains 100+ methods for model access, coordinate conversion, and mutation preparation.
 - `MutationDispatcher` — routes mutations from Jetty threads to the SWT UI thread via `Display.syncExec()`. Manages operational modes (GUI-attached, batch, approval).
 - `PreparedMutation<T>` — immutable record encapsulating a GEF Command plus its DTO result, enabling two-phase execution.
-- `LayoutEngine` — Zest-based layout algorithms (tree, spring, directed, radial, grid)
 - `ElkLayoutEngine` — ELK Layered algorithm for combined layout + routing
 - GEF Command classes for all mutations (create, update, delete, view operations)
 
@@ -120,7 +119,7 @@ Nineteen handler classes implement all 72 MCP tools (the SpecializationHandler w
 
 ### Layer 4: UI (`ui/`)
 
-- `McpPreferencePage` — Archi preferences UI (port, bind address, TLS settings, log level)
+- `McpPreferencePage` — Archi preferences UI (port, bind address, TLS settings, bearer-token authentication, log level)
 - `McpPreferenceInitializer` — default preference values
 - `McpStatusIndicator` — status bar indicator
 - `ToggleServerHandler` — Eclipse command handler with dynamic menu labels
@@ -204,6 +203,8 @@ stateDiagram-v2
 | `PREF_TLS_ENABLED` | false | Use HTTPS with keystore |
 | `PREF_KEYSTORE_PATH` | *(auto)* | Path to Java keystore file |
 | `PREF_KEYSTORE_PASSWORD` | *(generated)* | Keystore password |
+| `PREF_AUTH_TOKEN_ENABLED` | false | Require an `Authorization: Bearer` token on every request |
+| `PREF_APPROVAL_MODE` | true | Require human approval before mutations are applied (GATED) |
 
 ## Threading Model
 
@@ -272,7 +273,6 @@ sequenceDiagram
 - `org.eclipse.ui`, `org.eclipse.core.runtime` — Eclipse workbench and runtime
 - `org.eclipse.swt`, `org.eclipse.jface` — UI toolkit
 - `com.archimatetool.model`, `com.archimatetool.editor` — Archi model and editor APIs
-- `org.eclipse.zest.layouts` — Graph layout algorithms
 - `com.google.guava` — General utilities
 
 ### MCP SDK

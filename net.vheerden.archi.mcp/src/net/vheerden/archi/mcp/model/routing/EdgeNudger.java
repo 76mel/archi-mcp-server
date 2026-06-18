@@ -11,7 +11,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Edge nudger for parallel segment separation (Story 10-7b).
+ * Edge nudger for parallel segment separation.
  * Pure-geometry class — no EMF/SWT dependencies.
  *
  * <p>After path ordering identifies shared corridors, this class offsets
@@ -198,7 +198,7 @@ public class EdgeNudger {
         }
 
         // Apply obstacle margin: shrink usable corridor to maintain the same clearance
-        // that the A* visibility graph router uses (Story 10-25, Pattern 1 fix).
+        // that the A* visibility graph router uses (Pattern 1 fix).
         // Without this, nudging can shift segments into the expanded obstacle zone.
         return new CorridorBounds(nearestBefore + obstacleMargin, nearestAfter - obstacleMargin);
     }

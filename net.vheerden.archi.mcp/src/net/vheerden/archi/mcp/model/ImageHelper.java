@@ -9,7 +9,7 @@ import com.archimatetool.model.IIconic;
 import net.vheerden.archi.mcp.response.ErrorCode;
 
 /**
- * Stateless image validation, read, apply, and coverage helpers (Story C4).
+ * Stateless image validation, read, apply, and coverage helpers.
  *
  * <p>Extracted following the {@link StylingHelper} pattern to keep image-related
  * EMF logic in one place. Package-visible — only ArchiModelAccessorImpl and
@@ -28,11 +28,9 @@ final class ImageHelper {
      * {@code ArchiModelAccessorImpl :8955} — same "reserve room for the
      * thing that must render here" idiom, different edge.
      *
-     * <p>Backlog W2 (story
-     * {@code backlog-cloud-icon-container-node-collision}): the symmetric
-     * cousin of W1's text-band reservation
-     * ({@code backlog-view-title-note-autosize}, commit {@code 979ca76},
-     * 2026-05-20).</p>
+     * <p>The symmetric
+     * cousin of the text-band reservation
+     * (commit {@code 979ca76}, 2026-05-20).</p>
      */
     static final int ICON_BAND_HEIGHT = 24;
 
@@ -178,7 +176,7 @@ final class ImageHelper {
         return null;
     }
 
-    // ---- Copy helpers (Story C2: clone-view) ----
+    // ---- Copy helpers (clone-view) ----
 
     /**
      * Copies image properties from source to target view object.
@@ -199,8 +197,7 @@ final class ImageHelper {
         target.setIconVisibleState(source.getIconVisibleState());
     }
 
-    // ---- Reserved icon-band geometry (Backlog W2, story
-    // `backlog-cloud-icon-container-node-collision`) ----
+    // ---- Reserved icon-band geometry ----
 
     /**
      * Returns the inset (in px) that a container Node should reserve at the
@@ -208,7 +205,7 @@ final class ImageHelper {
      * or 0 when the position is not a corner.
      *
      * <p>Pure geometry — no SWT, no EMF — directly unit-testable from
-     * {@code ImageHelperTest} without an Archi runtime (AC-8 test-seam).</p>
+     * {@code ImageHelperTest} without an Archi runtime (test-seam).</p>
      *
      * <p>Returns {@code iconSize + margin} for the four corner positions
      * (0=top-left, 2=top-right, 6=bottom-left, 8=bottom-right per
@@ -220,7 +217,7 @@ final class ImageHelper {
      * accessor-layer wiring in {@code ArchiModelAccessorImpl} restricts
      * <em>firing</em> the lever to non-default corners (i.e. excluding the
      * Archi default at 2) to preserve byte-identical bounds for the
-     * "no explicit image position" case (AC-6 + AC-14 Case A).</p>
+     * "no explicit image position" case (Case A).</p>
      *
      * @param imagePositionInt {@link ImageParams} position int (0..9)
      * @param iconSize         icon size in px (typically 16)
@@ -239,12 +236,12 @@ final class ImageHelper {
 
     /**
      * Returns true iff at least one child rectangle intersects the icon-band
-     * rectangle for the supplied corner. This is the AC-14 Case B predicate
-     * of W2 — the tightest non-vacuous gate that fires only when an icon
+     * rectangle for the supplied corner. This is the Case B predicate
+     * — the tightest non-vacuous gate that fires only when an icon
      * would actually collide with a child.
      *
      * <p>Pure geometry — no SWT, no EMF — directly unit-testable from
-     * {@code ImageHelperTest} (AC-8 test-seam).</p>
+     * {@code ImageHelperTest} (test-seam).</p>
      *
      * <p>Icon-band rectangle (relative-to-parent, all in px; let
      * {@code band = iconSize + margin}):</p>

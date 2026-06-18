@@ -11,7 +11,7 @@ import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IProfile;
 
 /**
- * Tests for {@link UpdateProfileCommand} (Story C3c).
+ * Tests for {@link UpdateProfileCommand}.
  */
 public class UpdateProfileCommandTest {
 
@@ -73,7 +73,7 @@ public class UpdateProfileCommandTest {
         assertTrue("Label should mention new name", label.contains("New Name"));
     }
 
-    // ---- Story 14-8 (G16) AXIS B — imagePath snapshot/apply/undo/idempotence ----
+    // ---- G16 AXIS B — imagePath snapshot/apply/undo/idempotence ----
 
     @Test
     public void shouldSetImagePath_whenExecuted_AC4() {
@@ -156,8 +156,8 @@ public class UpdateProfileCommandTest {
 
     @Test
     public void shouldPreserveLegacy2ArgCtor_AC4() {
-        // Story 14-8 keeps the 2-arg ctor as a back-compat delegating ctor
-        // that calls the 3-arg ctor with ImagePathChange.unchanged().
+        // The 2-arg ctor is kept as a back-compat delegating ctor that
+        // calls the 3-arg ctor with ImagePathChange.unchanged().
         UpdateProfileCommand cmd = new UpdateProfileCommand(profile, "BackCompat");
         cmd.execute();
         assertEquals("BackCompat", profile.getName());

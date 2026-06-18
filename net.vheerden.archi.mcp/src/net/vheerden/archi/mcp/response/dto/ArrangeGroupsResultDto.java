@@ -15,7 +15,7 @@ public record ArrangeGroupsResultDto(
     int standaloneElementsPlaced
 ) {
     /**
-     * Backwards-compatible constructor (Story backlog-arrange-groups-standalone-element-lane).
+     * Backwards-compatible constructor.
      * Pre-existing callers that pre-date the {@code standaloneElementsPlaced} field default it to 0.
      */
     public ArrangeGroupsResultDto(

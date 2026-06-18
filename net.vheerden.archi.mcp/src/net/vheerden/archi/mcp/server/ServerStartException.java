@@ -4,7 +4,7 @@ import java.net.BindException;
 
 /**
  * Exception thrown when the MCP server fails to start.
- * Provides an error code for UI consumption (Story 1.4).
+ * Provides an error code for UI consumption.
  */
 public class ServerStartException extends Exception {
 

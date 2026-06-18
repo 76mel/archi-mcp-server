@@ -9,7 +9,7 @@ import org.eclipse.gef.commands.Command;
 import com.archimatetool.model.IFolder;
 
 /**
- * GEF Command that deletes a folder from the model (Story 8-4).
+ * GEF Command that deletes a folder from the model.
  *
  * <p>For empty folders, simply removes the folder from its parent. For
  * non-empty folders with {@code force=true}, executes a list of sub-commands

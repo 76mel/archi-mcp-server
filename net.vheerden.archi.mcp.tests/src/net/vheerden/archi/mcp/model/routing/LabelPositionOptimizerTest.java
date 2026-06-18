@@ -16,7 +16,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Tests for {@link LabelPositionOptimizer} (Story 11-31).
+ * Tests for {@link LabelPositionOptimizer}.
  * Pure-geometry tests — no OSGi runtime required.
  */
 public class LabelPositionOptimizerTest {
@@ -75,7 +75,7 @@ public class LabelPositionOptimizerTest {
         assertTrue(result.isEmpty());
     }
 
-    // --- Test: Middle position already clear → no change (AC4) ---
+    // --- Test: Middle position already clear → no change ---
 
     @Test
     public void shouldNotChange_whenMiddlePositionHasZeroOverlaps() {
@@ -266,10 +266,10 @@ public class LabelPositionOptimizerTest {
     }
 
     // ====================================================================
-    // Multi-trial optimization tests (Story backlog-b12)
+    // Multi-trial optimization tests
     // ====================================================================
 
-    // --- Test: Single trial produces same result as optimize() (AC3) ---
+    // --- Test: Single trial produces same result as optimize() ---
 
     @Test
     public void multiTrial_singleTrialShouldMatchOptimize() {

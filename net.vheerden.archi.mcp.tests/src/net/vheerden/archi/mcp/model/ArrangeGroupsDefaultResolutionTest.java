@@ -19,40 +19,39 @@ import org.junit.Test;
  * pins on the pure-unit decision record, all runnable without an OSGi context
  * (no {@link ArchiModelAccessorImpl} class-loading required).</p>
  *
- * <p>Coverage map (story AC-7 sub-tests):</p>
+ * <p>Coverage map (sub-tests):</p>
  * <ul>
- *   <li>AC-7.1 — heuristic-tier pin (6 assertions on
+ *   <li>heuristic-tier pin (6 assertions on
  *       {@link GroupSpacingHeuristic#targetSpacingForConnectionCount(int, boolean, boolean)};
  *       3 connected + 3 unconnected boundary cases).</li>
- *   <li>AC-7.2 — trigger-condition pin (Q4=(b) Model B; 4 assertions covering
+ *   <li>trigger-condition pin (4 assertions covering
  *       all isConnected/connections branches).</li>
- *   <li>AC-7.3 — null-vs-explicit-zero-vs-explicit-non-zero behavioural
+ *   <li>null-vs-explicit-zero-vs-explicit-non-zero behavioural
  *       distinction (3 paired fixtures sharing identical view state).</li>
- *   <li>AC-7.4 — trigger-fires happy path (AC-4.2 fixture).</li>
- *   <li>AC-7.5 — single-group + 0-group short-circuits.</li>
- *   <li>AC-7.6 — unconnected-view no-fire (AC-4.1).</li>
- *   <li>AC-7.7 — zero-connections degenerate (AC-4.6).</li>
- *   <li>AC-7.8 — decision-record-style pin (this entire class IS the AC-7.8
+ *   <li>trigger-fires happy path.</li>
+ *   <li>single-group + 0-group short-circuits.</li>
+ *   <li>unconnected-view no-fire.</li>
+ *   <li>zero-connections degenerate.</li>
+ *   <li>decision-record-style pin (this entire class IS the
  *       deliverable — pure-unit branch coverage on
  *       {@link ArrangeGroupsDefaultResolutionDecision}).</li>
- *   <li>AC-7.9 — heuristic-cross-class consistency (one assertion shared
+ *   <li>heuristic-cross-class consistency (one assertion shared
  *       with {@code ApplyGroupSpacingRecommendationsToolTest} fixtures via
  *       {@link GroupSpacingHeuristic} single source of truth).</li>
- *   <li>AC-7.10 — reason-format pin (regex match on canonical fixture's
+ *   <li>reason-format pin (regex match on canonical fixture's
  *       {@code defaultResolutionReason}).</li>
  * </ul>
  *
  * <p>NO {@code @Ignore} and NO {@code Assume.*} runtime skips; every test
- * MUST run green at HEAD per
- * {@code feedback_phase1_gap_pattern.md}.</p>
+ * MUST run green at HEAD.</p>
  */
 public class ArrangeGroupsDefaultResolutionTest {
 
-    // -------- AC-7.1 — Heuristic-tier pin --------
+    // -------- Heuristic-tier pin --------
     // Cross-class duplication with ApplyGroupSpacingRecommendationsToolTest
-    // AC-7.1 is intentional defence-in-depth per the story's Heuristic-table
-    // reuse Dev Note: editing the boundaries here requires updates across
-    // FOUR pin classes (markdown + utility + this test + sibling test).
+    // is intentional defence-in-depth per the Heuristic-table reuse note:
+    // editing the boundaries here requires updates across FOUR pin classes
+    // (markdown + utility + this test + sibling test).
 
     @Test
     public void heuristic_connected_le15_returns80() {
@@ -90,9 +89,9 @@ public class ArrangeGroupsDefaultResolutionTest {
                 .targetSpacingForConnectionCount(40, false, false));
     }
 
-    // -------- AC-7.2 — Trigger-condition boundary pin (Q4=b Model B) --------
+    // -------- Trigger-condition boundary pin --------
     // Trigger fires when isConnected == true. Boundary cases protect against
-    // drift between this decision function and the documented Q4=(b) lane.
+    // drift between this decision function and the documented behaviour.
 
     @Test
     public void trigger_isConnectedFalse_doesNotFire() {
@@ -166,7 +165,7 @@ public class ArrangeGroupsDefaultResolutionTest {
                 d.triggerCondition());
     }
 
-    // -------- AC-7.3 — null-vs-explicit-zero-vs-explicit-non-zero --------
+    // -------- null-vs-explicit-zero-vs-explicit-non-zero --------
     // Paired fixtures sharing identical view state; only callerProvidedSpacing
     // differs (null vs 0 vs 40). Backwards-compat preservation pin.
 
@@ -237,8 +236,8 @@ public class ArrangeGroupsDefaultResolutionTest {
         assertNull(d.reason());
     }
 
-    // -------- AC-7.4 — Trigger-fires happy path --------
-    // AC-4.2 fixture: connected view, connectionCount=24 (16-30 tier),
+    // -------- Trigger-fires happy path --------
+    // Fixture: connected view, connectionCount=24 (16-30 tier),
     // 12 inter-group connections. Heuristic => target=100 px.
 
     @Test
@@ -257,7 +256,7 @@ public class ArrangeGroupsDefaultResolutionTest {
         assertEquals(ArrangeGroupsDefaultResolutionDecision.TriggerCondition.IS_CONNECTED,
                 d.triggerCondition());
         assertEquals(12, d.triggerValue());
-        // Reason content (AC-4.2 verifies):
+        // Reason content:
         assertNotNull(d.reason());
         assertTrue("reason mentions isConnected=true",
                 d.reason().contains("isConnected=true"));
@@ -273,7 +272,7 @@ public class ArrangeGroupsDefaultResolutionTest {
 
     @Test
     public void ac7_4_triggerFires_connectedLe15Tier_target80() {
-        // AC-4.3: connected ≤15 tier
+        // Connected ≤15 tier
         ArrangeGroupsDefaultResolutionDecision d =
                 ArrangeGroupsDefaultResolutionDecision.decide(
                         /*callerProvidedSpacing=*/ null,
@@ -288,7 +287,7 @@ public class ArrangeGroupsDefaultResolutionTest {
 
     @Test
     public void ac7_4_triggerFires_connectedAbove30Tier_target120() {
-        // AC-4.4: connected >30 tier
+        // Connected >30 tier
         ArrangeGroupsDefaultResolutionDecision d =
                 ArrangeGroupsDefaultResolutionDecision.decide(
                         /*callerProvidedSpacing=*/ null,
@@ -301,7 +300,7 @@ public class ArrangeGroupsDefaultResolutionTest {
         assertEquals(120, d.resolvedSpacing());
     }
 
-    // -------- AC-7.5 — Single-group + 0-group degenerate --------
+    // -------- Single-group + 0-group degenerate --------
 
     @Test
     public void ac7_5_lessThan2TopLevelGroups_doesNotFire() {
@@ -319,7 +318,7 @@ public class ArrangeGroupsDefaultResolutionTest {
         assertTrue(d.reason().contains("fewer than 2 top-level groups"));
     }
 
-    // -------- AC-7.6 — No-trigger no-fire (legacy 40 short-circuit) --------
+    // -------- No-trigger no-fire (legacy 40 short-circuit) --------
     // Unconnected view: omitted spacing falls through to the legacy
     // DEFAULT_ARRANGE_GROUPS_SPACING (40). Reason populated for transparency.
 
@@ -340,7 +339,7 @@ public class ArrangeGroupsDefaultResolutionTest {
         assertNotNull("informational reason for transparency", d.reason());
     }
 
-    // -------- AC-7.7 — Connected + zero connections degenerate --------
+    // -------- Connected + zero connections degenerate --------
 
     @Test
     public void ac7_7_zeroConnections_degenerateDoesNotFire() {
@@ -360,9 +359,9 @@ public class ArrangeGroupsDefaultResolutionTest {
                 d.reason().contains("no connections"));
     }
 
-    // -------- AC-7.9 — Heuristic-cross-class consistency --------
+    // -------- Heuristic-cross-class consistency --------
     // ONE assertion verifying that the heuristic value computed by THIS
-    // story's decision function MATCHES the value that the convenience-tool
+    // decision function MATCHES the value that the convenience-tool
     // sibling's GroupSpacingHeuristic would return for the same inputs.
     // Multi-class tripwire: change either class's heuristic-resolution
     // logic and this test fails until they agree again.
@@ -390,7 +389,7 @@ public class ArrangeGroupsDefaultResolutionTest {
                 expectedTargetFromHeuristic, thisDecision.resolvedSpacing());
     }
 
-    // -------- AC-7.10 — Reason-format pin (canonical fixture) --------
+    // -------- Reason-format pin (canonical fixture) --------
     // Soft pin protects against accidental drift in the human-readable
     // transparency string. Intentional revision requires updating the regex.
 
@@ -450,7 +449,7 @@ public class ArrangeGroupsDefaultResolutionTest {
                 d.triggerCondition());
     }
 
-    // -------- Row C — hub-aware tier integration (AC-7 tertiary) --------
+    // -------- hub-aware tier integration --------
     // The decision record stays pure-unit — hasLargeHubs is a CALLER-PROVIDED
     // input. These pins verify the caller-selected branch lands the hub-aware
     // connected tier (or doesn't, when hasLargeHubs is false).

@@ -12,8 +12,8 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Tests for {@link PathStraightener} — post-routing path straightening
- * (backlog-b42). Pure-geometry tests, no EMF/SWT required.
+ * Tests for {@link PathStraightener} — post-routing path straightening.
+ * Pure-geometry tests, no EMF/SWT required.
  */
 public class PathStraightenerTest {
 
@@ -315,7 +315,7 @@ public class PathStraightenerTest {
         // Algorithm detects same-axis reversal at (i=0, j=1) and collapses directly,
         // removing the overshoot to y=50. The cross-axis pair (i=0, j=2) is skipped
         // by the terminal guard. Result: direct vertical collapse, not L-turn.
-        // B72-e: re-blessed from stale B42 expectation (L-turn via (200,200)).
+        // Re-blessed from a stale prior expectation (L-turn via (200,200)).
         List<AbsoluteBendpointDto> path = mutableList(
                 new AbsoluteBendpointDto(100, 200),
                 new AbsoluteBendpointDto(100, 50),
@@ -359,7 +359,7 @@ public class PathStraightenerTest {
         //   2. Detects inner (i=1, j=2) micro-reversal, collapses to degenerate
         // Result includes a duplicate point at (200,100) — downstream removeCollinearPoints
         // and collapseBends clean this up in the full pipeline.
-        // B72-e: re-blessed from stale B42 expectation (direct 2-point collapse).
+        // Re-blessed from a stale prior expectation (direct 2-point collapse).
         List<AbsoluteBendpointDto> path = mutableList(
                 new AbsoluteBendpointDto(300, 100),
                 new AbsoluteBendpointDto(100, 100),
@@ -667,12 +667,12 @@ public class PathStraightenerTest {
         assertEquals(22, path.get(1).x());
     }
 
-    // ===== C2: exit-then-return terminal overshoot (augmented B71 overload) =====
-    // Story c2-auto-route-zigzag-terminal-exit-return. The augmented stage-4.7i frame
+    // ===== C2: exit-then-return terminal overshoot (augmented terminal-anchoring overload) =====
+    // The augmented stage-4.7i frame
     // prepends/appends the source/target CENTERS as sentinels (index 0 / size-1), so the
     // real terminal anchors sit at index 1 / size-2. These exercise the protectTerminals
-    // guard added to eliminateReversalsCore. All assert against the 9-arg B71 overload
-    // (augmented=true) — the legacy 2-arg overload is unaffected (protectTerminals=false).
+    // guard added to eliminateReversalsCore. All assert against the 9-arg terminal-anchoring
+    // overload (augmented=true) — the legacy 2-arg overload is unaffected (protectTerminals=false).
     //
     // View-D-shaped fixture: source S BELOW target T; T attaches on its BOTTOM face
     // (line y=82=ty+th+1), S on its TOP face (line y=149). The overshoot apex (260,53) is
@@ -690,10 +690,10 @@ public class PathStraightenerTest {
 
     @Test
     public void eliminateReversals_shouldCollapseExitThenReturnTerminalOvershoot_whenAugmented() {
-        // AC-3 + AC-4 + AC-6. Pre-fix this path is UNCHANGED (red): the greedy core matches the
-        // widest reversal (i=0) first, deletes the source anchor, drops size to 3, and the B71
-        // size<4 wrap rolls the whole pass back. The protectTerminals guard confines the scan to
-        // the interior collapse (i=1,j=2), removing only the overshoot apex.
+        // Pre-fix this path is UNCHANGED (red): the greedy core matches the
+        // widest reversal (i=0) first, deletes the source anchor, drops size to 3, and the
+        // terminal-anchoring size<4 wrap rolls the whole pass back. The protectTerminals guard
+        // confines the scan to the interior collapse (i=1,j=2), removing only the overshoot apex.
         List<AbsoluteBendpointDto> path = mutableList(
                 new AbsoluteBendpointDto(260, 170),   // source center (sentinel)
                 new AbsoluteBendpointDto(260, 149),   // source anchor (TOP face line)
@@ -705,19 +705,19 @@ public class PathStraightenerTest {
                 C2_SOURCE, C2_TARGET, C2_SRC_CENTER, C2_TGT_CENTER,
                 C2_SRC_ANCH, C2_TGT_ANCH, true);
 
-        // AC-3: overshoot collapsed — 4 points, monotonic, apex gone.
+        // Overshoot collapsed — 4 points, monotonic, apex gone.
         assertEquals("Overshoot apex should be collapsed", 4, path.size());
         for (AbsoluteBendpointDto bp : path) {
             assertNotEquals("Overshoot apex (260,53) should be removed", 53, bp.y());
         }
-        // AC-6: BOTH terminal anchors byte-identical (sentinels still bracket them at 0/size-1).
+        // BOTH terminal anchors byte-identical (sentinels still bracket them at 0/size-1).
         assertEquals(260, path.get(0).x()); assertEquals(170, path.get(0).y()); // src center
         assertEquals(260, path.get(1).x()); assertEquals(149, path.get(1).y()); // src anchor — on TOP face line
         assertEquals(260, path.get(2).x()); assertEquals(82,  path.get(2).y()); // tgt anchor — on BOTTOM face line
         assertEquals(260, path.get(3).x()); assertEquals(67,  path.get(3).y()); // tgt center
-        // AC-3: terminal segment monotonic toward the attachment face (no reversal past it).
+        // Terminal segment monotonic toward the attachment face (no reversal past it).
         assertTrue("Y-sequence must be monotonic (no exit-then-return)", isMonotonicY(path));
-        // AC-4: zigzagCount == 0 — no triple matches LayoutQualityAssessor.isZigzagTriple.
+        // zigzagCount == 0 — no triple matches LayoutQualityAssessor.isZigzagTriple.
         assertFalse("Post-fix path must carry no zigzag triple", hasZigzagTriple(path));
     }
 
@@ -746,7 +746,7 @@ public class PathStraightenerTest {
 
     @Test
     public void eliminateReversals_shouldCollapseTailOvershoot_keepingAnchors_whenAugmented() {
-        // AC-3 + AC-6 with a longer path (leading jog before the tail overshoot) — confirms the
+        // Longer path (leading jog before the tail overshoot) — confirms the
         // guard reaches an interior reversal at the tail without touching either anchor.
         List<AbsoluteBendpointDto> path = mutableList(
                 new AbsoluteBendpointDto(260, 170),   // src center
@@ -778,8 +778,8 @@ public class PathStraightenerTest {
         // arm (source-anchor protection). Source ABOVE, attaches its BOTTOM face (line y=82);
         // target BELOW, attaches its TOP face (line y=149). The route exits the source bottom
         // but overshoots UP to the source's TOP face line (260,53) before doubling back down.
-        // Pre-fix: the greedy i=0 match deletes the source anchor → B71 rollback → overshoot
-        // survives (path unchanged). Post-fix: i==0 is skipped, the interior collapse (i=1,j=2)
+        // Pre-fix: the greedy i=0 match deletes the source anchor → terminal-anchoring rollback →
+        // overshoot survives (path unchanged). Post-fix: i==0 is skipped, the interior collapse (i=1,j=2)
         // removes only the overshoot apex, keeping the source anchor on its face line.
         RoutingRect src = new RoutingRect(200, 54, 120, 27, "src");   // bottom face line = 82
         RoutingRect tgt = new RoutingRect(200, 150, 120, 40, "tgt");  // top face line = 149
@@ -850,7 +850,7 @@ public class PathStraightenerTest {
     /**
      * Mirrors {@code LayoutQualityAssessor.isZigzagTriple} exactly (tol = minDelta = 1.0px):
      * three consecutive points sharing one axis within tolerance with opposite-sign deltas on
-     * the other. A zigzag-free path is what {@code countZigzags} measures as 0 (AC-4), so this
+     * the other. A zigzag-free path is what {@code countZigzags} measures as 0, so this
      * fixture-level assert stands in for the assessor without crossing the model package boundary.
      */
     private static boolean hasZigzagTriple(List<AbsoluteBendpointDto> path) {

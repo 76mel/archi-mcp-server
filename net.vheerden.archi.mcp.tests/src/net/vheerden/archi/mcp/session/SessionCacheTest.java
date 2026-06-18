@@ -6,7 +6,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * Unit tests for {@link SessionCache} (Story 5.4).
+ * Unit tests for {@link SessionCache}.
  *
  * <p>Pure Java — no MCP SDK or OSGi runtime required.</p>
  */

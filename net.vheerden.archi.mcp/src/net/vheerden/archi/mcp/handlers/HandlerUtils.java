@@ -79,7 +79,7 @@ public final class HandlerUtils {
     /**
      * Extracts an optional string parameter, preserving empty strings.
      * Returns null only if absent; empty strings are returned as-is.
-     * Story 11-2: Needed for styling colour params where "" means "clear to default".
+     * Needed for styling colour params where "" means "clear to default".
      */
     public static String optionalStringParamAllowEmpty(Map<String, Object> args, String paramName) {
         if (args == null) return null;
@@ -131,8 +131,8 @@ public final class HandlerUtils {
     /**
      * Extracts an optional boxed {@code Boolean} parameter — returns {@code null}
      * when the param is absent or unparseable. Used when null carries semantic
-     * meaning (e.g., "leave unchanged" for update operations). Story 14-7 (G1)
-     * uses this for {@code associationDirected}.
+     * meaning (e.g., "leave unchanged" for update operations). Used for
+     * {@code associationDirected}.
      */
     public static Boolean optionalBoxedBooleanParam(Map<String, Object> args, String paramName) {
         if (args == null) return null;
@@ -305,7 +305,7 @@ public final class HandlerUtils {
             ArchiModelAccessor accessor, ResponseFormatter formatter) {
         String modelVersion = accessor.getModelVersion();
 
-        // Approval mode: return proposal response (Story 7-6)
+        // Approval mode: return proposal response
         if (result.isProposal()) {
             return formatProposalResponse(entity, result.proposalContext(),
                     modelVersion, formatter);
@@ -348,13 +348,12 @@ public final class HandlerUtils {
         responseEntity.put("proposal", proposalInfo);
         responseEntity.put("preview", entity);
 
-        // Override next steps to approval-specific ones
+        // Override next steps to approval-specific ones. Approval mode is human-owned:
+        // the agent observes the gate but cannot approve its own queued change.
         List<String> approvalNextSteps = List.of(
-                "Use list-pending-approvals to review all pending mutations",
-                "Use decide-mutation with proposalId '" + proposal.proposalId()
-                        + "' and decision 'approve' to apply this mutation",
-                "Use decide-mutation with proposalId '" + proposal.proposalId()
-                        + "' and decision 'reject' to discard this mutation");
+                "This change is pending the human's approval and was NOT applied",
+                "Tell the user to approve or reject it in Archi (the agent cannot approve its own changes)",
+                "Use list-pending-approvals to see all changes awaiting the human's decision");
 
         Map<String, Object> envelope = formatter.formatSuccess(
                 responseEntity, approvalNextSteps, modelVersion, 1, 1, false);

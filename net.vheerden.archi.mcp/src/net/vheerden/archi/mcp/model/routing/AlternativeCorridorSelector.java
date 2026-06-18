@@ -16,7 +16,7 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * {@link #TARGET_HUB_CLEARANCE_PX} px and accept the alternative only if it fits
  * within a length-cost-premium budget (default
  * {@link #ALTERNATIVE_CORRIDOR_COST_PREMIUM}, relaxed-retry
- * {@link #ALTERNATIVE_CORRIDOR_COST_PREMIUM_MAX} per AC-6.2).
+ * {@link #ALTERNATIVE_CORRIDOR_COST_PREMIUM_MAX}).
  *
  * <p>This is the Axis 1 primitive composed by {@link HubPerimeterRoutingStage};
  * see {@link CorridorSpreadEnforcer} for Axis 2 (intra-corridor SPREAD). The two
@@ -24,9 +24,8 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * Task 6 — corridor-choice and intra-corridor-spread are independent observable
  * defects on V4 oracle but the same connection often participates in both).
  *
- * <p><b>Algorithm (MVP per AC-3.2: "Initial implementation uses simple bendpoint
- * substitution; escalate to partial A* re-search only if simple bendpoint fails
- * coverage"):</b>
+ * <p><b>Algorithm (MVP: simple bendpoint substitution; escalate to partial A*
+ * re-search only if simple bendpoint fails coverage):</b>
  * <ol>
  *   <li>For each cell member, determine the hub face coordinate and the
  *       AWAY-from-hub direction (-1 for TOP/LEFT, +1 for BOTTOM/RIGHT).</li>
@@ -41,7 +40,7 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  *       {@code |Δ| / origLen > budget}, reject.</li>
  *   <li>Otherwise emit a proposal. {@link #apply} performs the in-place mutation
  *       and returns a {@link Snapshot}; {@link #restore} reverts using the snapshot
- *       (Tier-1 rollback hook for the orchestrator per AC-6.1).</li>
+ *       (Tier-1 rollback hook for the orchestrator).</li>
  * </ol>
  *
  * <p><b>Cost-premium gate caveat.</b> Under simple bendpoint-substitution, the
@@ -61,10 +60,10 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  */
 public class AlternativeCorridorSelector {
 
-    /** Default cost-premium budget per AC-3.3 (10% of original path length). */
+    /** Default cost-premium budget (10% of original path length). */
     public static final double ALTERNATIVE_CORRIDOR_COST_PREMIUM = 0.10;
 
-    /** Relaxed budget for orchestrator retry-with-widened-constraints per AC-6.2 (30%). */
+    /** Relaxed budget for orchestrator retry-with-widened-constraints (30%). */
     public static final double ALTERNATIVE_CORRIDOR_COST_PREMIUM_MAX = 0.30;
 
     /** Target perpendicular clearance from hub face after shift (px). */
@@ -95,7 +94,7 @@ public class AlternativeCorridorSelector {
 
     /**
      * Snapshot of pre-apply bendpoint state, used by {@link #restore} for Tier-1
-     * rollback per AC-6.
+     * rollback.
      */
     public record Snapshot(int pathIndex,
                            int segmentStartBpIdx,

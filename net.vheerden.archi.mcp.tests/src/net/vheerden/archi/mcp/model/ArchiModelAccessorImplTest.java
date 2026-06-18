@@ -64,15 +64,16 @@ import net.vheerden.archi.mcp.response.dto.BulkMutationResult;
 import net.vheerden.archi.mcp.model.MutationResult;
 import net.vheerden.archi.mcp.response.dto.BulkOperation;
 import net.vheerden.archi.mcp.response.dto.ClearViewResultDto;
+import net.vheerden.archi.mcp.response.dto.EmbeddedViewDto;
 import net.vheerden.archi.mcp.response.dto.ViewGroupDto;
 import net.vheerden.archi.mcp.response.dto.ViewNoteDto;
 import net.vheerden.archi.mcp.response.dto.BulkOperationFailure;
 import net.vheerden.archi.mcp.response.dto.BulkOperationResult;
+import net.vheerden.archi.mcp.response.dto.DeleteResultDto;
 import net.vheerden.archi.mcp.response.dto.DuplicateCandidate;
 import net.vheerden.archi.mcp.response.dto.ElementDto;
 import net.vheerden.archi.mcp.response.dto.FolderDto;
 import net.vheerden.archi.mcp.response.dto.FolderTreeDto;
-import net.vheerden.archi.mcp.response.dto.LayoutViewResultDto;
 import net.vheerden.archi.mcp.response.dto.LayoutWithinGroupResultDto;
 import net.vheerden.archi.mcp.response.dto.ModelInfoDto;
 import net.vheerden.archi.mcp.response.dto.RelationshipDto;
@@ -553,7 +554,7 @@ public class ArchiModelAccessorImplTest {
         assertTrue(info.elementTypeDistribution().isEmpty());
     }
 
-    // ---- getModelInfo read-side parity tests (Story 14-3 G6) ----
+    // ---- getModelInfo read-side parity tests ----
 
     @Test
     public void shouldReturnModelInfoDtoWithPurpose_whenGetModelInfo_AC11() {
@@ -591,7 +592,7 @@ public class ArchiModelAccessorImplTest {
         // Empty-Archi-default model has null purpose and empty properties EList —
         // the build path normalises empty/empty-list → null so legacy callers
         // (and Jackson with @JsonInclude(NON_NULL)) see the same 8-field shape
-        // they did before Story 14-3.
+        // they did before the purpose/properties extension.
         IArchimateModel model = createEmptyModel();
         stubModelManager.setModels(List.of(model));
         accessor = new ArchiModelAccessorImpl(stubModelManager);
@@ -715,11 +716,11 @@ public class ArchiModelAccessorImplTest {
         assertEquals("ServingRelationship", contents.relationships().get(0).type());
     }
 
-    // ---- getViewContents v1.5 styling read-back (Story C3) ----
+    // ---- getViewContents v1.5 styling read-back ----
 
     /**
-     * Shared NON_NULL-configured Jackson mapper, used by the AC-7 omission assertions below
-     * to confirm the wire payload omits Story C3 fields when the EMF source is at Archi default.
+     * Shared NON_NULL-configured Jackson mapper, used by the omission assertions below
+     * to confirm the wire payload omits styling fields when the EMF source is at Archi default.
      * Mirrors the production ResponseFormatter configuration at
      * {@code net.vheerden.archi.mcp.response.ResponseFormatter:40-41}.
      */
@@ -734,7 +735,7 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    /** AC-1 + AC-7 omission: v1.5 styling fields surface on a styled element; defaults omitted. */
+    /** Omission: v1.5 styling fields surface on a styled element; defaults omitted. */
     @Test
     public void getViewContents_shouldSurfaceV15StylingFields_onElement() {
         IArchimateModel model = createTestModelWithViewContents();
@@ -778,8 +779,8 @@ public class ArchiModelAccessorImplTest {
         assertEquals("centre", styled.verticalTextAlignment());
         assertEquals("${name}\n[${property:Lifecycle}]", styled.labelExpression());
 
-        // AC-7 omission pin: the unstyled sibling (compVisual at index 1) must serialise
-        // to JSON without any of the new C3 field names — wire-cost stays at zero for defaults.
+        // Omission pin: the unstyled sibling (compVisual at index 1) must serialise
+        // to JSON without any of the new styling field names — wire-cost stays at zero for defaults.
         ViewNodeDto unstyled = vm.get(1);
         assertNull(unstyled.gradient());
         assertNull(unstyled.outlineOpacity());
@@ -802,7 +803,7 @@ public class ArchiModelAccessorImplTest {
                 json.contains("\"outlineOpacity\""));
     }
 
-    /** AC-2 + AC-7 omission: v1.5 styling fields surface on a styled group; defaults omitted. */
+    /** Omission: v1.5 styling fields surface on a styled group; defaults omitted. */
     @Test
     public void getViewContents_shouldSurfaceV15StylingFields_onGroup() {
         IArchimateModel model = createTestModelWithViewContents();
@@ -824,7 +825,7 @@ public class ArchiModelAccessorImplTest {
                 "${name} (${property:Tier})", null);
         view.getChildren().add(styledGroup);
 
-        // Default-styled group for AC-7 omission pin
+        // Default-styled group for omission pin
         IDiagramModelGroup defaultGroup = IArchimateFactory.eINSTANCE.createDiagramModelGroup();
         defaultGroup.setId("grp-default-1");
         defaultGroup.setName("Default Group");
@@ -852,7 +853,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals("italic", styled.fontStyle());
         assertEquals("${name} (${property:Tier})", styled.labelExpression());
 
-        // AC-7 omission
+        // Omission
         ViewGroupDto unstyled = groups.stream()
                 .filter(g -> "grp-default-1".equals(g.viewObjectId()))
                 .findFirst().orElseThrow();
@@ -873,7 +874,7 @@ public class ArchiModelAccessorImplTest {
                 json.contains("\"fontName\""));
     }
 
-    /** AC-3 + AC-7 omission: v1.5 styling + note-only borderType surface; defaults omitted. */
+    /** Omission: v1.5 styling + note-only borderType surface; defaults omitted. */
     @Test
     public void getViewContents_shouldSurfaceV15StylingFields_onNote() {
         IArchimateModel model = createTestModelWithViewContents();
@@ -894,7 +895,7 @@ public class ArchiModelAccessorImplTest {
                 "${property:Author}", null);
         view.getChildren().add(styledNote);
 
-        // Default-styled note for AC-7 omission pin
+        // Default-styled note for omission pin
         IDiagramModelNote defaultNote = IArchimateFactory.eINSTANCE.createDiagramModelNote();
         defaultNote.setId("note-default-1");
         defaultNote.setContent("Plain note");
@@ -921,7 +922,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals("bold", styled.fontStyle());
         assertEquals("${property:Author}", styled.labelExpression());
 
-        // AC-7 omission
+        // Omission
         ViewNoteDto unstyled = notes.stream()
                 .filter(n -> "note-default-1".equals(n.viewObjectId()))
                 .findFirst().orElseThrow();
@@ -942,7 +943,7 @@ public class ArchiModelAccessorImplTest {
                 json.contains("\"fontName\""));
     }
 
-    /** AC-4 + AC-7 omission: connection typography + labelExpression surface; defaults omitted. */
+    /** Omission: connection typography + labelExpression surface; defaults omitted. */
     @Test
     public void getViewContents_shouldSurfaceV15StylingFields_onConnection() {
         IArchimateModel model = createTestModelWithViewContents();
@@ -967,7 +968,7 @@ public class ArchiModelAccessorImplTest {
                 "${name} via ${property:Channel}", null);
         styledConn.connect(compVisual, actorVisual);
 
-        // Default-styled second connection for AC-7 omission pin (reuses same relationship —
+        // Default-styled second connection for omission pin (reuses same relationship —
         // de-dup is on relationship-id, but each visual connection carries its own viewConnectionId)
         IDiagramModelArchimateConnection defaultConn = IArchimateFactory.eINSTANCE
                 .createDiagramModelArchimateConnection();
@@ -996,7 +997,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals("italic", styled.fontStyle());
         assertEquals("${name} via ${property:Channel}", styled.labelExpression());
 
-        // AC-7 omission
+        // Omission
         ViewConnectionDto unstyled = conns.stream()
                 .filter(c -> "conn-default-1".equals(c.viewConnectionId()))
                 .findFirst().orElseThrow();
@@ -1273,7 +1274,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals(0, changeListener.events.size());
     }
 
-    // ---- createElement tests (Story 7-2) ----
+    // ---- createElement tests ----
 
     @Test
     public void shouldCreateElement_withValidType() {
@@ -1346,7 +1347,7 @@ public class ArchiModelAccessorImplTest {
         accessor.createElement("default", "BusinessActor", "Test", null, null, null, null);
     }
 
-    // ---- createRelationship tests (Story 7-2) ----
+    // ---- createRelationship tests ----
 
     @Test
     public void shouldCreateRelationship_withValidTypes() {
@@ -1446,7 +1447,7 @@ public class ArchiModelAccessorImplTest {
         accessor.createRelationship("default", "ServingRelationship", "s1", "t1", null, null);
     }
 
-    // ---- duplicate relationship prevention tests (backlog-b11) ----
+    // ---- duplicate relationship prevention tests ----
 
     @Test
     public void shouldReturnExistingRelationship_whenDuplicateCreated() {
@@ -1535,7 +1536,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void shouldCreateBothRelationships_whenDuplicateInSameBatch() {
-        // B19: within-batch dedup no longer works (connect() deferred to command execution).
+        // Within-batch dedup no longer works (connect() deferred to command execution).
         // Each create-relationship in the same batch creates a separate object.
         // Cross-batch dedup still works correctly.
         IArchimateModel model = createTestModel();
@@ -1558,7 +1559,7 @@ public class ArchiModelAccessorImplTest {
 
             assertNotNull(result);
             assertEquals(2, result.operations().size());
-            // B19: both create independently (no within-batch dedup)
+            // both create independently (no within-batch dedup)
             String firstId = result.operations().get(0).entityId();
             String secondId = result.operations().get(1).entityId();
             assertNotEquals("B19: within-batch creates separate objects", firstId, secondId);
@@ -1571,7 +1572,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void shouldCreateIndependentBackReferences_forDuplicateRelationshipsInBatch() {
-        // B19: within-batch dedup no longer works. Each relationship gets its own ID.
+        // Within-batch dedup no longer works. Each relationship gets its own ID.
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -1592,7 +1593,7 @@ public class ArchiModelAccessorImplTest {
 
             assertNotNull(result);
             assertEquals(2, result.operations().size());
-            // B19: both have distinct entity IDs (no within-batch dedup)
+            // both have distinct entity IDs (no within-batch dedup)
             assertNotNull("First op should have entity ID", result.operations().get(0).entityId());
             assertNotNull("Second op should have entity ID", result.operations().get(1).entityId());
             assertNotEquals("B19: separate relationship objects",
@@ -1605,7 +1606,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void shouldReportCreatedAction_forBothDuplicateRelationshipsInBatch() {
-        // B19: within-batch dedup no longer works — both report "created"
+        // Within-batch dedup no longer works — both report "created"
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -1626,7 +1627,7 @@ public class ArchiModelAccessorImplTest {
 
             assertNotNull(result);
             assertEquals(2, result.operations().size());
-            // B19: both report "created" (no within-batch dedup)
+            // both report "created" (no within-batch dedup)
             assertEquals("created", result.operations().get(0).action());
             assertEquals("created", result.operations().get(1).action());
         } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
@@ -1642,7 +1643,7 @@ public class ArchiModelAccessorImplTest {
 
         try {
             // Enable approval mode
-            accessor.getMutationDispatcher().setApprovalRequired("default", true);
+            accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
 
             // The test model already has a ServingRelationship from ac-001 to bp-001 (rel-001)
             MutationResult<RelationshipDto> result = accessor.createRelationship(
@@ -1658,7 +1659,7 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- createView tests (Story 7-2) ----
+    // ---- createView tests ----
 
     @Test
     public void shouldCreateView_withNameOnly() {
@@ -1697,7 +1698,7 @@ public class ArchiModelAccessorImplTest {
         accessor.createView("default", "Test View", null, null, null);
     }
 
-    // ---- updateElement tests (Story 7-3) ----
+    // ---- updateElement tests ----
 
     @Test
     public void shouldUpdateElementName_whenNameProvided() {
@@ -1861,7 +1862,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals("ba-001", match.get().id());
     }
 
-    // ---- Specialization tests (Story C3b) ----
+    // ---- Specialization tests ----
 
     @Test
     public void shouldCreateElement_withSpecialization() {
@@ -2117,7 +2118,7 @@ public class ArchiModelAccessorImplTest {
     // at the command-unit level. Integration testing through accessor.undo(1) requires a real
     // CommandStack which the test dispatcher does not provide.
 
-    // ---- Specialization profile management tests (Story C3c) ----
+    // ---- Specialization profile management tests ----
 
     @Test
     public void shouldCreateSpecialization_whenNew() {
@@ -2425,8 +2426,8 @@ public class ArchiModelAccessorImplTest {
         accessor = createAccessorWithTestDispatcher(model);
 
         // create-spec → create-element-with-inline-spec → update-spec → delete-spec(force)
-        // Exercises every new switch branch in prepareOperation() (Story C3c) plus the
-        // M1 fix (force passed as a real Boolean — happy path for the bulk dispatcher).
+        // Exercises every new switch branch in prepareOperation() plus the
+        // force-flag fix (force passed as a real Boolean — happy path for the bulk dispatcher).
         List<BulkOperation> ops = List.of(
                 new BulkOperation("create-specialization",
                         Map.of("name", "Cloud Server", "conceptType", "Node")),
@@ -2472,7 +2473,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals("Profile should be removed from model", 0, model.getProfiles().size());
     }
 
-    // ---- Bulk specialization deduplication (B54 — discovered E2E 2026-04-09) ----
+    // ---- Bulk specialization deduplication (discovered E2E 2026-04-09) ----
     //
     // Bug: bulk-mutate runs all prepare methods first (building commands) before
     // dispatching any. Without per-batch profile caching, the second and later
@@ -2597,7 +2598,7 @@ public class ArchiModelAccessorImplTest {
         // shouldCreateRelationship_withSpecialization_andEchoInDto and
         // shouldNotTreatDifferentlySpecializedRelationshipsAsDuplicates. Skip gracefully
         // when this constraint applies — the test runs cleanly via the PDE Plug-in Test
-        // launcher. The element-based B54 tests above already prove the cache mechanism;
+        // launcher. The element-based dedup tests above already prove the cache mechanism;
         // resolveOrCreateProfile is shared between prepareCreateElement and
         // prepareCreateRelationship, so element-coverage transitively covers the
         // relationship path's cache interaction.
@@ -2705,6 +2706,370 @@ public class ArchiModelAccessorImplTest {
         assertEquals(0, model.getProfiles().size());
     }
 
+    // ---- server-owned effect text + structured bulk ops + batch intent ----
+    // (OSGi-gated: relationship validation needs RelationshipsMatrix; run on the --swt/PDE lane.)
+
+    @Test
+    public void shouldNameEndpoints_inCreateRelationshipEffectDescription() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        try {
+            // Customer (ba-001) → Order System (ac-001): no existing relationship, so not a dup.
+            MutationResult<RelationshipDto> result = accessor.createRelationship(
+                    "default", "ServingRelationship", "ba-001", "ac-001", null, null);
+
+            assertNotNull("Approval mode should produce a proposal", result.proposalContext());
+            PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                    "default", result.proposalContext().proposalId());
+            assertNotNull(pending);
+            assertEquals("create-relationship", pending.tool());
+            assertEquals("Create ServingRelationship: 'Customer' → 'Order System'",
+                    pending.effectDescription());
+            assertNull("create-relationship carries no intent", pending.intent());
+        } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
+            Assume.assumeTrue("Requires OSGi runtime for RelationshipsMatrix", false);
+        }
+    }
+
+    @Test
+    public void shouldNameEndpointsAndCascade_inDeleteRelationshipEffectDescription() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        // rel-001: ServingRelationship Order System (ac-001) → Order Processing (bp-001).
+        MutationResult<DeleteResultDto> result = accessor.deleteRelationship("default", "rel-001");
+
+        assertNotNull("Approval mode should produce a proposal", result.proposalContext());
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("delete-relationship", pending.tool());
+        String effect = pending.effectDescription();
+        assertNotNull(effect);
+        assertTrue("names the source", effect.contains("'Order System'"));
+        assertTrue("names the target", effect.contains("'Order Processing'"));
+        assertTrue("carries the cascade consequence", effect.contains("cascade"));
+    }
+
+    // ---- server-owned effect text for the VISUAL-connection path ----
+    // The relationship pre-exists on the view path → resolves cleanly pre-execute (no deferred-connect trap).
+    // OSGi-gated like every addToView/GEF test in this class (run on the --swt/PDE lane).
+
+    @Test
+    public void shouldNameEndpoints_inAddConnectionToViewEffectDescription() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        // Place both endpoints with the gate OFF (direct execute), then turn the gate ON so the
+        // connection itself is proposed.
+        MutationResult<AddToViewResultDto> src = accessor.addToView(
+                "default", "view-001", "ac-001", 50, 50, 120, 55, false, null, null, null);
+        MutationResult<AddToViewResultDto> tgt = accessor.addToView(
+                "default", "view-001", "bp-001", 250, 50, 120, 55, false, null, null, null);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<ViewConnectionDto> result = accessor.addConnectionToView(
+                "default", "view-001", "rel-001",
+                src.entity().viewObject().viewObjectId(),
+                tgt.entity().viewObject().viewObjectId(), null, null, null, null, null);
+
+        assertNotNull("Approval mode should produce a proposal", result.proposalContext());
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("add-connection-to-view", pending.tool());
+        // rel-001: ServingRelationship Order System (ac-001) → Order Processing (bp-001).
+        // the effectDescription now also names the destination view (view-001 = "Main View").
+        assertEquals("Add connection ServingRelationship: 'Order System' → 'Order Processing' "
+                + "to view 'Main View'",
+                pending.effectDescription());
+    }
+
+    @Test
+    public void shouldNameEndpoints_inUpdateViewConnectionEffectDescription() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        // Place endpoints + the connection with the gate OFF, then gate ON for the bendpoint update.
+        MutationResult<AddToViewResultDto> src = accessor.addToView(
+                "default", "view-001", "ac-001", 50, 50, 120, 55, false, null, null, null);
+        MutationResult<AddToViewResultDto> tgt = accessor.addToView(
+                "default", "view-001", "bp-001", 250, 50, 120, 55, false, null, null, null);
+        MutationResult<ViewConnectionDto> conn = accessor.addConnectionToView(
+                "default", "view-001", "rel-001",
+                src.entity().viewObject().viewObjectId(),
+                tgt.entity().viewObject().viewObjectId(), null, null, null, null, null);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<ViewConnectionDto> result = accessor.updateViewConnection(
+                "default", conn.entity().viewConnectionId(),
+                List.of(new BendpointDto(30, 0, -30, 0)), null, null, null, null);
+
+        assertNotNull("Approval mode should produce a proposal", result.proposalContext());
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("update-view-connection", pending.tool());
+        // the effectDescription now also names the view (view-001 = "Main View").
+        assertEquals("Update connection ServingRelationship: 'Order System' → 'Order Processing' "
+                + "in view 'Main View'",
+                pending.effectDescription());
+    }
+
+    // ---- every view-visual ADD/UPDATE/DELETE proposal names the destination view ----
+    // view-001 = "Main View". OSGi-gated like the visual-connection block (addToView needs GEF → --swt/PDE lane).
+    // The rendered field is the mechanical `description` for the non-connection sites (the card's
+    // singleRow falls back to it when effectDescription is null); exact-string assertEquals is the guard.
+
+    @Test
+    public void shouldNameView_inAddToViewDescription() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<AddToViewResultDto> result = accessor.addToView(
+                "default", "view-001", "ac-001", 50, 50, 120, 55, false, null, null, null);
+
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("add-to-view", pending.tool());
+        assertEquals("Add ApplicationComponent 'Order System' to view 'Main View'",
+                pending.description());
+    }
+
+    @Test
+    public void shouldNameView_inAddGroupToViewDescription() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<ViewGroupDto> result = accessor.addGroupToView(
+                "default", "view-001", "Cluster A", 10, 10, 200, 100, null, null, null);
+
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("add-group-to-view", pending.tool());
+        assertEquals("Add group 'Cluster A' to view 'Main View'", pending.description());
+    }
+
+    @Test
+    public void shouldNameView_inAddNoteToViewDescription() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<ViewNoteDto> result = accessor.addNoteToView(
+                "default", "view-001", "Hello note", null, null, 10, 10, 150, 60, null, null, null);
+
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("add-note-to-view", pending.tool());
+        // injects the name before the colon so the payload stays readable.
+        assertEquals("Add note to view 'Main View': Hello note", pending.description());
+    }
+
+    @Test
+    public void shouldNameView_inAddViewReferenceToViewDescription() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        // Create a second view (gate OFF → direct execute) to reference, then gate ON.
+        MutationResult<ViewDto> ref = accessor.createView("default", "Detail View", null, null, null);
+        String referencedViewId = ref.entity().id();
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<EmbeddedViewDto> result = accessor.addViewReferenceToView(
+                "default", "view-001", referencedViewId, 10, 10, 160, 90, null, null);
+
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("add-view-reference-to-view", pending.tool());
+        assertEquals("Add view-reference to view 'Main View': " + referencedViewId,
+                pending.description());
+    }
+
+    @Test
+    public void shouldNameView_inUpdateViewObjectDescription() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        // Place an object (gate OFF), then gate ON for the bounds update.
+        MutationResult<AddToViewResultDto> placed = accessor.addToView(
+                "default", "view-001", "ac-001", 50, 50, 120, 55, false, null, null, null);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<ViewObjectDto> result = accessor.updateViewObject(
+                "default", placed.entity().viewObject().viewObjectId(),
+                100, 100, null, null, null, null, null, null);
+
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("update-view-object", pending.tool());
+        assertEquals("Update view object bounds for ApplicationComponent 'Order System' "
+                + "in view 'Main View'", pending.description());
+    }
+
+    @Test
+    public void shouldNameView_inRemoveFromViewDescription_objectBranch() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        // Place an object (gate OFF, no connections → cascade 0), then gate ON for the removal.
+        MutationResult<AddToViewResultDto> placed = accessor.addToView(
+                "default", "view-001", "ac-001", 50, 50, 120, 55, false, null, null, null);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<RemoveFromViewResultDto> result = accessor.removeFromView(
+                "default", "view-001", placed.entity().viewObject().viewObjectId());
+
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("remove-from-view", pending.tool());
+        assertEquals("Remove ApplicationComponent 'Order System' from view 'Main View'",
+                pending.description());
+    }
+
+    @Test
+    public void shouldNameView_inRemoveFromViewDescription_connectionBranch() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        // Place src + tgt + connection (gate OFF), then gate ON for the connection removal.
+        MutationResult<AddToViewResultDto> src = accessor.addToView(
+                "default", "view-001", "ac-001", 50, 50, 120, 55, false, null, null, null);
+        MutationResult<AddToViewResultDto> tgt = accessor.addToView(
+                "default", "view-001", "bp-001", 250, 50, 120, 55, false, null, null, null);
+        MutationResult<ViewConnectionDto> conn = accessor.addConnectionToView(
+                "default", "view-001", "rel-001",
+                src.entity().viewObject().viewObjectId(),
+                tgt.entity().viewObject().viewObjectId(), null, null, null, null, null);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<RemoveFromViewResultDto> result = accessor.removeFromView(
+                "default", "view-001", conn.entity().viewConnectionId());
+
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("remove-from-view", pending.tool());
+        assertEquals("Remove connection (ServingRelationship) from view 'Main View'",
+                pending.description());
+    }
+
+    @Test
+    public void shouldDegradeToBareText_inAddToView_whenViewNameBlank() {
+        // via the viewNameClause path (dangling "to view" token → ""): a blank view name
+        // yields the un-named text — never "to view ''", never an NPE.
+        IArchimateModel model = createTestModel();
+        ((IArchimateDiagramModel) model.getFolder(FolderType.DIAGRAMS)
+                .getElements().get(0)).setName("");
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<AddToViewResultDto> result = accessor.addToView(
+                "default", "view-001", "ac-001", 50, 50, 120, 55, false, null, null, null);
+
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        assertEquals("Add ApplicationComponent 'Order System' to view", pending.description());
+    }
+
+    @Test
+    public void shouldDegradeToBareText_inUpdateViewObject_whenViewNameBlank() {
+        // via the OTHER degradation path: viewPhrase returns null and the inline ternary
+        // appends nothing — the text must end with the bare element name, no trailing " in view".
+        IArchimateModel model = createTestModel();
+        ((IArchimateDiagramModel) model.getFolder(FolderType.DIAGRAMS)
+                .getElements().get(0)).setName("");
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+
+        MutationResult<AddToViewResultDto> placed = accessor.addToView(
+                "default", "view-001", "ac-001", 50, 50, 120, 55, false, null, null, null);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        MutationResult<ViewObjectDto> result = accessor.updateViewObject(
+                "default", placed.entity().viewObject().viewObjectId(),
+                100, 100, null, null, null, null, null, null);
+
+        PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                "default", result.proposalContext().proposalId());
+        assertNotNull(pending);
+        String desc = pending.description();
+        assertEquals("Update view object bounds for ApplicationComponent 'Order System'", desc);
+        assertFalse("no dangling ' in view' / trailing space on degradation",
+                desc.endsWith("view") || desc.endsWith(" "));
+    }
+
+    @Test
+    public void shouldEmitStructuredNamedOpsAndIntent_forBulkMutateInApprovalMode() {
+        IArchimateModel model = createTestModel();
+        stubModelManager.setModels(List.of(model));
+        accessor = createAccessorWithTestDispatcher(model);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
+
+        try {
+            List<BulkOperation> operations = List.of(
+                    new BulkOperation("create-element", Map.of(
+                            "type", "ApplicationComponent", "name", "Payment Gateway")),
+                    new BulkOperation("create-relationship", Map.of(
+                            "type", "ServingRelationship",
+                            "sourceId", "ac-001", "targetId", "bp-001")));
+
+            BulkMutationResult result = accessor.executeBulk(
+                    "default", operations, null, false, "Wire the payments path");
+
+            assertNotNull("Approval mode should produce a proposal", result.proposalContext());
+            PendingProposal pending = accessor.getMutationDispatcher().getProposal(
+                    "default", result.proposalContext().proposalId());
+            assertNotNull(pending);
+            // Intent persisted on the single bulk proposal (and never depended on by the server).
+            assertEquals("Wire the payments path", pending.intent());
+
+            // operations is now a structured List<Map> carrying name/type + relationship src→target.
+            Object ops = pending.proposedChanges().get("operations");
+            assertTrue("operations is a structured list", ops instanceof List);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> opList = (List<Map<String, Object>>) ops;
+            assertEquals(2, opList.size());
+
+            Map<String, Object> elementOp = opList.get(0);
+            assertEquals("create-element", elementOp.get("tool"));
+            assertEquals("Payment Gateway", elementOp.get("name"));
+            assertEquals("ApplicationComponent", elementOp.get("type"));
+
+            Map<String, Object> relOp = opList.get(1);
+            assertEquals("create-relationship", relOp.get("tool"));
+            // Source→target resolved to NAMES from the just-created relationship (not ids).
+            assertEquals("Order System", relOp.get("source"));
+            assertEquals("Order Processing", relOp.get("target"));
+        } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
+            Assume.assumeTrue("Requires OSGi runtime for RelationshipsMatrix", false);
+        }
+    }
+
     // ---- C3c approval-mode coverage (Review-fix M2) ----
 
     @Test
@@ -2712,7 +3077,7 @@ public class ArchiModelAccessorImplTest {
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
-        accessor.getMutationDispatcher().setApprovalRequired("default", true);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
 
         MutationResult<Map<String, Object>> result = accessor.createSpecialization(
                 "default", "Cloud Server", "Node");
@@ -2746,7 +3111,7 @@ public class ArchiModelAccessorImplTest {
         accessor = createAccessorWithTestDispatcher(model);
         // Create profile in immediate mode, then flip into approval mode for the update
         accessor.createSpecialization("default", "Old Name", "Node");
-        accessor.getMutationDispatcher().setApprovalRequired("default", true);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
 
         MutationResult<Map<String, Object>> result = accessor.updateSpecialization(
                 "default", "Old Name", "Node", "New Name");
@@ -2771,7 +3136,7 @@ public class ArchiModelAccessorImplTest {
         accessor = createAccessorWithTestDispatcher(model);
         accessor.createElement("default", "BusinessActor", "Customer A",
                 null, null, null, "VIP");
-        accessor.getMutationDispatcher().setApprovalRequired("default", true);
+        accessor.getMutationDispatcher().setApprovalModeProvider(() -> true);
 
         MutationResult<Map<String, Object>> result = accessor.deleteSpecialization(
                 "default", "VIP", "BusinessActor", true);
@@ -2846,7 +3211,7 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- executeBulk tests (Story 7-5) ----
+    // ---- executeBulk tests ----
 
     @Test
     public void shouldExecuteBulk_withAllCreateElements() {
@@ -3183,7 +3548,7 @@ public class ArchiModelAccessorImplTest {
                 elementCountBefore, elementCountAfter);
     }
 
-    // ---- executeBulk with continueOnError (Story 11-9) ----
+    // ---- executeBulk with continueOnError ----
 
     @Test
     public void shouldExecuteBulk_continueOnError_middleOperationFails() {
@@ -3441,7 +3806,7 @@ public class ArchiModelAccessorImplTest {
                 elementCountBefore, elementCountAfter);
     }
 
-    // ---- executeBulk with view tools (Story 8-0b) ----
+    // ---- executeBulk with view tools ----
 
     @Test
     public void shouldExecuteBulk_shouldPlaceElementOnView_withAddToView() {
@@ -3940,11 +4305,11 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- executeBulk back-reference create-view tests (Story 14-13) ----
+    // ---- executeBulk back-reference create-view tests ----
 
     @Test
     public void shouldExecuteBulk_shouldHandleBackRef_createViewThenAddToView() {
-        // Story 14-13 (AC-1): 1708 reproducer — create-view at [0],
+        // 1708 reproducer — create-view at [0],
         // add-to-view with viewId: "$0.id" at [1]. Op N+1 referencing $N
         // where N is create-view must succeed end-to-end.
         IArchimateModel model = createTestModel();
@@ -3970,7 +4335,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void shouldRejectBackRef_whenReferencesSelf() {
-        // Story 14-13 (AC-3): self-reference at op 0 (refIndex-1 = -1 is not a valid suggestion).
+        // self-reference at op 0 (refIndex-1 = -1 is not a valid suggestion).
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -3996,7 +4361,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void shouldRejectBackRef_whenReferencesSelf_includesSuggestion() {
-        // Story 14-13 (AC-3-bis): self-reference at op 1 — suggestion points to $0.id.
+        // self-reference at op 1 — suggestion points to $0.id.
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -4022,11 +4387,11 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- executeBulk group/note back-reference tests (Story 9-8 code review) ----
+    // ---- executeBulk group/note back-reference tests ----
 
     @Test
     public void shouldExecuteBulk_shouldNestElementInGroup_viaBackRef() {
-        // Story 9-8: add-group-to-view at [0], add-to-view with parentViewObjectId: "$0.id"
+        // add-group-to-view at [0], add-to-view with parentViewObjectId: "$0.id"
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -4063,7 +4428,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void shouldExecuteBulk_shouldNestGroupInGroup_viaBackRef() {
-        // Story 9-8: add-group-to-view at [0], add-group-to-view at [1] with parentViewObjectId: "$0.id"
+        // add-group-to-view at [0], add-group-to-view at [1] with parentViewObjectId: "$0.id"
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -4100,7 +4465,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void shouldExecuteBulk_shouldNestNoteInGroup_viaBackRef() {
-        // Story 9-8: add-group-to-view at [0], add-note-to-view at [1] with parentViewObjectId: "$0.id"
+        // add-group-to-view at [0], add-note-to-view at [1] with parentViewObjectId: "$0.id"
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -4137,7 +4502,7 @@ public class ArchiModelAccessorImplTest {
                 group.getChildren().get(0) instanceof IDiagramModelNote);
     }
 
-    // ---- addToView tests (Story 7-7) ----
+    // ---- addToView tests ----
 
     @Test
     public void shouldAddElementToView_withExplicitCoordinates() {
@@ -4311,7 +4676,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals(135, result.entity().viewObject().y());
     }
 
-    // ---- addConnectionToView tests (Story 7-7) ----
+    // ---- addConnectionToView tests ----
 
     @Test
     public void shouldAddConnectionToView_basic() {
@@ -4482,7 +4847,7 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- updateViewObject tests (Story 7-8) ----
+    // ---- updateViewObject tests ----
 
     @Test
     public void shouldUpdateViewObject_fullBounds() {
@@ -4559,7 +4924,7 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- updateViewConnection tests (Story 7-8) ----
+    // ---- updateViewConnection tests ----
 
     @Test
     public void shouldUpdateViewConnection_replaceBendpoints() {
@@ -4631,7 +4996,7 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- removeFromView tests (Story 7-8) ----
+    // ---- removeFromView tests ----
 
     @Test
     public void shouldRemoveElementFromView() {
@@ -4735,7 +5100,7 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- clearView tests (Story 8-0c) ----
+    // ---- clearView tests ----
 
     @Test
     public void shouldClearAllVisualElements() {
@@ -4835,7 +5200,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals(2, result.totalOperations());
     }
 
-    // ---- Coordinate conversion tests (Story 8-0d) ----
+    // ---- Coordinate conversion tests ----
 
     @Test
     public void shouldConvertAbsoluteToRelativeBendpoints() {
@@ -4920,7 +5285,7 @@ public class ArchiModelAccessorImplTest {
         assertTrue(absolute.isEmpty());
     }
 
-    // ---- computeAbsoluteCenter tests (Story 10.15) ----
+    // ---- computeAbsoluteCenter tests ----
 
     @Test
     public void shouldComputeAbsoluteCenter_topLevelElement() {
@@ -5013,7 +5378,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals(417, center[1]); // 30 + 360 + 27 (int division: 55/2 = 27)
     }
 
-    // ---- apply-positions tests (Story 9-0a, renamed 11-8) ----
+    // ---- apply-positions tests ----
 
     @Test
     public void applyViewLayout_shouldUpdatePositions() {
@@ -5118,7 +5483,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void applyViewLayout_shouldHandleLargeLayout() {
-        // Verifies no hardcoded operation cap (AC4).
+        // Verifies no hardcoded operation cap.
         // Uses 3 distinct elements with repeated repositions to exceed bulk-mutate's 50 limit.
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
@@ -5289,7 +5654,7 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- Note/group escape conversion tests (Story 9-0b) ----
+    // ---- Note/group escape conversion tests ----
 
     @Test
     public void addNoteToView_shouldConvertEscapedNewlines() {
@@ -5318,7 +5683,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals("Line 1\nLine 2", result.entity().content());
     }
 
-    // ---- getContentBounds tests (Story B16) ----
+    // ---- getContentBounds tests ----
 
     @Test
     public void getContentBounds_shouldReturnBoundsForPopulatedView() {
@@ -5395,7 +5760,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals("Group\nLabel", result.entity().label());
     }
 
-    // ---- Text-bearing box autosize tests (backlog-view-title-note-autosize) ----
+    // ---- Text-bearing box autosize tests ----
     //
     // Cover the new sizing behaviour in prepareAddNoteToView / prepareAddGroupToView when
     // the caller passes height=null. Helper-side math is unit-tested in ElementSizerTest;
@@ -5403,7 +5768,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void addNoteToView_shouldRespectExplicitHeight_whenProvided_AC2() {
-        // AC-2: explicit height passed by caller → bounds exactly as passed (unchanged behaviour).
+        // explicit height passed by caller → bounds exactly as passed (unchanged behaviour).
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -5419,7 +5784,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void addNoteToView_shouldKeepDefaultHeight_whenContentShort_AC3() {
-        // AC-3: empty/one-line content → height clamps to DEFAULT_NOTE_HEIGHT (80) floor.
+        // empty/one-line content → height clamps to DEFAULT_NOTE_HEIGHT (80) floor.
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -5434,7 +5799,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void addNoteToView_shouldFitHeightToLongContent_whenHeightNull_AC1() {
-        // AC-1: 6–8 line title + no explicit height → height grows past DEFAULT_NOTE_HEIGHT.
+        // 6–8 line title + no explicit height → height grows past DEFAULT_NOTE_HEIGHT.
         // Use the Retail Bank prompt's exact title style — long descriptive content at the
         // default 185px width wraps to ~6 lines.
         IArchimateModel model = createTestModel();
@@ -5459,7 +5824,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void addGroupToView_shouldKeepDefaultHeight_whenShortLabel_AC15() {
-        // AC-15 pin: short label + height==null + width==null (default 300×200) MUST
+        // Pin: short label + height==null + width==null (default 300×200) MUST
         // produce setBounds(x, y, w, 200) with 200 literally — byte-identical to today.
         // This guards against the helper silently bumping every default-height group
         // taller via a max(200, labelBandHeight) expression that could return 200+ε.
@@ -5480,10 +5845,10 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void addGroupToView_shouldGrowHeight_whenLongLabel_AC7() {
-        // AC-7: long label + height==null → label band reserves room → resolvedHeight > 200.
+        // long label + height==null → label band reserves room → resolvedHeight > 200.
         // At default group width (300 px), each individually-wide word forces its own wrapped
         // line. With ~14+ wrapped lines the raw band exceeds the 200-px minHeight floor and
-        // the helper returns the actual computed height (no AC-15 short-circuit). 30 long
+        // the helper returns the actual computed height (no short-label short-circuit). 30 long
         // words guarantee enough lines to clear 200 px on the real macOS system font.
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
@@ -5509,7 +5874,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void addGroupToView_shouldRespectExplicitHeight_whenProvided_AC7BackCompat() {
-        // AC-7 back-compat: caller-pinned height wins even when label would otherwise grow it.
+        // back-compat: caller-pinned height wins even when label would otherwise grow it.
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -5586,7 +5951,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals("A\nB", emfNote.getContent());
     }
 
-    // ---- connectionRouterType tests (Story 9-0c) ----
+    // ---- connectionRouterType tests ----
 
     @Test
     public void createView_shouldSetManhattanRouterType() {
@@ -5811,7 +6176,7 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- bulk-mutate connectionRouterType tests (Story 9-0c, AC8) ----
+    // ---- bulk-mutate connectionRouterType tests ----
 
     @Test
     public void bulkMutate_shouldCreateViewWithManhattanRouterType() {
@@ -5862,146 +6227,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals(IDiagramModel.CONNECTION_ROUTER_MANHATTAN, emfView.getConnectionRouterType());
     }
 
-    // ---- layoutView tests (Story 9-1) ----
-
-    @Test
-    public void layoutView_shouldApplyTreeLayout() {
-        IArchimateModel model = createTestModel();
-        stubModelManager.setModels(List.of(model));
-        accessor = createAccessorWithTestDispatcher(model);
-
-        // Place 3 elements on view
-        accessor.addToView("default", "view-001", "ba-001", 50, 50, 120, 55, false, null, null, null);
-        accessor.addToView("default", "view-001", "bp-001", 50, 50, 120, 55, false, null, null, null);
-        accessor.addToView("default", "view-001", "ac-001", 50, 50, 120, 55, false, null, null, null);
-
-        MutationResult<LayoutViewResultDto> result =
-                accessor.layoutView("default", "view-001", "tree", null, null);
-
-        assertNotNull(result);
-        assertEquals("view-001", result.entity().viewId());
-        assertEquals("tree", result.entity().algorithmUsed());
-        assertNull(result.entity().presetUsed());
-        assertEquals(3, result.entity().elementsRepositioned());
-    }
-
-    @Test
-    public void layoutView_shouldApplyPresetLayout() {
-        IArchimateModel model = createTestModel();
-        stubModelManager.setModels(List.of(model));
-        accessor = createAccessorWithTestDispatcher(model);
-
-        accessor.addToView("default", "view-001", "ba-001", 50, 50, 120, 55, false, null, null, null);
-        accessor.addToView("default", "view-001", "bp-001", 200, 50, 120, 55, false, null, null, null);
-
-        MutationResult<LayoutViewResultDto> result =
-                accessor.layoutView("default", "view-001", null, "compact", null);
-
-        assertNotNull(result);
-        assertEquals("grid", result.entity().algorithmUsed());
-        assertEquals("compact", result.entity().presetUsed());
-        assertEquals(2, result.entity().elementsRepositioned());
-    }
-
-    @Test
-    public void layoutView_shouldClearConnectionBendpoints() {
-        IArchimateModel model = createTestModel();
-        stubModelManager.setModels(List.of(model));
-        accessor = createAccessorWithTestDispatcher(model);
-
-        // Place elements and create connection
-        MutationResult<AddToViewResultDto> r1 = accessor.addToView(
-                "default", "view-001", "ac-001", 50, 50, 120, 55, false, null, null, null);
-        MutationResult<AddToViewResultDto> r2 = accessor.addToView(
-                "default", "view-001", "bp-001", 250, 50, 120, 55, false, null, null, null);
-
-        String vo1 = r1.entity().viewObject().viewObjectId();
-        String vo2 = r2.entity().viewObject().viewObjectId();
-
-        accessor.addConnectionToView("default", "view-001", "rel-001",
-                vo1, vo2, null, null, null, null, null);
-
-        MutationResult<LayoutViewResultDto> result =
-                accessor.layoutView("default", "view-001", "tree", null, null);
-
-        assertNotNull(result);
-        assertTrue("Should have cleared connections",
-                result.entity().connectionsCleared() > 0);
-    }
-
-    @Test(expected = ModelAccessException.class)
-    public void layoutView_shouldFailOnViewNotFound() {
-        IArchimateModel model = createTestModel();
-        stubModelManager.setModels(List.of(model));
-        accessor = createAccessorWithTestDispatcher(model);
-
-        accessor.layoutView("default", "nonexistent-view", "tree", null, null);
-    }
-
-    @Test(expected = ModelAccessException.class)
-    public void layoutView_shouldFailOnBothAlgorithmAndPreset() {
-        IArchimateModel model = createTestModel();
-        stubModelManager.setModels(List.of(model));
-        accessor = createAccessorWithTestDispatcher(model);
-
-        accessor.addToView("default", "view-001", "ba-001", 50, 50, 120, 55, false, null, null, null);
-        accessor.layoutView("default", "view-001", "tree", "compact", null);
-    }
-
-    @Test(expected = ModelAccessException.class)
-    public void layoutView_shouldFailOnNeitherAlgorithmNorPreset() {
-        IArchimateModel model = createTestModel();
-        stubModelManager.setModels(List.of(model));
-        accessor = createAccessorWithTestDispatcher(model);
-
-        accessor.addToView("default", "view-001", "ba-001", 50, 50, 120, 55, false, null, null, null);
-        accessor.layoutView("default", "view-001", null, null, null);
-    }
-
-    @Test(expected = ModelAccessException.class)
-    public void layoutView_shouldFailOnEmptyView() {
-        IArchimateModel model = createTestModel();
-        stubModelManager.setModels(List.of(model));
-        accessor = createAccessorWithTestDispatcher(model);
-
-        // View exists but has no elements
-        accessor.layoutView("default", "view-001", "tree", null, null);
-    }
-
-    @Test
-    public void layoutView_shouldFailOnInvalidAlgorithm() {
-        IArchimateModel model = createTestModel();
-        stubModelManager.setModels(List.of(model));
-        accessor = createAccessorWithTestDispatcher(model);
-
-        accessor.addToView("default", "view-001", "ba-001", 50, 50, 120, 55, false, null, null, null);
-        try {
-            accessor.layoutView("default", "view-001", "banana", null, null);
-            fail("Should have thrown ModelAccessException");
-        } catch (ModelAccessException e) {
-            assertTrue("Error should list valid algorithms",
-                    e.getMessage().contains("tree") && e.getMessage().contains("spring"));
-        }
-    }
-
-    @Test
-    public void layoutView_shouldPassSpacingToAlgorithm() {
-        IArchimateModel model = createTestModel();
-        stubModelManager.setModels(List.of(model));
-        accessor = createAccessorWithTestDispatcher(model);
-
-        accessor.addToView("default", "view-001", "ba-001", 50, 50, 120, 55, false, null, null, null);
-        accessor.addToView("default", "view-001", "bp-001", 200, 50, 120, 55, false, null, null, null);
-
-        MutationResult<LayoutViewResultDto> result =
-                accessor.layoutView("default", "view-001", "grid", null,
-                        Map.of("spacing", 80));
-
-        assertNotNull(result);
-        assertEquals(2, result.entity().elementsRepositioned());
-    }
-
-    // ---- Layout within group tests (Story 9-9) ----
+    // ---- Layout within group tests ----
 
     @Test
     public void layoutWithinGroup_shouldApplyRowArrangement() {
@@ -6280,7 +6506,7 @@ public class ArchiModelAccessorImplTest {
                 "row", null, -5, null, null, false, false, null, false);
     }
 
-    // ---- autoWidth tests (Story 11-14) ----
+    // ---- autoWidth tests ----
 
     @Test
     public void layoutWithinGroup_shouldAutoWidthComputeDifferentWidths() {
@@ -6534,11 +6760,11 @@ public class ArchiModelAccessorImplTest {
                 ArchiModelAccessorImpl.DEFAULT_ELEMENT_WIDTH, width);
     }
 
-    // ---- Grid columns tests (Story 11-18) ----
+    // ---- Grid columns tests ----
 
     @Test
     public void layoutWithinGroup_shouldUseExplicitColumnCount() {
-        // AC1: explicit columns=2 with 3 elements → 2 columns, 2 rows
+        // explicit columns=2 with 3 elements → 2 columns, 2 rows
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -6562,7 +6788,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void layoutWithinGroup_shouldCapColumnsAtElementCount() {
-        // AC1: columns=20 with 3 elements → capped to 3 (single row)
+        // columns=20 with 3 elements → capped to 3 (single row)
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -6586,7 +6812,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void layoutWithinGroup_shouldAutoDetectColumnsWhenNull() {
-        // AC1: columns=null → auto-detect from group width (no regression)
+        // columns=null → auto-detect from group width (no regression)
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -6624,11 +6850,11 @@ public class ArchiModelAccessorImplTest {
                 "grid", null, null, null, null, false, false, 0, false);
     }
 
-    // ---- Recursive resize tests (Story 11-18) ----
+    // ---- Recursive resize tests ----
 
     @Test
     public void layoutWithinGroup_shouldRecursivelyResizeParentGroup() {
-        // AC2: recursive=true resizes ancestor groups
+        // recursive=true resizes ancestor groups
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -6658,7 +6884,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void layoutWithinGroup_shouldNotResizeAncestorsWhenRecursiveFalse() {
-        // AC2: recursive=false → only target group resized
+        // recursive=false → only target group resized
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -6685,7 +6911,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void layoutWithinGroup_shouldHandleTopLevelGroupRecursive() {
-        // AC2: top-level group with recursive=true → no ancestors to resize
+        // top-level group with recursive=true → no ancestors to resize
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -6706,10 +6932,10 @@ public class ArchiModelAccessorImplTest {
         assertEquals("No ancestors for top-level group", 0, result.entity().ancestorsResized());
     }
 
-    // ---- layoutWithinGroup polymorphic container extension (Story C1) ----
+    // ---- layoutWithinGroup polymorphic container extension ----
 
     /**
-     * AC-1: ApplicationComponent containing ApplicationFunctions accepts row arrangement.
+     * ApplicationComponent containing ApplicationFunctions accepts row arrangement.
      * Replaces the v1.5 VIEW_OBJECT_NOT_FOUND rejection with successful layout.
      */
     @Test
@@ -6784,7 +7010,7 @@ public class ArchiModelAccessorImplTest {
     }
 
     /**
-     * AC-1-tris: ApplicationComponent containing ApplicationFunctions accepts grid arrangement
+     * ApplicationComponent containing ApplicationFunctions accepts grid arrangement
      * with explicit columns=2.
      */
     @Test
@@ -6848,7 +7074,7 @@ public class ArchiModelAccessorImplTest {
     }
 
     /**
-     * AC-2: Node containing SystemSoftware + Artifacts accepts grid arrangement (auto-columns).
+     * Node containing SystemSoftware + Artifacts accepts grid arrangement (auto-columns).
      */
     @Test
     public void layoutWithinGroup_shouldAcceptNodeContainer_gridArrangement() {
@@ -6908,7 +7134,7 @@ public class ArchiModelAccessorImplTest {
     }
 
     /**
-     * AC-5: A note view-object is rejected as a container with VIEW_OBJECT_NOT_FOUND.
+     * A note view-object is rejected as a container with VIEW_OBJECT_NOT_FOUND.
      * Notes implement IDiagramModelContainer in EMF but are excluded per project-context.md.
      */
     @Test
@@ -6938,7 +7164,7 @@ public class ArchiModelAccessorImplTest {
     }
 
     /**
-     * AC-4: An ArchiMate-element container with no children rejects with INVALID_PARAMETER.
+     * An ArchiMate-element container with no children rejects with INVALID_PARAMETER.
      * Message generalized from "Group has no children" to "Container has no children".
      */
     @Test
@@ -6973,7 +7199,7 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- arrange-groups tests (Story 11-20) ----
+    // ---- arrange-groups tests ----
 
     private IArchimateModel createTestModelWithGroups(int groupCount, int groupWidth, int groupHeight) {
         IArchimateFactory factory = IArchimateFactory.eINSTANCE;
@@ -7279,7 +7505,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals(300, g3.getBounds().getWidth());
     }
 
-    // ---- arrange-groups direction tests (Story B18) ----
+    // ---- arrange-groups direction tests ----
 
     @Test
     public void arrangeGroups_topologyHorizontal_shouldPositionInRow() {
@@ -7519,7 +7745,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals(400, children.get(2).getBounds().getY());
     }
 
-    // ---- Story backlog-arrange-groups-standalone-element-lane tests (Task 3.1-3.4) ----
+    // ---- arrange-groups standalone-element-lane tests ----
 
     /**
      * Test fixture builder for the View-H-shape (hub-and-spoke):
@@ -7600,7 +7826,7 @@ public class ArchiModelAccessorImplTest {
     }
 
     /**
-     * AC-1 View H equivalent: hub-and-spoke. `arrange-groups arrangement: "topology",
+     * View H equivalent: hub-and-spoke. `arrange-groups arrangement: "topology",
      * direction: "horizontal"` places the standalone hub Node centred between the two
      * groups in the reserved inter-group lane with {@code resolvedSpacing} clearance.
      */
@@ -7664,7 +7890,7 @@ public class ArchiModelAccessorImplTest {
     }
 
     /**
-     * AC-2 View J equivalent: technology-deployment with a standalone Path element
+     * View J equivalent: technology-deployment with a standalone Path element
      * between zones. The Path bounds end up between zone-A right-edge and zone-B
      * left-edge with no overlap. Routing quality verification is owner-side empirical
      * post-merge (the unit lane cannot run the full routing pipeline without OSGi).
@@ -7751,7 +7977,7 @@ public class ArchiModelAccessorImplTest {
         IDiagramModelObject vpnPlaced = findChildById(view, "vo-vpn");
 
         // Path lies geometrically BETWEEN zone-A right-edge and zone-B left-edge, non-overlapping.
-        // AC-2 geometric assertion (the dev-lane contract per owner ratification).
+        // Geometric assertion (the unit-test contract).
         int zaRight = zaPlaced.getBounds().getX() + zaPlaced.getBounds().getWidth();
         int zbLeft = zbPlaced.getBounds().getX();
         int vpnLeft = vpnPlaced.getBounds().getX();
@@ -7766,10 +7992,10 @@ public class ArchiModelAccessorImplTest {
     }
 
     /**
-     * AC-3 back-compat: a view with zero qualifying standalone elements (only groups
+     * Back-compat: a view with zero qualifying standalone elements (only groups
      * and a Note) produces the same group positions as the pre-fix implementation.
-     * DTO may gain a {@code standaloneElementsPlaced=0} field per the owner-ratified
-     * AC-3 refinement; the contract pin is GROUP positions, not full DTO equality.
+     * DTO may gain a {@code standaloneElementsPlaced=0} field; the contract pin is
+     * GROUP positions, not full DTO equality.
      */
     @Test
     public void arrangeGroups_backCompatNoQualifier_byteIdenticalGroupPositions() {
@@ -7834,7 +8060,7 @@ public class ArchiModelAccessorImplTest {
 
         assertNotNull(result);
         assertEquals(2, result.entity().groupsPositioned());
-        // AC-3 contract: zero qualifiers placed.
+        // Contract: zero qualifiers placed.
         assertEquals("Note is not a qualifier; zero placements expected",
                 0, result.entity().standaloneElementsPlaced());
 
@@ -7856,7 +8082,7 @@ public class ArchiModelAccessorImplTest {
     }
 
     /**
-     * AC-6 mode='grouped' parity: the embedded {@code computeGroupedLayoutPass}
+     * mode='grouped' parity: the embedded {@code computeGroupedLayoutPass}
      * site at {@code ArchiModelAccessorImpl.java:4867+} uses the same shared
      * helper as the user-facing {@code arrangeGroups} path. This pin asserts
      * the helper is invoked from both call sites — proven structurally by both
@@ -7864,8 +8090,7 @@ public class ArchiModelAccessorImplTest {
      * {@code assignToGaps} / {@code computeLaneSizes} / {@code placeQualifiers}.
      *
      * <p>Live {@code auto-layout-and-route mode: "grouped"} integration verification
-     * is owner-side empirical post-merge per the AC-2 / Task-0.9 ratification
-     * ("JUnit pins are the dev-lane contract"). This pin verifies the parity
+     * is empirical (the JUnit pins are the contract). This pin verifies the parity
      * contract surface via the helper's classify+placeQualifiers behaviour on
      * the View-H-shape fixture with the SAME inputs that
      * computeGroupedLayoutPass passes (using virtualGroupBounds dimensions
@@ -8276,7 +8501,7 @@ public class ArchiModelAccessorImplTest {
         return model;
     }
 
-    // ---- Folder-layer validation tests (Story 10-13) ----
+    // ---- Folder-layer validation tests ----
 
     @Test
     public void shouldReturnStrategyFolderType_forCapability() {
@@ -8521,7 +8746,7 @@ public class ArchiModelAccessorImplTest {
         return model;
     }
 
-    // ---- Story 11-27: computeOptimizeGroupOrderPass / computeAutoRoutePass tests ----
+    // ---- computeOptimizeGroupOrderPass / computeAutoRoutePass tests ----
 
     /**
      * Helper: creates a view with two groups, each containing 3 elements,
@@ -8865,7 +9090,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals("ELK", merged.getLabel());
     }
 
-    // ---- findLimitingFactor / getRemediation (backlog-b13 code review) ----
+    // ---- findLimitingFactor / getRemediation ----
 
     @Test
     public void findLimitingFactor_shouldSelectWorstMetric() {
@@ -8908,8 +9133,8 @@ public class ArchiModelAccessorImplTest {
     @Test
     public void getRemediation_shouldReturnSpecificTextForEachFactor() {
         // Verify all 16 known factors produce non-null, distinct remediation texts
-        // (existing 6: backlog-b13; new 8: backlog-iteration-logic-realign-with-m6-tiers AC-4/AC-9;
-        //  +2 cleanup: coincidentSegments + nonOrthogonalTerminals — code-review M2 finding 2026-04-29)
+        // (existing 6; new 8 for the M6-tiers realignment;
+        //  +2 cleanup: coincidentSegments + nonOrthogonalTerminals — code-review finding 2026-04-29)
         String[] factors = {"labelOverlaps", "overlaps", "edgeCrossings",
                 "passThroughs", "spacing", "alignment",
                 "boundaryViolations", "parentLabelObscured", "offCanvas", "labelTruncations",
@@ -8969,14 +9194,14 @@ public class ArchiModelAccessorImplTest {
     }
 
     /**
-     * Builds a minimal AssessLayoutResultDto for tier-weighted score tests (B62-4).
+     * Builds a minimal AssessLayoutResultDto for tier-weighted score tests.
      * Accepts all Tier-1/2/3 metric fields needed for scoring and veto tests.
-     * <p>5-arg overload: existing B38-era callers — M6 metrics + Tier-1L promotions
+     * <p>5-arg overload: existing earlier callers — M6 metrics + Tier-1L promotions
      * default to "no defects" (interiorTerminationCount=0, zigzagCount=0,
      * connectionEdgeCoincidenceCount=0, hubPortQualityScore=1.0,
      * boundaryViolations=[], parentLabelObscuredCount=0, labelOverlapCount=0,
      * labelTruncationCount=0). Existing tests' weight-arithmetic is unchanged in
-     * structure but assertion values are re-baselined per backlog-iteration-logic-realign-with-m6-tiers AC-5.
+     * structure but assertion values are re-baselined for the M6-tiers realignment.
      */
     private AssessLayoutResultDto buildScoringAssessment(
             int overlapCount, List<String> connectionPassThroughs,
@@ -8991,9 +9216,8 @@ public class ArchiModelAccessorImplTest {
     }
 
     /**
-     * Builds a minimal AssessLayoutResultDto for M6-aware tier-weighted score + veto tests
-     * (backlog-iteration-logic-realign-with-m6-tiers AC-6, AC-7). Accepts every metric input
-     * the M6 weight schedule + Tier-1 veto consume.
+     * Builds a minimal AssessLayoutResultDto for M6-aware tier-weighted score + veto tests.
+     * Accepts every metric input the M6 weight schedule + Tier-1 veto consume.
      */
     private AssessLayoutResultDto buildScoringAssessmentWithM6(
             int overlapCount, List<String> connectionPassThroughs,
@@ -9020,7 +9244,7 @@ public class ArchiModelAccessorImplTest {
                 1.0, List.of());
     }
 
-    // ---- tierWeightedScore / hasTier1Regression (B62-4) ----
+    // ---- tierWeightedScore / hasTier1Regression ----
 
     @Test
     public void tierWeightedScore_shouldWeightTier1HigherThanTier2() {
@@ -9100,7 +9324,7 @@ public class ArchiModelAccessorImplTest {
                 ArchiModelAccessorImpl.hasTier1Regression(current, best));
     }
 
-    // ---- M6 weight-coverage (backlog-iteration-logic-realign-with-m6-tiers AC-6) ----
+    // ---- M6 weight-coverage ----
 
     @Test
     public void tierWeightedScore_shouldWeightInteriorTerminationsAsTier1R() {
@@ -9154,7 +9378,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals(0, ArchiModelAccessorImpl.tierWeightedScore(goodHubPort));
     }
 
-    // ---- M6 veto-coverage (backlog-iteration-logic-realign-with-m6-tiers AC-7) ----
+    // ---- M6 veto-coverage ----
 
     @Test
     public void hasTier1Regression_shouldDetectInteriorTerminationRegression() {
@@ -9227,7 +9451,7 @@ public class ArchiModelAccessorImplTest {
                 ArchiModelAccessorImpl.hasTier1Regression(current, best));
     }
 
-    // ---- getMetricCount mapping (B62-5) ----
+    // ---- getMetricCount mapping ----
 
     @Test
     public void getMetricCount_shouldReturnCorrectCount_forEachFactor() {
@@ -9267,7 +9491,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals(0, ArchiModelAccessorImpl.getMetricCount("spacing", assessment));
         assertEquals(0, ArchiModelAccessorImpl.getMetricCount("alignment", assessment));
 
-        // M6 + Tier-1L promotions (backlog-iteration-logic-realign-with-m6-tiers AC-8)
+        // M6 + Tier-1L promotions
         assertEquals(1, ArchiModelAccessorImpl.getMetricCount("boundaryViolations", assessment));
         assertEquals(2, ArchiModelAccessorImpl.getMetricCount("parentLabelObscured", assessment));
         assertEquals(2, ArchiModelAccessorImpl.getMetricCount("offCanvas", assessment));
@@ -9304,7 +9528,7 @@ public class ArchiModelAccessorImplTest {
                 // create-element / create-relationship use inline specializations
                 // (ApplySpecializationCommand + CreateXxxCommand pair). Calling .execute()
                 // directly on the inner compound would re-trigger IEditorModelManager's
-                // static-init bomb. Recurse so we always reach leaf commands. (B54 follow-up)
+                // static-init bomb. Recurse so we always reach leaf commands.
                 if (command instanceof CompoundCommand compound) {
                     for (Object cmd : compound.getCommands()) {
                         executeDecomposed((Command) cmd);
@@ -9314,6 +9538,11 @@ public class ArchiModelAccessorImplTest {
                 }
             }
         };
+        // MutationDispatcher's default approvalModeProvider is fail-safe () -> true
+        // (approval ON). In production the OSGi bootstrap replaces it with the human-owned
+        // ApprovalMode reader; here we mirror the GUI-attached default (approval OFF) so mutation
+        // tests execute immediately. Approval-mode tests override this with () -> true explicitly.
+        testDispatcher.setApprovalModeProvider(() -> false);
         return new ArchiModelAccessorImpl(stubModelManager, testDispatcher);
     }
 
@@ -9476,11 +9705,11 @@ public class ArchiModelAccessorImplTest {
         @Override public EList<IProperty> getProperties() { return new BasicEList<>(); }
     }
 
-    // ---- B19: Orphaned Relationship Structural Fix tests ----
+    // ---- Orphaned Relationship Structural Fix tests ----
 
     @Test
     public void shouldSkipOrphanedRelationship_whenAutoConnecting() {
-        // B19 AC-2: auto-connect containment guard
+        // auto-connect containment guard
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -9513,7 +9742,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void shouldSkipOrphanedRelationship_whenAutoConnectViewCalled() {
-        // B19 AC-2: auto-connect-view tool containment guard (distinct from addToView autoConnect)
+        // auto-connect-view tool containment guard (distinct from addToView autoConnect)
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -9545,7 +9774,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void shouldHandleOrphanedRelationship_whenDeletingElement() {
-        // B19 AC-6: delete element NPE guard
+        // delete element NPE guard
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -9572,7 +9801,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void shouldNotConnectRelationship_beforeCommandExecution() {
-        // B19 AC-1: deferred connect — verify via createRelationship
+        // deferred connect — verify via createRelationship
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
 
@@ -9614,7 +9843,7 @@ public class ArchiModelAccessorImplTest {
         }
     }
 
-    // ---- resizeElementsToFit tests (Story B48) ----
+    // ---- resizeElementsToFit tests ----
 
     @Test
     public void resizeElementsToFit_shouldResizeLongNameElements() {
@@ -9696,11 +9925,11 @@ public class ArchiModelAccessorImplTest {
         assertEquals(1, result.entity().resizedCount() + result.entity().unchangedCount());
     }
 
-    // ---- B50: Dynamic label height / child shift tests ----
+    // ---- Dynamic label height / child shift tests ----
 
     @Test
     public void resizeElementsToFit_shouldShiftChildrenDown_whenParentLabelMultiLine() {
-        // B50 AC2: Parent "Payment Processing Engine" at narrow width → multi-line label
+        // Parent "Payment Processing Engine" at narrow width → multi-line label
         // Child at y=25 should be shifted down to clear the label area
         IArchimateModel model = createTestModelForResizeB50();
         stubModelManager.setModels(List.of(model));
@@ -9733,7 +9962,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void resizeElementsToFit_shouldNotShiftChildren_whenParentLabelSingleLine() {
-        // B50 AC5: Short parent name at wide width → single line → ~25px label height
+        // Short parent name at wide width → single line → ~25px label height
         // Child at y=25 should NOT be shifted
         IArchimateModel model = createTestModelForResizeB50();
         stubModelManager.setModels(List.of(model));
@@ -9764,7 +9993,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void resizeElementsToFit_shouldHandleNestedContainment_withDynamicLabelHeight() {
-        // B50 AC6: Grandparent with multi-line label → inner parent also gets dynamic height
+        // Grandparent with multi-line label → inner parent also gets dynamic height
         IArchimateModel model = createTestModelForResizeB50();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -9801,7 +10030,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void resizeElementsToFit_shouldNeverShrinkParentHeight() {
-        // B50 AC3: Parent already taller than needed → height must not decrease
+        // Parent already taller than needed → height must not decrease
         IArchimateModel model = createTestModelForResizeB50();
         stubModelManager.setModels(List.of(model));
         accessor = createAccessorWithTestDispatcher(model);
@@ -9917,17 +10146,16 @@ public class ArchiModelAccessorImplTest {
     }
 
     // ============================================================
-    // Backlog W2 — cloud-icon container-node-collision (story
-    // `backlog-cloud-icon-container-node-collision`, 2026-05-20).
+    // W2 — cloud-icon container-node-collision (2026-05-20).
     // Accessor-level integration pins for the icon-band parent-resize
-    // lever at the CREATION moment (`prepareAddToView`, Task-1.2) AND
-    // the MUTATION moment (`prepareUpdateViewObject`, Task-1.7) — AC-1,
-    // AC-2, AC-14 Case A + Case B, AC-15.
+    // lever at the CREATION moment (`prepareAddToView`) AND
+    // the MUTATION moment (`prepareUpdateViewObject`), covering
+    // Case A + Case B.
     // ============================================================
 
     @Test
     public void w2_creationMoment_growsParentByIconBandWhenChildOccupiesBottomLeft() {
-        // AC-1 CREATION pin (Option A path): parent has `imagePosition:bottom-left`
+        // CREATION pin (Option A path): parent has `imagePosition:bottom-left`
         // set at creation; child is added with `parentViewObjectId = parent.id`
         // and lands in the bottom-left corner → parent grows by ICON_BAND_HEIGHT.
         IArchimateModel model = createTestModel();
@@ -9959,7 +10187,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void w2_mutationMoment_growsParentByIconBandWhenSettingBottomLeftOnContainerWithChildren() {
-        // AC-15 MUTATION pin (Option A path): parent already has a child placed;
+        // MUTATION pin (Option A path): parent already has a child placed;
         // a later update-view-object call sets `imagePosition:bottom-left`
         // → the MUTATION-moment lever grows the parent by ICON_BAND_HEIGHT.
         IArchimateModel model = createTestModel();
@@ -9986,7 +10214,7 @@ public class ArchiModelAccessorImplTest {
                 null, null, null, null, null,
                 null, new ImageParams(null, "bottom-left", null), null);
 
-        // Parent grew by exactly ICON_BAND_HEIGHT — AC-15 + AC-14 Case B firing path.
+        // Parent grew by exactly ICON_BAND_HEIGHT — Case B firing path.
         assertEquals("W2 MUTATION moment: parent grows by ICON_BAND_HEIGHT (=24)",
                 100 + ImageHelper.ICON_BAND_HEIGHT,
                 parent.getBounds().getHeight());
@@ -9997,7 +10225,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void w2_leafElementWithBottomLeftIcon_isByteIdenticalToToday() {
-        // AC-2 leaf no-regression pin: a leaf element with `imagePosition:bottom-left`
+        // leaf no-regression pin: a leaf element with `imagePosition:bottom-left`
         // (NO `parentViewObjectId`) must produce byte-identical bounds — the W2
         // lever short-circuits because `parentContainer` resolves to the view
         // itself (not a real `IDiagramModelObject` parent).
@@ -10021,7 +10249,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void w2_containerWithoutImage_isByteIdenticalToToday_AC14CaseA() {
-        // AC-14 Case A pin: parent has NO image at all (no path, no position, no showIcon)
+        // Case A pin: parent has NO image at all (no path, no position, no showIcon)
         // → the W2 lever short-circuits BEFORE the predicate even runs.
         // Parent + nested child bounds are bit-for-bit identical to today.
         IArchimateModel model = createTestModel();
@@ -10046,7 +10274,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void w2_containerWithIconButCornerEmpty_isByteIdenticalToToday_AC14CaseB() {
-        // AC-14 Case B pin: parent has `imagePosition:bottom-left` AND a child
+        // Case B pin: parent has `imagePosition:bottom-left` AND a child
         // placed entirely in the TOP half (corner empty) → predicate returns
         // false → lever short-circuits → bounds bit-for-bit identical to today.
         // This test catches a silent `max(...)` regression: the assertion is
@@ -10075,7 +10303,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void w2_mutationMoment_doesNotFireWhenContainerHasNoChildren() {
-        // AC-14 Case B at the MUTATION moment: setting `imagePosition:bottom-left`
+        // Case B at the MUTATION moment: setting `imagePosition:bottom-left`
         // on an EMPTY container (no children yet) → vacuous predicate → no fire
         // → bounds byte-identical.
         IArchimateModel model = createTestModel();
@@ -10100,7 +10328,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void w2_creationMoment_doesNotFireForNonCornerImagePosition() {
-        // AC-6 byte-identical: parent with non-corner imagePosition (middle-right=5)
+        // byte-identical: parent with non-corner imagePosition (middle-right=5)
         // → W2 lever does NOT fire → parent bounds unchanged.
         IArchimateModel model = createTestModel();
         stubModelManager.setModels(List.of(model));
@@ -10121,7 +10349,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void w2_creationMoment_doesNotFireForDefaultTopRightImagePosition() {
-        // AC-2 / AC-6: parent without any image params at all means imagePosition
+        // parent without any image params at all means imagePosition
         // reads back as the Archi default (2 = top-right). The W2 accessor lever
         // restricts firing to non-default corners (6, 8) — so even when a child
         // would overlap the top-right area, byte-identical bounds are preserved.
@@ -10145,7 +10373,7 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void w2_mutationMoment_growsParentByIconBandForBottomRightIcon() {
-        // AC-1 symmetric to bottom-left: bottom-right (position 8) fires the
+        // symmetric to bottom-left: bottom-right (position 8) fires the
         // same lever via the same predicate — band at (parentW-24)..parentW,
         // (parentH-24)..parentH.
         IArchimateModel model = createTestModel();
@@ -10194,11 +10422,11 @@ public class ArchiModelAccessorImplTest {
 
     @Test
     public void w2_creationMoment_AC3_grandparentGroupCascadesWhenIconBandGrowthExceedsGrandparentBounds() {
-        // Review finding M-1 (Sonnet 4.6 adversarial review, 2026-05-20): pin that
+        // Review finding (adversarial review, 2026-05-20): pin that
         // the CREATION-moment lever flows through `resizeParentGroupIfNeeded` so
         // the grandparent group grows when the now-taller icon-bearing parent
-        // would exceed grandparent bounds. Mirrors the AC-3 cascade requirement
-        // and the existing H6 MUTATION-moment cascade behaviour.
+        // would exceed grandparent bounds. Mirrors the cascade requirement
+        // and the existing MUTATION-moment cascade behaviour.
         //
         // 3-level nesting: grandparent group → icon-bearing parent (bottom-left)
         //                                    → new child in the icon band.
@@ -10235,7 +10463,7 @@ public class ArchiModelAccessorImplTest {
         assertEquals("W2 CREATION moment grew the icon-bearing parent by ICON_BAND_HEIGHT",
                 100 + ImageHelper.ICON_BAND_HEIGHT, parent.getBounds().getHeight());
 
-        // M-1 fix verification: grandparent cascaded — its height grew to fit the
+        // Cascade fix verification: grandparent cascaded — its height grew to fit the
         // now-taller parent. Required grandparent height ≥ parent.y (10) +
         // parent.h (124) + DEFAULT_GROUP_PADDING (10) = 144.
         assertTrue("Grandparent group cascaded: height grew to >= 144 (was 120 pre-W2)",

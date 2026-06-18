@@ -33,7 +33,7 @@ import net.vheerden.archi.mcp.response.dto.RelationshipDto;
 import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
- * Handler for search tools: search-elements (Story 3.1), search-relationships (Story C1).
+ * Handler for search tools: search-elements, search-relationships.
  *
  * <p>This handler follows the same pattern established by
  * {@link ModelQueryHandler} in Stories 2.2/2.3 and
@@ -120,7 +120,7 @@ public class SearchHandler {
 
     /**
      * Registers all tools provided by this handler with the command registry.
-     * Registers: search-elements (Story 3.1), search-relationships (Story C1).
+     * Registers: search-elements, search-relationships.
      */
     public void registerTools() {
         registry.registerTool(buildSearchElementsSpec());
@@ -479,7 +479,7 @@ public class SearchHandler {
 
             String modelVersion = accessor.getModelVersion();
 
-            // Model version change detection — call ONCE (Story 5.3 + 5.4)
+            // Model version change detection — call ONCE
             boolean modelChanged = false;
             if (sessionManager != null && sessionId != null) {
                 modelChanged = sessionManager.checkModelVersionChanged(sessionId, modelVersion);
@@ -489,7 +489,7 @@ public class SearchHandler {
                 }
             }
 
-            // Cache check (Story 5.4) — includes offset/limit for pagination, format for different envelopes
+            // Cache check — includes offset/limit for pagination, format for different envelopes
             // Summary format ignores pagination, so use 0 for offset/limit to share cache entries
             String cacheKey = CacheKeyBuilder.buildCacheKey("search", effectiveQuery, "type", effectiveType,
                     "layer", effectiveLayer, "specialization", effectiveSpecialization,
@@ -676,14 +676,14 @@ public class SearchHandler {
                 meta.put("warning", warningMessage);
             }
 
-            // Add modelChanged flag if version changed (Story 5.3) — before serialization
+            // Add modelChanged flag if version changed — before serialization
             if (modelChanged) {
                 ResponseFormatter.addModelChangedFlag(envelope);
             }
 
             String jsonResult = formatter.toJsonString(envelope);
 
-            // Store in cache (Story 5.4) — skip when model changed (cache already invalidated)
+            // Store in cache — skip when model changed (cache already invalidated)
             if (sessionManager != null && sessionId != null && !modelChanged) {
                 sessionManager.putCacheEntry(sessionId, cacheKey, jsonResult);
                 logger.debug("Cache miss, storing result for key: {}", cacheKey);
@@ -709,7 +709,7 @@ public class SearchHandler {
         }
     }
 
-    // ---- search-relationships (Story C1) ----
+    // ---- search-relationships ----
 
     private McpServerFeatures.SyncToolSpecification buildSearchRelationshipsSpec() {
         Map<String, Object> properties = new LinkedHashMap<>();

@@ -13,7 +13,7 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
  * Tests for {@link CorridorOccupancyTracker} — corridor occupancy tracking
- * for inter-connection aware A* routing (B47). Pure-geometry tests, no EMF/SWT required.
+ * for inter-connection aware A* routing. Pure-geometry tests, no EMF/SWT required.
  */
 public class CorridorOccupancyTrackerTest {
 

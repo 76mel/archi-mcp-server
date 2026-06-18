@@ -16,7 +16,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * Tests for {@link MutationContext} approval and proposal management (Story 7-6).
+ * Tests for {@link MutationContext} approval and proposal management.
  *
  * <p>MutationContext is package-private, so this test class resides in the
  * same package within the test fragment. Uses a StubCommand for proposal
@@ -31,27 +31,9 @@ public class MutationContextTest {
         context = new MutationContext();
     }
 
-    // ---- Approval flag tests ----
-
-    @Test
-    public void shouldDefaultApprovalToFalse() {
-        assertFalse(context.isApprovalRequired());
-    }
-
-    @Test
-    public void shouldSetApprovalRequired() {
-        context.setApprovalRequired(true);
-
-        assertTrue(context.isApprovalRequired());
-    }
-
-    @Test
-    public void shouldDisableApproval() {
-        context.setApprovalRequired(true);
-        context.setApprovalRequired(false);
-
-        assertFalse(context.isApprovalRequired());
-    }
+    // ---- Approval flag tests removed: the approval bit is no longer per-session ----
+    // It is a single global, human-owned switch read via ApprovalModeProvider in
+    // MutationDispatcher (see MutationDispatcherTest). MutationContext stores only proposals.
 
     // ---- Proposal storage tests ----
 
@@ -123,16 +105,14 @@ public class MutationContextTest {
     }
 
     @Test
-    public void shouldPreserveApprovalStateAcrossBatchReset() {
-        context.setApprovalRequired(true);
+    public void shouldPreserveProposalsAcrossBatchReset() {
         context.storeProposal(makeProposal("create-element", "desc"));
 
         // Simulate batch cycle
         context.beginBatch("test batch");
         context.reset();
 
-        // Approval state should survive
-        assertTrue(context.isApprovalRequired());
+        // Pending proposals should survive batch commit/rollback
         assertEquals(1, context.getPendingCount());
     }
 
@@ -150,12 +130,94 @@ public class MutationContextTest {
         }
     }
 
+    // ---- batch intent ----
+
+    @Test
+    public void shouldRecordBatchIntent_distinctFromDescription_andClearOnReset() {
+        assertNull(context.getBatchIntent());
+        context.beginBatch("undo-history label", "Wire the fraud-check path into checkout");
+        // Intent is kept separate from the undo-history description — never merged.
+        assertEquals("Wire the fraud-check path into checkout", context.getBatchIntent());
+        context.reset();
+        assertNull("reset clears batch intent", context.getBatchIntent());
+    }
+
+    @Test
+    public void shouldLeaveBatchIntentNull_whenBeginBatchHasNoIntent() {
+        context.beginBatch("undo-history label");
+        assertNull(context.getBatchIntent());
+    }
+
+    @Test
+    public void shouldPreserveEffectAndIntent_whenStoringProposal() {
+        PendingProposal p = new PendingProposal(
+                null, "create-relationship", "Create ServingRelationship: id-src → id-tgt",
+                new StubCommand("x"), "entity", null, Map.of(), "Valid", Instant.now(),
+                "Create ServingRelationship: 'A' → 'B'", "Wire the fraud-check path");
+        String id = context.storeProposal(p);
+
+        PendingProposal stored = context.getProposal(id);
+        assertEquals(id, stored.proposalId());
+        assertEquals("Create ServingRelationship: 'A' → 'B'", stored.effectDescription());
+        assertEquals("Wire the fraud-check path", stored.intent());
+    }
+
+    @Test
+    public void shouldLeaveEffectAndIntentNull_forBackCompatProposal() {
+        String id = context.storeProposal(makeProposal("create-element", "Create Foo"));
+        PendingProposal stored = context.getProposal(id);
+        assertNull(stored.effectDescription());
+        assertNull(stored.intent());
+    }
+
+    // ---- TTL expiry predicate + sweep ----
+
+    @Test
+    public void shouldExpire_whenOlderThanTtl() {
+        Instant created = Instant.parse("2026-01-01T00:00:00Z");
+        Instant now = created.plus(java.time.Duration.ofMinutes(31));
+        assertTrue(MutationContext.isExpired(created, now, java.time.Duration.ofMinutes(30)));
+    }
+
+    @Test
+    public void shouldNotExpire_whenWithinTtl() {
+        Instant created = Instant.parse("2026-01-01T00:00:00Z");
+        Instant now = created.plus(java.time.Duration.ofMinutes(29));
+        assertFalse(MutationContext.isExpired(created, now, java.time.Duration.ofMinutes(30)));
+    }
+
+    @Test
+    public void shouldTreatNullCreatedAt_asNotExpired() {
+        assertFalse(MutationContext.isExpired(null, Instant.now(), java.time.Duration.ofMinutes(30)));
+    }
+
+    @Test
+    public void shouldSweepExpiredProposals_keepingFreshOnes() {
+        Instant now = Instant.now();
+        String oldId = context.storeProposal(
+                makeProposalAt("create-element", "old", now.minus(java.time.Duration.ofHours(1))));
+        String freshId = context.storeProposal(
+                makeProposalAt("create-element", "fresh", now));
+
+        List<String> swept = context.sweepExpired(now, java.time.Duration.ofMinutes(30));
+
+        assertEquals("only the abandoned proposal is swept", List.of(oldId), swept);
+        assertNull("expired proposal removed", context.getProposal(oldId));
+        assertNotNull("fresh proposal retained", context.getProposal(freshId));
+    }
+
     // ---- Helpers ----
 
     private PendingProposal makeProposal(String tool, String description) {
         return new PendingProposal(
                 null, tool, description, new StubCommand(description),
                 "entity", null, Map.of("key", "value"), "Valid", Instant.now());
+    }
+
+    private PendingProposal makeProposalAt(String tool, String description, Instant createdAt) {
+        return new PendingProposal(
+                null, tool, description, new StubCommand(description),
+                "entity", null, Map.of("key", "value"), "Valid", createdAt);
     }
 
     private static class StubCommand extends Command {

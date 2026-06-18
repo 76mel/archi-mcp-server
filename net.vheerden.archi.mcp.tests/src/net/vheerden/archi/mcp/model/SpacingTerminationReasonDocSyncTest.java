@@ -32,20 +32,18 @@ import org.junit.Test;
  * {@code net.vheerden.archi.mcp.handlers.ResourceHandler} at startup; served as
  * {@code archimate://prompts/routing-preconditions-checklist}).</p>
  *
- * <p><strong>Why this exists.</strong> Story
- * {@code backlog-reroute-degraded-baseline-doc-and-false-positive} (2026-05-20)
+ * <p><strong>Why this exists.</strong> This work
  * was queued because Retail Bank test 2026-05-19 surfaced a doc-surface gap:
  * the 9th termination reason ({@code reroute_degraded_input_baseline}, shipped
  * in row-703 Decision-A.1.3 = α''' Fix-1 RC-1 / Session 11 Task 10.5) was
  * absent from the checklist's "eight branches" table, and the LLM following
  * the prescribed workflow misdiagnosed the cause + over-claimed the remedy in
- * the run report. During the dev-story empirical-probe phase (Task 4) a SECOND
+ * the run report. During the empirical-probe phase (Task 4) a SECOND
  * undocumented reason was discovered: the 10th
  * {@code density_precondition_infeasible_reflow_required} on
  * {@link SpacingPreconditionInfeasibilityCertificate} (row 777 SOUND
  * one-sided certificate, sibling to {@code reroute_degraded_input_baseline}).
- * Per {@code [[feedback_metric_and_regression_test_together.md]]} and
- * {@code [[feedback_mcp_plugin_contract]]}: when a value drives an
+ * When a value drives an
  * LLM-visible surface, the doc invariant must be testable, not aspirational.
  * If a future 11th termination reason is added (on either class) without
  * updating the markdown, this test fails the build at commit-time.</p>
@@ -114,7 +112,7 @@ public class SpacingTerminationReasonDocSyncTest {
             "reroute_degraded_input_baseline",
             // (j) complete name — pre-loop SOUND certificate (row 777),
             // owned by SpacingPreconditionInfeasibilityCertificate (NOT
-            // SpacingControlLoop). Discovered during the dev-story empirical
+            // SpacingControlLoop). Discovered during the empirical
             // probe (Task 4) — sibling-symmetric with (i); same class of
             // doc-surface gap as the original story trigger.
             "density_precondition_infeasible_reflow_required"
@@ -187,7 +185,7 @@ public class SpacingTerminationReasonDocSyncTest {
      * {@link SpacingControlLoop} + 10th branch
      * {@code density_precondition_infeasible_reflow_required} on
      * {@link SpacingPreconditionInfeasibilityCertificate}, both documented
-     * by this story 2026-05-20). This guards against a refactor that
+     * 2026-05-20). This guards against a refactor that
      * accidentally drops a {@code REASON_*} constant without updating the
      * test or the markdown.
      *

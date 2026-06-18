@@ -24,15 +24,15 @@ import com.archimatetool.model.ITextPosition;
  * fields) before creating this command — the command always receives
  * complete bounds and merged styling values.</p>
  *
- * <p><strong>Story 8-6:</strong> Added optional text update support.
+ * <p><strong>Text update support:</strong> Added optional text update support.
  * Groups use {@code setName()} for their label; notes use
  * {@code setContent()} via {@link ITextContent}.</p>
  *
- * <p><strong>Story 11-2:</strong> Added optional styling support
+ * <p><strong>Styling support:</strong> Added optional styling support
  * (fillColor, lineColor, fontColor, opacity, lineWidth). Uses sentinel
  * value {@code null} in StylingParams fields to indicate "no change".</p>
  *
- * <p><strong>Story {@code backlog-group-element-styling-surface}:</strong> Added
+ * <p><strong>Group/element styling surface:</strong> Added
  * optional {@code figureType} (mapped to {@code IBorderType.setBorderType(int)}
  * for native groups or {@code IDiagramModelArchimateObject.setType(int)} for
  * ArchiMate elements), {@code textAlignment} (mapped to
@@ -41,16 +41,16 @@ import com.archimatetool.model.ITextPosition;
  * All three ride the existing {@link StylingParams} parameter — same single-
  * undo-unit guarantee as the colour/opacity/lineWidth fields.</p>
  *
- * <p><strong>Story 14-1 (G4):</strong> Added the fifth rail — optional
+ * <p><strong>Label-expression rail:</strong> Added the fifth rail — optional
  * {@code labelExpression}, Archi's per-view-object dynamic label template
  * (e.g. {@code "${name}"}, {@code "${property:KEY}"}). Stored as a generic
  * {@link com.archimatetool.model.IFeatures} entry under key {@code "labelExpression"}
- * — NOT a typed EMF setter (see Story 14-1 Task 0 EMF finding). Null leaves
+ * — NOT a typed EMF setter (EMF finding). Null leaves
  * unchanged; empty-string clears via {@link com.archimatetool.model.IFeaturesEList#remove(String)};
  * non-empty sets via {@link com.archimatetool.model.IFeaturesEList#putString(String, String)}.
  * Same single-undo-unit guarantee as the other four rails.</p>
  *
- * <p><strong>Story 14-2 (G5):</strong> Extended the styling rail (NOT a new rail —
+ * <p><strong>Typography &amp; styling extensions:</strong> Extended the styling rail (NOT a new rail —
  * fields ride the existing {@link StylingParams} parameter) with typography
  * (fontName / fontSize / fontStyle merged through {@code IFontAttribute.setFont}),
  * {@code gradient} (typed {@code IDiagramModelObject.setGradient(int)}, default
@@ -58,7 +58,7 @@ import com.archimatetool.model.ITextPosition;
  * {@code IBorderType.setBorderType(int)} on {@code IDiagramModelNote}),
  * {@code deriveLineColor} (typed {@code setDeriveElementLineColor(boolean)}, Archi
  * default {@code true}), and {@code outlineOpacity} (typed {@code setLineAlpha(int)},
- * Archi default 255). All discovered in Story 14-2 Task-0 EMF spike — typed setters
+ * Archi default 255). All discovered in an EMF spike — typed setters
  * on Archi 5.8, no IFeatures-backed storage needed. Constructor arity unchanged at 8 args.</p>
  *
  * <p><strong>CRITICAL:</strong> This command MUST be executed via
@@ -77,12 +77,12 @@ public class UpdateViewObjectCommand extends Command {
     private final int newWidth;
     private final int newHeight;
 
-    // Text update support (Story 8-6)
+    // Text update support
     private final String oldText;
     private final String newText;
     private final boolean hasTextChange;
 
-    // Styling update support (Story 11-2)
+    // Styling update support
     private final String oldFillColor;
     private final String newFillColor;
     private final String oldLineColor;
@@ -95,7 +95,7 @@ public class UpdateViewObjectCommand extends Command {
     private final int newLineWidth;
     private final boolean hasStylingChange;
 
-    // Figure type + horizontal + vertical text alignment (story backlog-group-element-styling-surface).
+    // Figure type + horizontal + vertical text alignment.
     // Integer rather than int: null means "not applicable for this target type" (figureType is null
     // for objects that are neither group nor archimateObject; the two alignment fields can in principle
     // be captured for any IDiagramModelObject but we follow the same null-when-unapplicable shape).
@@ -106,7 +106,7 @@ public class UpdateViewObjectCommand extends Command {
     private final Integer oldVerticalTextAlignment;
     private final Integer newVerticalTextAlignment;
 
-    // Image update support (Story C4)
+    // Image update support
     private final String oldImagePath;
     private final String newImagePath;
     private final int oldImagePosition;
@@ -117,11 +117,11 @@ public class UpdateViewObjectCommand extends Command {
     private final int newShowIcon;
     private final boolean hasImageChange;
 
-    // Label-expression rail (Story 14-1 / G4). Stored as a generic IFeatures
+    // Label-expression rail. Stored as a generic IFeatures
     // entry on the diagram object (key "labelExpression"), NOT a typed EMF
-    // getter/setter — see Story 14-1 Task 0 EMF finding.
+    // getter/setter (EMF finding).
     // hasLabelExpressionChange = true when caller passed a non-null value
-    // (including empty string, which clears the feature per AC3).
+    // (including empty string, which clears the feature).
     private final String oldLabelExpression;
     private final String newLabelExpression;
     private final boolean hasLabelExpressionChange;
@@ -129,14 +129,14 @@ public class UpdateViewObjectCommand extends Command {
     /** Feature-list key for the Archi-side label-expression renderer (matches Archi's own constant). */
     static final String LABEL_EXPRESSION_FEATURE = "labelExpression";
 
-    // Story 14-2 G5 styling extensions — all ride the same hasStylingChange boundary.
+    // Styling extensions — all ride the same hasStylingChange boundary.
     // Captured-old / captured-new pairs. The font composite string is captured as ONE
     // value; the merge happens through StylingHelper.assembleFontString.
     private final String oldFont;
     private final String newFont;
     // hasFontChange = true only when at least one typography field (fontName/Size/Style)
-    // was provided in styling. Prevents idempotent setFont(null) writes during pre-G5
-    // styling-only updates (per cross-LLM review H1 — AC11 byte-identical discipline).
+    // was provided in styling. Prevents idempotent setFont(null) writes during prior
+    // styling-only updates (byte-identical discipline).
     private final boolean hasFontChange;
     private final int oldGradient;
     private final int newGradient;
@@ -219,9 +219,9 @@ public class UpdateViewObjectCommand extends Command {
 
     /**
      * Creates a command to update a diagram object's bounds, text, styling, image,
-     * and label expression (Story 14-1 / G4).
+     * and label expression.
      *
-     * <p>{@code newLabelExpression} semantics (AC2–AC5 of Story 14-1):
+     * <p>{@code newLabelExpression} semantics:
      * <ul>
      *   <li>{@code null} — leave the current label expression unchanged (omit-means-no-change).</li>
      *   <li>{@code ""} (empty string) — clear the label expression (removes the "labelExpression"
@@ -270,7 +270,7 @@ public class UpdateViewObjectCommand extends Command {
             this.oldText = null;
         }
 
-        // Styling support (Story 11-2)
+        // Styling support
         this.hasStylingChange = (styling != null && styling.hasAnyValue());
 
         if (hasStylingChange) {
@@ -308,9 +308,9 @@ public class UpdateViewObjectCommand extends Command {
                 ? Integer.valueOf(StylingHelper.mapVerticalTextAlignmentToInt(styling.verticalTextAlignment()))
                 : oldVerticalTextAlignment;
 
-            // Story 14-2 G5: typography composite-string (one EMF field for all 3 sub-knobs).
-            // hasFontChange guard prevents idempotent setFont(null) writes when pre-G5 styling
-            // triggers hasStylingChange but no typography field was provided (cross-LLM review H1).
+            // Typography composite-string (one EMF field for all 3 sub-knobs).
+            // hasFontChange guard prevents idempotent setFont(null) writes when prior styling
+            // triggers hasStylingChange but no typography field was provided.
             this.oldFont = (diagramObject instanceof IFontAttribute fa) ? fa.getFont() : null;
             boolean typographyProvided = styling.fontName() != null
                     || styling.fontSize() != null
@@ -323,26 +323,26 @@ public class UpdateViewObjectCommand extends Command {
                 this.newFont = oldFont;
             }
 
-            // Story 14-2 G5: gradient (typed setter, always available on IDiagramModelObject).
+            // Gradient (typed setter, always available on IDiagramModelObject).
             this.oldGradient = diagramObject.getGradient();
             this.newGradient = computeNewGradient(oldGradient, styling.gradient());
 
-            // Story 14-2 G5: note-only borderType — instanceof IDiagramModelNote, NOT IBorderType
+            // Note-only borderType — instanceof IDiagramModelNote, NOT IBorderType
             // (which would also match IDiagramModelGroup and collide with predecessor figureType).
             this.oldBorderType = (diagramObject instanceof IDiagramModelNote note) ? note.getBorderType() : null;
             this.newBorderType = computeNewBorderType(oldBorderType, styling.borderType());
 
-            // Story 14-2 G5: deriveLineColor (typed boolean setter, Archi default true).
+            // deriveLineColor (typed boolean setter, Archi default true).
             this.oldDeriveLineColor = diagramObject.getDeriveElementLineColor();
             this.newDeriveLineColor = (styling.deriveLineColor() != null)
                     ? styling.deriveLineColor() : oldDeriveLineColor;
 
-            // Story 14-2 G5: outlineOpacity (typed int setter, sibling of setAlpha).
+            // outlineOpacity (typed int setter, sibling of setAlpha).
             this.oldOutlineOpacity = diagramObject.getLineAlpha();
             this.newOutlineOpacity = (styling.outlineOpacity() != null)
                     ? styling.outlineOpacity() : oldOutlineOpacity;
 
-            // Story 14-2 G5: lineStyle (typed int setter on IDiagramModelObject).
+            // lineStyle (typed int setter on IDiagramModelObject).
             // Empty-string clears to LINE_STYLE_DEFAULT (-1). Non-null applies mapped int.
             this.oldLineStyle = diagramObject.getLineStyle();
             this.newLineStyle = computeNewLineStyle(oldLineStyle, styling.lineStyle());
@@ -378,7 +378,7 @@ public class UpdateViewObjectCommand extends Command {
             this.newLineStyle = 0;
         }
 
-        // Image support (Story C4)
+        // Image support
         boolean imageChangeRequested = (imageParams != null && imageParams.hasAnyValue());
 
         if (imageChangeRequested && diagramObject instanceof IIconic iconic) {
@@ -420,7 +420,7 @@ public class UpdateViewObjectCommand extends Command {
             this.newShowIcon = 0;
         }
 
-        // Label-expression rail (Story 14-1 / G4). Generic IFeatures storage,
+        // Label-expression rail. Generic IFeatures storage,
         // not a typed setter — see class-level note.
         this.hasLabelExpressionChange = (newLabelExpression != null);
         if (hasLabelExpressionChange) {
@@ -492,9 +492,9 @@ public class UpdateViewObjectCommand extends Command {
         }
         if (diagramObject instanceof IFontAttribute fa) {
             fa.setFontColor(fontColor);
-            // Story 14-2 G5: typography composite-string (merged via assembleFontString at capture).
-            // Guarded so pre-G5 styling-only updates do NOT call setFont with a null/unchanged
-            // value (preserves AC11 byte-identical EMF dirty-flag semantics).
+            // Typography composite-string (merged via assembleFontString at capture).
+            // Guarded so prior styling-only updates do NOT call setFont with a null/unchanged
+            // value (preserves byte-identical EMF dirty-flag semantics).
             if (hasFontChange) {
                 fa.setFont(font);
             }
@@ -513,7 +513,7 @@ public class UpdateViewObjectCommand extends Command {
         if (verticalTextAlignment != null && diagramObject instanceof ITextPosition tp) {
             tp.setTextPosition(verticalTextAlignment);
         }
-        // Story 14-2 G5: typed setters on IDiagramModelObject.
+        // Typed setters on IDiagramModelObject.
         diagramObject.setGradient(gradient);
         diagramObject.setDeriveElementLineColor(deriveLineColor);
         diagramObject.setLineAlpha(outlineOpacity);
@@ -580,7 +580,7 @@ public class UpdateViewObjectCommand extends Command {
     /**
      * Writes or clears the "labelExpression" feature entry on the diagram object.
      * Null clears (Archi falls back to the element's static name); non-null sets verbatim
-     * (no token validation — Archi owns the grammar, per Story 14-1 AC9).
+     * (no token validation — Archi owns the grammar).
      */
     private void applyLabelExpression(String value) {
         if (value == null) {
@@ -717,39 +717,39 @@ public class UpdateViewObjectCommand extends Command {
     /** Package-visible for testing. */
     String getNewLabelExpression() { return newLabelExpression; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     String getOldFont() { return oldFont; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     String getNewFont() { return newFont; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     int getOldGradient() { return oldGradient; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     int getNewGradient() { return newGradient; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     Integer getOldBorderType() { return oldBorderType; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     Integer getNewBorderType() { return newBorderType; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     boolean getOldDeriveLineColor() { return oldDeriveLineColor; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     boolean getNewDeriveLineColor() { return newDeriveLineColor; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     int getOldOutlineOpacity() { return oldOutlineOpacity; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     int getNewOutlineOpacity() { return newOutlineOpacity; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     int getOldLineStyle() { return oldLineStyle; }
 
-    /** Package-visible for testing (Story 14-2 G5). */
+    /** Package-visible for testing. */
     int getNewLineStyle() { return newLineStyle; }
 }

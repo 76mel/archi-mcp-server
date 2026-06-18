@@ -5,7 +5,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Pure-geometry calculator for group layout arrangements (Story B30).
+ * Pure-geometry calculator for group layout arrangements.
  * Computes element positions for row, column, and grid arrangements
  * given pre-resolved element sizes.
  *
@@ -199,7 +199,7 @@ class GroupLayoutCalculator {
         return new int[]{newWidth, newHeight};
     }
 
-    // ---- Spacing detection methods (B68) ----
+    // ---- Spacing detection methods ----
 
     /** Height reserved for group label text in the top area of a group. */
     static final int GROUP_LABEL_HEIGHT = 24;

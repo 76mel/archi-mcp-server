@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.response.dto;
 
 /**
- * Result DTO for the layout-within-group tool (Story 9-9, enhanced 11-14, 11-18).
+ * Result DTO for the layout-within-group tool.
  *
  * @param viewId               the view containing the group
  * @param groupViewObjectId    the group whose children were arranged

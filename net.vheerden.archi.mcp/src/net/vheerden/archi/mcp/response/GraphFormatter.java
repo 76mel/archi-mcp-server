@@ -7,7 +7,7 @@ import java.util.Map;
 
 /**
  * Transforms element/relationship data into deduplicated graph structures
- * with separate {@code nodes} and {@code edges} arrays (Story 6.3, FR21).
+ * with separate {@code nodes} and {@code edges} arrays.
  *
  * <p>Used by query handlers when {@code format=graph} is requested.
  * Each unique element appears once in {@code nodes}; relationships reference

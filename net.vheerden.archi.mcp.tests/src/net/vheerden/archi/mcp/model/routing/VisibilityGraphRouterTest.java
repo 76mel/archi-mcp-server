@@ -14,7 +14,7 @@ import net.vheerden.archi.mcp.model.routing.VisEdge.Direction;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Tests for {@link VisibilityGraphRouter} (Story 10-6b).
+ * Tests for {@link VisibilityGraphRouter}.
  * Pure-geometry tests — no OSGi runtime required.
  */
 public class VisibilityGraphRouterTest {
@@ -28,7 +28,7 @@ public class VisibilityGraphRouterTest {
         router = new VisibilityGraphRouter();
     }
 
-    // --- Test 2.1: Direct line of sight (AC #1) ---
+    // --- Test 2.1: Direct line of sight ---
 
     @Test
     public void shouldReturnStraightPath_whenDirectLineOfSight() {
@@ -45,7 +45,7 @@ public class VisibilityGraphRouterTest {
         assertPathIsGraphValid(path);
     }
 
-    // --- Test 2.2: Single obstacle L-shape (AC #1, #2) ---
+    // --- Test 2.2: Single obstacle L-shape ---
 
     @Test
     public void shouldProduceLShapePath_whenSingleObstacleBetween() {
@@ -66,7 +66,7 @@ public class VisibilityGraphRouterTest {
         assertTrue("Path should have at least 2 bends for rectangular detour", countBends(path) >= 2);
     }
 
-    // --- Test 2.3: U-shape corridor (AC #2) ---
+    // --- Test 2.3: U-shape corridor ---
 
     @Test
     public void shouldRequire2Bends_whenUShapeCorridorNeeded() {
@@ -97,7 +97,7 @@ public class VisibilityGraphRouterTest {
         assertTrue("Path should have at least 2 bends", countBends(path) >= 2);
     }
 
-    // --- Test 2.4: Fewer bends preferred for equal-length paths (AC #3) ---
+    // --- Test 2.4: Fewer bends preferred for equal-length paths ---
 
     @Test
     public void shouldPreferFewerBends_whenBendPenaltyActive() {
@@ -126,7 +126,7 @@ public class VisibilityGraphRouterTest {
                 countBends(defaultPath) <= countBends(zeroPath));
     }
 
-    // --- Test 2.5: Path avoids all obstacles (AC #1) ---
+    // --- Test 2.5: Path avoids all obstacles ---
 
     @Test
     public void shouldAvoidAllObstacles_withMultipleObstacles() {
@@ -144,7 +144,7 @@ public class VisibilityGraphRouterTest {
         assertPathIsGraphValid(path);
     }
 
-    // --- Test 2.6: No path exists (AC #1) ---
+    // --- Test 2.6: No path exists ---
 
     @Test
     public void shouldReturnEmptyPath_whenTargetEnclosed() {
@@ -163,7 +163,7 @@ public class VisibilityGraphRouterTest {
         assertTrue("Path should be empty when target is enclosed", path.isEmpty());
     }
 
-    // --- Test 2.7: Configurable BEND_PENALTY (AC #4) ---
+    // --- Test 2.7: Configurable BEND_PENALTY ---
 
     @Test
     public void shouldProduceFewerBends_withHigherBendPenalty() {
@@ -203,7 +203,7 @@ public class VisibilityGraphRouterTest {
         assertEquals("Should be the source node", ports[0], path.get(0));
     }
 
-    // --- Test 2.9: Performance (AC #5) ---
+    // --- Test 2.9: Performance ---
 
     @Test
     public void shouldRoute50Connections_under500ms_with30Obstacles() {
@@ -251,7 +251,7 @@ public class VisibilityGraphRouterTest {
                 ms < 500.0);
     }
 
-    // --- Test 2.10: Complex maze-like layout (AC #1) ---
+    // --- Test 2.10: Complex maze-like layout ---
 
     @Test
     public void shouldFindValidPath_throughMazeLikeLayout() {
@@ -276,7 +276,7 @@ public class VisibilityGraphRouterTest {
         assertPathIsGraphValid(path);
     }
 
-    // --- Test 2.11: Bend count correctly tracked (AC #2) ---
+    // --- Test 2.11: Bend count correctly tracked ---
 
     @Test
     public void shouldTrackBendCountCorrectly_forKnownPathShapes() {
@@ -305,7 +305,7 @@ public class VisibilityGraphRouterTest {
         assertPathIsGraphValid(detourPath);
     }
 
-    // --- Test 2.12: Direction preference (Story 10-28, AC #2) ---
+    // --- Test 2.12: Direction preference ---
 
     @Test
     public void shouldPreferRightExit_whenTargetIsToTheRight() {
@@ -366,7 +366,7 @@ public class VisibilityGraphRouterTest {
                 pathDist <= manhattan * 3);
     }
 
-    // --- Congestion-weighted routing tests (Story 11-30) ---
+    // --- Congestion-weighted routing tests ---
 
     @Test
     public void shouldPreferWhitespacePath_whenDenseAreaAvailable() {
@@ -447,7 +447,7 @@ public class VisibilityGraphRouterTest {
     @Test
     public void shouldProduceEquivalentPath_whenViewIsSparse() {
         // Sparse view with minimal congestion — congestion-weighted should produce
-        // equivalent routing quality: same bend count and comparable path length (AC5)
+        // equivalent routing quality: same bend count and comparable path length
         List<RoutingRect> obstacles = List.of(
                 new RoutingRect(200, 170, 100, 60, "blocker"));
         graph.build(obstacles);
@@ -526,7 +526,7 @@ public class VisibilityGraphRouterTest {
         }
     }
 
-    // --- Clearance-weighted routing tests (B41) ---
+    // --- Clearance-weighted routing tests ---
 
     @Test
     public void computePerpendicularClearance_shouldReturnSmallDistance_whenObstacleOnOneSide() {
@@ -722,14 +722,14 @@ public class VisibilityGraphRouterTest {
                 zeroLen <= clearanceLen + 0.01);
     }
 
-    // --- Constructor validation tests (B43) ---
+    // --- Constructor validation tests ---
 
     @Test(expected = IllegalArgumentException.class)
     public void constructor_shouldThrow_whenDirectionalityWeightIsNegative() {
         new VisibilityGraphRouter(30, 0.0, 0.0, -1.0);
     }
 
-    // --- Corridor directionality penalty tests (B43) ---
+    // --- Corridor directionality penalty tests ---
 
     @Test
     public void computeCorridorDirectionalityCost_shouldReturnZero_whenEdgeMovesTowardTarget() {
@@ -819,8 +819,8 @@ public class VisibilityGraphRouterTest {
 
     @Test
     public void findPath_shouldPreferDirectCorridor_whenWiderCorridorExistsAwayFromTarget() {
-        // KEY B43 SCENARIO: Wide corridor exists AWAY from target, narrow corridor toward target
-        // Without directionality: B41 clearance steers toward wide corridor (away), causing skirting
+        // KEY SCENARIO: Wide corridor exists AWAY from target, narrow corridor toward target
+        // Without directionality: clearance steers toward wide corridor (away), causing skirting
         // With directionality: should prefer the direct corridor toward target
         //
         // Layout:
@@ -884,7 +884,7 @@ public class VisibilityGraphRouterTest {
 
     @Test
     public void findPath_shouldBalanceClearanceAndDirectionality_whenWideCorridorNearTarget() {
-        // When wide corridor IS toward the target, both B41 and B43 agree — path should use it
+        // When wide corridor IS toward the target, clearance and directionality agree — path should use it
         // Layout: wide corridor above (toward target at y=100), narrow corridor below
         List<RoutingRect> obstacles = List.of(
                 new RoutingRect(150, 0,   200, 30,  "top-wall"),       // expanded bottom ~40
@@ -937,7 +937,7 @@ public class VisibilityGraphRouterTest {
 
     @Test
     public void findPath_shouldPreferDirectCorridor_whenPerimeterHasUnlimitedClearance() {
-        // B43-a SCENARIO: Perimeter corridor has near-infinite clearance,
+        // SCENARIO: Perimeter corridor has near-infinite clearance,
         // direct interior corridor has moderate clearance (~25px).
         // Without clamp: perimeter wins (clearanceCost ~0 vs ~3.0/edge)
         // With clamp (MAX_EFFECTIVE_CLEARANCE=60): direct corridor wins
@@ -1077,7 +1077,7 @@ public class VisibilityGraphRouterTest {
     }
 
     // =========================================================================
-    // Group-wall clearance tests (B43-b)
+    // Group-wall clearance tests
     // =========================================================================
 
     // --- Test: computeGroupWallClearance measures perpendicular distance ---
@@ -1143,11 +1143,11 @@ public class VisibilityGraphRouterTest {
                 Double.MAX_VALUE, clearance, 0.0);
     }
 
-    // --- Test: intra-group routing unaffected (AC-4) ---
+    // --- Test: intra-group routing unaffected ---
 
     @Test
     public void findPath_shouldNotPenalizeIntraGroupRoute_whenGroupExcludedFromBoundaries() {
-        // B69-C re-bless: original ports at (90,70) and (290,70) were inside the
+        // Re-bless: original ports at (90,70) and (290,70) were inside the
         // elements (elem1 x:50-130, elem2 x:250-330). A* can't route from inside
         // obstacles. Fixed: ports at x=10 and x=360 (outside element x-ranges).
         RoutingRect elem1 = new RoutingRect(50, 50, 80, 40, "e1");
@@ -1302,7 +1302,7 @@ public class VisibilityGraphRouterTest {
         assertEquals("Path should end at target", ports[1], path.get(path.size() - 1));
     }
 
-    // --- B47: Corridor occupancy tests ---
+    // --- Corridor occupancy tests ---
 
     /**
      * Two equal-length corridors exist (above and below an obstacle).

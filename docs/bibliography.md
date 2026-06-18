@@ -59,7 +59,7 @@ Hegemann, T.; Wolff, A. (2023). *A Simple Pipeline for Orthogonal Graph Drawing.
 
 [arXiv](https://arxiv.org/abs/2309.01671)
 
-Channel-centring + LP-based proportional nudging. Direct algorithmic basis for the `ChannelNudgingPass` (B69-B) and the proportional-spacing fallback in `CoincidentSegmentDetector`.
+Channel-centring + LP-based proportional nudging. Direct algorithmic basis for the `ChannelNudgingPass` and the proportional-spacing fallback in `CoincidentSegmentDetector`.
 
 <a id="ref-5"></a>
 
@@ -85,7 +85,7 @@ The original A* algorithm. The Manhattan-distance heuristic used by `VisibilityG
 
 Sugiyama, K.; Tagawa, S.; Toda, M. (1981). *Methods for Visual Understanding of Hierarchical System Structures.* *IEEE Transactions on Systems, Man, and Cybernetics*, 11(2), 109–125. DOI:10.1109/TSMC.1981.4308636.
 
-The four-phase layered/hierarchical layout pipeline (cycle removal → layer assignment → crossing minimisation via barycentre/median heuristics → coordinate assignment). Used by Eclipse ELK Layered (`auto-layout-and-route` mode `auto`), the Zest `directed` preset, and the `optimize-group-order` barycentric heuristic.
+The four-phase layered/hierarchical layout pipeline (cycle removal → layer assignment → crossing minimisation via barycentre/median heuristics → coordinate assignment). Used by Eclipse ELK Layered (`auto-layout-and-route` mode `auto`) and the `optimize-group-order` barycentric heuristic.
 
 <a id="ref-8"></a>
 
@@ -105,7 +105,7 @@ McMurchie, L.; Ebeling, C. (1995). *PathFinder: A Negotiation-Based Performance-
 
 [IEEE Xplore](https://ieeexplore.ieee.org/document/1377269/)
 
-Sequential routing with incremental congestion feedback. The architectural basis for the corridor-diversity work (B47): `CorridorOccupancyTracker`'s multiplicative occupancy penalty is a single-pass simplification of PathFinder's negotiation-based congestion model.
+Sequential routing with incremental congestion feedback. The architectural basis for the corridor-diversity work: `CorridorOccupancyTracker`'s multiplicative occupancy penalty is a single-pass simplification of PathFinder's negotiation-based congestion model.
 
 <a id="ref-10"></a>
 
@@ -137,35 +137,7 @@ The canonical imperative implementation of the Wybrow 2009 / 2014 algorithms. Us
 
 <a id="ref-13"></a>
 
-### [13] Eades (1984) — A Heuristic for Graph Drawing
-
-Eades, P. (1984). *A Heuristic for Graph Drawing.* *Congressus Numerantium*, 42, 149–160.
-
-Original force-directed (spring-electrical) layout formulation. Background for the Zest `spring` / `organic` preset family.
-
-> **Confidence note:** Zest's exact spring algorithm is not pinned in repository sources. The Zest `spring` preset is in the family of [13] but not necessarily a faithful implementation.
-
-<a id="ref-14"></a>
-
-### [14] Fruchterman, Reingold (1991) — Graph Drawing by Force-Directed Placement
-
-Fruchterman, T. M. J.; Reingold, E. M. (1991). *Graph Drawing by Force-Directed Placement.* *Software: Practice and Experience*, 21(11), 1129–1164. DOI:10.1002/spe.4380211102.
-
-The standard force-directed algorithm and the modern reference for the Zest `spring` / `organic` preset family. See the confidence note on [13].
-
-<a id="ref-15"></a>
-
-### [15] Reingold, Tilford (1981) — Tidier Drawings of Trees
-
-Reingold, E. M.; Tilford, J. S. (1981). *Tidier Drawings of Trees.* *IEEE Transactions on Software Engineering*, SE-7(2), 223–228. DOI:10.1109/TSE.1981.234519.
-
-Canonical hierarchical tree layout. Background for the Zest `tree` and `horizontal-tree` presets.
-
-> **Confidence note:** Zest may use Walker's 1990 refinement instead. The Zest `tree` preset is in the family of [15] but is not necessarily a verbatim implementation.
-
-<a id="ref-16"></a>
-
-### [16] Liang, Barsky (1984) — Line Clipping
+### [13] Liang, Barsky (1984) — Line Clipping
 
 Liang, Y.-D.; Barsky, B. A. (1984). *A New Concept and Method for Line Clipping.* *ACM Transactions on Graphics*, 3(1), 1–22. DOI:10.1145/357332.357333.
 
@@ -173,11 +145,11 @@ The line-segment-vs-rectangle clipping test used by `lineSegmentIntersectsRect()
 
 ## Modelling and visual-design references
 
-> **Scope note.** Entries [17] and [18] are *not* algorithmic foundations of the layout engine or routing pipeline. They are practitioner sources for ArchiMate diagramming conventions, and they ground the LLM-facing guidance in `archimate://reference/archimate-view-patterns` ("ArchiMate Modelling & Aesthetic Best Practices") — the view-*setup* advice an agent applies before routing, not the routing algorithm itself. They are listed here so the project keeps a single canonical reference list.
+> **Scope note.** Entries [14] and [15] are *not* algorithmic foundations of the layout engine or routing pipeline. They are practitioner sources for ArchiMate diagramming conventions, and they ground the LLM-facing guidance in `archimate://reference/archimate-view-patterns` ("ArchiMate Modelling & Aesthetic Best Practices") — the view-*setup* advice an agent applies before routing, not the routing algorithm itself. They are listed here so the project keeps a single canonical reference list.
 
-<a id="ref-17"></a>
+<a id="ref-14"></a>
 
-### [17] Hosiaisluoma — ArchiMate Cookbook (Patterns & Examples)
+### [14] Hosiaisluoma — ArchiMate Cookbook (Patterns & Examples)
 
 Hosiaisluoma, E. *ArchiMate® Cookbook — Patterns & Examples.* Aligned to ArchiMate 3.2; continuously updated.
 
@@ -185,9 +157,9 @@ Hosiaisluoma, E. *ArchiMate® Cookbook — Patterns & Examples.* Aligned to Arch
 
 Free, redistributable. Source of the top-down layer-banding convention (customers/actors → Business → Application → Technology), the swimlane-as-large-container-with-nested-members pattern, the Grouping-element clustering pattern, the conventional layer colour palette, and the viewpoint "80% rule" for element selection. The most directly automatable layout guidance of the two.
 
-<a id="ref-18"></a>
+<a id="ref-15"></a>
 
-### [18] Wierda — Mastering ArchiMate (Edition 3.x)
+### [15] Wierda — Mastering ArchiMate (Edition 3.x)
 
 Wierda, G. *Mastering ArchiMate, Edition 3.x.* R&A. ISBN-13 978-9081984096 (Edition III).
 
@@ -214,7 +186,7 @@ Each entry below names the source class plus the references that ground it. **Em
 | Path ordering (parallel-segment grouping, perpendicular-endpoint sort) | `PathOrderer` | [1], [5] |
 | Edge nudging (greedy distribution, corridor-bound clamp) | `EdgeNudger` | [1], [4] |
 | Coincident-segment detection (proportional spacing fallback to fixed delta) | `CoincidentSegmentDetector` | [4] (proportional-spacing LP, simplified to closed-form division) |
-| Channel-global ordered nudging (B69-B) | `ChannelNudgingPass` | [4], [12] |
+| Channel-global ordered nudging | `ChannelNudgingPass` | [4], [12] |
 | Label clearance / label positioning | `LabelClearance`, `LabelPositionOptimizer` | empirical |
 | Terminal edge attachment — Phase 1.1 hub face redistribution | `EdgeAttachmentCalculator` | [8] (Kandinsky background); fix is project-specific |
 | Terminal edge attachment — Phase 1.2 natural approach direction | `EdgeAttachmentCalculator` | empirical |
@@ -226,9 +198,9 @@ Each entry below names the source class plus the references that ground it. **Em
 | Stage 4.7k center-termination fix | `RoutingPipeline.fixCenterTerminatedPath` | empirical (Archi `ChopboxAnchor` compatibility) |
 | Stage 4.7m interior terminal BP fix | `RoutingPipeline.fixInteriorTerminalBPs` | empirical |
 | Stage 4.7n orthogonality enforcement safety net | `RoutingPipeline.enforceOrthogonalPaths` | empirical |
-| Stage 4.7p source-self-hug correction (B72-a, v1.4) | `RoutingPipeline` | empirical |
+| Stage 4.7p source-self-hug correction (v1.4) | `RoutingPipeline` | empirical |
 | Stage 4.7q coincident-regression surgical fix (v1.4) | `RoutingPipeline` | [4] (channel-centring rationale) |
-| Endpoint pass-through correction (uses [16] for intersection test) | `RoutingPipeline.correctEndpointPassThroughs` | [16] for the line-clipping primitive; correction strategy is empirical |
+| Endpoint pass-through correction (uses [13] for intersection test) | `RoutingPipeline.correctEndpointPassThroughs` | [13] for the line-clipping primitive; correction strategy is empirical |
 | Corridor re-route (Stage 5a) | `RoutingPipeline` | empirical |
 | Fallback edge port strategy | `RoutingPipeline.calculateAlternativeEdgePorts` | empirical |
 | Auto-nudge on route failure | `ArchiModelAccessorImpl` | empirical |
@@ -241,11 +213,6 @@ Each entry below names the source class plus the references that ground it. **Em
 
 | Stage | Source class | References |
 |------|-------------|-----------|
-| Zest `tree` / `horizontal-tree` preset | `LayoutEngine` | [15] |
-| Zest `spring` / `organic` preset | `LayoutEngine` | [13], [14] |
-| Zest `directed` preset (Sugiyama-style layered) | `LayoutEngine` | [7] |
-| Zest `radial` preset | `LayoutEngine` | empirical (concentric-circle heuristic) |
-| Zest `grid` preset | `LayoutEngine` | empirical |
 | ELK Layered (positions + orthogonal routes for `auto-layout-and-route` mode `auto`) | `ElkLayoutEngine` | [7], [10], [11] |
 | Hierarchical containment (compound-graph layout for nested groups) | `ElkLayoutEngine` two-pass | [7], [10] |
 | Crossing minimisation — barycentric heuristic + adjacent-swap fallback | `CrossingMinimizer` | [7] for the barycentric heuristic; adjacent-swap is empirical |
@@ -255,26 +222,25 @@ Each entry below names the source class plus the references that ground it. **Em
 | Hub element detection + sizing formula `baseDimension + 15·(connectionCount − 6)` | `ArchiModelAccessorImpl.detectHubElements` | [8] (Kandinsky background); formula itself is empirical |
 | Auto-size at placement / `resize-elements-to-fit` (label-aware sizing, aspect-ratio targeting, dynamic containment label height) | `ArchiModelAccessorImpl` | empirical |
 | `LayoutQualityAssessor` — overlaps, crossings, spacing, alignment, label overlaps, pass-throughs, coincident segments, non-orthogonal terminals | `LayoutQualityAssessor` | empirical aesthetic-criteria selection |
-| Pass-through detection (line-segment vs element-rect with 10px inset) | `LayoutQualityAssessor` | [16] |
+| Pass-through detection (line-segment vs element-rect with 10px inset) | `LayoutQualityAssessor` | [13] |
 | Severity-tiered overall rating (Tier 1 critical / Tier 2 moderate / Tier 3 cosmetic; M6 two-dimensional rating in v1.4) | `LayoutQualityAssessor` | empirical |
 | M1–M5 perception-aligned metrics + R8 corridor utilisation (assessor redesign, v1.4) | `LayoutQualityAssessor` | empirical (project contribution) |
-| Label truncation / parent-label-obscured / image-sibling-overlap detections (B53) | `LayoutQualityAssessor` | empirical |
+| Label truncation / parent-label-obscured / image-sibling-overlap detections | `LayoutQualityAssessor` | empirical |
 | Label position optimisation (greedy assignment, longest-path-first) | `LabelPositionOptimizer` | empirical |
 | Spacing convenience-tool control loop (observe → decide → density-aware-terminate) + sound pre-routing infeasibility certificate | `SpacingControlLoop`, `SpacingPreconditionInfeasibilityCertificate`, `ComposerSpeculativeReplay` | empirical (project contribution) |
 
 ## Provenance summary
 
-**Found in repository (planning artifacts, source comments):** [1], [2], [3], [4], [5], [7], [8], [9], [10], [12], [16].
+**Found in repository (planning artifacts, source comments):** [1], [2], [3], [4], [5], [7], [8], [9], [10], [12], [13].
 
-**Standard reference works (canonical for the algorithm named in repository sources, not directly cited there):** [6], [11], [13], [14], [15].
+**Standard reference works (canonical for the algorithm named in repository sources, not directly cited there):** [6], [11].
 
-**Practitioner modelling/visual-design sources (ground the LLM-facing view-setup guidance, not the algorithm):** [17], [18].
+**Practitioner modelling/visual-design sources (ground the LLM-facing view-setup guidance, not the algorithm):** [14], [15].
 
 ## Caveats
 
-- **[13], [14], [15] confidence MEDIUM.** Zest's `spring`, `tree`, and `horizontal-tree` presets are named after algorithm families. The exact algorithmic provenance for Zest is not pinned in repository sources. Treat the citations as "in the family of" rather than "implements". Verify against `org.eclipse.zest.layouts` source if exact provenance matters.
 - **Path simplification is not Douglas-Peucker.** `simplifyFinalPath` does greedy farthest-reachable-point shortcutting through obstacle-aware visibility, not perpendicular-distance polyline simplification. Citing Douglas-Peucker (1973) or Ramer (1972) here would be misleading; the stage is flagged as empirical.
-- **Clearance-weighted A* (B41) is a deliberate departure from prior art.** Prior-art review found that libavoid does not use an inverse-distance clearance penalty. Present clearance-weighting as a project contribution, not a citation-grounded inheritance.
+- **Clearance-weighted A* is a deliberate departure from prior art.** Prior-art review found that libavoid does not use an inverse-distance clearance penalty. Present clearance-weighting as a project contribution, not a citation-grounded inheritance.
 - **`optimize-group-order` adjacent-swap fallback** is closest in spirit to Eades-Lin-Smyth 1993 ("A fast and effective heuristic for the feedback arc set problem") but the connection is unverified. Listed as empirical pending future verification.
 - **Brandes-Köpf [11]** is what ELK Layered uses internally; the project consumes ELK output rather than calling [11] directly. Listed for completeness.
 

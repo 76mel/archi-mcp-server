@@ -3,7 +3,7 @@ package net.vheerden.archi.mcp.response.dto;
 import java.util.List;
 
 /**
- * Result DTO for auto-connect-view (Story 9-6).
+ * Result DTO for auto-connect-view.
  *
  * @param viewId                  the view that was auto-connected
  * @param connectionsCreated      number of new visual connections created
@@ -13,7 +13,6 @@ import java.util.List;
  *                                endpoint is visually nested inside the other on the view
  *                                (would render as a self-pass-through). Empty when no
  *                                such pairs were skipped — never {@code null}.
- *                                Added in Story 14-11.
  */
 public record AutoConnectResultDto(
         String viewId,

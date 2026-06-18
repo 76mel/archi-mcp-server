@@ -225,7 +225,7 @@ public class ApplyNudgeDeltasTest {
 		assertEquals(nodes.size(), result.size());
 	}
 
-	// --- Tests (3-param overload: with virtualGroupBounds) (backlog-b15) ---
+	// --- Tests (3-param overload: with virtualGroupBounds) ---
 
 	@Test
 	public void shouldReturnSameList_whenAllMapsEmpty_threeParam() {

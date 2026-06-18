@@ -21,22 +21,20 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Integration tests for {@link HubPerimeterRoutingStage} (H5 story Task 6).
+ * Integration tests for {@link HubPerimeterRoutingStage} (H5).
  *
  * <p>Coverage spans:
  * <ul>
- *   <li>Smoke tests for stage composition (Tasks 4 carry-over).</li>
- *   <li>Synthetic multi-hub + Tier-1 invariant + retry tests (AC-8.1 sub-tasks
- *       6.5 + 6.6).</li>
- *   <li>V4 integration architecture oracle fixture integration (AC-8.1 sub-tasks
- *       6.1 + 6.2 + 6.3 + 6.4 + 6.7-lite).</li>
+ *   <li>Smoke tests for stage composition.</li>
+ *   <li>Synthetic multi-hub + Tier-1 invariant + retry tests.</li>
+ *   <li>V4 integration architecture oracle fixture integration.</li>
  * </ul>
  *
  * <p>Heavy {@link net.vheerden.archi.mcp.model.LayoutQualityAssessor}-driven
  * release-gate pin assertions (M4 ≤ 3, V_p10 ≥ 9.0, six-threshold combined)
  * live in {@code V4OracleQualityRegressionTest} ({@code net.vheerden.archi.mcp.model}
  * package — has package access to the assessor). This class covers what's
- * verifiable without the assessor: structural invariants, B71 terminal
+ * verifiable without the assessor: structural invariants, terminal-anchoring
  * preservation, hub detection, cell partitioning, stage reporting.
  *
  * <p>Pure-geometry: no EMF, no SWT, no PDE. The V4 oracle tests load the same
@@ -146,7 +144,7 @@ public class HubPerimeterRoutingStageTest {
     }
 
     // =====================================================================
-    // Synthetic multi-hub tests (AC-8.1 sub-task 6.5)
+    // Synthetic multi-hub tests
     // =====================================================================
 
     @Test
@@ -237,7 +235,7 @@ public class HubPerimeterRoutingStageTest {
     }
 
     // =====================================================================
-    // B71 / Tier-1 / monotonicity tests (AC-8.1 sub-task 6.6)
+    // Terminal-anchoring / Tier-1 / monotonicity tests
     // =====================================================================
 
     @Test
@@ -402,7 +400,7 @@ public class HubPerimeterRoutingStageTest {
     }
 
     // =====================================================================
-    // V4 oracle fixture integration (AC-8.1 sub-tasks 6.1/6.2/6.3/6.4/6.7-lite)
+    // V4 oracle fixture integration
     // =====================================================================
 
     /** Cached V4 oracle fixture loader. */
@@ -493,7 +491,7 @@ public class HubPerimeterRoutingStageTest {
 
     @Test
     public void v4Oracle_pipeline_shouldPreserveSourcePerimeter() throws IOException {
-        // B71 invariant: every routed connection's bp[0] must lie on or within 1px of
+        // Terminal-anchoring invariant: every routed connection's bp[0] must lie on or within 1px of
         // the source element's perimeter (chopbox anchor convention).
         ViewFixture fixture = loadV4Fixture();
         List<RoutingPipeline.ConnectionEndpoints> endpoints = buildV4Endpoints(fixture);
@@ -838,7 +836,7 @@ public class HubPerimeterRoutingStageTest {
         assertTrue("monotone improvement on all axes", ok);
     }
 
-    // --- V_p10 null-handling cases (AC-12.4) ---
+    // --- V_p10 null-handling cases ---
 
     @Test
     public void verifyMetricMonotonicity_shouldReturnTrue_whenVp10PreNullPostNull() {
@@ -900,7 +898,7 @@ public class HubPerimeterRoutingStageTest {
 
     private static boolean isOnOrAdjacentToPerimeter(AbsoluteBendpointDto bp,
                                                       ViewFixture.FixtureElement el) {
-        // Matches the AC-8 (B70-updated) convention used by RoutingPipelineTest:
+        // Matches the convention used by RoutingPipelineTest:
         // a terminal bp passes if it lies on the perimeter (within 2px of any edge AND
         // within the parallel extent) OR if it shares a coordinate with the element center
         // (chopbox-anchor degenerate-port fallback).
@@ -928,15 +926,15 @@ public class HubPerimeterRoutingStageTest {
 
     // =====================================================================
     // HPRPS Task 3 — Axis-3 (TerminalSegmentCorridorMigrator) verifier +
-    // Tier-1 / B71 by-construction proofs. Verifier/rollback/B71-focused;
-    // distinct from Task-1 unit tests and Task-4 V4-fixture integration.
+    // Tier-1 / terminal-anchoring by-construction proofs. Verifier/rollback/
+    // anchoring-focused; distinct from Task-1 unit tests and Task-4 V4-fixture integration.
     // =====================================================================
 
     /**
-     * AC-3.1 mirror-drift sentinel. The migrator inlines three
+     * Mirror-drift sentinel. The migrator inlines three
      * {@code LayoutQualityAssessor} constants (the assessor is package-private to
-     * {@code net.vheerden.archi.mcp.model} and AC-9.6 forbids elevating its
-     * visibility — same discipline as {@link HubPerimeterRoutingStage}). These
+     * {@code net.vheerden.archi.mcp.model} and elevating its visibility is
+     * forbidden — same discipline as {@link HubPerimeterRoutingStage}). These
      * values were re-verified against the live assessor at Task 3 (2026-05-16):
      * {@code EDGE_COINCIDENCE_TOLERANCE_PX=3.0}, {@code EDGE_COINCIDENCE_MIN_OVERLAP_PX=10.0},
      * {@code ZIGZAG_AXIS_TOLERANCE_PX=1.0} — no drift. This test fails fast if the
@@ -965,7 +963,7 @@ public class HubPerimeterRoutingStageTest {
     }
 
     /**
-     * AC-4: the EXISTING {@code verifyMetricMonotonicity} guards Axis-3 too. An
+     * The EXISTING {@code verifyMetricMonotonicity} guards Axis-3 too. An
      * injected migrator emits a proposal that regresses M4 (0→1); the stage must
      * roll it back via {@code migrator.restore} — {@code migratorRolled==1},
      * {@code migratorApplied==0}, paths byte-identical to pre.
@@ -993,11 +991,11 @@ public class HubPerimeterRoutingStageTest {
     }
 
     /**
-     * AC-4 accept-case + the load-bearing proof that removing the
+     * Accept-case + the load-bearing proof that removing the
      * {@code cells.isEmpty()} early-return makes the gate-view geometry ACT: a
      * size-3 terminal-incident L hugging a non-hub element, with NO hub (zero
      * cells — exactly where H5 was a documented no-op). Axis-3 now migrates it;
-     * the monotone proposal is accepted; M4 1→0; B71 preserved.
+     * the monotone proposal is accepted; M4 1→0; terminal anchoring preserved.
      */
     @Test
     public void stage_shouldAcceptMigratorProposal_andReduceM4_onCellLessGateGeometry() {
@@ -1029,10 +1027,10 @@ public class HubPerimeterRoutingStageTest {
     }
 
     /**
-     * AC-3.2: explicit {@code preservesEndpoints} (preservesTerminalAnchoring)
+     * Explicit {@code preservesEndpoints} (preservesTerminalAnchoring)
      * by-construction proof through the composed stage across multiple
      * terminal-incident migrations — every migrated terminal stays exactly on its
-     * B71 face line (orthogonal coord unchanged).
+     * face line (orthogonal coord unchanged).
      */
     @Test
     public void stage_terminalIncidentMigration_preservesTerminalAnchoring_byConstruction() {
@@ -1073,9 +1071,9 @@ public class HubPerimeterRoutingStageTest {
     }
 
     /**
-     * AC-3.2 complement: an UNSAFE terminal segment (constant axis == the face's
-     * ORTHOGONAL axis) is rejected by the migrator's own guard — B71 preserved by
-     * rejection, NOT by stage rollback. No migration, terminal untouched.
+     * Complement: an UNSAFE terminal segment (constant axis == the face's
+     * ORTHOGONAL axis) is rejected by the migrator's own guard — terminal anchoring
+     * preserved by rejection, NOT by stage rollback. No migration, terminal untouched.
      */
     @Test
     public void stage_shouldNotMigrate_unsafeTerminalSegment_b71PreservedByRejection() {
@@ -1098,7 +1096,7 @@ public class HubPerimeterRoutingStageTest {
     }
 
     // =====================================================================
-    // HPRPS Task 4 — composed-stage integration (AC-3 / AC-7). End-to-end;
+    // HPRPS Task 4 — composed-stage integration. End-to-end;
     // distinct from the Task-3 verifier tests and the existing V4 "doesn't
     // throw" smoke tests (those assert no exception / non-negative stats only;
     // these assert the monotonicity INVARIANT numerically on the real V4
@@ -1106,13 +1104,13 @@ public class HubPerimeterRoutingStageTest {
     // =====================================================================
 
     /**
-     * AC-3: the composed stage (including Axis-3) must be byte-neutral or
+     * The composed stage (including Axis-3) must be byte-neutral or
      * improving on the V4-oracle pure-JUnit substrate where H5 is a documented
      * no-op — it must never regress the monotonicity guarantee. Routes V4 via the
      * pipeline (which already ran the stage at 4.7m), then re-invokes the stage on
      * those paths and asserts M4 non-increasing, V_p10 non-decreasing (null rule),
-     * HPQ non-decreasing across the second application — the AC-4 guarantee proven
-     * end-to-end on the real 30-connection fixture, not a synthetic case.
+     * HPQ non-decreasing across the second application — the monotonicity guarantee
+     * proven end-to-end on the real 30-connection fixture, not a synthetic case.
      */
     @Test
     public void v4Oracle_composedStage_isMonotoneOrNeutral_onV4Substrate() throws IOException {
@@ -1149,11 +1147,11 @@ public class HubPerimeterRoutingStageTest {
     }
 
     /**
-     * AC-3 / AC-7: the three axes coexist in a single {@code apply()}. A hub with
+     * The three axes coexist in a single {@code apply()}. A hub with
      * 5 spokes (Axis-1 shifts c-0's hub-hugging interior segment) PLUS a separate
      * size-3 terminal-incident L hugging a non-hub element (Axis-3 migrates it).
      * Asserts both fire, the run is monotone (global M4 not regressed), Axis-3
-     * preserves B71 on its terminal, and the size-3 L stays a clean orthogonal L.
+     * preserves terminal anchoring, and the size-3 L stays a clean orthogonal L.
      */
     @Test
     public void stage_threeAxesCoexist_hubPlusTerminalIncidentSizeThreeL() {
@@ -1192,7 +1190,7 @@ public class HubPerimeterRoutingStageTest {
         assertEquals(0, r.migratorRolled());
         assertTrue("global M4 monotone (not regressed)",
                 HubPerimeterRoutingStage.computeM4Count(paths, all) <= m4Pre);
-        // Axis-3 preserved B71 on c-5's source terminal.
+        // Axis-3 preserved terminal anchoring on c-5's source terminal.
         assertEquals("c-5 terminal x stays on S6 RIGHT face line 681",
                 681, paths.get(5).get(0).x());
         assertTrue(TerminalAnchoring.preservesTerminalAnchoring(

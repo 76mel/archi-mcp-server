@@ -4,7 +4,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Shared cache key builder for handler cache integration (Story 5.4).
+ * Shared cache key builder for handler cache integration.
  *
  * <p>Constructs deterministic cache keys from command name + effective parameters.
  * Used by all query handlers to avoid duplicating key construction logic.</p>

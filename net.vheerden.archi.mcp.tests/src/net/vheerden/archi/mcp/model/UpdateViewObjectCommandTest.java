@@ -23,7 +23,7 @@ import com.archimatetool.model.ITextAlignment;
 import com.archimatetool.model.ITextPosition;
 
 /**
- * Tests for {@link UpdateViewObjectCommand} (Story 7-8).
+ * Tests for {@link UpdateViewObjectCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * execute (update bounds) and undo (restore old bounds) behavior.</p>
@@ -134,7 +134,7 @@ public class UpdateViewObjectCommandTest {
         assertEquals(70, diagramObject.getBounds().getHeight());
     }
 
-    // ---- Story 11-2: Styling tests ----
+    // ---- Styling tests ----
 
     @Test
     public void shouldApplyFillColor_whenStylingProvided() {
@@ -270,7 +270,7 @@ public class UpdateViewObjectCommandTest {
         assertEquals("#00FF00", cmd.getNewLineColor());
     }
 
-    // ---- Story backlog-group-element-styling-surface: figureType + text alignment pins ----
+    // ---- figureType + text alignment pins ----
 
     @Test
     public void shouldApplyTextAlignmentAndUndoRestores_AC4() {
@@ -442,13 +442,13 @@ public class UpdateViewObjectCommandTest {
         assertEquals(IDiagramModelGroup.BORDER_RECTANGLE, group.getBorderType());
     }
 
-    // ---- Story 14-1 (G4): labelExpression rail tests ----
+    // ---- G4: labelExpression rail tests ----
     //
     // labelExpression is stored as a generic IFeatures entry under key
     // "labelExpression", NOT a typed EMF getter/setter. The rail's
     // bookkeeping matches the existing 4 rails (old/new/has-change triplet),
     // but the apply method writes via IFeatures.putString / IFeatures.remove.
-    // See Story 14-1 Task 0 EMF finding.
+    // See the Task 0 EMF finding.
 
     @Test
     public void shouldApplyLabelExpression_whenSetOnElementViewObject_AC2() {

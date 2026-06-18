@@ -5,7 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Data Transfer Object for the result of a remove-from-view operation (Story 7-8).
+ * Data Transfer Object for the result of a remove-from-view operation.
  *
  * <p>Contains the ID and type of the removed object, plus optional list of
  * cascade-removed connection IDs (when removing an element that has attached

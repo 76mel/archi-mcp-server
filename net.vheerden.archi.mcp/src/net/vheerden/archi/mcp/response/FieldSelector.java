@@ -15,7 +15,7 @@ import net.vheerden.archi.mcp.response.dto.ViewContentsDto;
 import net.vheerden.archi.mcp.response.dto.ViewDto;
 
 /**
- * Stateless utility for field selection and exclude filtering on DTOs (Story 5.2, FR17/FR18).
+ * Stateless utility for field selection and exclude filtering on DTOs (FR17/FR18).
  *
  * <p>Transforms DTO records into {@code Map<String, Object>} with only the
  * requested fields, then removes excluded fields. Records are immutable so
@@ -107,8 +107,8 @@ public final class FieldSelector {
             "id", "name", "type", "path", "elementCount", "subfolderCount");
     private static final Set<String> FOLDER_FULL = FOLDER_STANDARD; // no extra fields yet
 
-    // Relationship field presets (Story C1: search-relationships).
-    // Story 14-7 (G1): accessType / associationDirected / influenceStrength are core
+    // Relationship field presets (search-relationships).
+    // accessType / associationDirected / influenceStrength are core
     // ArchiMate semantic attributes (closer to type/sourceId/targetId than to documentation),
     // included in STANDARD and FULL. NON_NULL discipline upstream means zero cost for
     // relationships that aren't the matching subtype.
@@ -161,7 +161,7 @@ public final class FieldSelector {
         if (dto.properties() != null && !dto.properties().isEmpty()) map.put("properties", dto.properties());
         if (dto.sourceName() != null) map.put("sourceName", dto.sourceName());
         if (dto.targetName() != null) map.put("targetName", dto.targetName());
-        // Story 14-7 (G1): surface semantic-attribute fields when populated (NON_NULL discipline).
+        // Surface semantic-attribute fields when populated (NON_NULL discipline).
         if (dto.accessType() != null) map.put("accessType", dto.accessType());
         if (dto.associationDirected() != null) map.put("associationDirected", dto.associationDirected());
         if (dto.influenceStrength() != null) map.put("influenceStrength", dto.influenceStrength());
@@ -421,7 +421,7 @@ public final class FieldSelector {
             }
         }
 
-        // Story 14-8 / G16: images — include unless excluded
+        // Images — include unless excluded
         if (dto.images() != null) {
             if (excludeFields == null || !excludeFields.contains("images")) {
                 map.put("images", dto.images());

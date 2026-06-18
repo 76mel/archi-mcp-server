@@ -33,7 +33,7 @@ import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
  * Handler for mutation operational mode tools: begin-batch, end-batch,
- * get-batch-status (Story 7-1).
+ * get-batch-status.
  *
  * <p>Manages transitions between GUI-attached mode (immediate mutations)
  * and batch mode (queued mutations with atomic commit/rollback).</p>
@@ -93,8 +93,21 @@ public class MutationHandler {
         descriptionProp.put("description",
                 "Optional description for this batch operation");
 
+        // Optional agent intent — the WHY of this batch. Recorded on the session's batch
+        // context. Distinct from 'description' (the undo-history label). Never required; the server
+        // never depends on it. NOTE: under approval mode the end-batch compound is dispatched
+        // directly (not stored as a proposal), so begin-batch intent is captured but not yet
+        // rendered on an approval card — 'bulk-mutate' is the seam whose intent appears on the card.
+        Map<String, Object> intentProp = new LinkedHashMap<>();
+        intentProp.put("type", "string");
+        intentProp.put("description",
+                "Optional plain-language intent for this batch (the WHY). Recorded on the batch; "
+                        + "distinct from 'description'. Never required, never affects behaviour. "
+                        + "(The agent's-note card line is rendered for 'bulk-mutate' intent.)");
+
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("description", descriptionProp);
+        properties.put("intent", intentProp);
 
         McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
                 "object", properties, null, null, null, null);
@@ -123,10 +136,15 @@ public class MutationHandler {
 
             String sessionId = HandlerUtils.extractSessionId(sessionManager, exchange);
             String description = null;
+            String intent = null;
             if (request.arguments() != null) {
                 Object descObj = request.arguments().get("description");
                 if (descObj instanceof String d && !d.isBlank()) {
                     description = d;
+                }
+                Object intentObj = request.arguments().get("intent");
+                if (intentObj instanceof String it && !it.isBlank()) {
+                    intent = it;
                 }
             }
 
@@ -142,7 +160,7 @@ public class MutationHandler {
                         formatter.toJsonString(formatter.formatError(error)), true);
             }
 
-            dispatcher.beginBatch(sessionId, description);
+            dispatcher.beginBatch(sessionId, description, intent);
             BatchStatusDto status = dispatcher.getBatchStatus(sessionId);
             String modelVersion = accessor.getModelVersion();
 
@@ -376,6 +394,14 @@ public class MutationHandler {
         descriptionProp.put("description",
                 "Optional label for undo history");
 
+        // Optional agent intent — the WHY of this batch, shown as a quiet 'agent's note:' on
+        // the approval card. Distinct from 'description' (the undo-history label). Never required.
+        Map<String, Object> intentProp = new LinkedHashMap<>();
+        intentProp.put("type", "string");
+        intentProp.put("description",
+                "Optional plain-language intent for this batch (the WHY). Shown as a quiet "
+                        + "'agent's note:' on the human approval card; never required, never affects behaviour.");
+
         Map<String, Object> continueOnErrorProp = new LinkedHashMap<>();
         continueOnErrorProp.put("type", "boolean");
         continueOnErrorProp.put("description",
@@ -387,6 +413,7 @@ public class MutationHandler {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("operations", operationsProp);
         properties.put("description", descriptionProp);
+        properties.put("intent", intentProp);
         properties.put("continueOnError", continueOnErrorProp);
 
         McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
@@ -413,6 +440,7 @@ public class MutationHandler {
                         + BulkOperation.MAX_OPERATIONS + " operations per call. "
                         + "Required: operations (array of {tool, params} objects). "
                         + "Optional: description (label for undo history), "
+                        + "intent (plain-language WHY, shown as a quiet note on the human approval card), "
                         + "continueOnError (boolean, default false). "
                         + "Supported tools: " + supportedTools + ". "
                         + "Note: autoConnect is forced false for add-to-view in bulk context "
@@ -550,9 +578,10 @@ public class MutationHandler {
 
             String sessionId = HandlerUtils.extractSessionId(sessionManager, exchange);
             String description = HandlerUtils.optionalStringParam(args, "description");
+            String intent = HandlerUtils.optionalStringParam(args, "intent");
             boolean continueOnError = Boolean.TRUE.equals(args.get("continueOnError"));
             BulkMutationResult result = accessor.executeBulk(
-                    sessionId, operations, description, continueOnError);
+                    sessionId, operations, description, continueOnError, intent);
 
             return formatBulkResponse(result);
 
@@ -608,7 +637,7 @@ public class MutationHandler {
         }
         resultMap.put(hasFailures ? "succeeded" : "operations", opResults);
 
-        // Failed operations (Story 11-9)
+        // Failed operations
         if (hasFailures) {
             List<Map<String, Object>> failResults = new ArrayList<>();
             for (BulkOperationFailure failure : result.failedOperations()) {
@@ -625,7 +654,7 @@ public class MutationHandler {
             resultMap.put("failed", failResults);
         }
 
-        // Approval mode: add proposal info (Story 7-6)
+        // Approval mode: add proposal info
         if (result.isProposal()) {
             Map<String, Object> proposalInfo = new LinkedHashMap<>();
             proposalInfo.put("proposalId", result.proposalContext().proposalId());
@@ -650,13 +679,10 @@ public class MutationHandler {
 
         List<String> nextSteps;
         if (result.isProposal()) {
-            String proposalId = result.proposalContext().proposalId();
             nextSteps = new ArrayList<>();
-            nextSteps.add("Use list-pending-approvals to review all pending mutations");
-            nextSteps.add("Use decide-mutation with proposalId '" + proposalId
-                    + "' and decision 'approve' to apply this bulk mutation");
-            nextSteps.add("Use decide-mutation with proposalId '" + proposalId
-                    + "' and decision 'reject' to discard this bulk mutation");
+            nextSteps.add("This bulk change is pending the human's approval and was NOT applied");
+            nextSteps.add("Tell the user to approve or reject it in Archi (the agent cannot approve its own changes)");
+            nextSteps.add("Use list-pending-approvals to see all changes awaiting the human's decision");
             if (hasFailures) {
                 nextSteps.add(failedCount + " operations failed validation — fix and retry "
                         + "in a separate bulk-mutate call");

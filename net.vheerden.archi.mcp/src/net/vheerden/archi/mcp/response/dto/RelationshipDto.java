@@ -16,7 +16,7 @@ import java.util.Map;
  * with the {@code full} field preset. They are omitted from JSON when null.</p>
  *
  * <p>Fields {@code accessType}, {@code associationDirected}, and
- * {@code influenceStrength} (Story 14-7 / G1) are populated only when the
+ * {@code influenceStrength} are populated only when the
  * relationship is the matching ArchiMate subtype: {@code accessType} for
  * {@code AccessRelationship} (one of {@code "access" / "read" / "write" / "readwrite"});
  * {@code associationDirected} for {@code AssociationRelationship} (boxed boolean);
@@ -66,8 +66,8 @@ public record RelationshipDto(
     }
 
     /**
-     * Back-compat constructor matching the pre-G1 (11-field) canonical shape.
-     * Delegates to the 14-field canonical with {@code null} for the 3 G1 fields.
+     * Back-compat constructor matching the prior 11-field canonical shape.
+     * Delegates to the 14-field canonical with {@code null} for the 3 semantic-attribute fields.
      */
     public RelationshipDto(String id, String name, String type, String specialization,
                            String sourceId, String targetId, boolean alreadyExisted,

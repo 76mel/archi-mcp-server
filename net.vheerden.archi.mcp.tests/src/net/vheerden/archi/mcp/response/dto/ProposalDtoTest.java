@@ -7,10 +7,14 @@ import java.util.Map;
 
 import org.junit.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
- * Tests for {@link ProposalDto} (Story 7-6).
+ * Tests for {@link ProposalDto} (effectDescription + intent).
  */
 public class ProposalDtoTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
     public void shouldConstructWithAllFields() {
@@ -56,5 +60,52 @@ public class ProposalDtoTest {
                 "Type valid.", "2026-02-24T10:02:00Z");
 
         assertEquals("rejected", dto.status());
+    }
+
+    // ---- effectDescription + intent ----
+
+    @Test
+    public void shouldDefaultNewFieldsToNull_withBackCompatConstructor() {
+        ProposalDto dto = new ProposalDto(
+                "p-1", "create-element", "pending", "Create Node", null,
+                Map.of("name", "Node"), "Type valid.", "2026-02-24T10:00:00Z");
+        assertNull(dto.effectDescription());
+        assertNull(dto.intent());
+    }
+
+    @Test
+    public void shouldCarryEffectDescriptionAndIntent_withCanonicalConstructor() {
+        ProposalDto dto = new ProposalDto(
+                "p-1", "bulk-mutate", "pending", "Bulk", null,
+                Map.of("operationCount", 1), "Valid.", "2026-02-24T10:00:00Z",
+                "Create ServingRelationship: 'A' → 'B'", "Wire the path");
+        assertEquals("Create ServingRelationship: 'A' → 'B'", dto.effectDescription());
+        assertEquals("Wire the path", dto.intent());
+    }
+
+    @Test
+    public void shouldOmitNewFieldsFromJson_whenNull() throws Exception {
+        ProposalDto dto = new ProposalDto(
+                "p-1", "create-element", "pending", "Create Node", null,
+                Map.of("name", "Node"), "Type valid.", "2026-02-24T10:00:00Z");
+        String json = MAPPER.writeValueAsString(dto);
+        assertFalse("NON_NULL omits a null effectDescription", json.contains("effectDescription"));
+        assertFalse("NON_NULL omits a null intent", json.contains("intent"));
+    }
+
+    @Test
+    public void shouldIncludeNewFieldsInJson_andRoundTrip_whenPresent() throws Exception {
+        ProposalDto dto = new ProposalDto(
+                "p-1", "bulk-mutate", "pending", "Bulk", null,
+                Map.of("operationCount", 1), "Valid.", "2026-02-24T10:00:00Z",
+                "Create ServingRelationship: 'A' → 'B'", "Wire the path");
+        String json = MAPPER.writeValueAsString(dto);
+        assertTrue(json.contains("effectDescription"));
+        assertTrue(json.contains("intent"));
+
+        ProposalDto back = MAPPER.readValue(json, ProposalDto.class);
+        assertEquals(dto.effectDescription(), back.effectDescription());
+        assertEquals(dto.intent(), back.intent());
+        assertEquals(dto.tool(), back.tool());
     }
 }

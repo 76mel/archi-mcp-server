@@ -18,14 +18,15 @@ import org.junit.Test;
 import net.vheerden.archi.mcp.model.exceptions.MutationException;
 import net.vheerden.archi.mcp.response.dto.BatchStatusDto;
 import net.vheerden.archi.mcp.response.dto.BatchSummaryDto;
+import net.vheerden.archi.mcp.response.dto.PendingProposalView;
 import net.vheerden.archi.mcp.response.dto.ProposalDto;
 
 /**
- * Tests for {@link MutationDispatcher} batch management (Story 7-1).
+ * Tests for {@link MutationDispatcher} batch management.
  *
  * <p>Uses a test subclass that overrides {@code dispatchCommand} to avoid
  * Display.syncExec + CommandStack dependencies. E2E dispatch is tested
- * in Story 7-2 with Archi runtime.</p>
+ * separately with Archi runtime.</p>
  */
 public class MutationDispatcherTest {
 
@@ -136,6 +137,49 @@ public class MutationDispatcherTest {
         dispatcher.endBatch("session-1", true); // should throw
     }
 
+    // ---- batchSessions entry removed on endBatch when nothing pends ----
+
+    @Test
+    public void shouldRemoveBatchSession_whenEndBatchCommitAndNoProposalsPending() {
+        dispatcher.beginBatch("session-1", "batch");
+        dispatcher.queueForBatch("session-1", new StubCommand("c1"), "op 1");
+        assertEquals(1, dispatcher.batchSessionCount());
+
+        dispatcher.endBatch("session-1", true);
+
+        assertEquals("empty context dropped from batchSessions", 0, dispatcher.batchSessionCount());
+        assertEquals(OperationalMode.GUI_ATTACHED, dispatcher.getMode("session-1"));
+    }
+
+    @Test
+    public void shouldRemoveBatchSession_whenEndBatchRollbackAndNoProposalsPending() {
+        dispatcher.beginBatch("session-1", null);
+        dispatcher.queueForBatch("session-1", new StubCommand("c1"), "op 1");
+        assertEquals(1, dispatcher.batchSessionCount());
+
+        dispatcher.endBatch("session-1", false);
+
+        assertEquals("rollback also drops the empty context", 0, dispatcher.batchSessionCount());
+    }
+
+    @Test
+    public void shouldKeepBatchSession_whenEndBatchAndProposalPending() {
+        // CORRECTNESS TRAP: proposals live in the SAME MutationContext as the batch; the entry
+        // must NOT be removed while a proposal pends, or the human's pending-approval queue is dropped.
+        String id = dispatcher.storeProposal("session-1", proposal("create-element", "A", Instant.now()));
+        dispatcher.beginBatch("session-1", "batch");
+        assertEquals(1, dispatcher.batchSessionCount());
+
+        dispatcher.endBatch("session-1", true);
+
+        assertEquals("context kept while a proposal pends", 1, dispatcher.batchSessionCount());
+        // The proposal survives and is still retrievable and approvable.
+        assertNotNull(dispatcher.getProposal("session-1", id));
+        ApprovalResult result = dispatcher.approveProposal("session-1", id);
+        assertNotNull("pending proposal still approvable after endBatch", result);
+        assertEquals(1, dispatcher.dispatchedCommands.size());
+    }
+
     // ---- queueCommand tests ----
 
     @Test
@@ -240,26 +284,39 @@ public class MutationDispatcherTest {
         assertEquals(OperationalMode.GUI_ATTACHED, dispatcher.getMode("session-2"));
     }
 
-    // ---- Approval mode tests (Story 7-6) ----
+    // ---- Approval mode tests ----
 
     @Test
-    public void shouldSetApprovalRequired() {
-        dispatcher.setApprovalRequired("session-1", true);
-
+    public void shouldDefaultToGated_whenProviderNotOverridden() {
+        // A fresh dispatcher fails safe — the gate is ON until wiring proves otherwise.
         assertTrue(dispatcher.isApprovalRequired("session-1"));
     }
 
     @Test
-    public void shouldReturnFalse_whenApprovalNotSet() {
-        assertFalse(dispatcher.isApprovalRequired("unknown-session"));
+    public void shouldReadApprovalFromInjectedProvider() {
+        dispatcher.setApprovalModeProvider(() -> false);
+        assertFalse(dispatcher.isApprovalRequired("session-1"));
+
+        dispatcher.setApprovalModeProvider(() -> true);
+        assertTrue(dispatcher.isApprovalRequired("session-1"));
     }
 
     @Test
-    public void shouldDisableApproval() {
-        dispatcher.setApprovalRequired("session-1", true);
-        dispatcher.setApprovalRequired("session-1", false);
+    public void shouldBeGlobal_notPerSession() {
+        // One human, one gate: every session sees the same mode regardless of sessionId.
+        dispatcher.setApprovalModeProvider(() -> true);
+        assertTrue(dispatcher.isApprovalRequired("session-1"));
+        assertTrue(dispatcher.isApprovalRequired("session-2"));
+        assertTrue(dispatcher.isApprovalRequired("any-other-session"));
+    }
 
-        assertFalse(dispatcher.isApprovalRequired("session-1"));
+    @Test
+    public void shouldNotExposeApprovalSetterOnTheDispatcher() throws Exception {
+        // There is no setApprovalRequired (the agent path to flip the gate is gone).
+        for (var m : MutationDispatcher.class.getMethods()) {
+            assertFalse("MutationDispatcher must not expose setApprovalRequired",
+                    m.getName().equals("setApprovalRequired"));
+        }
     }
 
     @Test
@@ -405,9 +462,119 @@ public class MutationDispatcherTest {
         assertNull(rejected);
     }
 
+    // ---- store-the-request approve path (reject-stale + TTL sweep) ----
+
+    @Test
+    public void shouldRejectStale_whenTargetRemovedBeforeApprove() {
+        // A proposal targeting an object the human removed during review must reject-stale
+        // (naming the object) and dispatch NOTHING — never run the would-be-frozen command.
+        com.archimatetool.model.IArchimateModel model =
+                com.archimatetool.model.IArchimateFactory.eINSTANCE.createArchimateModel();
+        model.setDefaults();
+        com.archimatetool.model.IBusinessActor actor =
+                com.archimatetool.model.IArchimateFactory.eINSTANCE.createBusinessActor();
+        actor.setName("Payment Gateway");
+        model.getFolder(com.archimatetool.model.FolderType.BUSINESS).getElements().add(actor);
+
+        List<Command> dispatched = new java.util.ArrayList<>();
+        MutationDispatcher d = new MutationDispatcher(() -> model) {
+            @Override
+            protected void dispatchCommand(Command c) {
+                dispatched.add(c);
+            }
+        };
+        StalenessCapture cap = d.captureStaleness(java.util.Set.of(actor.getId()));
+        PendingProposal p = new PendingProposal(null, "delete-element", "Delete actor",
+                () -> new PreparedMutation<>(new StubCommand("del"), "e", actor.getId()),
+                cap, "e", null, Map.of(), "v", Instant.now(), null, null);
+        String id = d.storeProposal("s-1", p);
+
+        // Human removes the targeted element before approving.
+        model.getFolder(com.archimatetool.model.FolderType.BUSINESS).getElements().remove(actor);
+
+        try {
+            d.approveProposal("s-1", id);
+            fail("expected a stale rejection");
+        } catch (MutationException e) {
+            assertTrue("reason names the removed target", e.getMessage().contains("Payment Gateway"));
+        }
+        assertEquals("nothing dispatched when stale", 0, dispatched.size());
+        // A stale rejection leaves the proposal IN the queue, so the card stays on screen with its
+        // named reason for the human to read and Reject — vet/rebuild happen before the proposal is removed.
+        assertNotNull("stale proposal stays queued", d.getProposal("s-1", id));
+    }
+
+    @Test
+    public void shouldApproveFresh_whenTargetUntouched_rebuildingCommand() {
+        // An untouched target rebuilds fresh and dispatches the rebuilt command.
+        com.archimatetool.model.IArchimateModel model =
+                com.archimatetool.model.IArchimateFactory.eINSTANCE.createArchimateModel();
+        model.setDefaults();
+        com.archimatetool.model.IBusinessActor actor =
+                com.archimatetool.model.IArchimateFactory.eINSTANCE.createBusinessActor();
+        actor.setName("Payment Gateway");
+        model.getFolder(com.archimatetool.model.FolderType.BUSINESS).getElements().add(actor);
+
+        List<Command> dispatched = new java.util.ArrayList<>();
+        MutationDispatcher d = new MutationDispatcher(() -> model) {
+            @Override
+            protected void dispatchCommand(Command c) {
+                dispatched.add(c);
+            }
+        };
+        StalenessCapture cap = d.captureStaleness(java.util.Set.of(actor.getId()));
+        Command rebuilt = new StubCommand("update");
+        PendingProposal p = new PendingProposal(null, "update-element", "Update actor",
+                () -> new PreparedMutation<>(rebuilt, "freshEntity", actor.getId()),
+                cap, "proposeEntity", null, Map.of(), "v", Instant.now(), null, null);
+        String id = d.storeProposal("s-1", p);
+
+        ApprovalResult result = d.approveProposal("s-1", id);
+
+        assertEquals("the freshly rebuilt command is dispatched", 1, dispatched.size());
+        assertEquals("the rebuilt command (not a frozen one) is what ran", rebuilt, dispatched.get(0));
+        assertEquals("the fresh entity is returned", "freshEntity", result.entity());
+        assertNull("a successful approve removes the proposal from the queue", d.getProposal("s-1", id));
+    }
+
+    @Test
+    public void shouldSweepExpiredProposal_onListAllPending() {
+        // A proposal abandoned past the TTL is swept from the live list (relieving the cap).
+        dispatcher.storeProposal("s-1",
+                proposal("create-element", "abandoned", Instant.now().minus(java.time.Duration.ofHours(1))));
+
+        assertTrue("expired proposal swept from the live list", dispatcher.listAllPending().isEmpty());
+    }
+
+    @Test
+    public void shouldFireQueueChanged_whenListAllPendingSweepsExpired() {
+        // A TTL sweep triggered by listAllPending must notify queue listeners so the
+        // dock repaints even when the sweep was driven by a non-dock caller (e.g. the agent's list call).
+        dispatcher.storeProposal("s-1",
+                proposal("create-element", "abandoned", Instant.now().minus(java.time.Duration.ofHours(1))));
+        int[] fired = {0};
+        dispatcher.addQueueListener(() -> fired[0]++);
+
+        dispatcher.listAllPending(); // sweeps the expired one
+
+        assertEquals("sweep on list fires queue-changed exactly once", 1, fired[0]);
+    }
+
+    @Test
+    public void shouldNotFireQueueChanged_whenListAllPendingSweepsNothing() {
+        // No fire when nothing was swept — the dock must not be churned on every read.
+        dispatcher.storeProposal("s-1", proposal("create-element", "fresh", Instant.now()));
+        int[] fired = {0};
+        dispatcher.addQueueListener(() -> fired[0]++);
+
+        dispatcher.listAllPending(); // nothing expired
+
+        assertEquals("no sweep ⇒ no queue-changed fire", 0, fired[0]);
+    }
+
     @Test
     public void shouldIncludeApprovalInfoInBatchStatus() {
-        dispatcher.setApprovalRequired("session-1", true);
+        dispatcher.setApprovalModeProvider(() -> true);
         PendingProposal proposal = new PendingProposal(
                 null, "create-element", "desc",
                 new StubCommand("cmd"), "e", null, Map.of(), "v", Instant.now());
@@ -415,13 +582,30 @@ public class MutationDispatcherTest {
 
         BatchStatusDto status = dispatcher.getBatchStatus("session-1");
 
+        // Approval flag now overlaid from the global provider; pending count stays per-session.
         assertEquals(Boolean.TRUE, status.approvalRequired());
         assertEquals(Integer.valueOf(1), status.pendingApprovalCount());
     }
 
     @Test
-    public void shouldPreserveApprovalState_acrossBatchReset() {
-        dispatcher.setApprovalRequired("session-1", true);
+    public void shouldOmitApprovalFlagInBatchStatus_whenOff() {
+        // Wire shape preserved: approvalRequired is omitted (null) when OFF, present
+        // (TRUE) when ON — get-batch-status keeps its byte-for-byte legacy contract.
+        dispatcher.setApprovalModeProvider(() -> false);
+        PendingProposal proposal = new PendingProposal(
+                null, "create-element", "desc",
+                new StubCommand("cmd"), "e", null, Map.of(), "v", Instant.now());
+        dispatcher.storeProposal("session-1", proposal);
+
+        BatchStatusDto status = dispatcher.getBatchStatus("session-1");
+
+        assertNull(status.approvalRequired());
+        assertEquals(Integer.valueOf(1), status.pendingApprovalCount());
+    }
+
+    @Test
+    public void shouldKeepGlobalApprovalBit_acrossBatchReset() {
+        dispatcher.setApprovalModeProvider(() -> true);
         PendingProposal proposal = new PendingProposal(
                 null, "create-element", "desc",
                 new StubCommand("cmd"), "e", null, Map.of(), "v", Instant.now());
@@ -431,14 +615,14 @@ public class MutationDispatcherTest {
         dispatcher.beginBatch("session-1", "batch");
         dispatcher.endBatch("session-1", true);
 
-        // Approval state should survive
+        // The global bit is independent of batch lifecycle; proposals survive too.
         assertTrue(dispatcher.isApprovalRequired("session-1"));
         assertEquals(1, dispatcher.getPendingProposals("session-1").size());
     }
 
     @Test
-    public void shouldClearApprovalState_onClearAllSessions() {
-        dispatcher.setApprovalRequired("session-1", true);
+    public void shouldNotClearGlobalApprovalBit_onClearAllSessions() {
+        dispatcher.setApprovalModeProvider(() -> true);
         PendingProposal proposal = new PendingProposal(
                 null, "create-element", "desc",
                 new StubCommand("cmd"), "e", null, Map.of(), "v", Instant.now());
@@ -446,11 +630,13 @@ public class MutationDispatcherTest {
 
         dispatcher.clearAllSessions();
 
-        assertFalse(dispatcher.isApprovalRequired("session-1"));
+        // clearAllSessions drops per-session proposals, but the global gate is human-owned
+        // and unaffected.
+        assertTrue(dispatcher.isApprovalRequired("session-1"));
         assertTrue(dispatcher.getPendingProposals("session-1").isEmpty());
     }
 
-    // ---- Immediate dispatch callback tests (Story 7-6 code review Fix 1) ----
+    // ---- Immediate dispatch callback tests ----
 
     @Test
     public void shouldCallImmediateDispatchCallback_whenProposalApprovedImmediately() {
@@ -483,6 +669,145 @@ public class MutationDispatcherTest {
         dispatcher.approveProposal("session-1", id);
 
         assertEquals("Callback should NOT have been invoked (batch mode)", 0, callCount[0]);
+    }
+
+    // ---- Approval-queue listener fan-out + cross-session aggregation ----
+
+    private static PendingProposal proposal(String tool, String name, Instant createdAt) {
+        return new PendingProposal(
+                null, tool, "Desc " + name,
+                new StubCommand(tool), "entity", null,
+                Map.of("name", name), "Valid", createdAt);
+    }
+
+    @Test
+    public void shouldFireQueueListener_onStore() {
+        int[] fired = {0};
+        dispatcher.addQueueListener(() -> fired[0]++);
+
+        dispatcher.storeProposal("s-1", proposal("create-element", "A", Instant.now()));
+
+        assertEquals(1, fired[0]);
+    }
+
+    @Test
+    public void shouldFireQueueListener_onRemove() {
+        String id = dispatcher.storeProposal("s-1", proposal("create-element", "A", Instant.now()));
+        int[] fired = {0};
+        dispatcher.addQueueListener(() -> fired[0]++);
+
+        dispatcher.removeProposal("s-1", id);
+
+        assertEquals(1, fired[0]);
+    }
+
+    @Test
+    public void shouldNotFireQueueListener_whenRemoveMisses() {
+        int[] fired = {0};
+        dispatcher.addQueueListener(() -> fired[0]++);
+
+        PendingProposal removed = dispatcher.removeProposal("s-1", "p-999");
+
+        assertNull(removed);
+        assertEquals("A missed removal must not fire the queue listener", 0, fired[0]);
+    }
+
+    @Test
+    public void shouldFireQueueListener_onApprove() {
+        String id = dispatcher.storeProposal("s-1", proposal("create-element", "A", Instant.now()));
+        int[] fired = {0};
+        dispatcher.addQueueListener(() -> fired[0]++);
+
+        dispatcher.approveProposal("s-1", id);
+
+        assertEquals(1, fired[0]);
+    }
+
+    @Test
+    public void shouldFireQueueListener_onReject() {
+        String id = dispatcher.storeProposal("s-1", proposal("create-element", "A", Instant.now()));
+        int[] fired = {0};
+        dispatcher.addQueueListener(() -> fired[0]++);
+
+        dispatcher.rejectProposal("s-1", id);
+
+        assertEquals(1, fired[0]);
+    }
+
+    @Test
+    public void shouldFireQueueListener_onClearAllSessions() {
+        dispatcher.storeProposal("s-1", proposal("create-element", "A", Instant.now()));
+        int[] fired = {0};
+        dispatcher.addQueueListener(() -> fired[0]++);
+
+        dispatcher.clearAllSessions();
+
+        assertEquals(1, fired[0]);
+    }
+
+    @Test
+    public void shouldStopFiring_afterListenerRemoved() {
+        int[] fired = {0};
+        ApprovalQueueListener listener = () -> fired[0]++;
+        dispatcher.addQueueListener(listener);
+        dispatcher.removeQueueListener(listener);
+
+        dispatcher.storeProposal("s-1", proposal("create-element", "A", Instant.now()));
+
+        assertEquals(0, fired[0]);
+    }
+
+    @Test
+    public void shouldNotBreakDispatch_whenListenerThrows() {
+        dispatcher.addQueueListener(() -> {
+            throw new IllegalStateException("listener boom");
+        });
+        int[] good = {0};
+        dispatcher.addQueueListener(() -> good[0]++);
+
+        // A throwing listener must not propagate out of the store path.
+        String id = dispatcher.storeProposal("s-1", proposal("create-element", "A", Instant.now()));
+
+        assertNotNull(id);
+        assertEquals("Well-behaved listeners still fire after a throwing one", 1, good[0]);
+    }
+
+    @Test
+    public void shouldAggregateAllPending_acrossSessions_carryingSessionId() {
+        // Timestamps must be within PROPOSAL_TTL (listAllPending sweeps older ones), so use
+        // now-relative instants rather than fixed ancient dates.
+        Instant base = Instant.now();
+        dispatcher.storeProposal("s-a", proposal("create-element", "A", base.minusSeconds(120)));
+        dispatcher.storeProposal("s-b", proposal("create-relationship", "B", base.minusSeconds(60)));
+
+        List<PendingProposalView> all = dispatcher.listAllPending();
+
+        assertEquals(2, all.size());
+        // Each entry carries its routing session id so Approve/Reject can target the right session.
+        assertTrue(all.stream().anyMatch(v -> v.sessionId().equals("s-a")));
+        assertTrue(all.stream().anyMatch(v -> v.sessionId().equals("s-b")));
+    }
+
+    @Test
+    public void shouldOrderListAllPending_byCreatedAtAscending() {
+        // Stored newest-first; aggregation must return oldest-first regardless of session/insert order.
+        // Keep both within PROPOSAL_TTL so neither is swept on list.
+        Instant base = Instant.now();
+        Instant newer = base.minusSeconds(30);
+        Instant older = base.minusSeconds(300);
+        dispatcher.storeProposal("s-a", proposal("create-element", "newer", newer));
+        dispatcher.storeProposal("s-b", proposal("create-element", "older", older));
+
+        List<PendingProposalView> all = dispatcher.listAllPending();
+
+        assertEquals(older.toString(), all.get(0).proposal().createdAt());
+        assertEquals("s-b", all.get(0).sessionId());
+        assertEquals(newer.toString(), all.get(1).proposal().createdAt());
+    }
+
+    @Test
+    public void shouldReturnEmptyList_whenNoSessionsPending() {
+        assertTrue(dispatcher.listAllPending().isEmpty());
     }
 
     // ---- Test helpers ----

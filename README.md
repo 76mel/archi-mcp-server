@@ -6,7 +6,7 @@ An Eclipse PDE plugin for [Archi](https://www.archimatetool.com/) that exposes A
 
 Archi MCP Server embeds an HTTP server inside Archi that speaks MCP. Once running, any MCP-compatible LLM client (Claude, Cline, LM Studio, etc.) can connect and interact with the currently open ArchiMate model — asking questions, searching elements, traversing relationships, composing view diagrams, and even creating or modifying model content.
 
-The server provides **72 MCP tools** across querying, searching, creating, layout, routing, assessment, batch operations, images, specializations, and more — plus **14 MCP resources** with ArchiMate reference material, workflow guides, and a viewpoint recipe library for LLMs.
+The server provides **69 MCP tools** across querying, searching, creating, layout, routing, assessment, batch operations, images, specializations, and more — plus **14 MCP resources** with ArchiMate reference material, workflow guides, and a viewpoint recipe library for LLMs.
 
 **Example conversation:**
 
@@ -38,7 +38,15 @@ Open an ArchiMate model in Archi, then:
 
 **Menu:** `MCP Server > Start MCP Server`
 
-The menu toggles between Start/Stop. The default endpoint is `http://127.0.0.1:18090`.
+The **MCP Server** entry in Archi's menu bar has three items:
+
+| Menu item | What it does |
+|---|---|
+| **Start MCP Server** | Starts the embedded server; toggles to **Stop MCP Server** while running. |
+| **Approval Mode** | Checkable toggle for the human-owned approval gate. When on, the agent's changes queue for your review instead of applying immediately — see [Mutation Safety](#mutation-safety). |
+| **Pending approvals (N)** | Opens the **Pending Approvals** dock view; `N` is the live count of changes awaiting your decision. |
+
+Server behaviour (port, bind address, TLS, authentication, …) is configured separately under **Window > Preferences > MCP Server** — see [Configuration](#configuration). The default endpoint is `http://127.0.0.1:18090`.
 
 ### 2. Configure Your LLM Client
 
@@ -124,7 +132,8 @@ Access via **Window > Preferences > MCP Server** in Archi.
 | **Log Level** | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARN`, `ERROR` |
 | **Enable TLS** | `false` | Use HTTPS with TLS encryption |
 | **Keystore File** | *(empty)* | Path to PKCS12/JKS keystore (auto-generated if using self-signed) |
-| **Keystore Password** | *(empty)* | Password for the keystore file |
+| **Keystore Password** | *(empty)* | Password for the keystore file, stored in your OS keychain via Equinox secure storage (no separate password to manage) — never written to disk in cleartext |
+| **Enable bearer-token authentication** | `false` | Require an `Authorization: Bearer <token>` header on every request (see below) |
 
 ### TLS / HTTPS
 
@@ -136,9 +145,69 @@ The server supports optional TLS encryption. To enable:
 
 Clients must trust the self-signed certificate. For `curl` testing, use the `-k` flag. For LLM clients, import the certificate into the client's trust store or the JVM `cacerts`.
 
+The keystore password (whether you type it or generate it with the button) is stored in your OS keychain via Equinox secure storage — the same store the bearer token and Archi itself use — not in the plaintext preference file. If you had a keystore password set in an earlier version, it is migrated automatically on first start.
+
+### Enabling authentication (bearer token)
+
+By default the server requires no authentication — anything that can reach the port can call the tools, which is why the default bind is loopback only. If you bind to a non-loopback address, or simply want a secret required even on loopback, enable an **opt-in bearer token**:
+
+1. In **Window > Preferences > MCP Server > Authentication**, check **Enable bearer-token authentication**. A 256-bit token is generated automatically on first opt-in and stored in your OS keychain (via Equinox secure storage — no separate password to manage).
+2. Click **Copy** to copy the token, or **Generate / Regenerate token** to roll it (regenerating invalidates clients still using the old token).
+3. Restart the server. Every request to `/mcp` and `/sse` must now send `Authorization: Bearer <token>`; a missing, malformed, or wrong token gets `401`.
+
+Configure your clients to send the header:
+
+**Claude Code (CLI):**
+```bash
+claude mcp add --transport http archi http://127.0.0.1:18090/mcp --header "Authorization: Bearer <token>"
+```
+
+**Claude Code (`.mcp.json` / `~/.claude.json`):**
+```json
+{
+  "mcpServers": {
+    "archi": {
+      "type": "http",
+      "url": "http://127.0.0.1:18090/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+**Claude Desktop (via `mcp-proxy`)** — pass the header through the proxy:
+```json
+{
+  "mcpServers": {
+    "archi": {
+      "command": "uvx",
+      "args": ["mcp-proxy", "--transport", "streamablehttp", "--headers", "Authorization", "Bearer <token>", "http://127.0.0.1:18090/mcp"]
+    }
+  }
+}
+```
+
+**`curl` (testing):**
+```bash
+curl -X POST http://127.0.0.1:18090/mcp -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+```
+
+Authentication is **off by default** — existing configs without an `Authorization` header keep working unchanged until you enable it. On a non-loopback bind, also enable TLS so the token is not sent in cleartext.
+
+### Security model
+
+The server exposes mutating and file-touching tools over HTTP, so the trust
+boundary is worth understanding. [`SECURITY.md`](SECURITY.md) states what the
+server protects against by default (loopback bind, Origin/Host validation,
+request/session/image resource limits, the human-owned approval gate) versus
+what is your responsibility as the operator (transport encryption, client
+authentication, securing a non-loopback bind), and how to report a
+vulnerability. Read it before binding off-loopback or pointing an agent at
+untrusted input.
+
 ## Available Tools
 
-The server exposes **72 MCP tools** organised into functional categories.
+The server exposes **69 MCP tools** organised into functional categories.
 
 ### Query & Model Inspection (6 tools)
 
@@ -147,7 +216,7 @@ The server exposes **72 MCP tools** organised into functional categories.
 | `get-model-info` | Model overview — name, `purpose`, custom `properties`, element/relationship/view counts by type and layer, plus specialization count. Read counterpart to `update-model` |
 | `get-element` | Retrieve element(s) by ID (single via `id` or batch via `ids` array) |
 | `get-views` | List views with optional viewpoint type or name filtering |
-| `get-view-contents` | View diagram contents — elements, relationships, visual positions, connection routing, image visuals, and the full styling surface (typography, gradient, alignment, line style, `labelExpression`) so styling mutations can be read back and verified. `format: "tree"` returns the containment hierarchy, descending both visual groups **and** ArchiMate-element containers — nested children appear in the parent node's `children` array with a `childCount` |
+| `get-view-contents` | View diagram contents — elements, relationships, visual positions, connection routing, image visuals, and the full styling surface (typography, gradient, alignment, line style, `labelExpression`) so styling mutations can be read back and verified. `format: "tree"` returns the containment hierarchy, descending both visual groups **and** ArchiMate-element containers — nested children appear in the parent node's `children` array with a `childCount`. Graph nodes and edges also carry their visual identifiers (`viewObjectId` on nodes, `viewConnectionId` on edges) so a returned visual can be fed straight into `remove-from-view` / `update-view-object` / `update-view-connection` without a second lookup |
 | `get-relationships` | Traverse relationships with configurable depth (0-3 hops) or multi-hop chain traversal with direction/type/layer filters |
 | `find-concept-usage` | Reverse where-used lookup — given an element or relationship ID, returns every view and visual object/connection that references it. Inverse of `get-view-contents`. Use before `delete-element` / `delete-relationship` / rename / re-type to see the cross-view footprint in one round-trip |
 
@@ -213,20 +282,19 @@ All view-composition tools that place a new visual object (`add-to-view`, `add-g
 | `remove-from-view` | Remove a visual element or connection from a view (model object preserved) |
 | `clear-view` | Remove all visual elements and connections from a view (model objects preserved) |
 
-### Layout & Routing (12 tools)
+### Layout & Routing (11 tools)
 
 > **LLM agents:** Fetch `archimate://prompts/routing-preconditions-checklist` before invoking `auto-route-connections` or `auto-layout-and-route` on any non-trivial view. The routing pipeline cannot recover from missing preconditions — it can only route the geometry the agent has set up. The spacing convenience tools self-terminate honestly: if a view is provably too dense for spacing to fix they return `terminationReason: density_floor_reflow_required` and offer a user-consentable structural reflow — surface that to the user instead of looping the spacing tools.
 
 | Tool | Description |
 |---|---|
-| `compute-layout` | Apply an automatic layout algorithm (tree, spring, directed, radial, grid) to a view |
 | `auto-route-connections` | Orthogonal connection routing using clearance-weighted visibility-graph A* pathfinding with corridor directionality, corridor diversity, group-wall awareness, channel-global ordered nudging, and post-routing path straightening. Two modes: `mode: "full"` (default) re-routes whole connections via visibility-graph A*; `mode: "terminals-only"` rectifies only the first/last bendpoint of each connection to make terminal segments orthogonal — best after ELK on grouped views to fix diagonal terminal entries without the crossing inflation a full re-route causes. Optional `autoNudge` mode automatically moves blocking elements (and resizes parent groups to contain them) and re-routes failed connections in a single atomic operation. The response carries a `structuredWarnings: List<{code, message, remediationTool, remediationViolatorIds}>` field for deterministic LLM iteration (most common: `AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP` instructing the agent to run `layout-within-group` on the parent before re-routing) |
 | `auto-layout-and-route` | Two modes: `auto` (default) uses ELK Layered to compute positions AND routes in one operation; `grouped` orchestrates the full grouped-view workflow (layout-within-group + arrange-groups + optimize-group-order + auto-route-connections) atomically. Smart iteration when `targetRating` is set — factor-aware iteration tunes the right knob per tier, with plateau detection to exit early when iterations stop improving the dominant tier |
 | `layout-within-group` | Arrange child elements inside a container using row, column, or grid patterns. The container may be a visual group **or** an ArchiMate-element container (`ApplicationComponent`, `Node`, `ApplicationFunction`, etc.) that holds nested children — the same `arrangement` / `spacing` / `padding` / `columns` / `autoResize` / `autoWidth` semantics apply to both. Notes, view-references, and connections are rejected as containers |
 | `layout-flat-view` | Automatic layout for flat (non-grouped) views — row, column, or grid arrangement with optional sorting by name/type/layer and category grouping |
 | `arrange-groups` | Position top-level groups relative to each other in grid, row, or column layout. **Density-aware default:** when `spacing` is omitted on a view with inter-group connections, the tool derives a connection-count-aware default (≤ 15 → 80 px, 16–30 → 100 px, > 30 → 120 px). Pass an explicit `spacing` to suppress |
 | `optimize-group-order` | Reorder elements within groups to minimise inter-group edge crossings |
-| `resize-elements-to-fit` | Resize all (or selected) elements on a view to fit their labels using SWT font metrics. Two-pass algorithm for nested containment: children first, then parents. **Sizes for label legibility only — not for connection fan-out.** For hub elements with high connection counts, use `detect-hub-elements` plus `update-view-object` |
+| `resize-elements-to-fit` | Resize all (or selected) elements on a view to fit their labels using SWT font metrics. Two-pass algorithm for nested containment: children first, then parents. Optional `wrapFit: true` keeps each element's width and grows only its height so a long label wraps onto extra lines instead of being clipped or forced into an over-wide box — useful for nested labels in fixed-width containers (after a parent grows to contain a wrapped child, follow with `auto-route-connections`). **Sizes for label legibility only — not for connection fan-out.** For hub elements with high connection counts, use `detect-hub-elements` plus `update-view-object` |
 | `adjust-view-spacing` | Inflate inter-element and inter-group spacing on an existing view, then re-route in a single atomic operation. Use when a view is correctly laid out but visually cramped, without re-running ELK from scratch and losing manual placement intent. **Density-aware default:** when `interElementDelta` is omitted on a view with `coincidentSegmentCount > 2` or `connectionEdgeCoincidenceCount > 4`, the tool derives a connection-count-aware default (≤ 15 → 60 px target, 16–30 → 80 px, > 30 → 100 px). Pass `interElementDelta: 0` to suppress. After spacing inflation, a post-pass detects any child element that overflows its parent group bounds and resizes the parent (B15 closure) |
 | `apply-element-spacing-recommendations` | Convenience tool that runs an embedded observe → decide → density-aware-terminate control loop to inflate within-group element spacing. Per iteration it takes a small monotone step, re-runs `assess-layout`, and continues / escalates / stops; a degrading step is always reverted. Hub-aware tier selection (80/100/120 px) when `detect-hub-elements` reports candidates. Returns before/after `assess-layout` snapshots plus `terminationReason` / `iterationCount` / `appliedDeltas[]`. One call = one undo step. Set `dryRun: true` to preview |
 | `apply-group-spacing-recommendations` | Sibling-symmetric convenience tool that runs the same embedded control loop to widen inter-group corridors only — preserves group ordering and topology. Hub-aware connected-pair tier rises to 100/140/160 px. Returns before/after `assess-layout` snapshots plus `terminationReason` / `iterationCount` / `appliedDeltas[]`. `dryRun: true` previews. With hub sizing and `apply-element-spacing-recommendations` this completes the routing-preconditions triad |
@@ -292,16 +360,16 @@ All view-composition tools that place a new visual object (`add-to-view`, `add-g
 
 | Tool | Description |
 |---|---|
-| `undo` | Undo the most recent mutation operation(s) with optional step count |
-| `redo` | Redo previously undone operation(s) |
+| `undo` | Undo the most recent mutation operation(s) with optional step count. **Scoped to the agent's own changes:** stops at — and refuses to cross — any human edit on the stack, so the agent can never silently revert hand-drawn work (to undo a human change it must submit a new proposal). The human's native Ctrl+Z is unscoped and still undoes anything |
+| `redo` | Redo previously undone operation(s). Scoped to the agent's own changes, symmetric to `undo` |
 
-### Approval Workflow (3 tools)
+### Approval Workflow (1 tool)
+
+The approval **gate is owned by the human** in Archi (a desktop toggle), not by the agent. The MCP surface exposes only a read-only observation tool — the agent can see that changes are gated but cannot enable/disable the gate or approve its own queued changes.
 
 | Tool | Description |
 |---|---|
-| `set-approval-mode` | Enable or disable human-in-the-loop approval for mutations |
-| `list-pending-approvals` | List all pending mutation proposals awaiting approval |
-| `decide-mutation` | Approve or reject a pending mutation proposal |
+| `list-pending-approvals` | List pending mutation proposals awaiting the human's approval (read-only) |
 
 ### Session Management (2 tools)
 
@@ -357,14 +425,20 @@ A progressive-disclosure recipe library for laying out non-conventional ArchiMat
 
 All write operations integrate with Archi's **CommandStack**, making every mutation **undoable** via `Ctrl+Z` in Archi or the `undo` / `redo` tools.
 
-**Approval mode** adds a human-in-the-loop gate:
+**Approval mode** adds a human-in-the-loop gate that the **human owns** — the agent operates tools but can never move the gate or approve its own changes:
 
 ```
-set-approval-mode(true)
-  → LLM proposes mutations → they queue as "pending"
-  → list-pending-approvals → review what's proposed
-  → decide-mutation(id, "approve") → apply, or "reject" → discard
+Human toggles "Approval Mode" ON in Archi (MCP Server menu)
+  → agent's mutations queue as "pending" (not applied)
+  → agent calls list-pending-approvals → sees what's gated, tells the user to confirm in Archi
+  → human approves/rejects in Archi → apply, or discard
 ```
+
+The toggle lives only on the human side: there is no MCP tool to enable/disable approval or to approve a proposal. Your choice is **remembered across restarts** (stored in MCP preferences); a fresh install defaults to **GATED** (fail safe). Turning the gate **off** requires a confirmation in Archi; turning it **on** is a single click. Approval mode is a single global switch (one human, one desktop, one gate), and the agent can read the current state via `get-model-info` (`approvalMode`).
+
+**Pending Approvals view.** When approval mode is on, you review and apply the agent's queued changes in the **Pending Approvals** dock view inside Archi. Open it from **Window → Show View → MCP Server → Pending Approvals**, or from the **MCP Server → `Pending approvals (N)`** menu item (which also shows the live count). Each gated tool-call — including a whole `bulk-mutate` — is **one card**, showing a plain-language effect rollup with destructive counts (deletes/removals) called out in amber. **`Show changes`** expands the card to named, verb-prefixed rows (deletes hoisted to the top) with a `Technical details` disclosure for the raw parameters. **`Approve`** applies the change (a card containing a delete stays disabled until you expand it once); **`Reject`** discards it with no change to the model. Toolbar **`Approve all safe`** clears the purely-additive cards in one click, and **`Approve all ⚠`** drains everything after one confirmation that names the deletion count. New gated changes appear live without a refresh.
+
+The card's effect text is **generated by the server from the model's own truth**, so you can decide from the card alone without opening `Technical details`: relationships name both endpoints (`Create ServingRelationship: 'Payment Gateway' → 'Fraud Engine'`, and a delete adds its cascade), and a `bulk-mutate` card's rows are named per operation (`+ Create "Payment Gateway" (ApplicationComponent)`, `↔ Connect "Payment Gateway" → "Fraud Engine" (ServingRelationship)`). Agents may pass an **optional `intent`** on `begin-batch` or `bulk-mutate` (a plain-language "why"); when present it shows as a quiet `agent's note:` line **below** the effect — it never replaces or outranks the server effect, and an empty or generic note is dropped. Effect is non-spoofable server ground truth; intent is a separate, lower-trust claim the server never depends on.
 
 **Batch mode** groups mutations into atomic transactions:
 
@@ -399,6 +473,29 @@ end-batch()
 **TLS connection issues**
 - Verify the keystore file exists and the password is correct
 - For self-signed certificates, ensure the client trusts the certificate or use `-k` with `curl`
+
+**Troubleshooting: secure storage ("Secure storage unavailable" when saving the token or keystore password)**
+
+The bearer token and the TLS keystore password are stored in Equinox secure storage, encrypted under an OS-protected master password (the **macOS Keychain** on Mac, the **Windows Credential Store / DPAPI** on Windows). If that OS-protected master password entry is lost or locked, saving fails with *"Secure storage unavailable."* This is an environment/credential-store state issue, not a data problem — the app **never** falls back to storing the secret in cleartext, and any value already configured is left untouched. (On macOS the underlying error in the log reads `SecurityException: Could not obtain password. Result: -25300`; on Windows it surfaces as a `StorageException` reporting the master password could not be obtained.)
+
+To recover, reset secure storage so Equinox can create a fresh master password:
+
+1. **Quit Archi.**
+2. Move aside the secure-storage file (a backup, so it's reversible). It lives in the Archi instance area:
+   - **macOS:**
+     ```bash
+     mv ~/Library/Application\ Support/Archi/secure_storage \
+        ~/Library/Application\ Support/Archi/secure_storage.bak
+     ```
+   - **Windows** (PowerShell):
+     ```powershell
+     Move-Item "$env:APPDATA\Archi\secure_storage" "$env:APPDATA\Archi\secure_storage.bak"
+     ```
+   If the path differs on your setup, the exact location is shown in the `.metadata/.log` file referenced below.
+3. **Restart Archi.** Equinox recreates the store automatically (you may get a one-time OS prompt to allow access to the Keychain / Credential Store — allow it).
+4. Re-enter any secrets that lived in the old store: the **bearer token** (Generate / Regenerate in preferences), the **TLS keystore password** (re-type it or use Generate Self-Signed Certificate), and — if you use them — any other Archi credentials (e.g. coArchi model-repository logins).
+
+> Note: Archi (unlike the full Eclipse IDE) does not expose the **Error Log** view in its menus on any platform. To read the full stack trace, open the `.metadata/.log` file inside your Archi instance area directly (`~/Library/Application Support/Archi/.metadata/.log` on macOS, `%APPDATA%\Archi\.metadata\.log` on Windows).
 
 ---
 
@@ -529,7 +626,8 @@ For connections, `redo()` must null-then-reconnect due to Archi's `connect()` ea
 
 The test bundle (`net.vheerden.archi.mcp.tests`) is an OSGi fragment with `Fragment-Host: net.vheerden.archi.mcp`, giving it full access to main plugin classes.
 
-- **Run the whole suite** in Eclipse as a single "JUnit Plug-in Test" (e.g. the `AllPluginTestsRunner` launch) — the OSGi runtime it provides is required for full coverage. Individual classes can also be run one at a time.
+- **Headless one-command run (recommended):** `tools/run-tests.sh` compiles both projects from source against your local Archi/Eclipse install and runs the headless-safe majority of the suite (~95% of classes), asserting `testsRun > 0` per class and emitting JUnit XML to `build/test-results/`. No Eclipse IDE, no hand-maintained class list — the run set is auto-discovered by scanning for `*Test.java` minus the exclusion manifest `tools/osgi-excluded-tests.txt`. See [`tools/README.md`](tools/README.md). Override locations with `ARCHI_HOME` / `ECLIPSE_HOME` / `M2_REPO` (so CI can reuse the same script). Use `tools/run-tests.sh --swt <Class>` for SWT/display-required classes.
+- **Run the OSGi-only bucket** in Eclipse as a single "JUnit Plug-in Test" (the `AllPluginTestsRunner` launch) — the OSGi runtime it provides is required for the classes the headless harness excludes (listed in `tools/osgi-excluded-tests.txt`). Individual classes can also be run one at a time.
 - **Pure-Java tests** (geometry, layout algorithms, routing) can also run as standard JUnit tests without the Eclipse runtime
 - Handler tests mock `ArchiModelAccessor` — no Archi installation needed
 - **Tests requiring the Eclipse/OSGi runtime** — three classes touch Archi/Eclipse runtime singletons that only initialise under OSGi, so they **must** be run as a JUnit Plug-in Test (a headless JVM cannot initialise them and they are guarded to *skip* there rather than fail):

@@ -20,7 +20,7 @@ public class JsonErrorHandlerTest {
         handler = new JsonErrorHandler();
     }
 
-    // ---- HTTP to JSON-RPC code mapping (AC2, AC5) ----
+    // ---- HTTP to JSON-RPC code mapping ----
 
     @Test
     public void shouldMap400_toInvalidRequest() {
@@ -60,7 +60,7 @@ public class JsonErrorHandlerTest {
         assertEquals(JsonErrorHandler.JSONRPC_SERVER_ERROR, handler.mapHttpStatusToJsonRpcCode(503));
     }
 
-    // ---- JSON envelope building (AC1, AC2) ----
+    // ---- JSON envelope building ----
 
     @Test
     public void shouldBuildValidJsonRpcErrorEnvelope() {
@@ -116,7 +116,7 @@ public class JsonErrorHandlerTest {
         assertFalse("Should not contain .java references", json.contains(".java"));
     }
 
-    // ---- JSON escaping (AC1 — no raw data leaks) ----
+    // ---- JSON escaping (no raw data leaks) ----
 
     @Test
     public void shouldEscapeDoubleQuotes_inMessage() {

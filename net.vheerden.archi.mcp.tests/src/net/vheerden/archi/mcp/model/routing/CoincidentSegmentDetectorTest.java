@@ -15,7 +15,7 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
  * Tests for {@link CoincidentSegmentDetector} — coincident segment detection
- * and offset logic (Story 11-23). Pure-geometry tests, no EMF/SWT required.
+ * and offset logic. Pure-geometry tests, no EMF/SWT required.
  */
 public class CoincidentSegmentDetectorTest {
 
@@ -602,7 +602,7 @@ public class CoincidentSegmentDetectorTest {
         assertNull("Should return null for zero segments", positions);
     }
 
-    // ---- Code review: M1 — Tolerance-aware corridor grouping ----
+    // ---- Tolerance-aware corridor grouping ----
 
     @Test
     public void applyOffsets_shouldGroupSegmentsWithinTolerance_forProportionalSpacing() {
@@ -638,7 +638,7 @@ public class CoincidentSegmentDetectorTest {
                 separation > 10);
     }
 
-    // ---- Code review: M2 — Strengthened fixed-delta regression ----
+    // ---- Strengthened fixed-delta regression ----
 
     @Test
     public void applyOffsets_shouldApplyFixedDelta_whenProportionalSpacingUnavailable() {
@@ -683,7 +683,7 @@ public class CoincidentSegmentDetectorTest {
         assertTrue("Should handle gracefully", offsetCount >= 0);
     }
 
-    // ---- B55: detectCoincidentSegments with violator index collection ----
+    // ---- detectCoincidentSegments with violator index collection ----
 
     @Test
     public void detectCoincidentSegments_shouldReturnCountAndViolatorIndices() {
@@ -780,11 +780,11 @@ public class CoincidentSegmentDetectorTest {
                 result.violatorConnectionIndices().contains(2));
     }
 
-    // ---- Story CoincidentRegression.SurgicalFix (AC-9a / AC-9b): perimeter-anchored
-    //      coincident segments — applyOffsets rollback + Approach-3 reconciliation pin.
+    // ---- Perimeter-anchored coincident segments — applyOffsets rollback +
+    //      Approach-3 reconciliation pin.
 
     /**
-     * AC-9b: existing B71 rollback safety pin via applyOffsets round-trip.
+     * Existing rollback safety pin via applyOffsets round-trip.
      * Two connections both terminate on a hub LEFT face at distinct slots
      * (y=80 and y=60), sharing a vertical corridor at x=199 just outside
      * the LEFT face. applyOffsets's perpendicular delta-shift would move
@@ -827,7 +827,7 @@ public class CoincidentSegmentDetectorTest {
     }
 
     /**
-     * AC-9a: Approach-3 reconciliation resolves the rollback-prone coincidence
+     * Approach-3 reconciliation resolves the rollback-prone coincidence
      * by INSERTING two BPs around the still-anchored terminal — the corridor
      * shifts perpendicular while the terminal BP itself stays on the face line.
      */
@@ -898,9 +898,9 @@ public class CoincidentSegmentDetectorTest {
     }
 
     /**
-     * Code-review M3 (2026-04-29): three TA-coincident connections in a single
+     * Review finding (2026-04-29): three TA-coincident connections in a single
      * corridor must be staggered so all pairs separate without two segments
-     * landing within MIN_SEPARATION of each other. AC-9a only covers the
+     * landing within MIN_SEPARATION of each other. The prior reconciliation only covers the
      * 2-segment case; the V4 oracle's largest TA-cluster is 4 segments
      * (C1 y=345 corridor → hub BOTTOM face) so 3+ clusters are in scope.
      */
@@ -941,7 +941,7 @@ public class CoincidentSegmentDetectorTest {
     }
 
     /**
-     * Code-review M2 (2026-04-29): a connection with TWO terminal-anchored
+     * Review finding (2026-04-29): a connection with TWO terminal-anchored
      * coincident segments in two different corridor groups must not have its
      * path corrupted when corridor 1's reconciliation grows the path,
      * invalidating the stored seg.segmentIndex() for corridor 2. The defensive
@@ -991,7 +991,7 @@ public class CoincidentSegmentDetectorTest {
                         pathX));
     }
 
-    // ---- Fixture helper for AC-9a / AC-9b ----
+    // ---- Fixture helper for perimeter-anchored coincidence ----
 
     private static class Fixture {
         List<String> connectionIds;
@@ -1003,7 +1003,7 @@ public class CoincidentSegmentDetectorTest {
     }
 
     /**
-     * Builds the canonical AC-9 fixture: two connections terminating at distinct
+     * Builds the canonical fixture: two connections terminating at distinct
      * slots on the same LEFT face of a target hub element, sharing a vertical
      * corridor at x=199 (the target's LEFT face line). Both connections also
      * source-anchored on RIGHT face of their respective producer rects.
@@ -1058,7 +1058,7 @@ public class CoincidentSegmentDetectorTest {
     }
 
     /**
-     * Code-review M3 fixture: 3 connections, all terminating on the same hub
+     * Review-finding fixture: 3 connections, all terminating on the same hub
      * LEFT face at distinct slots y=80 / y=60 / y=40 (terminal BP y-values for
      * conn A / conn B / conn C respectively), sharing the vertical corridor
      * at x=199. The vertical corridor segments span y ranges [80,120] (A),
@@ -1136,7 +1136,7 @@ public class CoincidentSegmentDetectorTest {
     }
 
     /**
-     * Code-review M2 fixture: bridge connection X with both ends terminal-
+     * Review-finding fixture: bridge connection X with both ends terminal-
      * anchored on the same hub's LEFT face (U-turn), plus 2 helper
      * connections each coinciding with one of X's two TA segments. X is
      * placed at index 2 (last) so it is segB in both detected pairs, hence
@@ -1150,7 +1150,7 @@ public class CoincidentSegmentDetectorTest {
         int[] hubCenter = {hub.centerX(), hub.centerY()};
 
         // Width 49 → RIGHT face line at x=50 (same convention as the canonical
-        // AC-9 fixture: TerminalAnchoring.lineCoordinate = rect.x + width + 1).
+        // fixture: TerminalAnchoring.lineCoordinate = rect.x + width + 1).
         RoutingRect prodA = new RoutingRect(0, 0, 49, 40, "prod-A");
         RoutingRect prodB = new RoutingRect(0, 80, 49, 40, "prod-B");
         int[] prodACenter = {prodA.centerX(), prodA.centerY()};

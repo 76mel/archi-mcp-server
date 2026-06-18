@@ -28,8 +28,7 @@ import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.EmbeddedViewDto;
 
 /**
- * Tests for {@code add-view-reference-to-view} in {@link ViewPlacementHandler}
- * (Story 14-6 / G8).
+ * Tests for {@code add-view-reference-to-view} in {@link ViewPlacementHandler}.
  *
  * <p>Uses a stub-accessor that records the args passed to
  * {@code addViewReferenceToView(...)} and returns a canned DTO or throws a
@@ -54,7 +53,7 @@ public class AddViewReferenceToViewHandlerTest {
         handler.registerTools();
     }
 
-    // ---- Tool registration (AC2) ----
+    // ---- Tool registration ----
 
     @Test
     public void shouldRegisterAddViewReferenceToViewTool_AC2() {
@@ -63,7 +62,7 @@ public class AddViewReferenceToViewHandlerTest {
         assertTrue("add-view-reference-to-view tool should be registered", found);
     }
 
-    // ---- Validation (AC6 / AC3) ----
+    // ---- Validation ----
 
     @Test
     public void shouldRejectMissingViewId_AC6() throws Exception {
@@ -179,7 +178,7 @@ public class AddViewReferenceToViewHandlerTest {
         assertTrue(content.contains("INVALID_PARAMETER"));
     }
 
-    // ---- Successful placements (AC3) ----
+    // ---- Successful placements ----
 
     @Test
     public void shouldPlaceTopLevelViewReference_withAutoPlacement_AC3() throws Exception {
@@ -228,8 +227,14 @@ public class AddViewReferenceToViewHandlerTest {
     @Test
     public void shouldPlaceNestedViewReference_inParentGroup_AC3() throws Exception {
         accessor.setBehavior((sid, vId, refVId, x, y, w, h, pvoId, st) -> {
+            // EmbeddedViewDto's x/y/width/height are primitive int. The real accessor defaults
+            // omitted width/height (120x55 per the tool schema) before building the DTO; the stub
+            // must do the same, else it NPEs auto-unboxing the null Integer width/height this
+            // call omits (sibling tests pass concrete values).
             EmbeddedViewDto dto = new EmbeddedViewDto(
-                    "vo-new", refVId, x, y, w, h, pvoId);
+                    "vo-new", refVId,
+                    x != null ? x : 0, y != null ? y : 0,
+                    w != null ? w : 120, h != null ? h : 55, pvoId);
             return new MutationResult<>(dto, null);
         });
 
@@ -297,7 +302,7 @@ public class AddViewReferenceToViewHandlerTest {
         assertEquals("v-same", entity.get("referencedViewId"));
     }
 
-    // ---- Next-steps (AC9) ----
+    // ---- Next-steps ----
 
     @Test
     public void shouldEmitStandardNextSteps_AC9() throws Exception {

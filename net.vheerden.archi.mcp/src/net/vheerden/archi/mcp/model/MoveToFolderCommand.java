@@ -9,7 +9,7 @@ import com.archimatetool.model.IFolder;
 import com.archimatetool.model.INameable;
 
 /**
- * GEF Command that moves a model object between folders (Story 8-5).
+ * GEF Command that moves a model object between folders.
  *
  * <p>Supports moving elements, relationships, views, and subfolders.
  * Uses EMF single-containment semantics: adding to target auto-removes

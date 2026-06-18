@@ -8,7 +8,7 @@ import java.util.Map;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Tracks corridor occupancy across sequentially routed connections (B47).
+ * Tracks corridor occupancy across sequentially routed connections.
  * Pure-geometry class — no EMF/SWT dependencies.
  *
  * <p>After each connection is routed, its path is recorded. Later connections

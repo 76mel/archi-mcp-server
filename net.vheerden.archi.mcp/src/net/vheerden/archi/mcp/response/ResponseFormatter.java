@@ -138,7 +138,7 @@ public class ResponseFormatter {
      * Used by handlers when the model version has changed since the session's last query.
      *
      * <p>Follows the established post-call {@code _meta} mutation pattern
-     * (same as {@code warning} in Story 5-2 and {@code notFound} in Story 3-3).</p>
+     * (same as {@code warning} and {@code notFound}).</p>
      *
      * @param envelope the response envelope from {@link #formatSuccess}
      */
@@ -170,7 +170,7 @@ public class ResponseFormatter {
 
     /**
      * Adds a {@code cacheHit: true} flag to the {@code _meta} section of an envelope.
-     * Used by handlers when returning a cached result (Story 5.4 AC2).
+     * Used by handlers when returning a cached result.
      *
      * <p>Follows the same post-call {@code _meta} mutation pattern as
      * {@link #addModelChangedFlag(Map)}.</p>

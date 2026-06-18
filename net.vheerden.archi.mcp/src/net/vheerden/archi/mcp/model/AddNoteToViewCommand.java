@@ -6,7 +6,7 @@ import com.archimatetool.model.IDiagramModelContainer;
 import com.archimatetool.model.IDiagramModelNote;
 
 /**
- * GEF Command that adds a text note to a view (Story 8-6).
+ * GEF Command that adds a text note to a view.
  *
  * <p>The note must be fully configured (content, bounds) before this
  * command is created. The command only handles view placement and

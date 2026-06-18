@@ -42,8 +42,8 @@ import net.vheerden.archi.mcp.response.dto.ViewNoteDto;
 import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
- * Handler for view-level tools: get-views (Story 2.4),
- * get-view-contents (Story 2.5), update-view (Story 8-7).
+ * Handler for view-level tools: get-views,
+ * get-view-contents, update-view.
  *
  * <p>This handler follows the same pattern established by
  * {@link ModelQueryHandler} in Stories 2.2/2.3.</p>
@@ -90,8 +90,8 @@ public class ViewHandler {
 
     /**
      * Registers all tools provided by this handler with the command registry.
-     * Registers: get-views (Story 2.4), get-view-contents (Story 2.5),
-     * update-view (Story 8-7).
+     * Registers: get-views, get-view-contents,
+     * update-view.
      */
     public void registerTools() {
         registry.registerTool(buildGetViewsSpec());
@@ -359,7 +359,7 @@ public class ViewHandler {
 
             String modelVersion = accessor.getModelVersion();
 
-            // Model version change detection — call ONCE (Story 5.3 + 5.4)
+            // Model version change detection — call ONCE
             boolean modelChanged = false;
             if (sessionManager != null && sessionId != null) {
                 modelChanged = sessionManager.checkModelVersionChanged(sessionId, modelVersion);
@@ -369,7 +369,7 @@ public class ViewHandler {
                 }
             }
 
-            // Cache check (Story 5.4) — includes offset/limit for pagination, format for different envelopes
+            // Cache check — includes offset/limit for pagination, format for different envelopes
             // Summary format ignores pagination, so use 0 for offset/limit to share cache entries
             String cacheKey = CacheKeyBuilder.buildCacheKey("views", "vp", effectiveViewpoint,
                     "name", effectiveName,
@@ -394,7 +394,7 @@ public class ViewHandler {
             // Execute query (full result set)
             List<ViewDto> allViews = accessor.getViews(effectiveViewpoint);
 
-            // Apply name post-filter (Story 6.4)
+            // Apply name post-filter
             if (effectiveName != null && !effectiveName.isEmpty()) {
                 logger.info("Handling get-views with name='{}', viewpoint='{}'", effectiveName, effectiveViewpoint);
                 String lowerName = effectiveName.toLowerCase();
@@ -554,14 +554,14 @@ public class ViewHandler {
                 meta.put("warning", warningMessage);
             }
 
-            // Add modelChanged flag if version changed (Story 5.3) — before serialization
+            // Add modelChanged flag if version changed — before serialization
             if (modelChanged) {
                 ResponseFormatter.addModelChangedFlag(envelope);
             }
 
             String jsonResult = formatter.toJsonString(envelope);
 
-            // Store in cache (Story 5.4) — skip when model changed (cache already invalidated)
+            // Store in cache — skip when model changed (cache already invalidated)
             if (sessionManager != null && sessionId != null && !modelChanged) {
                 sessionManager.putCacheEntry(sessionId, cacheKey, jsonResult);
                 logger.debug("Cache miss, storing result for key: {}", cacheKey);
@@ -654,7 +654,9 @@ public class ViewHandler {
                         + "Set format=tree for a compact containment hierarchy showing groups and their children — "
                         + "ideal first step for grouped view workflows (discover viewObjectIds for "
                         + "layout-within-group, arrange-groups, optimize-group-order, adjust-view-spacing). "
-                        + "Set format=graph for deduplicated node/edge structure, format=summary for condensed text overview. "
+                        + "Set format=graph for deduplicated node/edge structure — edges carry viewConnectionId and nodes carry "
+                        + "viewObjectId (the visual ids to pass to remove-from-view / update-view-object; the edge/node id "
+                        + "are model ids those tools reject), format=summary for condensed text overview. "
                         + "Elements in results include specialization field showing the primary specialization name (null if none). "
                         + "Related: get-element (full element details), "
                         + "get-relationships (connections beyond this view), "
@@ -775,7 +777,7 @@ public class ViewHandler {
 
             String modelVersion = accessor.getModelVersion();
 
-            // Model version change detection — call ONCE (Story 5.3 + 5.4)
+            // Model version change detection — call ONCE
             boolean modelChanged = false;
             if (sessionManager != null && sessionId != null) {
                 modelChanged = sessionManager.checkModelVersionChanged(sessionId, modelVersion);
@@ -785,7 +787,7 @@ public class ViewHandler {
                 }
             }
 
-            // Cache check (Story 5.4) — includes format for different envelopes
+            // Cache check — includes format for different envelopes
             String cacheKey = CacheKeyBuilder.buildCacheKey("view-contents", viewId,
                     "fields", preset, "exclude", CacheKeyBuilder.sortedSetKey(effectiveExclude),
                     "format", format.value());
@@ -895,7 +897,7 @@ public class ViewHandler {
                     } else {
                         treeNextSteps = List.of(
                                 "Use layout-flat-view for flat views (no groups) — recommended default layout tool",
-                                "Use compute-layout with a preset for alternative layout algorithms",
+                                "Use auto-layout-and-route for graph-aware ELK layout + routing",
                                 "Use get-view-contents format=json for full element and relationship detail");
                     }
 
@@ -932,7 +934,7 @@ public class ViewHandler {
 
                 if (format == ResponseFormat.GRAPH) {
                     // Graph format: elements as deduplicated nodes, relationships as edges,
-                    // groups/notes as additional nodes (Story 8-6)
+                    // groups/notes as additional nodes
                     @SuppressWarnings("unchecked")
                     Map<String, Object> filteredMap = (Map<String, Object>) filteredResult;
                     // elements/relationships are already mapped to List<Map> by FieldSelector.applyToList,
@@ -952,11 +954,61 @@ public class ViewHandler {
                     List<Map<String, Object>> graphEdges =
                             (List<Map<String, Object>>) graphData.get("edges");
 
-                    // Add groups and notes as graph nodes (Story 8-6 AC14).
+                    // Enrich the graph with the
+                    // VISUAL ids the mutation tools (remove-from-view / update-view-object) consume.
+                    // Graph edges/nodes carry the SEMANTIC model ids (relationship id / element id);
+                    // here we join the per-drawing connections() and visualMetadata() back onto them.
+                    // Built from the RAW contents (not filteredMap) so the join survives even when the
+                    // caller excludes connections/visualMetadata or asks for a minimal field set.
+                    // 1:N join (model side deduplicated, visual side per-drawing): singular id for the
+                    // 1:1 common case; plural array (singular omitted) when drawn/placed more than once.
+                    Map<String, List<String>> relToConnIds = new HashMap<>();
+                    if (contents.connections() != null) {
+                        for (var conn : contents.connections()) {
+                            if (conn.relationshipId() != null && conn.viewConnectionId() != null) {
+                                relToConnIds.computeIfAbsent(conn.relationshipId(), k -> new ArrayList<>())
+                                        .add(conn.viewConnectionId());
+                            }
+                        }
+                    }
+                    Map<String, List<String>> elemToViewObjIds = new HashMap<>();
+                    if (contents.visualMetadata() != null) {
+                        for (var vo : contents.visualMetadata()) {
+                            if (vo.elementId() != null && vo.viewObjectId() != null) {
+                                elemToViewObjIds.computeIfAbsent(vo.elementId(), k -> new ArrayList<>())
+                                        .add(vo.viewObjectId());
+                            }
+                        }
+                    }
+                    // The edge map IS the relationship map (GraphFormatter.formatAsGraph(elements,
+                    // relationships) adds it directly), so edge.get("id") == model-relationship id.
+                    // copyOf the plural list so the externally-visible map never aliases relToConnIds'
+                    // internal ArrayList (defensive — matches this codebase's List.copyOf discipline).
+                    for (Map<String, Object> edge : graphEdges) {
+                        List<String> ids = relToConnIds.get(edge.get("id"));
+                        if (ids != null && ids.size() == 1) {
+                            edge.put("viewConnectionId", ids.get(0));
+                        } else if (ids != null && ids.size() > 1) {
+                            edge.put("viewConnectionIds", List.copyOf(ids));
+                        }
+                    }
+                    // Enrich the element nodes BEFORE the group/note nodes are appended below, so the
+                    // group/note nodes (which carry their OWN viewObjectId from their DTO) are never
+                    // touched.
+                    for (Map<String, Object> node : graphNodes) {
+                        List<String> ids = elemToViewObjIds.get(node.get("id"));
+                        if (ids != null && ids.size() == 1) {
+                            node.put("viewObjectId", ids.get(0));
+                        } else if (ids != null && ids.size() > 1) {
+                            node.put("viewObjectIds", List.copyOf(ids));
+                        }
+                    }
+
+                    // Add groups and notes as graph nodes.
                     // FieldSelector stores groups/notes as raw DTOs (ViewGroupDto/ViewNoteDto),
                     // unlike elements/relationships which it maps to List<Map>. Convert each to a
                     // map before adding — iterating them as Map would throw ClassCastException
-                    // (Story backlog-get-view-contents-graph-format-internal-error).
+                    // before adding to avoid a ClassCastException.
                     List<?> groups = (List<?>) filteredMap.get("groups");
                     if (groups != null) {
                         for (Object group : groups) {
@@ -976,7 +1028,11 @@ public class ViewHandler {
 
                     nextSteps = List.of(
                             "Use get-element with a node ID for detailed information",
-                            "Use get-relationships with format=graph to explore connections beyond this view");
+                            "Use get-relationships with format=graph to explore connections beyond this view",
+                            "Graph edges carry viewConnectionId and nodes carry viewObjectId (the VISUAL ids) "
+                                    + "— pass these to remove-from-view or update-view-object; the edge id/node id "
+                                    + "are MODEL ids those tools reject. Multi-drawn relationships / multi-placed "
+                                    + "elements expose viewConnectionIds[] / viewObjectIds[] instead.");
 
                     envelope = formatter.formatGraph(graphData, nextSteps, modelVersion,
                             graphNodes.size(), graphEdges.size(), resultCount, false);
@@ -997,14 +1053,14 @@ public class ViewHandler {
                     meta.put("warning", warningMessage);
                 }
 
-                // Add modelChanged flag if version changed (Story 5.3) — before serialization
+                // Add modelChanged flag if version changed — before serialization
                 if (modelChanged) {
                     ResponseFormatter.addModelChangedFlag(envelope);
                 }
 
                 String jsonResult = formatter.toJsonString(envelope);
 
-                // Store in cache (Story 5.4) — skip when model changed (cache already invalidated)
+                // Store in cache — skip when model changed (cache already invalidated)
                 if (sessionManager != null && sessionId != null && !modelChanged) {
                     sessionManager.putCacheEntry(sessionId, cacheKey, jsonResult);
                     logger.debug("Cache miss, storing result for key: {}", cacheKey);
@@ -1062,7 +1118,7 @@ public class ViewHandler {
     }
 
     /**
-     * Builds a compact containment tree from view contents (Story backlog-a1).
+     * Builds a compact containment tree from view contents.
      *
      * <p>Transforms the flat lists in {@link ViewContentsDto} into a nested tree
      * structure showing group containment hierarchy. Each node includes only the
@@ -1085,7 +1141,7 @@ public class ViewHandler {
         Map<String, List<Map<String, Object>>> childrenByParent = new LinkedHashMap<>();
         // Track group nodes by viewObjectId for later nesting
         Map<String, Map<String, Object>> groupNodes = new LinkedHashMap<>();
-        // Track element nodes by viewObjectId for later element-container children attachment (Story C1f)
+        // Track element nodes by viewObjectId for later element-container children attachment
         Map<String, Map<String, Object>> elementNodes = new LinkedHashMap<>();
 
         // Stats counters
@@ -1108,7 +1164,7 @@ public class ViewHandler {
                 }
 
                 // Index every element node (including orphans) for the element-container
-                // children attachment pass below (Story C1f).
+                // children attachment pass below.
                 elementNodes.put(node.viewObjectId(), treeNode);
 
                 String parent = node.parentViewObjectId();
@@ -1189,11 +1245,11 @@ public class ViewHandler {
             }
         }
 
-        // Third pass: attach element-container children to element-nodes (Story C1f).
+        // Third pass: attach element-container children to element-nodes.
         // Group nodes already have their children attached above. This pass picks up
         // elements whose parentViewObjectId is another element (IDiagramModelArchimateObject
-        // as container, per Story 10-20 element-to-element nesting and Story C1
-        // polymorphic layout-within-group). Reference-aliasing through childrenByParent
+        // as container, per element-to-element nesting and polymorphic
+        // layout-within-group). Reference-aliasing through childrenByParent
         // means arbitrary-depth chains (Node→SystemSoftware→DataObject) resolve correctly
         // in a single pass. Element-nodes emit children/childCount ONLY when count > 0,
         // preserving byte-identical output for leaf elements (asymmetric-by-design with
@@ -1236,7 +1292,7 @@ public class ViewHandler {
                 .build();
     }
 
-    // ---- update-view (Story 8-7) ----
+    // ---- update-view ----
 
     private McpServerFeatures.SyncToolSpecification buildUpdateViewSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();

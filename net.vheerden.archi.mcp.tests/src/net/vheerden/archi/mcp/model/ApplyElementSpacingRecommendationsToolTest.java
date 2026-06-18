@@ -17,11 +17,9 @@ import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
  * JUnit pin for the apply-element-spacing-recommendations tool's heuristic
  * table + delta-clamp + DTO-shape contracts. Pure-unit tests (no OSGi).
  *
- * <p>Per Story RoutingPreconditions.InterElement.ApplySpacingRecommendations
- * AC-7 — sub-tests AC-7.1 (heuristic table pin), AC-7.2 (delta clamp at 0),
- * AC-7.3 (negative-delta clamp), AC-7.4 (dryRun envelope shape), AC-7.5 (happy
- * path math + envelope shape), AC-7.6 (no-connections edge case),
- * AC-7.7 (tier boundaries 15/16/30/31).</p>
+ * <p>Sub-tests: heuristic table pin, delta clamp at 0, negative-delta clamp,
+ * dryRun envelope shape, happy path math + envelope shape, no-connections edge
+ * case, tier boundaries 15/16/30/31.</p>
  *
  * <p>Per {@code feedback_metric_and_regression_test_together.md}: the
  * heuristic-table boundaries are pinned here. Any change to
@@ -31,12 +29,12 @@ import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
  * </p>
  *
  * <p>Behavioural assertions involving real model state (e.g., "after.M4 &lt;
- * before.M4 strict inequality") are deferred to AC-12 live smoke + AC-13
- * empirical paired-arc, per Soft-AC-15 trade-off.</p>
+ * before.M4 strict inequality") are deferred to live smoke + empirical
+ * paired-arc.</p>
  */
 public class ApplyElementSpacingRecommendationsToolTest {
 
-    // ---- AC-7.1 — heuristic table pin (one assertion per tier) ----
+    // ---- heuristic table pin (one assertion per tier) ----
 
     @Test
     public void targetSpacing_tier1_low_connections_returns_60px() {
@@ -56,7 +54,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
         assertEquals(100, ElementSpacingHeuristic.targetSpacingForConnectionCount(40, false));
     }
 
-    // ---- AC-7.7 — tier boundaries (15/16/30/31) ----
+    // ---- tier boundaries (15/16/30/31) ----
 
     @Test
     public void targetSpacing_boundary_15_top_of_tier1_returns_60px() {
@@ -82,7 +80,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
         assertEquals(100, ElementSpacingHeuristic.targetSpacingForConnectionCount(31, false));
     }
 
-    // ---- AC-7.6 — N=0 connections (heuristic still maps; no-conn short-circuit
+    // ---- N=0 connections (heuristic still maps; no-conn short-circuit
     //                handled by accessor logic upstream) ----
 
     @Test
@@ -99,7 +97,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
         assertEquals(60, ElementSpacingHeuristic.targetSpacingForConnectionCount(0, false));
     }
 
-    // ---- AC-7.2 — delta clamp at 0 (current already meets/exceeds target) ----
+    // ---- delta clamp at 0 (current already meets/exceeds target) ----
 
     @Test
     public void delta_clamp_when_current_equals_target_is_zero() {
@@ -119,7 +117,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
         assertEquals(0, delta);
     }
 
-    // ---- AC-7.3 — negative-delta clamp (generous-spacing view) ----
+    // ---- negative-delta clamp (generous-spacing view) ----
 
     @Test
     public void delta_clamp_when_current_is_120_and_target_is_60_returns_zero() {
@@ -131,7 +129,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
         assertEquals(0, delta);
     }
 
-    // ---- AC-7.5 (math) — happy-path delta computation ----
+    // ---- happy-path delta computation ----
 
     @Test
     public void delta_happy_path_inflation_n20_current40_yields_40() {
@@ -153,7 +151,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
         assertEquals(70, delta);
     }
 
-    // ---- AC-7.4 — dryRun envelope shape (after==null, adjustResult==null) ----
+    // ---- dryRun envelope shape (after==null, adjustResult==null) ----
 
     @Test
     public void dto_dryRun_envelope_shape_has_null_after_and_null_adjustResult() {
@@ -175,7 +173,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
                 dto.noChangeReason());
     }
 
-    // ---- AC-7.2 / AC-7.6 — no-change envelope shape (delta=0 OR no connections) ----
+    // ---- no-change envelope shape (delta=0 OR no connections) ----
 
     @Test
     public void dto_no_change_envelope_shape_has_populated_reason() {
@@ -198,7 +196,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
         assertNull("adjustResult must be null on short-circuit", dto.adjustResult());
     }
 
-    // ---- AC-7.5 (shape) — happy-path envelope shape (after + adjustResult populated) ----
+    // ---- happy-path envelope shape (after + adjustResult populated) ----
 
     @Test
     public void dto_happy_path_envelope_shape_has_populated_before_and_after() {
@@ -220,7 +218,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
                 dto.noChangeReason());
     }
 
-    // ---- AC-14 — heuristics-table runtime override ----
+    // ---- heuristics-table runtime override ----
 
     @Test
     public void targetSpacingOverride_supersedes_heuristic() {
@@ -238,13 +236,13 @@ public class ApplyElementSpacingRecommendationsToolTest {
         assertEquals(60, reportedHeuristic.intValue());
     }
 
-    // ---- AC-7.2 / AC-7.3 / AC-7.4 / AC-7.5 / AC-7.6 — behavioural pins on
+    // ---- behavioural pins on
     //         the pure-unit decision function ApplyElementSpacingDecision.
-    //         These pins exercise the short-circuit guards (AC-7.2 delta=0,
-    //         AC-7.3 negative-delta clamp, AC-7.4 dryRun=true, AC-7.6
-    //         no-connections, plus the new no-groups + no-2+-children
-    //         branches added per Sonnet 4.6 cross-model code review action
-    //         item [MEDIUM] 2026-05-04) WITHOUT requiring an OSGi context.
+    //         These pins exercise the short-circuit guards (delta=0,
+    //         negative-delta clamp, dryRun=true, no-connections, plus the new
+    //         no-groups + no-2+-children branches added per cross-model code
+    //         review action item [MEDIUM] 2026-05-04) WITHOUT requiring an
+    //         OSGi context.
     //         The production accessor method calls
     //         ApplyElementSpacingDecision.decide(...) once and dispatches on
     //         shouldCallAdjustViewSpacing(); this test pins that contract. ----
@@ -286,7 +284,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
 
     @Test
     public void decide_zero_connections_short_circuits_without_calling_adjust() {
-        // AC-7.6: even with groups + spacing detected, N=0 means the
+        // Even with groups + spacing detected, N=0 means the
         // heuristic does not apply; the tool returns a populated
         // noChangeReason and does NOT call adjustViewSpacing.
         ApplyElementSpacingDecision d = ApplyElementSpacingDecision.decide(
@@ -304,7 +302,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
 
     @Test
     public void decide_delta_zero_at_target_short_circuits_without_calling_adjust() {
-        // AC-7.2: current spacing equals target → delta=0 → short-circuit
+        // Current spacing equals target → delta=0 → short-circuit
         // (NOT a degenerate adjustViewSpacing call that no-ops internally).
         ApplyElementSpacingDecision d = ApplyElementSpacingDecision.decide(
                 /*connectionCount=*/ 20, /*currentSpacingPx=*/ 80,
@@ -322,7 +320,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
 
     @Test
     public void decide_negative_delta_clamps_to_zero_short_circuits() {
-        // AC-7.3: current spacing exceeds target → would-be-negative delta
+        // Current spacing exceeds target → would-be-negative delta
         // → clamped to 0 → short-circuit. The tool MUST NOT shrink generous
         // spacing — this is a footgun guard.
         ApplyElementSpacingDecision d = ApplyElementSpacingDecision.decide(
@@ -339,7 +337,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
 
     @Test
     public void decide_delta_zero_with_targetSpacingOverride_uses_explicit_phrasing() {
-        // AC-14: when an override was supplied AND delta clamps to 0, the
+        // When an override was supplied AND delta clamps to 0, the
         // noChangeReason wording is "explicit target" not "heuristic
         // target" — the agent should be able to tell which path produced
         // the recommendation.
@@ -359,7 +357,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
 
     @Test
     public void decide_dryRun_returns_recommendation_without_calling_adjust() {
-        // AC-7.4: dryRun=true with a positive delta. The delta is
+        // dryRun=true with a positive delta. The delta is
         // computed and exposed (recommendation) but adjustViewSpacing is
         // NOT called. noChangeReason is null because there IS a change
         // recommended — just not applied.
@@ -378,7 +376,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
 
     @Test
     public void decide_happy_path_calls_adjust_with_computed_delta() {
-        // AC-7.5: dryRun=false + positive delta + no short-circuit → the
+        // dryRun=false + positive delta + no short-circuit → the
         // production method calls adjustViewSpacing.
         ApplyElementSpacingDecision d = ApplyElementSpacingDecision.decide(
                 /*connectionCount=*/ 20, /*currentSpacingPx=*/ 40,
@@ -408,7 +406,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
                 !d.noChangeReason().contains("no connections"));
     }
 
-    // ---- Row C — hub-aware tier integration pins (AC-7 secondary) ----
+    // ---- hub-aware tier integration pins ----
 
     @Test
     public void hubAware_tier1_returns80_whenHasLargeHubsTrue() {
@@ -447,11 +445,11 @@ public class ApplyElementSpacingRecommendationsToolTest {
                 ElementSpacingHeuristic.targetSpacingForConnectionCount(40, false));
     }
 
-    // ---- AC-8 — heuristic-cross-class consistency tripwire ----
+    // ---- heuristic-cross-class consistency tripwire ----
 
     @Test
     public void hubAware_tripwire_directHeuristicCallMatchesIntegrationContract() {
-        // AC-8 single-source-of-truth pin: the hub-aware tier 2 value that
+        // Single-source-of-truth pin: the hub-aware tier 2 value that
         // the accessor computes (ArchiModelAccessorImpl.applyElementSpacing
         // Recommendations step 4) is identical to a direct heuristic call with
         // the same inputs. Pins the expected return value so any future
@@ -500,11 +498,9 @@ public class ApplyElementSpacingRecommendationsToolTest {
     }
 
     // ===================================================================
-    // AC-7.5 — Control-loop extensions (Story
-    //          backlog-convenience-tool-control-loop-architectural-redesign
-    //          Task 3.10, 2026-05-15)
+    // Control-loop extensions (2026-05-15)
     //
-    // Six new @Test methods covering the AC-7.5 itemised scenarios:
+    // Six new @Test methods covering the itemised scenarios:
     //   1. control-loop-engaged-on-density-keyed-trigger
     //   2. control-loop-bypassed-on-short-circuit (single-shot path preserved)
     //   3. termination-reason-surfaced-in-DTO
@@ -521,13 +517,13 @@ public class ApplyElementSpacingRecommendationsToolTest {
     //     SpacingControlLoop constants.
     //
     // Eclipse-PDE substrate integration tests (full accessor with the
-    // mutationDispatcher dance) deferred to AC-7.4
+    // mutationDispatcher dance) deferred to
     // SpacingControlLoopUndoIntegrationTest per architecture-spec § 1.6.
     // ===================================================================
 
     @Test
     public void controlLoop_engagedOnPositiveDelta_iterateProducesIterations() {
-        // AC-7.5 (1): control-loop-engaged-on-density-keyed-trigger.
+        // (1): control-loop-engaged-on-density-keyed-trigger.
         // Given initial=40, target=70 (gap=30, fits in 1 iteration of the
         // +10 ladder at index 0 → ladder=30). SpacingControlLoop should
         // produce 1 iteration + 1 accepted command.
@@ -553,7 +549,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_bypassed_targetAlreadyMet_zeroIterations() {
-        // AC-7.5 (2): control-loop-bypassed-on-short-circuit. When the
+        // (2): control-loop-bypassed-on-short-circuit. When the
         // target is already met (currentSpacing == targetSpacing) the loop's
         // pre-loop guard short-circuits and produces zero iterations with
         // terminationReason = heuristic_already_met_no_change.
@@ -572,8 +568,8 @@ public class ApplyElementSpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_dtoTerminationReasonField_roundTripsAllFiveBranches() {
-        // AC-7.5 (3): termination-reason-surfaced-in-DTO. The 5 termination
-        // reason taxonomy strings (AC-5 branches a/b/c/d/e) round-trip
+        // (3): termination-reason-surfaced-in-DTO. The 5 termination
+        // reason taxonomy strings (branches a/b/c/d/e) round-trip
         // through the DTO's terminationReason field verbatim.
         AssessLayoutResultDto before = stubAssessLayoutResult("view-tr", 20);
         String[] reasons = new String[] {
@@ -596,10 +592,9 @@ public class ApplyElementSpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_dtoIterationCount_equalsAppliedDeltasSize() {
-        // AC-7.5 (4): response-DTO-final-mutation-count-correct.
+        // (4): response-DTO-final-mutation-count-correct.
         // iterationCount field MUST equal appliedDeltas.size().
-        // Tests the invariant from AC-2 + Story Goal § "What this story is NOT"
-        // item 8 (forensic detail in iterations, aggregate in DTO).
+        // Tests the invariant: forensic detail in iterations, aggregate in DTO.
         AssessLayoutResultDto before = stubAssessLayoutResult("view-ic", 20);
         AssessLayoutResultDto after = stubAssessLayoutResult("view-ic", 20);
         List<Integer> deltas = List.of(30, 40, 50);
@@ -617,7 +612,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_iterationBudget_respectedAsCap() {
-        // AC-7.5 (5): iteration-budget-parameter-respected.
+        // (5): iteration-budget-parameter-respected.
         // SpacingControlLoop.iterate(...) MUST NOT exceed the iterationBudget
         // even when the ladder + observations would allow more iterations.
         LayoutMetrics initial = new LayoutMetrics(1, 0.5, 4, 2, 0, 0.0, 10);
@@ -639,7 +634,7 @@ public class ApplyElementSpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_aggregateBackOff_revertsRegressingIteration() {
-        // AC-7.5 (6): aggregate-back-off-reverts-correctly.
+        // (6): aggregate-back-off-reverts-correctly.
         // When the post-state thresholdsMet regresses below best_state, the
         // loop reverts THIS iteration's command + halts. The regressing
         // iteration is the LAST element of result.iterations() with
@@ -667,10 +662,10 @@ public class ApplyElementSpacingRecommendationsToolTest {
                 result.iterations().get(0).backedOff());
     }
 
-    // ---- AC-7.5 helper — minimal SpacingControlLoop.Callbacks stub ----
+    // ---- helper — minimal SpacingControlLoop.Callbacks stub ----
 
     /**
-     * Minimal {@link SpacingControlLoop.Callbacks} stub used by the AC-7.5
+     * Minimal {@link SpacingControlLoop.Callbacks} stub used by the
      * @Test methods. Returns a stub {@link SpacingMutationCommand} on each
      * {@code buildMutationCommand} call (execute/undo are no-ops); returns
      * the fixed {@code post} metrics on each {@code observeLayout} call —

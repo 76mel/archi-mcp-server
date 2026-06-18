@@ -13,11 +13,8 @@ import org.junit.Test;
 
 /**
  * Pure-unit regression test for {@link SwtUiThreadDispatcher} — pins the
- * Decision-A.1.2 = α'' targeted fix (Session 9, 2026-05-15) for the Sessions
- * 6-8 {@code iteration_apply_failed_at_iteration_0} SWT-threading bug.
- *
- * <p>Root cause + diagnosis: see
- * {@code _bmad-output/implementation-artifacts/control-loop-redesign-empirical-2026-05-15-session9/runtime-log-stack-traces.md}.
+ * targeted fix for the {@code iteration_apply_failed_at_iteration_0}
+ * SWT-threading bug.
  *
  * <p><strong>Substrate note:</strong> the test relies on the null-Display
  * fallback path in {@link SwtUiThreadDispatcher#runOnUiThread(Runnable)}.
@@ -27,8 +24,8 @@ import org.junit.Test;
  * Display on the calling thread. Both branches are exercised — the test
  * asserts the action runs exactly once and propagates RuntimeException
  * regardless of which branch fires. This matches the project convention
- * (sibling-symmetric with {@link SpacingControlLoopUndoIntegrationTest}
- * Session 5 substrate-substitution decision: pin the EXECUTION CONTRACT, not
+ * (sibling-symmetric with {@link SpacingControlLoopUndoIntegrationTest}'s
+ * substrate-substitution decision: pin the EXECUTION CONTRACT, not
  * the SWT marshalling internals which require full PDE Plug-in Test
  * substrate the project doesn't ship).
  */
@@ -50,7 +47,7 @@ public class SwtUiThreadDispatcherTest {
 
     /**
      * Action's RuntimeException propagates to caller (the contract relied on
-     * by SpacingControlLoop.iterate's Session-8 catch block).
+     * by SpacingControlLoop.iterate's catch block).
      */
     @Test
     public void runOnUiThread_runtimeExceptionPropagates() {
@@ -70,8 +67,8 @@ public class SwtUiThreadDispatcherTest {
     /**
      * Action's NullPointerException propagates (subclass of RuntimeException)
      * — directly reproduces the
-     * {@code Display.getCurrent().asyncExec(...)} NPE class captured in the
-     * Session 9 runtime log (root-cause forensic anchor).
+     * {@code Display.getCurrent().asyncExec(...)} NPE class (root-cause
+     * forensic anchor).
      */
     @Test
     public void runOnUiThread_nullPointerExceptionPropagates() {
@@ -141,7 +138,7 @@ public class SwtUiThreadDispatcherTest {
     /**
      * Exception in one call does NOT prevent subsequent calls from running
      * — pins the resilience contract for SpacingControlLoop's best-effort
-     * cmd.undo() in the Session-8 catch block (the undo call must still
+     * cmd.undo() in the catch block (the undo call must still
      * execute even if execute threw).
      */
     @Test
@@ -165,23 +162,20 @@ public class SwtUiThreadDispatcherTest {
     }
 
     // ==================================================================
-    // Story `backlog-control-loop-st-passhonest-branch-agent-in-loop`
-    // (row 775) AC-7(a) — the SWT-thread-boundary capture is widened from
-    // RuntimeException to Throwable: an off-UI-thread Error MUST be
-    // re-thrown (same instance), NOT silently swallowed by syncExec. A
-    // swallowed boundary Error is exactly the failure class the row-774
-    // Fix-1 arc was created to surface ([[feedback_control_loop_internal_
-    // error_partial_commit]]). The RuntimeException path stays byte-
-    // preserved (asserted by the runtimeException/NPE pins above — they
-    // must remain GREEN).
+    // The SWT-thread-boundary capture is widened from RuntimeException to
+    // Throwable: an off-UI-thread Error MUST be re-thrown (same instance),
+    // NOT silently swallowed by syncExec. A swallowed boundary Error is
+    // exactly the failure class the Fix-1 arc was created to surface. The
+    // RuntimeException path stays byte-preserved (asserted by the
+    // runtimeException/NPE pins above — they must remain GREEN).
     // ==================================================================
 
     /**
-     * AC-7(a): an {@link AssertionError} (an {@link Error}, NOT a
-     * RuntimeException) thrown inside the marshalled action propagates to
-     * the caller as the SAME instance — pre-row-775 it was silently
-     * swallowed (the old {@code catch (RuntimeException ex)} did not match
-     * Error, so syncExec returned normally and the loss was invisible).
+     * An {@link AssertionError} (an {@link Error}, NOT a RuntimeException)
+     * thrown inside the marshalled action propagates to the caller as the
+     * SAME instance — previously it was silently swallowed (the old
+     * {@code catch (RuntimeException ex)} did not match Error, so syncExec
+     * returned normally and the loss was invisible).
      */
     @Test
     public void runOnUiThread_errorPropagatesNotSwallowed_row775AC7a() {
@@ -201,9 +195,9 @@ public class SwtUiThreadDispatcherTest {
     }
 
     /**
-     * AC-7(a) breadth: a non-Assertion {@link Error} subclass (the
-     * LinkageError family — the {@code Display.getCurrent()}-null arc's
-     * sibling failure class) likewise propagates as the same instance.
+     * A non-Assertion {@link Error} subclass (the LinkageError family — the
+     * {@code Display.getCurrent()}-null arc's sibling failure class)
+     * likewise propagates as the same instance.
      */
     @Test
     public void runOnUiThread_linkageErrorPropagates_row775AC7a() {
@@ -222,10 +216,10 @@ public class SwtUiThreadDispatcherTest {
     }
 
     /**
-     * AC-7(a) regression guard — the RuntimeException re-throw is still the
-     * SAME instance after the Throwable widening (NOT wrapped). This pins
-     * the "RuntimeException path byte-preserved" half of AC-7(a) explicitly
-     * (sibling to {@code runOnUiThread_runtimeExceptionPropagates}).
+     * Regression guard — the RuntimeException re-throw is still the SAME
+     * instance after the Throwable widening (NOT wrapped). This pins the
+     * "RuntimeException path byte-preserved" invariant explicitly (sibling
+     * to {@code runOnUiThread_runtimeExceptionPropagates}).
      */
     @Test
     public void runOnUiThread_runtimeExceptionStillSameInstanceAfterWiden() {

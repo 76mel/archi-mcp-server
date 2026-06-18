@@ -5,7 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * DTO for batch operational mode status (Story 7-1, extended Story 7-6).
+ * DTO for batch operational mode status.
  *
  * <p>In GUI_ATTACHED mode, only {@code mode} is populated.
  * In BATCH mode, all batch fields are populated with queue details.

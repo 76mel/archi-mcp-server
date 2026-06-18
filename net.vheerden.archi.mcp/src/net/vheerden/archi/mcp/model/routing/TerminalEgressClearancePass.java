@@ -10,26 +10,24 @@ import net.vheerden.archi.mcp.model.routing.EdgeAttachmentCalculator.Face;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Story {@code backlog-terminal-egress-corridor-aware-clearance} (W3 Lever-B successor) —
- * corridor-aware terminal-egress clearance.
+ * Corridor-aware terminal-egress clearance.
  *
- * <p><b>The defect (live-geometry pinpoint 2026-05-21).</b> The B71 terminal anchor sits
+ * <p><b>The defect (live-geometry pinpoint 2026-05-21).</b> The terminal anchor sits
  * exactly 1px outside the face ({@link TerminalAnchoring#lineCoordinate} = edge&plusmn;1).
  * When the orthogonal router emits a path whose <em>first segment off the terminal runs
  * parallel to that same face</em> (constant on the orthogonal axis, at the face&plusmn;1
  * line), the connection "hugs" its own element edge for a stretch before bending away — the
- * {@code connectionEdgeCoincidence} (M4) defect the owner re-discovered by eye. Live
+ * {@code connectionEdgeCoincidence} defect re-discovered by eye. Live
  * evidence (Retail Bank Views D + G) showed 13&ndash;445px of free clearance beside these
  * hugs &mdash; they are <em>router-eliminable</em> on feasible/open views, NOT a topology
  * floor (the floor is real only on tight hub corridors, HH).
  *
  * <p><b>Lineage — this is the re-implementation of a REJECTED v1, with two faults fixed.</b>
- * The v1 ({@code .reference} in
- * {@code _bmad-output/implementation-artifacts/terminal-egress-lever-b-rejection-2026-05-21/})
+ * The v1 ({@code .reference})
  * proved the <em>core transform</em> sound (live existence-proof D M4 1&rarr;0
  * good&rarr;excellent; 3 GREEN unit tests) but was rejected at the HH unit-oracle gate:
  * {@code V_p10} regressed 4.0&rarr;3.4 while M4 stayed 5. Two structural faults, both fixed
- * here (Task-0 disposition {@code terminal-egress-corridor-aware-clearance-disposition-2026-05-21.md}):
+ * here:
  * <ol>
  *   <li><b>Fix 1 — validate at pipeline-END, not in-stage.</b> v1 hooked into
  *       {@link HubPerimeterRoutingStage} (its in-stage {@code verifyMetricMonotonicity} ran
@@ -55,13 +53,12 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  *       &ge; pre-pass V_p10 from every co-axial vertical neighbour while every other pairwise
  *       gap is unchanged &mdash; the view's V-axis parallel-gap p10 <b>cannot decrease</b>, so
  *       the v1 V_p10 4.0&rarr;3.4 regression is structurally impossible. <b>H-axis (horizontal
- *       hugs).</b> {@code requiredConnGap} is still derived from V_p10 (per AC-1b), so a
+ *       hugs).</b> {@code requiredConnGap} is still derived from V_p10, so a
  *       horizontal run is held &ge; {@code max(MIN_CONNECTION_GAP_PX, ceil(V_p10))} from every
  *       co-axial horizontal neighbour &mdash; i.e. an H-axis gap can never fall below the
  *       {@code MIN_CONNECTION_GAP_PX}=8 floor, but a strict H-axis-p10 non-regression is NOT
  *       separately claimed (no H-axis p10 metric is computed; both the assessor pin and
- *       {@link #netImproves}'s V_p10 are V-axis). A symmetric H-axis floor is deferred
- *       (disposition &sect;3 Task-1 note; the gate views' hugs and the HH oracle are V-axis).
+ *       {@link #netImproves}'s V_p10 are V-axis). A symmetric H-axis floor is deferred.
  *       A cheap view-level pre-gate ({@link #PRE_GATE_VP10_PX}) additionally skips the whole
  *       pass when the pre-pass V_p10 is already narrow (the "would have skipped HH wholesale"
  *       filter).</li>
@@ -74,7 +71,7 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * terminal bendpoint <b>completely unchanged</b> (so
  * {@link TerminalAnchoring#preservesTerminalAnchoring} holds by construction &mdash; and the
  * hub <em>slot</em>, the terminal's parallel coordinate, is preserved, so HPQ cannot regress
- * from the transform; this is strictly stronger than the disposition &sect;9.1 hand-route
+ * from the transform; this is strictly stronger than the hand-route
  * that slipped HPQ 1.0&rarr;0.8 by moving the slot) and instead:
  * <ol>
  *   <li>inserts one new bendpoint {@code A'} between the terminal {@code A} and the interior
@@ -83,19 +80,19 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  *   <li>moves the corner {@code B} to the same cleared orthogonal coordinate.</li>
  * </ol>
  *
- * <p><b>Slot-awareness (AC-3).</b> Because the terminal is byte-identical the hub slot is
+ * <p><b>Slot-awareness.</b> Because the terminal is byte-identical the hub slot is
  * preserved by construction. The only residual risk &mdash; two pushes landing on the same
  * orthogonal coordinate &rarr; coincident parallel runs &mdash; is prevented because
  * {@link #run} processes connections sequentially and re-discovers each hug against the
  * CURRENT (post-applied-predecessors) geometry, so Fix-2's connection-gap check sees an
  * already-pushed predecessor as a neighbour and keeps {@code requiredConnGap} away from it.
  *
- * <p><b>Guards.</b> Per-proposal: (i) the terminal bendpoint is byte-identical (B71 by
+ * <p><b>Guards.</b> Per-proposal: (i) the terminal bendpoint is byte-identical (by
  * construction) and re-checked via {@link TerminalAnchoring#preservesTerminalAnchoring};
  * (ii) a Tier-1 self-check ({@link #tier1Clean}: every segment axis-aligned &mdash; no
  * zigzag &mdash; and no segment strictly pierces a foreign element). Because this pass is the
- * LAST geometry stage, that self-check is evaluated at the final geometry, satisfying the
- * Correction-2 requirement to re-verify Tier-1 at the final state. Per-view:
+ * LAST geometry stage, that self-check is evaluated at the final geometry, re-verifying
+ * Tier-1 at the final state. Per-view:
  * {@link #netImproves} rolls back any apply that does not strictly drop M4 or that regresses
  * V_p10 / HPQ. The M4 / V_p10 / HPQ computations REUSE the shipped
  * {@link HubPerimeterRoutingStage} package-private mirror statics
@@ -109,11 +106,11 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * interior bendpoint (not the opposite terminal). Pure geometry &mdash; no EMF/SWT/PDE;
  * callable from standard JUnit.
  *
- * <p><b>G successor (story {@code backlog-terminal-egress-corridor-aware-g-container-nested-hub}).</b>
+ * <p><b>View G container-nested hub support.</b>
  * Two scope boundaries that made the predecessor a sound no-op on view G's container-nested hub are
  * lifted, both confined to this class:
  * <ol>
- *   <li><b>G-Fix-1 (ancestor-aware Tier-1).</b> The {@link #tier1Clean} foreign-passthrough check now
+ *   <li><b>Ancestor-aware Tier-1.</b> The {@link #tier1Clean} foreign-passthrough check now
  *       runs against the per-connection ANCESTOR-EXCLUDED obstacle set
  *       ({@link RoutingPipeline.ConnectionEndpoints#obstacles()} &mdash; "source/target/ancestors
  *       already excluded"), not the full {@code allObstacles}, so a cleared run may lie inside the
@@ -124,9 +121,9 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  *       deliberately stays on {@code allObstacles} (it needs the element's own face). When
  *       {@code conn.obstacles()} is empty (no foreign elements exist) it falls back to
  *       {@code allObstacles} &mdash; a sound over-reject, never a foreign passthrough.</li>
- *   <li><b>G-Fix-2 (retry past a Tier-1-rejected candidate).</b> {@link #findClearedOrthogonal} now
+ *   <li><b>Retry past a Tier-1-rejected candidate.</b> {@link #findClearedOrthogonal} now
  *       advances its outward search past a candidate that clears element edges + connection gaps but
- *       fails the per-candidate B71/Tier-1 feasibility, returning the smallest clean coordinate
+ *       fails the per-candidate Tier-1 feasibility, returning the smallest clean coordinate
  *       within the UNCHANGED [{@link #TARGET_EGRESS_CLEARANCE_PX}, {@link #MAX_EGRESS_CLEARANCE_PX}]
  *       cap. Relocation beyond the 64px stub cap stays OUT OF SCOPE (a distinct future lever).</li>
  * </ol>
@@ -152,19 +149,18 @@ public class TerminalEgressClearancePass {
     static final int MAX_EGRESS_CLEARANCE_PX = 64;
 
     /**
-     * Fix-2a connection-gap floor (px). The cleared run must stay at least
+     * Connection-gap floor (px). The cleared run must stay at least
      * {@code max(MIN_CONNECTION_GAP_PX, prePassVp10)} from every neighbouring co-axial
-     * connection segment. Mirrors {@code RoutingPipeline.MIN_CLEARANCE} (8); owner-ratified
-     * 2026-05-21 (Task-0 disposition &sect;5, decision C).
+     * connection segment. Mirrors {@code RoutingPipeline.MIN_CLEARANCE} (8).
      */
     static final int MIN_CONNECTION_GAP_PX = 8;
 
     /**
-     * Fix-2b view-level pre-gate (px). When the pre-pass V_p10 parallel-connection gap is
+     * View-level pre-gate (px). When the pre-pass V_p10 parallel-connection gap is
      * below this, the whole pass is skipped (the "would have skipped HH wholesale" filter;
-     * HH p10 &approx; 4&ndash;6 &lt; 8, open D/G fire). Owner-ratified 2026-05-21
-     * ({@code T_pregate = MIN_CLEARANCE = 8}). Belt-and-braces only &mdash; soundness comes
-     * from Fix-2a + {@link #netImproves}, so a mis-tuned pre-gate can never cause a
+     * HH p10 &approx; 4&ndash;6 &lt; 8, open D/G fire) ({@code T_pregate = MIN_CLEARANCE = 8}).
+     * Belt-and-braces only &mdash; soundness comes
+     * from the connection-gap floor + {@link #netImproves}, so a mis-tuned pre-gate can never cause a
      * regression, only a (logged) wholesale skip.
      */
     static final double PRE_GATE_VP10_PX = 8.0;
@@ -186,31 +182,31 @@ public class TerminalEgressClearancePass {
      *
      * @param applied             egress transforms committed (net-improved the final state)
      * @param rolled              transforms applied then rolled back by {@link #netImproves}
-     * @param skippedByPreGate    true when the Fix-2b pre-gate skipped the whole pass
-     * @param proposalsEvaluated  hugs for which a B71/Tier-1-clean, connection-gap-aware
+     * @param skippedByPreGate    true when the pre-gate skipped the whole pass
+     * @param proposalsEvaluated  hugs for which a Tier-1-clean, connection-gap-aware
      *                            proposal was emitted and validated
      */
     public record Result(int applied, int rolled, boolean skippedByPreGate, int proposalsEvaluated) {}
 
     // =====================================================================
-    // Fix-1: final-state-validated, sequential, slot-aware orchestration.
+    // Final-state-validated, sequential, slot-aware orchestration.
     // The single production entry point — invoked by RoutingPipeline as the
     // last geometry-mutating stage (after 4.7r, before 4.8 label positioning).
     // =====================================================================
 
     /**
      * Run the corridor-aware egress clearance over an entire view, mutating {@code paths} in
-     * place. Pre-gates on the view's pre-pass V_p10 (Fix-2b), then walks connections in order
+     * place. Pre-gates on the view's pre-pass V_p10, then walks connections in order
      * — for each, re-discovers the hug against the CURRENT geometry (so an already-pushed
-     * predecessor counts as a neighbour: Fix-2a slot-awareness), applies the proposal, and
-     * keeps it only if it net-improves the FINAL state (Fix-1), else rolls it back
+     * predecessor counts as a neighbour: slot-awareness), applies the proposal, and
+     * keeps it only if it net-improves the FINAL state, else rolls it back
      * byte-identical.
      *
      * @param connections  index-parallel per-route endpoint records
      * @param paths        index-parallel per-route bendpoint lists (MUTATED in place)
      * @param allObstacles all element rectangles on the view. <b>Contract:</b> must include the
      *                     source/target element rects (consistent with M4 assessor semantics
-     *                     post-Story-M4.RemoveSelfExclusion) — the hug is confirmed against the
+     *                     where the element is not self-excluded) — the hug is confirmed against the
      *                     element's OWN face edge, so omitting it would silently miss self-face hugs.
      * @return aggregate stats; never null
      */
@@ -222,13 +218,13 @@ public class TerminalEgressClearancePass {
         }
         List<RoutingRect> obstacles = allObstacles != null ? allObstacles : List.of();
 
-        // Fix-2b: cheap view-level pre-gate. Compute the pre-pass V_p10 once (reusing the
+        // Cheap view-level pre-gate. Compute the pre-pass V_p10 once (reusing the
         // shipped HubPerimeterRoutingStage mirror — the exact quantity the HH oracle pins).
         Double prePassVp10 = HubPerimeterRoutingStage.computeVAxisParallelGapP10(paths);
         if (prePassVp10 != null && prePassVp10 < PRE_GATE_VP10_PX) {
             return new Result(0, 0, true, 0);
         }
-        // Fix-2a floor: never introduce a gap narrower than the view already had.
+        // Connection-gap floor: never introduce a gap narrower than the view already had.
         int requiredConnGap = requiredConnGap(prePassVp10);
 
         int applied = 0;
@@ -248,7 +244,7 @@ public class TerminalEgressClearancePass {
             if (p == null) continue;
             evaluated++;
 
-            // Fix-1: validate against the FINAL pipeline geometry (this IS the last
+            // Validate against the FINAL pipeline geometry (this IS the last
             // geometry-mutating stage). Roll back any push that does not net-improve.
             HubPerimeterRoutingStage.MetricSnapshot pre = snapshot(connections, paths, obstacles);
             Snapshot snap = apply(p, paths);
@@ -264,7 +260,7 @@ public class TerminalEgressClearancePass {
         return new Result(applied, rolled, false, evaluated);
     }
 
-    /** Fix-2a clearance floor: {@code max(MIN_CONNECTION_GAP_PX, ceil(prePassVp10))}. */
+    /** Clearance floor: {@code max(MIN_CONNECTION_GAP_PX, ceil(prePassVp10))}. */
     private static int requiredConnGap(Double prePassVp10) {
         int v = (prePassVp10 == null) ? 0 : (int) Math.ceil(prePassVp10);
         return Math.max(MIN_CONNECTION_GAP_PX, v);
@@ -282,17 +278,18 @@ public class TerminalEgressClearancePass {
     }
 
     /**
-     * Fix-1 net-improvement predicate: keep a proposal only if M4 strictly drops AND neither
+     * Net-improvement predicate: keep a proposal only if M4 strictly drops AND neither
      * V_p10 nor HPQ regresses. STRICTER than {@link HubPerimeterRoutingStage#verifyMetricMonotonicity}
      * (which only forbids M4 increasing) — that "not worse" semantics is exactly why v1's
      * no-benefit push (M4 stayed 5) was kept and then V_p10 slipped downstream. Tier-1 is
-     * protected by the per-proposal {@link #tier1Clean} (run at final geometry) + B71 +
+     * protected by the per-proposal {@link #tier1Clean} (run at final geometry) +
+     * the byte-identical terminal anchor +
      * outward-only push (so overlap/passThrough/interiorTermination/zigzag cannot be
-     * introduced), per Correction 2.
+     * introduced).
      *
      * <p><b>V_p10 here is V-axis only</b> ({@code computeVAxisParallelGapP10}); a horizontal-hug
      * push that narrowed an H-axis parallel gap would NOT be caught here — it is bounded instead
-     * by Fix-2a's {@code requiredConnGap} floor at proposal time (class Javadoc, Fix 2 H-axis note).
+     * by the {@code requiredConnGap} floor at proposal time (class Javadoc, H-axis note).
      */
     static boolean netImproves(HubPerimeterRoutingStage.MetricSnapshot pre,
                                HubPerimeterRoutingStage.MetricSnapshot post) {
@@ -313,7 +310,7 @@ public class TerminalEgressClearancePass {
      * Evaluate every connection for a terminal-egress hug against {@code paths} as given.
      * Emits at most one proposal per path (source side preferred, then target side). Does NOT
      * mutate {@code paths}. The connection-gap floor is derived from the pre-pass V_p10 of the
-     * supplied {@code paths} (Fix-2a). Used by unit tests; production uses {@link #run}.
+     * supplied {@code paths}. Used by unit tests; production uses {@link #run}.
      */
     public List<EgressProposal> evaluate(
             List<RoutingPipeline.ConnectionEndpoints> connections,
@@ -389,7 +386,7 @@ public class TerminalEgressClearancePass {
         AbsoluteBendpointDto corner = path.get(cornerIdx);
 
         Face face = TerminalSegmentCorridorMigrator.inferAttachedFace(term, elem);
-        if (face == null) return null; // not on a B71 face line → EdgeAttachmentCalculator's domain
+        if (face == null) return null; // not on a face line → EdgeAttachmentCalculator's domain
         TerminalAnchoring anchoring = new TerminalAnchoring(face);
         boolean orthIsY = anchoring.orthogonalAxis() == TerminalAnchoring.Axis.Y;
 
@@ -409,7 +406,7 @@ public class TerminalEgressClearancePass {
         int lineCoord = anchoring.lineCoordinate(elem);          // = geometric edge ± 1
         int curOrth = orthIsY ? term.y() : term.x();
         if (curOrth != lineCoord) return null;                   // belt-and-braces: term on face line
-        // The B71 face line sits 1px OUTSIDE the element: lineCoordinate == geomEdge + awaySign
+        // The face line sits 1px OUTSIDE the element: lineCoordinate == geomEdge + awaySign
         // (RIGHT/BOTTOM away=+1, LEFT/TOP away=-1). Therefore geomEdge = lineCoord - awaySign.
         // (LEFT: x-1-(-1)=x; RIGHT: x+w+1-(+1)=x+w; TOP: y-1-(-1)=y; BOTTOM: y+h+1-(+1)=y+h.)
         int geomEdge = lineCoord - awaySign(face);               // the real element edge
@@ -434,18 +431,18 @@ public class TerminalEgressClearancePass {
         }
         if (!hugs) return null;
 
-        // Fix-2a: neighbouring co-axial connection segments the cleared run must stay clear of.
+        // Neighbouring co-axial connection segments the cleared run must stay clear of.
         List<Integer> neighbourConnCoords =
                 collectNeighbouringConnectionSegments(orthIsY, spanLo, spanHi, pathIndex, allPaths);
 
-        // G-Fix-1: the Tier-1 foreign-passthrough check runs against the per-connection
+        // The Tier-1 foreign-passthrough check runs against the per-connection
         // ANCESTOR-EXCLUDED obstacle set (conn.obstacles() — "source/target/ancestors already
-        // excluded", RoutingPipeline.ConnectionEndpoints :492), NOT the full allObstacles. This lets
+        // excluded"), NOT the full allObstacles. This lets
         // the cleared run lie inside the target's/source's own ancestor container (the legitimate
         // enclosing element of a container-nested hub) without being flagged as a passthrough — the
         // dominant blocker that made the predecessor a sound no-op on view G. A GENUINE foreign
         // element is still present in conn.obstacles(), so a real passthrough is still rejected
-        // (AC-4 soundness). Own-face hug detection (collectOverlappingEdges + the edge-clearing in
+        // (soundness). Own-face hug detection (collectOverlappingEdges + the edge-clearing in
         // findClearedOrthogonal) DELIBERATELY stays on allObstacles — it needs the element's own
         // face (conn.obstacles() excludes source/target). Fallback to allObstacles only when
         // conn.obstacles() is empty: an empty set means there are NO foreign elements on the view
@@ -454,7 +451,7 @@ public class TerminalEgressClearancePass {
         final List<RoutingRect> tier1Obstacles =
                 (conn.obstacles() != null && !conn.obstacles().isEmpty()) ? conn.obstacles() : obstacles;
 
-        // G-Fix-2: per-candidate B71 + Tier-1 feasibility. findClearedOrthogonal advances
+        // Per-candidate terminal-anchor + Tier-1 feasibility. findClearedOrthogonal advances
         // its outward search past a candidate that clears element edges + connection gaps but is
         // Tier-1-rejected (e.g. a genuine foreign element between the face and the corridor),
         // returning the smallest clean coordinate within the unchanged [TARGET, MAX]=[8,64] cap. The
@@ -467,13 +464,13 @@ public class TerminalEgressClearancePass {
         };
 
         // Outward search for a cleared orthogonal coordinate (away from the element interior) that
-        // clears element edges AND neighbouring connection segments (Fix-2a) AND the per-candidate
-        // B71/Tier-1 feasibility (G-Fix-2).
+        // clears element edges AND neighbouring connection segments AND the per-candidate
+        // terminal-anchor/Tier-1 feasibility.
         Integer newOrth = findClearedOrthogonal(geomEdge, away, overlappingEdges,
                 neighbourConnCoords, requiredConnGap, candidateFeasible);
         if (newOrth == null) return null; // no room within range → no-op
 
-        // The feasibility predicate already validated B71 + Tier-1 for newOrth; rebuild the final path.
+        // The feasibility predicate already validated the terminal anchor + Tier-1 for newOrth; rebuild the final path.
         return new EgressProposal(conn.connectionId(), pathIndex,
                 buildAfterPath(path, cornerIdx, term, corner, newOrth, orthIsY, sourceSide));
     }
@@ -483,7 +480,7 @@ public class TerminalEgressClearancePass {
      * the interior corner to {@code newOrth} on the orthogonal axis, and insert
      * {@code A' = (term.parallel, newOrth)} immediately interior-ward of the terminal. Parallel
      * coordinates are unchanged (so the hub slot is preserved → HPQ cannot regress from the
-     * transform, and B71 holds by construction). Pure; allocates a fresh list (paths are short, so
+     * transform, and the perimeter-terminal immutability invariant holds by construction). Pure; allocates a fresh list (paths are short, so
      * the per-candidate build the Fix-2 retry needs is cheap).
      */
     private static List<AbsoluteBendpointDto> buildAfterPath(List<AbsoluteBendpointDto> path,
@@ -508,7 +505,7 @@ public class TerminalEgressClearancePass {
     }
 
     /**
-     * Guard (i): the terminal bendpoint is unchanged (B71 by construction — the transform never
+     * Guard (i): the terminal bendpoint is unchanged (perimeter-terminal-immutable by construction — the transform never
      * touches the terminal) and the explicit {@link TerminalAnchoring#preservesTerminalAnchoring}
      * contract holds. For a target-side push the path is reversed so the anchoring check sees the
      * terminal as the first point.
@@ -524,7 +521,7 @@ public class TerminalEgressClearancePass {
         return TerminalAnchoring.preservesTerminalAnchoring(anchoring, elem, center, oriented);
     }
 
-    /** Away-from-interior sign on the orthogonal axis for each face (B71 line = edge + sign). */
+    /** Away-from-interior sign on the orthogonal axis for each face (perimeter-terminal-immutability line = edge + sign). */
     private static int awaySign(Face face) {
         return switch (face) {
             case BOTTOM, RIGHT -> +1;
@@ -538,10 +535,10 @@ public class TerminalEgressClearancePass {
      * {@code EDGE_COINCIDENCE_TOLERANCE_PX + CLEAR_SAFETY_MARGIN_PX} (v1 behaviour) AND every
      * neighbouring co-axial connection-segment coordinate by {@code requiredConnGap} (Fix-2a) AND
      * (when non-null) the per-candidate {@code candidateFeasible} predicate (G-Fix-2:
-     * the candidate's B71 + Tier-1 feasibility). The loop ascends, so the smallest feasible k is
+     * the candidate's perimeter-terminal immutability + Tier-1 feasibility). The loop ascends, so the smallest feasible k is
      * returned; a candidate that fails ONLY the Tier-1 predicate no longer aborts the search (the
      * predecessor returned the first edge/conn-cleared candidate and let the caller no-op when
-     * Tier-1 then rejected it). The [8,64] cap is UNCHANGED (AC-7). Returns the cleared orthogonal
+     * Tier-1 then rejected it). The [8,64] cap is UNCHANGED. Returns the cleared orthogonal
      * coordinate, or {@code null} if none in range (tight geometry → no-op).
      */
     static Integer findClearedOrthogonal(int geomEdge, int away, List<Integer> edges,

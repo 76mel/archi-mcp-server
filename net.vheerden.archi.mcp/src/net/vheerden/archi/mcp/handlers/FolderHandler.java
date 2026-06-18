@@ -27,10 +27,10 @@ import net.vheerden.archi.mcp.response.dto.FolderTreeDto;
 import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
- * Handler for folder navigation tools: get-folders, get-folder-tree (Story 7-0b).
+ * Handler for folder navigation tools: get-folders, get-folder-tree.
  *
  * <p>Provides folder browsing and search capabilities so LLM clients can discover
- * valid folder IDs for element placement (required by Story 7-2 create-element).</p>
+ * valid folder IDs for element placement (required by create-element).</p>
  *
  * <p><strong>Architecture boundary:</strong> This class MUST NOT import
  * any EMF or ArchimateTool model types. All model access goes through

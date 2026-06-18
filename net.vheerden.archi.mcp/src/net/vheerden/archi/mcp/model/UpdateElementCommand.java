@@ -12,7 +12,7 @@ import com.archimatetool.model.IArchimateFactory;
 import com.archimatetool.model.IProperty;
 
 /**
- * GEF Command that updates an existing ArchiMate element (Story 7-3).
+ * GEF Command that updates an existing ArchiMate element.
  *
  * <p>Supports updating name, documentation, and properties. Only non-null
  * fields are modified; null fields are left unchanged. For properties,

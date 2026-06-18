@@ -16,19 +16,17 @@ import java.util.function.Predicate;
 import org.junit.Test;
 
 /**
- * JUnit pin for {@link SpacingControlLoop} (AC-7.1). Pure-unit tests
+ * JUnit pin for {@link SpacingControlLoop}. Pure-unit tests
  * (no OSGi; no transitive class-loading of {@code ArchiModelAccessorImpl}).
  *
- * <p>Story:
- * `backlog-convenience-tool-control-loop-architectural-redesign` AC-7.1 —
- * minimum 12 @Test methods covering: empty trajectory (zero iterations),
+ * <p>Covers: empty trajectory (zero iterations),
  * single-iteration-accept, multi-iteration-accept, aggregate-back-off-revert,
  * budget-exhaustion-accept-last, goal-reached-terminate, structural-
  * impossibility-no-change (upstream-handled — verified via heuristic-already-
  * met branch), heuristic-already-met-no-change. This class delivers 16 @Test
- * methods (4 over minimum).</p>
+ * methods.</p>
  *
- * <p>Sibling-symmetric with {@link SpacingIterationStepTest} (AC-7.2) and the
+ * <p>Sibling-symmetric with {@link SpacingIterationStepTest} and the
  * three existing single-shot decision-record tests.</p>
  */
 public class SpacingControlLoopTest {
@@ -39,7 +37,7 @@ public class SpacingControlLoopTest {
 
     /**
      * FakeMutationCommand records execute/undo calls so tests can verify
-     * the loop's command-stack semantics (per AC-6 finalize-with-reset).
+     * the loop's command-stack semantics (finalize-with-reset).
      */
     private static class FakeMutationCommand implements SpacingMutationCommand {
         final int id;
@@ -505,10 +503,10 @@ public class SpacingControlLoopTest {
     }
 
     // ------------------------------------------------------------------
-    // Session 8 (Decision-A.1.1 = α') extension — cmd.execute() partial-
-    // throw recovery + new REASON_ITERATION_APPLY_FAILED_PREFIX terminationReason
+    // cmd.execute() partial-throw recovery + new
+    // REASON_ITERATION_APPLY_FAILED_PREFIX terminationReason
     // branch. Sibling pin to SpacingControlLoopPartialCommitRegressionTest
-    // tests 6/7/8; verifies the AC-7.1 pin coverage extends across the new
+    // tests 6/7/8; verifies the pin coverage extends across the new
     // graceful-degradation branch.
     // ------------------------------------------------------------------
 
@@ -585,16 +583,15 @@ public class SpacingControlLoopTest {
                 result.iterations().get(1).backedOff());
     }
 
-    // ---- (17) Density-aware-termination preservation pin (Story
-    //      `backlog-control-loop-density-aware-termination` AC-7/AC-12) ----
+    // ---- (17) Density-aware-termination preservation pin ----
 
     /**
      * Regression-preservation pin: every test in this class uses the 7-arg
      * {@code metrics(...)} helper (avgSpacingPx = NaN) + the 6-arg
      * {@code Request} (hubExtent = null) → the density-aware discriminator
-     * is INERT and the loop is byte-identical to the row-703 2-state
+     * is INERT and the loop is byte-identical to the 2-state
      * back-off. This pin makes that invariant explicit on the canonical
-     * row-703 first-iteration-regression branch and asserts the new
+     * first-iteration-regression branch and asserts the new
      * {@code densityDiagnosis} field stays null on every preserved
      * terminal.
      */

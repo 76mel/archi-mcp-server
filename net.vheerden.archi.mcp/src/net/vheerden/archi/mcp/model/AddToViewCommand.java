@@ -6,7 +6,7 @@ import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelContainer;
 
 /**
- * GEF Command that adds a diagram object to a view (Story 7-7).
+ * GEF Command that adds a diagram object to a view.
  *
  * <p>The diagram object must be fully configured (archimate element, bounds)
  * before this command is created. The command only handles view placement

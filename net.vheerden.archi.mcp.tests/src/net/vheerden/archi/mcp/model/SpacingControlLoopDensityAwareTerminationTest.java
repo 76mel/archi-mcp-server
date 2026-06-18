@@ -16,18 +16,17 @@ import org.junit.Test;
 import net.vheerden.archi.mcp.model.SpacingControlLoop.DensityTerminationState;
 
 /**
- * JUnit pin for the density-aware 3-state termination (Story
- * `backlog-control-loop-density-aware-termination` AC-7). Pure-unit (no OSGi;
+ * JUnit pin for the density-aware 3-state termination. Pure-unit (no OSGi;
  * no transitive class-loading of {@code ArchiModelAccessorImpl}).
  *
- * <p>Covers: all four AC-2 2×2 cells; the row-703 too-early back-off
+ * <p>Covers: all four 2×2 cells; the too-early back-off
  * regression case (flat-aggregate + below-regime MUST classify
- * {@code escalate}, NOT the row-703 HALT-accept); the AC-4 escalation cap
+ * {@code escalate}, NOT the HALT-accept); the escalation cap
  * (≤ {@code MAX_DENSITY_ESCALATION_ITERS}, large step, ~112px mid-band
- * target); the AC-6 PASS-honest diagnosis content + the no-auto-reflow
- * invariant; the AC-5 perf-sentinel (escalate unreachable in-regime); the
- * one-shot hub-resize (built/executed exactly once); and the AC-1/AC-7/AC-12
- * regime-signal-absent ⇒ row-703-byte-identical preservation invariant.</p>
+ * target); the PASS-honest diagnosis content + the no-auto-reflow
+ * invariant; the perf-sentinel (escalate unreachable in-regime); the
+ * one-shot hub-resize (built/executed exactly once); and the
+ * regime-signal-absent ⇒ byte-identical preservation invariant.</p>
  */
 public class SpacingControlLoopDensityAwareTerminationTest {
 
@@ -56,7 +55,7 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     /**
      * Scripted callbacks: one canned {@link LayoutMetrics} per
      * observeLayout() call, plus an optional one-shot hub-resize command
-     * (counts build invocations to pin the AC-4 one-shot guarantee).
+     * (counts build invocations to pin the one-shot guarantee).
      */
     private static class ScriptedCb implements SpacingControlLoop.Callbacks {
         private final List<LayoutMetrics> script;
@@ -128,19 +127,18 @@ public class SpacingControlLoopDensityAwareTerminationTest {
             new HubExtent(/*conns=*/ 8, /*w=*/ 320, /*h=*/ 260);  // HH-like
 
     // ==================================================================
-    // (A) AC-2 discriminator — RE-DERIVED for the 3-input signature
-    //     (Story row 776 — decouple ESCALATE from the stall window).
+    // (A) discriminator — RE-DERIVED for the 3-input signature
+    //     (decouple ESCALATE from the stall window).
     //     `classifyDensityTermination(aggregateStalled, belowRegime,
     //      escalationBudgetRemaining)` — all 2×2×2 = 8 cells. The 3
     //     pre-existing 2-arg pins (`classify_climbing_anyRegime_isContinue`
     //     / `classify_stalledBelowRegime_isEscalate` /
-    //     `classify_stalledInRegime_isPassHonest`) are SANCTIONED-re-derived
-    //     here to the new signature (AC-5; UNLIKE row-775 the classifier IS
-    //     in scope). The ONLY behavioural delta vs the 2-arg table is the
+    //     `classify_stalledInRegime_isPassHonest`) are re-derived
+    //     here to the new signature (the classifier IS in scope). The ONLY
+    //     behavioural delta vs the 2-arg table is the
     //     NEW `!stalled & below & budget → ESCALATE` cell (the decoupling);
     //     every other cell is preserved exactly (`DENSITY_TREND_WINDOW`
-    //     stays the PASS_HONEST trigger ONLY). Old→new mapping recorded in
-    //     the story Debug Log (Task 2.2, auditable diff).
+    //     stays the PASS_HONEST trigger ONLY).
     // ==================================================================
 
     /** `!stalled & !below` → CONTINUE (in-regime climbing), budget-axis
@@ -159,11 +157,11 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     /** THE DECOUPLING (NEW cell): `!stalled & below & budget` → ESCALATE.
-     *  This is the row-776 lever — escalate fires on the
+     *  This is the lever — escalate fires on the
      *  many-small-gains-but-below-measured-regime trajectory BEFORE the
      *  2-step stall window trips. Was CONTINUE under the 2-arg table (the
      *  `classify_climbing_anyRegime_isContinue` `below=true` half) — that
-     *  is the row-775 Task-8 FAIL root cause #1. */
+     *  is the prior FAIL root cause #1. */
     @Test
     public void classify_climbing_belowRegime_withBudget_isEscalate_DECOUPLED() {
         assertEquals(DensityTerminationState.ESCALATE,
@@ -174,7 +172,7 @@ public class SpacingControlLoopDensityAwareTerminationTest {
 
     /** No-livelock guard: `!stalled & below & !budget` → CONTINUE (no
      *  escalation budget ⇒ cannot escalate ⇒ fall through to the preserved
-     *  row-703 terminal; must NOT spin). Preserved from the 2-arg
+     *  terminal; must NOT spin). Preserved from the 2-arg
      *  `!stalled→CONTINUE`. */
     @Test
     public void classify_climbing_belowRegime_noBudget_isContinue_noLivelock() {
@@ -274,8 +272,8 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     // ==================================================================
-    // (C) THE row-703 too-early back-off regression case
-    //     Flat aggregate + below-regime: row-703 HALTed at iter 0 with
+    // (C) THE too-early back-off regression case
+    //     Flat aggregate + below-regime: previously HALTed at iter 0 with
     //     aggregate_threshold_regressed...; now it MUST escalate, NOT halt.
     // ==================================================================
 
@@ -294,7 +292,7 @@ public class SpacingControlLoopDensityAwareTerminationTest {
 
         SpacingControlLoop.Result r = SpacingControlLoop.iterate(req, cb);
 
-        // It must NOT be the row-703 iteration-0 back-off.
+        // It must NOT be the iteration-0 back-off.
         assertFalse("must NOT row-703-halt at iteration 0 "
                 + "(the too-early back-off bug)",
                 r.terminationReason().equals(
@@ -334,7 +332,7 @@ public class SpacingControlLoopDensityAwareTerminationTest {
                 r.densityDiagnosis().contains("hub"));
         assertTrue("AC-6 explicit no-auto-reflow + consent statement",
                 r.densityDiagnosis().contains("NOT auto-reflowed"));
-        // Never a SILENTLY-DEGRADED view (AC-6/AC-8): no accepted
+        // Never a SILENTLY-DEGRADED view: no accepted
         // (non-backed-off) iteration may carry a post-state aggregate
         // BELOW the pre-loop initial aggregate (2). Aggregate-neutral
         // accepted steps are fine — "degraded" means strictly worse, and
@@ -354,7 +352,7 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     public void passHonest_neverInvokesAnyReflowPath() {
         // The loop's only outward effects are buildMutationCommand /
         // buildHubResizeCommand. There is NO reflow/auto-layout callback —
-        // structurally impossible to auto-reflow (AC-6). Asserted by the
+        // structurally impossible to auto-reflow. Asserted by the
         // Callbacks surface: only spacing + one-shot hub-resize exist.
         SpacingControlLoop.Request req = new SpacingControlLoop.Request(
                 40, 200, 5, Integer.MAX_VALUE,
@@ -368,15 +366,15 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     // ==================================================================
-    // (E) AC-4 escalation cap + large step + Q2 below-regime-cap safety net
+    // (E) escalation cap + large step + Q2 below-regime-cap safety net
     // ==================================================================
 
     @Test
     public void escalation_isIterationCapped_andNotPassHonestWhileBelow() {
         // Permanently flat + permanently below-regime: escalation must be
         // capped at MAX_DENSITY_ESCALATION_ITERS and, if still below-regime
-        // at cap-out, must NOT claim reflow-required (AC-8 FAIL) — Q2 safety
-        // net = the PRESERVED row-703 back-off / budget terminal.
+        // at cap-out, must NOT claim reflow-required — Q2 safety
+        // net = the PRESERVED back-off / budget terminal.
         SpacingControlLoop.Request req = new SpacingControlLoop.Request(
                 40, 60, 20, Integer.MAX_VALUE,
                 m(2, 55.0), "element", UNDERSIZED_HUB);
@@ -413,7 +411,7 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     // ==================================================================
-    // (F) AC-5 perf-sentinel — escalate is UNREACHABLE in-regime
+    // (F) perf-sentinel — escalate is UNREACHABLE in-regime
     // ==================================================================
 
     @Test
@@ -436,14 +434,14 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     // ==================================================================
-    // (G) AC-1/AC-7/AC-12 — regime signal ABSENT ⇒ row-703 byte-identical
+    // (G) regime signal ABSENT ⇒ byte-identical
     // ==================================================================
 
     @Test
     public void regimeAbsent_firstRegression_isRow703BackOff_unchanged() {
         // 7-arg metrics (NaN avg) + null hubExtent → discriminator inert.
         // A first-iteration aggregate regression MUST produce the exact
-        // row-703 terminationReason (the preserved 2-state behaviour).
+        // preserved terminationReason (the preserved 2-state behaviour).
         SpacingControlLoop.Request req = new SpacingControlLoop.Request(
                 40, 100, 5, Integer.MAX_VALUE,
                 mNoRegime(3), "element"); // 6-arg → hubExtent null
@@ -476,16 +474,16 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     // ==================================================================
-    // (F) Story `backlog-control-loop-density-aware-fixes` Fix-2 —
+    // (F) Fix-2 —
     //     fan-out-scaled hub sub-signal calibration + the
     //     predicate↔resize-target consistency invariant.
-    //     The defect: a flat exclusive-< 300×250 evaluated the row-773
-    //     AC-8 HH 300×250 hub w/ 17 conns "adequate" (300<300=false) so
+    //     The defect: a flat exclusive-< 300×250 evaluated the
+    //     HH 300×250 hub w/ 17 conns "adequate" (300<300=false) so
     //     the loop PASS-honested a view Arm-A proved clearable (HPQ 0.97).
     // ==================================================================
 
     /**
-     * THE row-773 AC-8 HH false-positive headline pin: a 300×250 hub
+     * THE HH false-positive headline pin: a 300×250 hub
      * absorbing 17 connections MUST now flag under-sized for its fan-out
      * (it evaluated "adequate" under the old flat exclusive-{@code <}
      * 300×250 and the loop PASS-honested a clearable HH view).
@@ -518,7 +516,7 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     /**
      * The HH-like base 300×250 is preserved EXACTLY at the smallest "large"
      * hub ({@code DENSITY_HUB_FANOUT_CONN_THRESHOLD}+1 = 7 connections):
-     * zero behaviour change at the established row-773 anchor; growth ONLY
+     * zero behaviour change at the established anchor; growth ONLY
      * for higher fan-out (excess is 0 at and below 7).
      */
     @Test
@@ -534,9 +532,8 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     /**
-     * Story `backlog-control-loop-st-passhonest-branch-agent-in-loop`
-     * (row 775) AC-7(b) — the {@code c=8} fan-out-boundary coverage gap
-     * (row-774 Sonnet follow-up). The Fix-2 curve is anchored at
+     * The {@code c=8} fan-out-boundary coverage gap.
+     * The Fix-2 curve is anchored at
      * {@code DENSITY_HUB_FANOUT_CONN_THRESHOLD+1 = 7} (base 300×250,
      * {@code hubFanOutExcess(7)==0}); {@code c=8} is the FIRST +1-connection
      * increment and was previously only covered transitively. Pin the exact
@@ -591,7 +588,7 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     @Test
     public void fix2_flaggedHubAlwaysResizesStrictlyLarger_noNoOpLoop() {
         HubExtent[] flagged = {
-            new HubExtent(17, 300, 250),  // row-773 HH false-positive
+            new HubExtent(17, 300, 250),  // HH false-positive
             new HubExtent(8, 214, 68),    // ST-clone-like
             new HubExtent(17, 450, 250),  // height-only under-sized
             new HubExtent(20, 300, 600),  // width-only under-sized
@@ -612,9 +609,9 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     /**
-     * AC-5 regression: {@code >6}-conn small hubs still flag; genuinely-large
+     * Regression: {@code >6}-conn small hubs still flag; genuinely-large
      * hubs (≥ the fan-out-scaled minimum for their count) still pass; {@code
-     * ≤6}-conn hubs are exempt regardless of size; the row-773 fixtures keep
+     * ≤6}-conn hubs are exempt regardless of size; the fixtures keep
      * their semantics.
      */
     @Test
@@ -633,14 +630,14 @@ public class SpacingControlLoopDensityAwareTerminationTest {
                 new HubExtent(6, 1, 1)));
         assertFalse(SpacingControlLoop.hubUnderSizedForFanOut(
                 new HubExtent(2, 10, 10)));
-        // row-773 fixtures preserved
+        // fixtures preserved
         assertTrue(SpacingControlLoop.hubUnderSizedForFanOut(UNDERSIZED_HUB));
         assertFalse(SpacingControlLoop.hubUnderSizedForFanOut(ADEQUATE_HUB));
     }
 
     /**
-     * AC-3 — {@code buildDensityDiagnosis} text stays TRUTHFUL under the
-     * fan-out-scaled formula: for the row-773 HH 300×250/17-conn hub it must
+     * {@code buildDensityDiagnosis} text stays TRUTHFUL under the
+     * fan-out-scaled formula: for the HH 300×250/17-conn hub it must
      * name the fan-out-scaled minimum for THAT hub's count (≥400x330px for
      * 17 connections), NOT the stale flat "≥300x250px for >6 connections".
      */
@@ -657,40 +654,39 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     // ==================================================================
-    // (H) Story `backlog-control-loop-st-passhonest-branch-agent-in-loop`
-    //     (row 775) — TERMINAL-REINTERPRETATION. At the preserved row-703
-    //     give-up terminals (§4 `!accept` :1027 / unconditional
-    //     `budget_exhausted` :1081), when regime-signal-present AND
-    //     in-regime, relabel the give-up as PASS_HONEST + emit the AC-6
+    // (H) TERMINAL-REINTERPRETATION. At the preserved
+    //     give-up terminals (§4 `!accept` / unconditional
+    //     `budget_exhausted`), when regime-signal-present AND
+    //     in-regime, relabel the give-up as PASS_HONEST + emit the
     //     diagnosis (the give-up IS the density-floor stall, mistimed —
-    //     Given A makes it trustworthy). Gated EXACTLY like the :882
-    //     density block ⇒ regime-signal-absent ⇒ row-703-byte-identical.
+    //     Given A makes it trustworthy). Gated EXACTLY like the
+    //     density block ⇒ regime-signal-absent ⇒ byte-identical.
     //
-    //     Code-flow note (verified main 2ad1ff2): §4 (:1027) terminating
+    //     Code-flow note: the §4 terminating
     //     `!accept` is reachable ONLY via the ESCALATE-cap-exhausted
     //     fall-through, which by construction has belowRegime==true
     //     (ESCALATE = stalled && below); CONTINUE+!accept is consumed at
-    //     :987 (revert-continue) and PASS_HONEST returns at :888. So the
-    //     ACTIVE reinterpretation (RED→GREEN) is insertion point #2
-    //     (:1081 unconditional budget-exhausted, the B-ST-R2 pattern); the
-    //     §4 guard is implemented per the owner-ratified spec (both
+    //     the revert-continue step and PASS_HONEST returns at the 2-window
+    //     path. So the ACTIVE reinterpretation (RED→GREEN) is insertion
+    //     point #2 (the unconditional budget-exhaust terminal); the
+    //     §4 guard is implemented per spec (both
     //     terminals, identical predicate) and is correctly dormant there —
-    //     pinned below as the AC-8 no-false-reflow-while-below-regime
-    //     invariant. The :1081 reinterpretation evaluates `bestState`
+    //     pinned below as the no-false-reflow-while-below-regime
+    //     invariant. The reinterpretation evaluates `bestState`
     //     (loop-local `postState` is out of scope post-loop — `bestState`
     //     IS the loop's final accepted post-state at that terminal).
     // ==================================================================
 
     /**
-     * RED-by-construction (B-ST-R2): regime-signal present (hub != null)
+     * RED-by-construction: regime-signal present (hub != null)
      * AND in-regime (avg 112 ≥ 100, adequate hub) AND the aggregate is
      * <em>climbing</em> (thresholdsMet strictly increases every step) so
      * the 2-step stall window NEVER accumulates (aggregateStalled stays
-     * false — this is NOT the existing :888 PASS_HONEST 2-window path) AND
+     * false — this is NOT the existing PASS_HONEST 2-window path) AND
      * the run consumes its whole iterationBudget → it would exit via the
-     * preserved unconditional `budget_exhausted` (:1081). Post terminal-
+     * preserved unconditional `budget_exhausted`. Post terminal-
      * reinterpretation it MUST relabel to REASON_DENSITY_FLOOR_REFLOW_
-     * REQUIRED + a non-null AC-6 diagnosis, with NO degraded view. RED
+     * REQUIRED + a non-null diagnosis, with NO degraded view. RED
      * pre-fix (the reinterpretation does not exist → `budget_exhausted`).
      */
     @Test
@@ -702,8 +698,8 @@ public class SpacingControlLoopDensityAwareTerminationTest {
                 /*initialMetrics=*/ m(0, 112.0), "composer.element",
                 /*hubExtent=*/ ADEQUATE_HUB);
         // Strictly-climbing in-regime → every step gains → window resets
-        // every step → aggregateStalled never true → :888 PASS_HONEST is
-        // UNreachable; the loop runs the full budget → :1081.
+        // every step → aggregateStalled never true → PASS_HONEST is
+        // UNreachable; the loop runs the full budget to the budget terminal.
         ScriptedCb cb = ScriptedCb.of(
                 m(1, 112.0), m(2, 112.0), m(3, 112.0));
 
@@ -718,7 +714,7 @@ public class SpacingControlLoopDensityAwareTerminationTest {
         assertTrue(r.densityDiagnosis().contains("REFLOW REQUIRED"));
         assertTrue("AC-6 explicit no-auto-reflow + consent statement",
                 r.densityDiagnosis().contains("NOT auto-reflowed"));
-        // Never silently-degraded (AC-6/AC-8): no accepted (non-backed-off)
+        // Never silently-degraded: no accepted (non-backed-off)
         // step may carry a post aggregate strictly below the pre-loop
         // initial aggregate (0 here).
         for (SpacingIterationStep step : r.iterations()) {
@@ -733,12 +729,12 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     /**
-     * AC-3 arm-symmetry: byte-identical scenario with the group-arm label.
+     * Arm-symmetry: byte-identical scenario with the group-arm label.
      * Both composer arms run the SAME static {@code iterate} body via the
-     * shared {@code runComposerArm} (Task-0.3 spike) — the single guarded
+     * shared {@code runComposerArm} — the single guarded
      * reinterpretation covers both; the arm label is informational only and
      * does NOT branch loop control-flow. Same RED→GREEN as the element-arm
-     * pin (the "group-arm interaction" the row-775 brief names).
+     * pin (the "group-arm interaction").
      */
     @Test
     public void reinterpret_budgetExhaustInRegimeClimbing_isPassHonest_groupArm() {
@@ -758,7 +754,8 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     /**
-     * RED-by-construction variant — the :1081 reinterpretation also fires
+     * RED-by-construction variant — the budget-terminal reinterpretation
+     * also fires
      * when avgSpacing is NaN but a non-null hubExtent supplies the regime
      * signal AND the hub is adequate (not under-sized for its fan-out ⇒
      * !belowRegime). Pins that the predicate uses the hub sub-signal, not
@@ -779,12 +776,12 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     /**
-     * AC-4/AC-8 invariant @ §4 (insertion point #1): a §4-reaching run is
+     * Invariant @ §4 (insertion point #1): a §4-reaching run is
      * by control-flow ALWAYS below-regime (ESCALATE-cap-exhausted ⇒
      * stalled && below). The `!belowRegime` guard MUST therefore withhold
-     * reinterpretation at §4 — the run stays the PRESERVED row-703 §4
+     * reinterpretation at §4 — the run stays the PRESERVED §4
      * back-off with NO density diagnosis (claiming reflow-required while
-     * still below-regime is the explicit AC-6 paired-arc FAIL condition).
+     * still below-regime is the explicit paired-arc FAIL condition).
      * GREEN pre- AND post-fix (the guarded relabel must NOT change this).
      */
     @Test
@@ -809,13 +806,13 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     /**
-     * Task 2.2 — the regime-signal-ABSENT ⇒ row-703-byte-identical
-     * invariant AT the reinterpretation insertion points (AC-4). Same
+     * Task 2.2 — the regime-signal-ABSENT ⇒ byte-identical
+     * invariant AT the reinterpretation insertion points. Same
      * would-budget-exhaust climbing trajectory as the insertion #2 pin but
-     * with NO regime signal (NaN avg + null hubExtent): the :1081 guard is
-     * inert ⇒ the terminationReason is the UNCHANGED row-703
+     * with NO regime signal (NaN avg + null hubExtent): the budget-terminal
+     * guard is inert ⇒ the terminationReason is the UNCHANGED
      * `budget_exhausted_after_N_iterations`, no diagnosis. (Sibling to the
-     * existing regimeAbsent_* pins; ties them to the row-775 insertion.)
+     * existing regimeAbsent_* pins; ties them to the insertion.)
      */
     @Test
     public void regimeAbsent_wouldBudgetExhaust_staysRow703BudgetExhausted() {
@@ -837,33 +834,31 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     // ==================================================================
-    // (I) Story `backlog-control-loop-st-escalate-condition-agent-in-loop`
-    //     (row 776) — DECOUPLE ESCALATE FROM THE STALL WINDOW. The
-    //     row-775 Task-8 AC-6 FAIL residual: under the agent-in-loop the
+    // (I) DECOUPLE ESCALATE FROM THE STALL WINDOW. The
+    //     prior FAIL residual: under the agent-in-loop the
     //     loop budget-exhausts BELOW-regime because ESCALATE never fires
     //     on ST's many-small-gains trajectory (aggregateStalled stays
-    //     false ⇒ the 2-arg classify returned CONTINUE forever ⇒ the :933
-    //     post-state ESCALATE was never entered; the :607 pre-emptive
+    //     false ⇒ the 2-arg classify returned CONTINUE forever ⇒ the
+    //     post-state ESCALATE was never entered; the pre-emptive
     //     escalate was bypassed because the loop budget-exhausts BEFORE
-    //     the knob ladder formally exhausts). Verbatim probe DTO:
-    //     `st-passhonest-terminal-reinterpretation-empirical-2026-05-18/
-    //     aggregate.md` (element `budget_exhausted_after_4_iterations`
+    //     the knob ladder formally exhausts). Captured probe:
+    //     element `budget_exhausted_after_4_iterations`
     //     deltas [30,21,21] +72px, avg 60.0→73.8 < 100, ESCALATE never
-    //     fires). The decouple lever adds `!stalled & below & budget →
+    //     fires. The decouple lever adds `!stalled & below & budget →
     //     ESCALATE` so escalate fires on that trajectory, the one-shot
     //     hub-resize lifts measured avg into the regime, and the
-    //     already-built row-775 insertion #2 (:1136) finally relabels the
+    //     already-built insertion #2 finally relabels the
     //     in-regime budget-exhaust as PASS_HONEST.
     //
     //     `EscalationSensitiveCb` faithfully models the real system: the
     //     view stays BELOW-regime until the one-shot hub-resize is built
     //     (escalate fired) — only then does the best-of-K-measured
-    //     avgSpacing rise into the prescribed band (mirrors the row-774
-    //     B-ST escalate-hub-resize behaviour; the divergence the row-775
-    //     fire exposed was that escalate never fired at all). The
+    //     avgSpacing rise into the prescribed band (mirrors the B-ST
+    //     escalate-hub-resize behaviour; the divergence
+    //     exposed was that escalate never fired at all). The
     //     trajectory is ALWAYS many-small-gains (thresholdsMet strictly
     //     ++ every observe) ⇒ aggregateStalled NEVER accumulates ⇒ this is
-    //     NOT the :888 2-window PASS_HONEST path nor the existing
+    //     NOT the 2-window PASS_HONEST path nor the existing
     //     flat-aggregate `tooEarlyBackOff` ESCALATE path.
     // ==================================================================
 
@@ -903,7 +898,7 @@ public class SpacingControlLoopDensityAwareTerminationTest {
             // Many-small-gains: thresholdsMet strictly ++ every call so
             // aggregateStalled NEVER accumulates (the probe trajectory).
             // Below-regime until the one-shot hub-resize is built (escalate
-            // fired — built at :676 BEFORE observeLayout() at :774 in the
+            // fired — built BEFORE observeLayout() in the
             // same iteration); in-regime thereafter.
             obs++;
             double avg = (buildHubResizeCount >= 1)
@@ -924,28 +919,28 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     /**
-     * THE row-776 RED-by-construction reproduction pin (budget-exhaust
+     * THE RED-by-construction reproduction pin (budget-exhaust
      * trajectory = the probe's actual path; element arm). Regime signal
      * present (avg known), below-regime (avg 60 &lt; 100), many-small-gains
      * (aggregateStalled stays false), escalation budget remaining,
      * targetSpacingPx huge so the knob ladder NEVER exhausts ⇒ the run
      * would otherwise exit via the post-loop below-regime
-     * `budget_exhausted` (:1143-1147 — exactly the verbatim probe DTO).
+     * `budget_exhausted` (exactly the captured probe trajectory).
      *
      * <p>RED pre-fix by construction: the 2-arg `classifyDensityTermination`
-     * returns CONTINUE for `!stalled` regardless of below-regime ⇒ :933
+     * returns CONTINUE for `!stalled` regardless of below-regime ⇒
      * ESCALATE never entered ⇒ buildHubResizeCommand never called ⇒
      * observeLayout stays below-regime ⇒ post-loop `inRegimeWithSignal`
-     * FALSE ⇒ row-703 `budget_exhausted` (NOT
-     * `density_floor_reflow_required`). This is the row-775 Task-8 AC-6
-     * FAIL, reproduced in pure-unit + corroborated by the captured verbatim
-     * probe DTO.</p>
+     * FALSE ⇒ `budget_exhausted` (NOT
+     * `density_floor_reflow_required`). This is the prior
+     * FAIL, reproduced in pure-unit + corroborated by the captured
+     * probe.</p>
      *
      * <p>GREEN post-fix: the decoupled `!stalled & below & budget →
-     * ESCALATE` rule fires ESCALATE at :933 ⇒ escalate engages ⇒ one-shot
+     * ESCALATE` rule fires ESCALATE ⇒ escalate engages ⇒ one-shot
      * hub-resize built ⇒ measured avg lifts in-regime ⇒ the already-built
-     * row-775 insertion #2 (:1136) relabels the in-regime budget-exhaust as
-     * `REASON_DENSITY_FLOOR_REFLOW_REQUIRED` + non-null AC-6 diagnosis, no
+     * insertion #2 relabels the in-regime budget-exhaust as
+     * `REASON_DENSITY_FLOOR_REFLOW_REQUIRED` + non-null diagnosis, no
      * degraded view.</p>
      */
     @Test
@@ -977,7 +972,7 @@ public class SpacingControlLoopDensityAwareTerminationTest {
                 + "one-shot hub-resize) — distinguishes from row-775's "
                 + "in-regime-from-start path where it is 0",
                 cb.buildHubResizeCount >= 1);
-        // Never silently-degraded (AC-6/AC-8): no accepted (non-backed-off)
+        // Never silently-degraded: no accepted (non-backed-off)
         // step may carry a post aggregate below the pre-loop initial (0).
         for (SpacingIterationStep step : r.iterations()) {
             if (!step.backedOff()) {
@@ -989,9 +984,9 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     /**
-     * AC-3 arm-symmetry: byte-identical scenario, group-arm label. Both
+     * Arm-symmetry: byte-identical scenario, group-arm label. Both
      * composer arms run the SAME static `iterate` body via the shared
-     * `runComposerArm` (Task-0.3 spike, re-confirmed) — the single
+     * `runComposerArm` — the single
      * arm-agnostic decouple change covers both; the arm label is
      * informational only and does NOT branch loop control-flow. Same
      * RED→GREEN as the element-arm pin.
@@ -1018,20 +1013,21 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     /**
-     * AC-3 — escalate is reachable on the KNOB-LADDER-EXHAUST trajectory
-     * too (the independent `:607` `canEscalatePastCeiling` pre-emptive
+     * Escalate is reachable on the KNOB-LADDER-EXHAUST trajectory
+     * too (the independent `canEscalatePastCeiling` pre-emptive
      * path), and the decouple fix PRESERVES it. targetSpacingPx is small
-     * so the heuristic knob ladder formally exhausts (`!keepGoing` at
-     * :594) while below-regime with escalation budget — `:607` engages
-     * escalate (one-shot hub-resize built). This holds GREEN both pre- AND
-     * post-fix (Q1 does not touch `:607`; post-fix the decoupled `:933`
-     * additionally makes escalate reachable EARLIER on this trajectory).
+     * so the heuristic knob ladder formally exhausts (`!keepGoing`)
+     * while below-regime with escalation budget — the pre-emptive path
+     * engages escalate (one-shot hub-resize built). This holds GREEN both
+     * pre- AND post-fix (the fix does not touch the pre-emptive path;
+     * post-fix the decoupled classifier additionally makes escalate
+     * reachable EARLIER on this trajectory).
      *
-     * <p>The terminal here is the PRESERVED row-703 ladder-exhausted
-     * `budget_exhausted` (`:623-637`, byte-frozen AC-4 — NOT a row-775
+     * <p>The terminal here is the PRESERVED ladder-exhausted
+     * `budget_exhausted` (byte-frozen — NOT a reinterpretation
      * insertion site), so the assertion is escalate-REACHABILITY
      * (buildHubResizeCount ≥ 1) + no false reflow-while-below-regime, NOT
-     * insertion-#2; that is the AC-3 "escalate reachable on BOTH
+     * insertion-#2; that is the "escalate reachable on BOTH
      * trajectories" guard. Covers both composer arms.</p>
      */
     @Test
@@ -1070,16 +1066,16 @@ public class SpacingControlLoopDensityAwareTerminationTest {
     }
 
     /**
-     * Task 2.3 — the regime-signal-ABSENT ⇒ row-703-byte-identical
-     * invariant for the row-776 decouple scenario (AC-4). SAME
+     * Task 2.3 — the regime-signal-ABSENT ⇒ byte-identical
+     * invariant for the decouple scenario. SAME
      * many-small-gains would-budget-exhaust trajectory as the
      * reproduction pin but with NO regime signal (NaN avg + null
-     * hubExtent): the `:882` density block (and therefore the new
+     * hubExtent): the density block (and therefore the new
      * decoupled `classifyDensityTermination` rule) is unreachable ⇒ the
-     * loop terminates byte-identically to row-703
+     * loop terminates byte-identically
      * (`budget_exhausted_after_N`, no diagnosis, NO ESCALATE / no
      * hub-resize). Proves the new ESCALATE reachability is gated by the
-     * SAME `regimeSignalAvailable` master gate as `:882`.
+     * SAME `regimeSignalAvailable` master gate as the density block.
      */
     @Test
     public void decouple_regimeAbsentManyGains_staysRow703ByteIdentical_noEscalate() {

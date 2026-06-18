@@ -13,15 +13,15 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Unit tests for {@link ChannelNudgingPass} (B69-B Task 3).
+ * Unit tests for {@link ChannelNudgingPass}.
  *
  * <p>Pure-geometry: no EMF, no SWT, no PDE. All inputs are hand-constructed synthetic
  * scenarios designed to exercise the specific algorithm branches; no dependency on
  * {@link RoutingPipeline}'s full routing logic.
  *
  * <p>Test naming follows project convention: {@code method_shouldDoX_whenY()}.
- * Semantic assertions preferred over coordinate-equality where the story's AC
- * acceptance shape is semantic.
+ * Semantic assertions preferred over coordinate-equality where the expected
+ * shape is semantic.
  */
 public class ChannelNudgingPassTest {
 
@@ -468,7 +468,7 @@ public class ChannelNudgingPassTest {
 
     /**
      * Reproduces the V3 API Management Platform → Branch Teller System pathology
-     * discovered during B69-B Task 6 live E2E. Segments with parallel length below
+     * discovered during live E2E. Segments with parallel length below
      * {@code MIN_INTERIOR_SEGMENT_LENGTH_PX = 100} are treated as inter-route fan-out
      * micro-jogs and skipped before any nudge is attempted. Both the 50 px vertical
      * jog and the 57 px horizontal body in this fixture fall below the threshold,
@@ -699,13 +699,13 @@ public class ChannelNudgingPassTest {
     }
 
     // =====================================================================
-    // B75 — Inter-group corridor channel nudging
+    // Inter-group corridor channel nudging
     // =====================================================================
 
-    // ---- T4.1: Group-boundary channel detection ----
+    // ---- Group-boundary channel detection ----
 
     /**
-     * B75 AC-1: Two groups arranged horizontally with a 120px X-gap between them.
+     * Two groups arranged horizontally with a 120px X-gap between them.
      * A vertical segment crossing the gap should get a ChannelKey tightened by
      * group X-edges (perpendicular axis for vertical segments is X).
      *
@@ -759,10 +759,10 @@ public class ChannelNudgingPassTest {
         assertEquals("Channel gapHigh should be G2.minX=320", 320, vChannel.gapHigh());
     }
 
-    // ---- T4.2: Element-channel priority (AC-3) ----
+    // ---- Element-channel priority ----
 
     /**
-     * B75 AC-3: When an element obstacle is between a group edge and the segment,
+     * When an element obstacle is between a group edge and the segment,
      * the element-level bound is preserved. The both-sides gate also prevents
      * tightening when only one side has a group-provided bound — this ensures
      * element-level corridors are not partially overridden by a single group edge.
@@ -811,10 +811,10 @@ public class ChannelNudgingPassTest {
                 380, vChannel.gapHigh());
     }
 
-    // ---- T4.3: Fan-out across wide corridor (AC-2) ----
+    // ---- Fan-out across wide corridor ----
 
     /**
-     * B75 AC-2: Five vertical segments crossing a 120px inter-group gap should
+     * Five vertical segments crossing a 120px inter-group gap should
      * fan out across the corridor width instead of stacking coincident.
      */
     @Test
@@ -864,10 +864,10 @@ public class ChannelNudgingPassTest {
                 + xCoords.size(), xCoords.size() >= 3);
     }
 
-    // ---- T4.4: Minimum margin from group boundary (AC-5) ----
+    // ---- Minimum margin from group boundary ----
 
     /**
-     * B75 AC-5: Fanned connections must respect MIN_CLEARANCE_PX (10px) margin
+     * Fanned connections must respect MIN_CLEARANCE_PX (10px) margin
      * from group boundary walls.
      */
     @Test
@@ -909,10 +909,10 @@ public class ChannelNudgingPassTest {
         }
     }
 
-    // ---- T4.5: Nested group exclusion (AC-4) ----
+    // ---- Nested group exclusion ----
 
     /**
-     * B75 AC-4: Nested group boundaries must NOT create inter-group channels.
+     * Nested group boundaries must NOT create inter-group channels.
      * Only top-level group edges serve as channel walls.
      */
     @Test
@@ -942,10 +942,10 @@ public class ChannelNudgingPassTest {
                 topLevel.stream().anyMatch(r -> "g1-nested".equals(r.id())));
     }
 
-    // ---- T4.6: Axis-aware gating (AC-6) ----
+    // ---- Axis-aware gating ----
 
     /**
-     * B75 AC-6: A horizontal segment crossing a horizontal inter-group gap
+     * A horizontal segment crossing a horizontal inter-group gap
      * (groups arranged L-to-R) should NOT get group-boundary tightening on
      * the Y-axis (perpendicular for horizontal segments) because the groups
      * span the full Y range. Only vertical segments get tightened by X-axis

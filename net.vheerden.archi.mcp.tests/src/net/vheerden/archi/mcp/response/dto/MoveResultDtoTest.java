@@ -7,7 +7,7 @@ import org.junit.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Tests for {@link MoveResultDto} JSON serialization (Story 8-5).
+ * Tests for {@link MoveResultDto} JSON serialization.
  */
 public class MoveResultDtoTest {
 

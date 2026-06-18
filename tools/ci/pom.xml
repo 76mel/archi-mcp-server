@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  M0-2 CI dependency-provisioning pom (NOT a build of this project).
+
+  Sole purpose: populate the GitHub Actions runner's Maven local repo (~/.m2) with the EXACT
+  version-pinned jars that tools/run-tests.sh (M0-1) expects, so the headless harness can be
+  invoked UNMODIFIED on Linux. Nothing here compiles or packages the plugin — the harness does
+  its own javac compile-from-source against the Archi jar set.
+
+  Two groups of dependencies:
+
+  1. The Mockito stack the harness hardcodes by path (run-tests.sh:88-93). mockito-core 5.5.0
+     pulls byte-buddy + objenesis transitively, but we pin all four explicitly so the resolved
+     versions match the harness's hardcoded coordinates byte-for-byte:
+       org/mockito/mockito-core/5.5.0
+       net/bytebuddy/byte-buddy/1.14.6
+       net/bytebuddy/byte-buddy-agent/1.14.6
+       org/objenesis/objenesis/3.3
+
+  2. JUnit 4 + Hamcrest, fetched here from Maven Central, then COPIED-AND-RENAMED by the workflow
+     into ECLIPSE_HOME/plugins under the Eclipse OSGi-qualified names the harness globs
+     (org.junit_4*.jar / org.hamcrest_*.jar — run-tests.sh:80-83). This is OQ-2 path (a): the
+     glob is satisfied by provisioning Eclipse-named jars, so run-tests.sh stays BYTE-IDENTICAL
+     to the macOS dev box (honours M0-1 AC-8). Versions mirror the dev box exactly:
+       junit:junit:4.13.2          -> org.junit_4.13.2.jar
+       org.hamcrest:hamcrest:3.0   -> org.hamcrest_3.0.0.jar
+
+  Usage (see .github/workflows/ci.yml):
+       mvn -q -f tools/ci/pom.xml dependency:go-offline
+       mvn -q -f tools/ci/pom.xml -DoutputDirectory=... dependency:copy-dependencies   # optional
+
+  Bumping a version here is the single source of truth for the CI dependency pins; keep these in
+  lockstep with the hardcoded coordinates in tools/run-tests.sh (88-93,80-83).
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>net.vheerden.archi.mcp</groupId>
+  <artifactId>ci-test-dependencies</artifactId>
+  <version>1.0.0</version>
+  <packaging>pom</packaging>
+  <name>arch-mcp-server CI test-dependency provisioning</name>
+  <description>Populates ~/.m2 with the version-pinned jars tools/run-tests.sh expects. Not a build of the plugin.</description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Pins MUST match tools/run-tests.sh hardcoded coordinates (run-tests.sh:88-93). -->
+    <mockito.version>5.5.0</mockito.version>
+    <bytebuddy.version>1.14.6</bytebuddy.version>
+    <objenesis.version>3.3</objenesis.version>
+    <!-- Mirrors the dev-box Eclipse plugin jars (verified org.junit_4.13.2.* + org.hamcrest_3.0.0
+         present in the dev-box Eclipse install). hamcrest 3.0 is the unified successor jar, confirmed
+         compatible with the full suite (SPIKE B: 181/4082 PASS against these renamed jars). -->
+    <junit.version>4.13.2</junit.version>
+    <hamcrest.version>3.0</hamcrest.version>
+  </properties>
+
+  <dependencies>
+    <!-- ===== Group 1: Mockito stack (harness M2_REPO hardcoded paths) ===== -->
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>${mockito.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.bytebuddy</groupId>
+      <artifactId>byte-buddy</artifactId>
+      <version>${bytebuddy.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.bytebuddy</groupId>
+      <artifactId>byte-buddy-agent</artifactId>
+      <version>${bytebuddy.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.objenesis</groupId>
+      <artifactId>objenesis</artifactId>
+      <version>${objenesis.version}</version>
+    </dependency>
+
+    <!-- ===== Group 2: JUnit 4 + Hamcrest (renamed into ECLIPSE_HOME/plugins by the workflow) ===== -->
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>${junit.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.hamcrest</groupId>
+      <artifactId>hamcrest</artifactId>
+      <version>${hamcrest.version}</version>
+    </dependency>
+  </dependencies>
+</project>

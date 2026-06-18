@@ -5,7 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * DTO for batch commit/rollback result summary (Story 7-1).
+ * DTO for batch commit/rollback result summary.
  *
  * <p>Returned by end-batch to summarize what happened to the queued mutations.</p>
  */

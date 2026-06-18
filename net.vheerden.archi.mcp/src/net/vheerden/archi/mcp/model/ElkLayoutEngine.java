@@ -294,7 +294,7 @@ class ElkLayoutEngine {
 	private void extractBendpoints(ElkNode container,
 			Map<String, List<AbsoluteBendpointDto>> result, Set<String> visited) {
 		for (ElkEdge edge : container.getContainedEdges()) {
-			// Skip edges already processed at a higher hierarchy level (B56 dedup)
+			// Skip edges already processed at a higher hierarchy level (dedup)
 			if (!visited.add(edge.getIdentifier())) continue;
 			List<AbsoluteBendpointDto> bps = new ArrayList<>();
 			for (ElkEdgeSection section : edge.getSections()) {

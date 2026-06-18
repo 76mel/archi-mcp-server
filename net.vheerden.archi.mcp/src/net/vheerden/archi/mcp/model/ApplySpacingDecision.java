@@ -14,13 +14,12 @@ package net.vheerden.archi.mcp.model;
  * {@link ApplyGroupSpacingDecision} — same architectural-separation rule
  * (extracted from {@link ArchiModelAccessorImpl#applySpacingRecommendations}
  * so the short-circuit / clamp / scope-dispatch branches can be exercised by
- * JUnit without an OSGi context per
- * {@code feedback_first_principles_routing.md}).</p>
+ * JUnit without an OSGi context).</p>
  *
  * <p><strong>Inflation-knee guard.</strong> The clamp values
  * ({@value #ELEMENT_KNEE_LIMIT_PX}px element / {@value #GROUP_KNEE_LIMIT_PX}px
- * inter-group) come from the H1 spacing diagnostic in
- * {@code party-test-2026-05-06.md} § "Post-empirical diagnostic" line 156:
+ * inter-group) come from the H1 spacing diagnostic
+ * ("Post-empirical diagnostic", 2026-05-06):
  * cumulative +80 elem / +100 group / +60 pad drove the H1 view's coincSeg
  * from 10 → 1; beyond that cumulative-from-current point, passThroughs /
  * nonOrthogonalTerminals / xings-per-connection regressed. The composed
@@ -29,13 +28,12 @@ package net.vheerden.archi.mcp.model;
  *
  * <p><strong>Per-call clamp, not session-tracked.</strong> The clamp is
  * computed against the current call's detected spacing baseline. The tool
- * does NOT persist a per-view inflation ledger across calls (HALT 1.5 Q6
- * recorded as "document as non-goal in v1" 2026-05-12). Successive calls on
+ * does NOT persist a per-view inflation ledger across calls (documented as a
+ * non-goal in v1). Successive calls on
  * the same view each re-detect current spacing, compute proposed delta
  * against the heuristic, and clamp per-call.</p>
  *
- * <p>Pinned by {@code ApplySpacingRecommendationsToolTest} AC-7.8 +
- * AC-7.9 + AC-7.11.</p>
+ * <p>Pinned by {@code ApplySpacingRecommendationsToolTest}.</p>
  *
  * @param interElementDelta            the (clamped) element delta the tool
  *                                     would pass to {@code adjustViewSpacing}
@@ -80,16 +78,16 @@ public record ApplySpacingDecision(
         String noChangeReason) {
 
     /** Maximum element-spacing delta this tool will apply in a single call
-     *  (from the H1 spacing diagnostic 2026-05-06). Per AC-7.9: any future
+     *  (from the H1 spacing diagnostic 2026-05-06). Any future
      *  revision MUST edit {@code ApplySpacingRecommendationsToolTest}. */
     public static final int ELEMENT_KNEE_LIMIT_PX = 80;
 
     /** Maximum inter-group-spacing delta this tool will apply in a single
-     *  call (from the H1 spacing diagnostic 2026-05-06). Per AC-7.9: any
+     *  call (from the H1 spacing diagnostic 2026-05-06). Any
      *  future revision MUST edit {@code ApplySpacingRecommendationsToolTest}. */
     public static final int GROUP_KNEE_LIMIT_PX = 100;
 
-    /** Valid scope values per AC-2. */
+    /** Valid scope values. */
     public static final String SCOPE_BOTH = "both";
     public static final String SCOPE_ELEMENT = "element";
     public static final String SCOPE_GROUP = "group";
@@ -99,10 +97,9 @@ public record ApplySpacingDecision(
      * {@link IllegalArgumentException} if {@code scope} is not one of
      * {@link #SCOPE_BOTH}, {@link #SCOPE_ELEMENT}, {@link #SCOPE_GROUP} —
      * the handler layer translates this to the
-     * {@code error.code = "invalid_argument"} MCP envelope per AC-2.
+     * {@code error.code = "invalid_argument"} MCP envelope.
      *
-     * <p><strong>Short-circuit precedence (per Dev Notes § Composition
-     * pattern).</strong> Within each in-scope arm: (1) structural
+     * <p><strong>Short-circuit precedence.</strong> Within each in-scope arm: (1) structural
      * impossibility {@literal >} (2) heuristic already met. Then the
      * combined-arm rule: (3) call {@code adjustViewSpacing} only when AT
      * LEAST one arm has a non-zero clamped delta AND {@code !dryRun}.

@@ -12,7 +12,7 @@ import org.junit.Test;
 import net.vheerden.archi.mcp.response.dto.ViewPositionSpec;
 
 /**
- * Tests for {@link OverlapResolver} (Story 10-18).
+ * Tests for {@link OverlapResolver}.
  * Pure geometry — runnable without OSGi.
  */
 public class OverlapResolverTest {

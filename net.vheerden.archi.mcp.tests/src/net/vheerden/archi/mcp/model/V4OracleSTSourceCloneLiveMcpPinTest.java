@@ -21,8 +21,8 @@ import net.vheerden.archi.mcp.model.routing.ViewFixture;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * ST ("Spread Tight") source-clone pin test — H5 story Task 14.3 (closes AC-10
- * verification gap per [[feedback_pin_calibration_substrate_parity]]).
+ * ST ("Spread Tight") source-clone pin test — H5 Task 14.3 (closes the
+ * verification gap on pin-calibration substrate parity).
  *
  * <p><b>Substrate.</b> {@code testdata/st-source-clone-fixture.json} —
  * captured from Archi view {@code id-e60f3843fb2b4f4489ed948bcc7c166c}
@@ -37,14 +37,19 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * geometrically harder routing case where the H5 algorithm has more work to
  * do and the monotonicity verifier is more likely to be tested.
  *
- * <p><b>Calibration provenance.</b> Per
- * [[feedback_pin_calibration_substrate_parity]] the floor/ceiling values are
+ * <p><b>Calibration provenance.</b> Per the pin-calibration
+ * substrate-parity discipline the floor/ceiling values are
  * anchored at the PURE-JUNIT (Option α) substrate's pre-H5 empirical actuals,
  * NOT the live-MCP Task 8 measurements. The live-MCP ST actuals (HPQ=0.60,
  * M4=7, V_p10=1.0, M5=9) are a DIFFERENT substrate and DO NOT transfer to
- * pure-JUnit anchoring — Task 7 AC-12.3 precedent surfaced exactly this
+ * pure-JUnit anchoring — the Task 7 precedent surfaced exactly this
  * substrate-parity failure mode for the V4 oracle pin. Initial first-run
  * actuals captured 2026-05-14 by Task 14.3; thresholds anchored at actuals.
+ * <b>HPQ re-anchored 2026-06-18</b> (v1.7 routing-pin re-anchor): floor
+ * 0.40&rarr;0.08 to track the HPQ actual 0.4565&rarr;0.1428 caused by the v1.7
+ * mean&rarr;min(worst-face) aggregation change (commit 2e45716, #5), NOT a routing
+ * regression; all structural + Tier-1 pins unchanged and still holding
+ * (M4=10, V_p10=3.0, M5=8, M1=4, Tier-1=0). See {@link #ST_HPQ_FLOOR}.
  *
  * <p><b>What this pin protects.</b> Future regressions in any routing stage
  * (including H5 Tier-1 monotonicity guard failure on the geometrically
@@ -63,14 +68,26 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 public class V4OracleSTSourceCloneLiveMcpPinTest {
 
     /**
-     * ST source clone pure-JUnit HPQ floor. Captured 2026-05-14 first-run
-     * actual = 0.4565. Floor 0.40 = actual minus ~0.06 stateless-fixture
-     * parity buffer per V4 oracle pin precedent. ST has a 214x68 hub vs HH/V4
-     * 300x250 → fewer hub-perimeter slots → much lower HPQ baseline. The pin
-     * encodes the no-regression contract on ST, NOT a release-gate quality
-     * target (those live on V4 oracle and HH).
+     * ST source clone pure-JUnit HPQ floor. RE-ANCHORED 2026-06-18 (v1.7
+     * routing-pin re-anchor): current actual = 0.1428, down from the 2026-05-14
+     * first-run actual of 0.4565. The drop is the direct consequence of the v1.7
+     * HPQ aggregation change from MEAN to MIN (worst face) — commit 2e45716, the #5
+     * worst-face fix (2026-06-14) — NOT a routing regression. The mean-era actual
+     * 0.4565 averaged ST's one degraded hub face against its healthy ones; the
+     * min-era actual 0.1428 reports that worst face honestly. ST's pathologically
+     * small 214x68 API Management Platform hub (far fewer perimeter slots than HH/V4's
+     * 300x250) is exactly the topology where one face degrades and min &lt;&lt; mean.
+     * This is a metric-definition re-anchor, NOT masking a structural regression:
+     * every Tier-1 defect metric is clean (overlap/passThrough/interior/zigzag = 0)
+     * and every structural pin still holds (M4=10 at ceiling, V_p10=3.0 above floor,
+     * M5=8, M1=4); corridorUtilisation R8=0.437 corroborates the routing is otherwise
+     * sound. Floor 0.08 = actual 0.1428 minus the ~0.06 stateless-fixture parity
+     * buffer per V4 oracle pin precedent. The pin encodes the no-regression contract
+     * on ST, NOT a release-gate quality target (those live on V4 oracle and HH); the
+     * router half of fixing one-sided egress (vs the #5 detection half that shipped)
+     * is the deferred Lever-A/B backlog track.
      */
-    private static final double ST_HPQ_FLOOR = 0.40;
+    private static final double ST_HPQ_FLOOR = 0.08;
 
     /**
      * ST source clone pure-JUnit M4 ceiling. Captured 2026-05-14 first-run
@@ -90,7 +107,7 @@ public class V4OracleSTSourceCloneLiveMcpPinTest {
      * ST source clone pure-JUnit V_p10 floor. Captured 2026-05-14 first-run
      * actual = 3.0. Floor anchored at {@code actual - 0.5} stateless-fixture
      * non-determinism buffer per {@link V4OracleQualityRegressionTest}
-     * {@code R8_FLOOR} precedent (Story WCU.RegressionTest 2026-05-03). Loose
+     * {@code R8_FLOOR} precedent (added 2026-05-03). Loose
      * enough to absorb tiebreaker variance, tight enough to catch a real
      * routing-pipeline change collapsing intra-corridor spread on ST.
      */

@@ -9,7 +9,7 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- * Tests for {@link OverlapResolver#hasOverlappingElements(List)} (Story 13-9).
+ * Tests for {@link OverlapResolver#hasOverlappingElements(List)}.
  * Pure geometry — runnable without OSGi.
  */
 public class HasOverlappingElementsTest {

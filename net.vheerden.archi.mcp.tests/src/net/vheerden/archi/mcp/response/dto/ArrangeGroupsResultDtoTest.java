@@ -7,7 +7,7 @@ import org.junit.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Tests for {@link ArrangeGroupsResultDto} record (Story 11-20).
+ * Tests for {@link ArrangeGroupsResultDto} record.
  */
 public class ArrangeGroupsResultDtoTest {
 

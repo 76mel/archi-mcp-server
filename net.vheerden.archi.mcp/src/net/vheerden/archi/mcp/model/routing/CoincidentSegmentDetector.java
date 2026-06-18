@@ -14,7 +14,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Detects and offsets coincident connection segments (Story 11-23).
+ * Detects and offsets coincident connection segments.
  * Pure-geometry class — no EMF/SWT dependencies.
  *
  * <p>After edge nudging, multiple connections may still share identical path
@@ -286,12 +286,12 @@ public class CoincidentSegmentDetector {
     }
 
     /**
-     * Per-connection anchoring context bundle for B71 wrap-site rollback.
+     * Per-connection anchoring context bundle for wrap-site rollback.
      *
      * <p>Built once per {@code applyOffsets} call and looked up by connection
      * index. A {@code null} context (or null anchorings inside) bypasses the
      * predicate check for that connection — the legacy 3-arg overload
-     * constructs an empty map, preserving pre-B71 test behaviour.</p>
+     * constructs an empty map, preserving earlier test behaviour.</p>
      */
     public record AnchoringContext(
             RoutingPipeline.ConnectionEndpoints connection,
@@ -303,7 +303,7 @@ public class CoincidentSegmentDetector {
      * distinguishable. Uses corridor-group-first processing with proportional
      * spacing when sufficient gap exists between obstacles.
      *
-     * <p>Legacy overload — runs without the B71 terminal-anchoring wrap.
+     * <p>Legacy overload — runs without the terminal-anchoring wrap.
      * Used by unit tests that have no per-connection anchoring context.</p>
      *
      * @param coincidentPairs detected coincident pairs
@@ -318,10 +318,10 @@ public class CoincidentSegmentDetector {
     }
 
     /**
-     * B71 wrap-site overload: applies coincident segment offsets while
+     * Wrap-site overload: applies coincident segment offsets while
      * enforcing the {@link TerminalAnchoring#preservesEndpoints} predicate.
      *
-     * <p>Replaces the B70-a Mode B {@code touchesPerimeterAnchoredTerminal}
+     * <p>Replaces the Mode B {@code touchesPerimeterAnchoredTerminal}
      * filter. When a {@code tryOffset} call mutates segment endpoint at
      * index 0 or {@code path.size() - 1}, the predicate is re-evaluated; on
      * violation, both touched BPs are restored from the per-segment snapshot
@@ -471,7 +471,7 @@ public class CoincidentSegmentDetector {
                 continue; // Already at target position
             }
 
-            // B71 wrap: snapshot the two BPs before mutating so we can roll back
+            // Wrap: snapshot the two BPs before mutating so we can roll back
             // on terminal anchoring violation at index 0 / path.size()-1.
             AbsoluteBendpointDto snap1 = path.get(bpIdx1);
             AbsoluteBendpointDto snap2 = path.get(bpIdx2);
@@ -538,7 +538,7 @@ public class CoincidentSegmentDetector {
                 continue;
             }
 
-            // B71 wrap: snapshot the two BPs for rollback on predicate violation.
+            // Wrap: snapshot the two BPs for rollback on predicate violation.
             AbsoluteBendpointDto snap1 = path.get(bpIdx1);
             AbsoluteBendpointDto snap2 = path.get(bpIdx2);
 
@@ -602,7 +602,7 @@ public class CoincidentSegmentDetector {
     }
 
     /**
-     * B71 wrap-site predicate gate: returns {@code true} iff the segment we
+     * Wrap-site predicate gate: returns {@code true} iff the segment we
      * just offset touches a terminal index (0 or {@code path.size() - 1}) AND
      * the connection has an anchoring context AND
      * {@link TerminalAnchoring#preservesEndpoints} now reports a violation.
@@ -636,10 +636,10 @@ public class CoincidentSegmentDetector {
      * Approach-3 reconciliation pass for coincident segments that touch a
      * terminal BP — runs after {@link #applyOffsets} as a downstream stage.
      *
-     * <p>The B71 rollback in {@link #applyOffsets} preserves terminal
+     * <p>The rollback in {@link #applyOffsets} preserves terminal
      * anchoring by reverting any perpendicular delta-shift that would move a
      * terminal BP off its face line. For corridor-perpendicular coincidences
-     * (multiple connections terminating at distinct B9-allocated face slots
+     * (multiple connections terminating at distinct allocated face slots
      * but sharing a common approach corridor — the V4 oracle current-pipeline
      * regression pattern), the simple delta-shift is the wrong mutation
      * shape: the rollback fires correctly but the coincidence persists. This
@@ -982,7 +982,7 @@ public class CoincidentSegmentDetector {
     }
 
     /**
-     * Counts coincident segments for layout quality assessment (AC3).
+     * Counts coincident segments for layout quality assessment.
      * Operates on AssessmentConnection pathPoints (double[] format).
      *
      * @param connections assessment connections with full path points
@@ -1041,11 +1041,11 @@ public class CoincidentSegmentDetector {
         return count;
     }
 
-    /** Result of coincident segment detection with optional violator connection indices (B55). */
+    /** Result of coincident segment detection with optional violator connection indices. */
     public record CoincidentSegmentResult(int count, Set<Integer> violatorConnectionIndices) {}
 
     /**
-     * Counts coincident segments and optionally collects the connection indices involved (B55).
+     * Counts coincident segments and optionally collects the connection indices involved.
      *
      * @param connections assessment connections with full path points
      * @param collectViolatorIndices if true, collects connection indices involved in coincident segments

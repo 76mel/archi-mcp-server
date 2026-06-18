@@ -13,7 +13,7 @@ import com.archimatetool.model.IIdentifier;
  * GEF Command that removes a diagram object from its immediate parent
  * container (which is the view itself for top-level objects, or a nested
  * group / component / node view-object for nested elements), including
- * cascade-disconnection of all attached connections (Story 7-8).
+ * cascade-disconnection of all attached connections.
  *
  * <p>The caller pre-collects attached connections (both source and target).
  * On execute, all connections are disconnected first, then the element is
@@ -25,8 +25,8 @@ import com.archimatetool.model.IIdentifier;
  * {@code CommandStack.execute()} through {@link MutationDispatcher}.
  * Direct invocation of {@code execute()} bypasses undo tracking.</p>
  *
- * <p><strong>Story B (v1.6):</strong> generalised from <em>view</em>-removal
- * to <em>parent</em>-removal to support Story 10-20 element-as-container
+ * <p><strong>v1.6:</strong> generalised from <em>view</em>-removal
+ * to <em>parent</em>-removal to support element-as-container
  * nesting. A SOUND postcondition certificate fires if
  * {@code parent.getChildren().remove(diagramObject)} returns {@code false} —
  * converting a silent no-op into a structured reject with a diagnostic

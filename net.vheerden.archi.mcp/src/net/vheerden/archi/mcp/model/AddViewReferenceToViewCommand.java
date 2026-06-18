@@ -6,7 +6,7 @@ import com.archimatetool.model.IDiagramModelContainer;
 import com.archimatetool.model.IDiagramModelReference;
 
 /**
- * GEF Command that adds a view-reference visual object to a view (Story 14-6 / G8).
+ * GEF Command that adds a view-reference visual object to a view.
  *
  * <p>The view-reference must be fully configured (referencedModel, bounds,
  * styling) before this command is created. The command only handles view

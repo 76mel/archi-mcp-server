@@ -22,7 +22,7 @@ import net.vheerden.archi.mcp.model.routing.ViewFixture;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Task 3 (AC-4 + AC-16) — never-worse + determinism proofs for
+ * Task 3 — never-worse + determinism proofs for
  * {@link BestOfKRoutingStrategy} exercised <b>end-to-end with the REAL
  * {@link RoutingPipeline} and the REAL {@link LayoutQualityAssessor}</b> on the
  * real 30-connection V4 Integration Architecture oracle fixture (NOT synthetic).
@@ -152,7 +152,7 @@ public class BestOfKRoutingStrategyV4FixtureTest {
         };
     }
 
-    // ---- AC-4: never-worse-by-construction on the real V4 substrate ----
+    // ---- never-worse-by-construction on the real V4 substrate ----
 
     @Test
     public void k1_shouldBeByteIdenticalToLegacyPipeline_onV4Oracle() {
@@ -186,7 +186,7 @@ public class BestOfKRoutingStrategyV4FixtureTest {
                 bestObj >= run0Obj);
     }
 
-    // ---- AC-16: determinism / reproducibility on the real V4 substrate ----
+    // ---- determinism / reproducibility on the real V4 substrate ----
 
     @Test
     public void sameSeedSameK_shouldEmitByteIdenticalRouting_onV4Oracle() {
@@ -255,7 +255,7 @@ public class BestOfKRoutingStrategyV4FixtureTest {
                 legacy.routed(), guarded.routed());
     }
 
-    // ---- Task 4 (AC-7): non-duplicative end-to-end integration ----
+    // ---- Task 4: non-duplicative end-to-end integration ----
 
     /**
      * Task 4 integration @Test — deliberately NOT duplicating the Task-3
@@ -268,7 +268,7 @@ public class BestOfKRoutingStrategyV4FixtureTest {
      * objective's {@code overallRating}-dominance makes a Tier-1 regression
      * un-selectable by construction), (b) has an {@code overallRating} ordinal
      * &ge; run-0, and (c) is reproducible. Reuses
-     * {@code v4-integration-architecture-oracle-fixture.json} per AC-7 sizing.
+     * {@code v4-integration-architecture-oracle-fixture.json} sizing.
      */
     @Test
     public void task4_integration_emittedBestOfK_preservesTier1AndRating_onV4Oracle() {
@@ -339,14 +339,14 @@ public class BestOfKRoutingStrategyV4FixtureTest {
     }
 
     /**
-     * Task 5 / AC-15 PERF-SENTINEL pin — K=default(12) best-of-K on the
+     * Task 5 PERF-SENTINEL pin — K=default(12) best-of-K on the
      * gate-sized (30-connection) real V4 oracle substrate must complete within
      * an asserted wall-clock bound (no per-run latency blow-up on normal
      * views). The bound is deliberately generous (catches a pathological
      * O(K&middot;...) blow-up, not micro-jitter). Complemented by
      * {@link #largeViewGuard_shouldReturnRun0_whenThresholdExceeded_onV4Oracle}
-     * (the AC-15 large-view degrade-to-K=1 guard) — together these are the
-     * AC-15 contract: bounded cost on normal views + a hard guard above a
+     * (the large-view degrade-to-K=1 guard) — together these are the
+     * contract: bounded cost on normal views + a hard guard above a
      * connection-count threshold.
      */
     @Test

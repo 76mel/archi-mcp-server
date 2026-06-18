@@ -11,7 +11,7 @@ import org.junit.Test;
 import net.vheerden.archi.mcp.model.RoutingRect;
 
 /**
- * Tests for {@link MoveRecommendation} and {@link RoutingRecommendationEngine} (Stories 10-31, 10-33).
+ * Tests for {@link MoveRecommendation} and {@link RoutingRecommendationEngine}.
  */
 public class RoutingRecommendationEngineTest {
 
@@ -280,7 +280,7 @@ public class RoutingRecommendationEngineTest {
         assertEquals(0, disp[1]);
     }
 
-    // --- Neighbor-aware recommendation tests (Story 10-33) ---
+    // --- Neighbor-aware recommendation tests ---
 
     @Test
     public void shouldClampRecommendation_whenDestinationOverlapsNeighbor() {
@@ -404,7 +404,7 @@ public class RoutingRecommendationEngineTest {
         assertEquals(2, recommendations.get(0).connectionsUnblocked());
     }
 
-    // --- Story 10-34: Visual-child containment skip ---
+    // --- Visual-child containment skip ---
 
     @Test
     public void shouldSkipContainedChildren_inClampForNeighborCollisions() {

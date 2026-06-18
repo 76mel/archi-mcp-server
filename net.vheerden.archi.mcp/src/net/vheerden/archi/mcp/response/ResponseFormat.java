@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.response;
 
 /**
- * Response format options for query commands (Story 6.3).
+ * Response format options for query commands.
  *
  * <p>Controls the shape of the response envelope's primary data key:
  * <ul>

@@ -29,29 +29,28 @@ import com.archimatetool.model.IFolder;
 import net.vheerden.archi.mcp.model.RemoveFromViewCommand;
 
 /**
- * Integration regression pin for Story B (v1.6) — remove-from-view nested-parent
+ * Integration regression pin (v1.6) — remove-from-view nested-parent
  * resolution + SOUND postcondition gate.
  *
- * <p>Reproduces the on-disk failure mode that the 2026-05-28 1708 retail-bank
- * agent-in-loop run surfaced: a nested ArchiMate-element view-object (Story 10-20
- * element-as-container nesting, e.g. {@code z/OS} placed under
+ * <p>Reproduces the on-disk failure mode that the 2026-05-28 retail-bank
+ * agent-in-loop run surfaced: a nested ArchiMate-element view-object
+ * (element-as-container nesting, e.g. {@code z/OS} placed under
  * {@code Mobile App Binary}) is sent to {@code remove-from-view}; the tool
  * returns {@code {action:"removed"}}; but the ghost view-object persists to the
  * saved {@code .archimate} file. On v1.5 the asymmetry inside
  * {@code prepareRemoveFromView} (element branch passed the top-level view as
  * the container, while group/note branches resolved the real parent via
  * {@code findParentContainer}) caused {@code List.remove(diagramObject)} to
- * silently no-op for nested objects. Story B brings the element branch into
+ * silently no-op for nested objects. The fix brings the element branch into
  * sibling-symmetry with group/note and adds a SOUND postcondition certificate
- * inside the command. This integration test pins the post-Story-B behaviour
+ * inside the command. This integration test pins the post-fix behaviour
  * against the actual save+reload round-trip.</p>
  *
- * <p>Distinct from {@link DeleteViewCascadeIntegrationTest} (Story 14-6.1)
- * which pinned the EMF dangling-xref class: Story B's ghosts referenced live
- * archimateElement IDs (model.xml:613/634 on the 1708 model), so the file
+ * <p>Distinct from {@link DeleteViewCascadeIntegrationTest}
+ * which pinned the EMF dangling-xref class: these ghosts referenced live
+ * archimateElement IDs (model.xml:613/634 on the retail-bank model), so the file
  * opened cleanly in Archi but contained extra view-objects the user never
- * intended. Per [[feedback_emf_dangling_xref_invisible_in_session]] discipline
- * the user-impact gate is "open the saved file and see ghosts vs not see
+ * intended. The user-impact gate is "open the saved file and see ghosts vs not see
  * ghosts" — only the OSGi save→drop→reload round-trip exercises that gate.</p>
  *
  * <p>Requires the OSGi/PDE runtime ({@link IEditorModelManager}'s static
@@ -68,7 +67,7 @@ public class RemoveFromViewCascadeIntegrationTest {
         assumeTrue("requires PDE/OSGi runtime", Platform.isRunning());
     }
 
-    /** AC-6 — no ghost view-object survives save+reload after nested remove. */
+    /** No ghost view-object survives save+reload after nested remove. */
     @Test
     public void shouldNotProduceGhostViewObjects_whenNestedElementRemovedAndSerialized() throws Exception {
         IArchimateFactory factory = IArchimateFactory.eINSTANCE;
@@ -99,7 +98,7 @@ public class RemoveFromViewCascadeIntegrationTest {
         nestedE.setArchimateElement(nestedArchimateElement);
         nestedE.setBounds(20, 30, 120, 55);
         // Mimic `add-to-view parentViewObjectId=<componentA.id>` — nested under the component,
-        // not at the top level of the view. This is the Story 10-20 element-as-container shape.
+        // not at the top level of the view. This is the element-as-container shape.
         componentA.getChildren().add(nestedE);
 
         String nestedId = nestedE.getId();
@@ -113,7 +112,7 @@ public class RemoveFromViewCascadeIntegrationTest {
         File savedFile = new File(tempFolder.getRoot(), "story-b-cascade-pin.archimate");
         model.setFile(savedFile);
 
-        // Story B fix exercise: remove the nested element via the post-fix command
+        // Fix exercise: remove the nested element via the post-fix command
         // (parent = the real container, not the view). On v1.5 the prepare site
         // passed `view` instead, and List.remove returned false silently.
         RemoveFromViewCommand cmd = new RemoveFromViewCommand(nestedE, componentA, List.of());
@@ -127,7 +126,7 @@ public class RemoveFromViewCascadeIntegrationTest {
 
         // Drop the in-memory model so the reload comes from disk, not from a cached EObject graph.
         // Assert the close succeeded — if closeModel returned false (e.g. an unanswered ask-save
-        // dialog), loadModel below could pick up the cached graph and AC-6 would trivially pass
+        // dialog), loadModel below could pick up the cached graph and the test would trivially pass
         // on the already-mutated in-memory model instead of validating round-trip persistence.
         assertTrue("closeModel must succeed so reload reads from disk, not from the cached EObject graph",
                 IEditorModelManager.INSTANCE.closeModel(model));

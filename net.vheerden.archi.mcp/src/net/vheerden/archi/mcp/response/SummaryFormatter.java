@@ -14,7 +14,7 @@ import net.vheerden.archi.mcp.response.dto.ViewContentsDto;
 import net.vheerden.archi.mcp.response.dto.ViewDto;
 
 /**
- * Generates natural language summaries from query results (Story 6.3, FR22).
+ * Generates natural language summaries from query results.
  *
  * <p>Used by query handlers when {@code format=summary} is requested.
  * Summaries are concise (1-3 sentences) and actionable — they include

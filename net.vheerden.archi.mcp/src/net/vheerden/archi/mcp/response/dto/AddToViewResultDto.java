@@ -5,7 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Data Transfer Object for the result of an add-to-view operation (Story 7-7).
+ * Data Transfer Object for the result of an add-to-view operation.
  *
  * <p>Contains the created view object and optional list of auto-created
  * connections (when autoConnect=true). The autoConnections list is omitted

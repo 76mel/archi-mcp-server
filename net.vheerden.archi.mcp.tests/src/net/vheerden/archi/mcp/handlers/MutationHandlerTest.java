@@ -36,7 +36,7 @@ import net.vheerden.archi.mcp.response.dto.BulkOperationResult;
 import org.eclipse.gef.commands.Command;
 
 /**
- * Tests for {@link MutationHandler} (Story 7-1).
+ * Tests for {@link MutationHandler}.
  *
  * <p>Uses a StubAccessor extending {@link BaseTestAccessor} with a stub
  * MutationDispatcher that bypasses Display.syncExec + CommandStack.</p>
@@ -528,7 +528,7 @@ public class MutationHandlerTest {
         assertNotNull("entityId should be present", ops.get(0).get("entityId"));
     }
 
-    // ---- bulk-mutate approval mode tests (Story 7-6) ----
+    // ---- bulk-mutate approval mode tests ----
 
     @Test
     public void shouldReturnProposalResponse_whenBulkMutateInApprovalMode() throws Exception {
@@ -563,7 +563,7 @@ public class MutationHandlerTest {
 
         @SuppressWarnings("unchecked")
         List<String> nextSteps = (List<String>) result.get("nextSteps");
-        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("decide-mutation")));
+        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
         assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
     }
 
@@ -623,7 +623,7 @@ public class MutationHandlerTest {
         assertEquals("create-element", ops.get(0).get("tool"));
     }
 
-    // ---- bulk-mutate view tool tests (Story 8-0b) ----
+    // ---- bulk-mutate view tool tests ----
 
     @Test
     public void shouldAcceptViewTools_whenBulkMutateWithViewOps() throws Exception {
@@ -750,7 +750,7 @@ public class MutationHandlerTest {
         assertEquals("removed", ops.get(1).get("action"));
     }
 
-    // ---- bulk-mutate group/note back-reference and limit tests (Story 9-8) ----
+    // ---- bulk-mutate group/note back-reference and limit tests ----
 
     @Test
     public void shouldAcceptGroupAndNoteTools_whenBulkMutateWithGroupOps() throws Exception {
@@ -882,7 +882,7 @@ public class MutationHandlerTest {
         assertTrue(error.get("message").toString().contains("150"));
     }
 
-    // ---- bulk-mutate continueOnError response formatting tests (Story 11-9 code review) ----
+    // ---- bulk-mutate continueOnError response formatting tests ----
 
     @Test
     public void shouldFormatPartialFailureResponse_whenBulkMutateWithFailures() throws Exception {
@@ -987,7 +987,7 @@ public class MutationHandlerTest {
                 nextSteps.stream().anyMatch(s -> s.contains("can be undone")));
     }
 
-    // ---- Story 14-1 (G4): bulk-mutate flows labelExpression through update-view-object ----
+    // ---- bulk-mutate flows labelExpression through update-view-object ----
 
     @Test
     public void shouldFlowLabelExpression_inBulkUpdateViewObject_AC2_AC11() throws Exception {
@@ -1067,7 +1067,7 @@ public class MutationHandlerTest {
         assertNotNull("modelVersion should exist", meta.get("modelVersion"));
     }
 
-    // ---- update-model bulk-mutate parity tests (Story 14-3 G6) ----
+    // ---- update-model bulk-mutate parity tests ----
 
     @Test
     public void shouldFlowUpdateModel_inBulkMutate_AC9() throws Exception {
@@ -1124,7 +1124,7 @@ public class MutationHandlerTest {
 
     @Test
     public void shouldAdvertiseAddViewReferenceToView_inBulkMutateDescription_AC9() {
-        // Story 14-6 (G8): regression pin for the one-liner registry insert.
+        // Regression pin for the one-liner registry insert.
         String description = registry.getToolSpecifications().stream()
                 .filter(s -> "bulk-mutate".equals(s.tool().name()))
                 .findFirst()

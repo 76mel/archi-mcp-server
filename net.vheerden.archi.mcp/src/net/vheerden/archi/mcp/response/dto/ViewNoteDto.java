@@ -3,21 +3,21 @@ package net.vheerden.archi.mcp.response.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Data Transfer Object for a text note on a view (Story 8-6, 11-2).
+ * Data Transfer Object for a text note on a view.
  *
  * <p>Notes are diagram-only objects (not ArchiMate model elements) used to
  * annotate design decisions, add comments, or provide context on diagrams.</p>
  *
- * <p><strong>Story 11-2:</strong> Added optional styling fields (fillColor,
+ * <p>Added optional styling fields (fillColor,
  * lineColor, fontColor, opacity, lineWidth). Omitted from JSON when null.</p>
  *
- * <p><strong>Story C3 (v1.6):</strong> Closes the read-back symmetry gap. Adds
- * {@code labelExpression} (14-1 G4) and {@code fontName}/{@code fontSize}/{@code fontStyle}/
+ * <p><strong>v1.6:</strong> Closes the read-back symmetry gap. Adds
+ * {@code labelExpression} and {@code fontName}/{@code fontSize}/{@code fontStyle}/
  * {@code gradient}/{@code borderType}/{@code deriveLineColor}/{@code outlineOpacity}/
- * {@code lineStyle} (14-2 G5) so that {@code get-view-contents} surfaces every v1.5
+ * {@code lineStyle} so that {@code get-view-contents} surfaces every v1.5
  * styling field that the write tools accept. {@code borderType} (dogear/rectangle/none)
- * is the note-specific 14-2 G5 surface; {@code figureType} remains absent per the
- * 14-2 Task-2.3 disposition (notes do not expose figureType). All fields are omitted
+ * is the note-specific surface; {@code figureType} remains absent per the
+ * Task-2.3 disposition (notes do not expose figureType). All fields are omitted
  * from JSON when null via NON_NULL.</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -52,10 +52,10 @@ public record ViewNoteDto(
 ) {
 
     /**
-     * Constructor matching the pre-{@code backlog-group-element-styling-surface} 16-field shape
+     * Constructor matching the prior 16-field shape
      * (styling + note + image fields, no textAlignment/verticalTextAlignment). Delegates to the
      * canonical 27-field constructor with eleven trailing nulls
-     * (2 predecessor styling row + 9 Story C3 v1.5 styling fields). Notes do not surface
+     * (2 predecessor styling row + 9 v1.5 styling fields). Notes do not surface
      * figureType per Task-2.3 disposition.
      */
     public ViewNoteDto(
@@ -74,11 +74,11 @@ public record ViewNoteDto(
     }
 
     /**
-     * Constructor matching the pre-{@code Story C3} 18-field shape
-     * (predecessor styling row added textAlignment/verticalTextAlignment, but no Story C3
+     * Constructor matching the prior 18-field shape
+     * (predecessor styling row added textAlignment/verticalTextAlignment, but no
      * labelExpression / fontName / fontSize / fontStyle / gradient / borderType /
      * deriveLineColor / outlineOpacity / lineStyle). Delegates to the canonical 27-field
-     * constructor with nine trailing nulls for the Story C3 v1.5 styling fields. Preserves
+     * constructor with nine trailing nulls for the v1.5 styling fields. Preserves
      * existing prepareAddNoteToView call sites byte-identically.
      */
     public ViewNoteDto(

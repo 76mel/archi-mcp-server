@@ -11,7 +11,7 @@ import org.junit.Test;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Pure geometry unit tests for {@link ConnectionRouter} (Story 9-5).
+ * Pure geometry unit tests for {@link ConnectionRouter}.
  * No EMF dependencies — tests routing algorithm correctness.
  */
 public class ConnectionRouterTest {

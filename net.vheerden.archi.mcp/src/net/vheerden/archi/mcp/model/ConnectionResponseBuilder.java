@@ -21,7 +21,7 @@ import net.vheerden.archi.mcp.response.dto.ViewConnectionDto;
 /**
  * Builds connection response DTOs with absolute bendpoints and anchor points.
  *
- * <p>Extracted from ArchiModelAccessorImpl (Story 12-4) to improve cohesion.
+ * <p>Extracted from ArchiModelAccessorImpl to improve cohesion.
  * Consolidates coordinate conversion, bendpoint handling, and connection DTO
  * construction. Package-visible — only ArchiModelAccessorImpl should use this.</p>
  */

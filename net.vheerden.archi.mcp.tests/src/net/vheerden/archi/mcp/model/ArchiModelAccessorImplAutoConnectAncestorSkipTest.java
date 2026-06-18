@@ -32,11 +32,11 @@ import net.vheerden.archi.mcp.response.dto.AutoConnectResultDto.SkippedNestingPa
 import net.vheerden.archi.mcp.response.dto.ViewGroupDto;
 
 /**
- * Pin tests for the Story 14-11 ancestor-on-view skip in
+ * Pin tests for the ancestor-on-view skip in
  * {@link ArchiModelAccessorImpl#autoConnectView}.
  *
  * <p>Surfaces the silent-acceptance bug in {@code auto-connect-view}: prior to
- * this story, the tool drew a visual connection between source and target even
+ * this change, the tool drew a visual connection between source and target even
  * when one endpoint was visually nested inside the other on the view (rendering
  * as a self-pass-through that {@code assess-layout} subsequently flagged as
  * {@code M4 connectionEdgeCoincidence}).
@@ -48,7 +48,7 @@ import net.vheerden.archi.mcp.response.dto.ViewGroupDto;
  * {@code CommandStack} (mirror of {@code ArchiModelAccessorImplTest}'s
  * {@code createAccessorWithTestDispatcher} pattern).
  *
- * <p>The empirical live-Archi run (AC-8) is the broader integration gate —
+ * <p>The empirical live-Archi run is the broader integration gate —
  * these tests cover the EMF assembly + skip-policy contract.
  */
 public class ArchiModelAccessorImplAutoConnectAncestorSkipTest {
@@ -71,13 +71,13 @@ public class ArchiModelAccessorImplAutoConnectAncestorSkipTest {
     }
 
     // ------------------------------------------------------------------
-    // AC-1 — Nested descendant inside ancestor: skip the connection, record
+    // Nested descendant inside ancestor: skip the connection, record
     // the pair, leave no IDiagramModelArchimateConnection on the view.
     // ------------------------------------------------------------------
 
     @Test
     public void shouldSkipNestedAncestorPair_descendantInsideAncestor_AC1() {
-        // AC-1 uses RealizationRelationship — literal match to the story spec
+        // Uses RealizationRelationship — literal match to the spec
         // AND mirrors the View K retail-bank reproducer (WP→Deliverable
         // realization is the exact bug surface the empirical caught).
         IArchimateModel model = buildModelWithPair("wp-A", "del-1", /*useRealization=*/ true);
@@ -130,7 +130,7 @@ public class ArchiModelAccessorImplAutoConnectAncestorSkipTest {
     }
 
     // ------------------------------------------------------------------
-    // AC-2 — Sibling pair inside a group (over-skip regression pin).
+    // Sibling pair inside a group (over-skip regression pin).
     // Two archimate objects that are both children of the same group — neither
     // is an ancestor of the other — MUST still be connected.
     // ------------------------------------------------------------------
@@ -164,7 +164,7 @@ public class ArchiModelAccessorImplAutoConnectAncestorSkipTest {
     }
 
     // ------------------------------------------------------------------
-    // AC-3 — 3-deep nesting with two transitive ancestor/descendant rels.
+    // 3-deep nesting with two transitive ancestor/descendant rels.
     // Container ⊃ WP ⊃ Deliverable; rels Container→Deliverable AND
     // WP→Deliverable. The helper walks transitively through both levels.
     // ------------------------------------------------------------------
@@ -252,7 +252,7 @@ public class ArchiModelAccessorImplAutoConnectAncestorSkipTest {
     }
 
     // ------------------------------------------------------------------
-    // AC-4 — Cross-branch pair: G-X⊃WP-A, G-Y⊃Del-1; G-X and G-Y are
+    // Cross-branch pair: G-X⊃WP-A, G-Y⊃Del-1; G-X and G-Y are
     // siblings at the view root. Neither endpoint is an ancestor of the
     // other; the connection MUST be drawn (over-skip regression pin).
     // ------------------------------------------------------------------
@@ -289,7 +289,7 @@ public class ArchiModelAccessorImplAutoConnectAncestorSkipTest {
     }
 
     // ------------------------------------------------------------------
-    // AC-5 — Empty-commands early-return path threads the skipped list.
+    // Empty-commands early-return path threads the skipped list.
     // When the only candidate is an ancestor/descendant pair, the
     // commands.isEmpty() branch fires; the early-return DTO MUST carry
     // the populated skippedDueToNesting list (not List.of()).
@@ -335,9 +335,9 @@ public class ArchiModelAccessorImplAutoConnectAncestorSkipTest {
     }
 
     // ------------------------------------------------------------------
-    // AC-6 — Flat view byte-identical regression pin.
+    // Flat view byte-identical regression pin.
     // Mirrors ArchiModelAccessorImplTest.shouldAutoConnect_whenRelationshipsExist
-    // setup. The four pre-Story-14-11 fields must match the legacy behaviour
+    // setup. The four prior fields must match the legacy behaviour
     // exactly, and the new skippedDueToNesting field must be empty.
     // ------------------------------------------------------------------
 
@@ -357,13 +357,13 @@ public class ArchiModelAccessorImplAutoConnectAncestorSkipTest {
                 "default", "view-001", null, null, null, null);
 
         AutoConnectResultDto dto = result.entity();
-        // Pre-Story-14-11 fields — must be byte-identical to legacy behaviour.
+        // Prior fields — must be byte-identical to legacy behaviour.
         assertEquals("view-001", dto.viewId());
         assertEquals("Single serving relationship drawn", 1, dto.connectionsCreated());
         assertEquals("Idempotent counter zero", 0, dto.connectionsSkipped());
         assertEquals("Single relationship ID surfaced",
                 List.of("rel-001"), dto.relationshipIdsConnected());
-        // New Story-14-11 field — must be empty on the flat-view baseline.
+        // New field — must be empty on the flat-view baseline.
         assertNotNull("skippedDueToNesting always present", dto.skippedDueToNesting());
         assertTrue("Flat view must yield zero ancestor/descendant skips",
                 dto.skippedDueToNesting().isEmpty());
@@ -375,8 +375,9 @@ public class ArchiModelAccessorImplAutoConnectAncestorSkipTest {
 
     /**
      * Default-overload: pair held together by an {@code AssociationRelationship}.
-     * Used by AC-2, AC-4, AC-5 — none of which pin the relationship type in their
-     * assertions (the skip behaviour is type-agnostic).
+     * Used by the sibling, cross-branch, and all-skipped tests — none of which
+     * pin the relationship type in their assertions (the skip behaviour is
+     * type-agnostic).
      */
     private IArchimateModel buildModelWithPair(String sourceId, String targetId) {
         return buildModelWithPair(sourceId, targetId, /*useRealization=*/ false);
@@ -387,7 +388,7 @@ public class ArchiModelAccessorImplAutoConnectAncestorSkipTest {
      * (source = first, target = second) + an empty {@code view-001} diagram.
      *
      * <p>{@code useRealization=true} uses a {@code RealizationRelationship}
-     * (matches the spec's AC-1 wording verbatim AND the View K retail-bank
+     * (matches the spec's wording verbatim AND the View K retail-bank
      * reproducer); {@code false} uses an {@code AssociationRelationship}.
      * EMF-level {@code connect()} does not enforce ArchiMate semantic-validity
      * rules, so either type is wireable between two ApplicationComponents for
@@ -526,6 +527,9 @@ public class ArchiModelAccessorImplAutoConnectAncestorSkipTest {
                 }
             }
         };
+        // The dispatcher now defaults to GATED (fail-safe). These tests exercise the
+        // immediate-apply path, so opt approval OFF explicitly (production wires the human bit).
+        testDispatcher.setApprovalModeProvider(() -> false);
         return new ArchiModelAccessorImpl(stubModelManager, testDispatcher);
     }
 

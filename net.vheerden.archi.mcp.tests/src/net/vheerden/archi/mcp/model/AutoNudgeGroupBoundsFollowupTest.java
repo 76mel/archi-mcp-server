@@ -8,14 +8,12 @@ import org.junit.Test;
 /**
  * Tests for {@link ArchiModelAccessorImpl#childExceedsParentBounds(int, int,
  * int, int, int, int, int)} — the extracted overflow predicate used by both
- * the original B15 {@code resizeParentGroupIfNeeded} helper AND the
+ * the original {@code resizeParentGroupIfNeeded} helper AND the
  * Successor-E post-routing overflow detection pass added to
  * {@code autoRouteConnections} 2026-05-13.
  *
- * <p>Story:
- * {@code _bmad-output/implementation-artifacts/backlog-routing-autonudge-group-bounds-followup.md}
- * — Successor E from AC-19 verdict 2026-05-12 (sprint-status row 730).
- * Closes the residual gap in B15 (row 406, shipped 2026-03-25) that surfaced
+ * <p>Successor E from the overflow verdict 2026-05-12.
+ * Closes the residual gap in {@code resizeParentGroupIfNeeded} (shipped 2026-03-25) that surfaced
  * as the 4th independent E2E confirmation in the 4-arm 24-run paired-
  * empirical 2026-05-11 (Arm4-HH-Run1/Run2/Run3 + Arm1-ST-Run3, all owner-
  * flagged "element/group overlaps").</p>
@@ -121,7 +119,7 @@ public class AutoNudgeGroupBoundsFollowupTest {
 	// --- Q5 option B: V4 H2 hub-heavy synthetic fixture (1 hub + 17 fan-out spokes) ---
 	//
 	// Mimics view `id-ddb84fbd57d24caaa15b0da62b75f531` "PartyTest H2" (17-fan-out
-	// API Mgmt) — sprint-status row 730 candidate + Successor D V_p10 calibration
+	// API Mgmt) — Successor D V_p10 calibration
 	// anchor. Parent group: 800x600. Hub: 120x80 centred. 17 spokes: 80x40 each,
 	// distributed around hub. Initial layout fits; Row-B-style spacing inflation
 	// pushes some spokes past parent bounds.
@@ -165,7 +163,7 @@ public class AutoNudgeGroupBoundsFollowupTest {
 	}
 
 	/**
-	 * AC-4 item 2 compliance: named test asserting that all 17 fan-out spokes of
+	 * Named test asserting that all 17 fan-out spokes of
 	 * the V4 H2 hub-heavy topology satisfy the non-overflow predicate at baseline
 	 * positions (i.e., the predicate returns {@code false} for every spoke —
 	 * meaning {@code auto-route-connections} with {@code autoNudge=true} would

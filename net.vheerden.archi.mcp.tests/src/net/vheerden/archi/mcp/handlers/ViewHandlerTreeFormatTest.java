@@ -31,7 +31,7 @@ import net.vheerden.archi.mcp.response.dto.ViewNodeDto;
 import net.vheerden.archi.mcp.response.dto.ViewNoteDto;
 
 /**
- * Unit tests for get-view-contents format=tree (Story backlog-a1).
+ * Unit tests for get-view-contents format=tree.
  *
  * <p>Tests the compact containment hierarchy format for group discovery.
  * Uses stub accessors — no EMF/OSGi runtime required.</p>
@@ -49,7 +49,7 @@ public class ViewHandlerTreeFormatTest {
         objectMapper = new ObjectMapper();
     }
 
-    // ---- AC-1: Groups containing elements in tree format ----
+    // ---- Groups containing elements in tree format ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -91,7 +91,7 @@ public class ViewHandlerTreeFormatTest {
         assertEquals("Node", child1.get("elementType"));
     }
 
-    // ---- AC-2: Nested groups (group inside group) ----
+    // ---- Nested groups (group inside group) ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -130,7 +130,7 @@ public class ViewHandlerTreeFormatTest {
         assertEquals("element", innerChildren.get(0).get("type"));
     }
 
-    // ---- AC-3: Ungrouped elements at root level ----
+    // ---- Ungrouped elements at root level ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -157,7 +157,7 @@ public class ViewHandlerTreeFormatTest {
         assertEquals("Firewall", ungrouped.get("name"));
     }
 
-    // ---- AC-4: Tree node shape (viewObjectId, type, name/label, childCount, children) ----
+    // ---- Tree node shape (viewObjectId, type, name/label, childCount, children) ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -196,7 +196,7 @@ public class ViewHandlerTreeFormatTest {
         assertFalse("No elementId in tree", elemNode.containsKey("elementId"));
     }
 
-    // ---- AC-4: Notes in tree ----
+    // ---- Notes in tree ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -226,7 +226,7 @@ public class ViewHandlerTreeFormatTest {
         assertTrue(noteNode.containsKey("viewObjectId"));
     }
 
-    // ---- AC-4: Note inside a group ----
+    // ---- Note inside a group ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -283,7 +283,7 @@ public class ViewHandlerTreeFormatTest {
         assertFalse("elementType should be absent for orphan element", node.containsKey("elementType"));
     }
 
-    // ---- AC-5: Stats object ----
+    // ---- Stats object ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -326,7 +326,7 @@ public class ViewHandlerTreeFormatTest {
         assertEquals(0, stats.get("ungroupedElements"));
     }
 
-    // ---- AC-6: Flat view (no groups) ----
+    // ---- Flat view (no groups) ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -349,7 +349,7 @@ public class ViewHandlerTreeFormatTest {
         assertEquals(2, stats.get("ungroupedElements"));
     }
 
-    // ---- AC-7: Empty view ----
+    // ---- Empty view ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -374,7 +374,7 @@ public class ViewHandlerTreeFormatTest {
         assertEquals(0, stats.get("ungroupedElements"));
     }
 
-    // ---- AC-8: Existing formats unchanged ----
+    // ---- Existing formats unchanged ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -428,8 +428,7 @@ public class ViewHandlerTreeFormatTest {
         assertTrue(envelope.get("summary") instanceof String);
     }
 
-    // ---- Graph format regression: groups/notes present
-    //      (Story backlog-get-view-contents-graph-format-internal-error) ----
+    // ---- Graph format regression: groups/notes present ----
     //
     // The prior graph-format test above uses the "flat" variant (no groups/notes),
     // which dodged the ClassCastException that crashed graph format whenever a view
@@ -459,7 +458,7 @@ public class ViewHandlerTreeFormatTest {
                 .orElseThrow(() -> new AssertionError("No group node in graph"));
         assertEquals("grp-1", groupNode.get("viewObjectId"));
         assertEquals("Infrastructure", groupNode.get("label"));
-        // AC-7: null fields are omitted (NON_NULL), exactly as JSON serialization would —
+        // null fields are omitted (NON_NULL), exactly as JSON serialization would —
         // the group's styling fields are null and must not appear as keys.
         assertFalse("null styling fields must be omitted from the group node",
                 groupNode.containsKey("fillColor"));
@@ -503,7 +502,7 @@ public class ViewHandlerTreeFormatTest {
                 .count();
         assertEquals("3 zone groupings should appear as graph nodes", 3, groupNodes);
 
-        // The note present as a graph node (independent AC-2/AC-4 coverage on the view-I fixture)
+        // The note present as a graph node (independent coverage on the view-I fixture)
         long noteNodes = nodes.stream()
                 .filter(n -> "note".equals(n.get("_nodeType")))
                 .count();
@@ -523,7 +522,7 @@ public class ViewHandlerTreeFormatTest {
     @Test
     public void shouldPreserveGroupChildIdsInGraphNodes() throws Exception {
         // List-typed DTO fields (childViewObjectIds) must survive the DTO->map
-        // conversion, identical to the JSON field set (AC-7/AC-8).
+        // conversion, identical to the JSON field set.
         TreeStubAccessor accessor = new TreeStubAccessor("nested");
         ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
         handler.registerTools();
@@ -547,7 +546,7 @@ public class ViewHandlerTreeFormatTest {
                 childIds.contains("grp-inner"));
     }
 
-    // ---- AC-9: fields/exclude/preset ignored for tree format ----
+    // ---- fields/exclude/preset ignored for tree format ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -577,7 +576,7 @@ public class ViewHandlerTreeFormatTest {
                 tree.stream().anyMatch(n -> "group".equals(n.get("type"))));
     }
 
-    // ---- AC-10: nextSteps guidance ----
+    // ---- nextSteps guidance ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -649,13 +648,12 @@ public class ViewHandlerTreeFormatTest {
         assertNotNull(meta.get("modelVersion"));
     }
 
-    // ---- Tree format element-container nesting (Story C1f) ----
+    // ---- Tree format element-container nesting ----
 
     @SuppressWarnings("unchecked")
     @Test
     public void shouldNestElementChildren_underApplicationComponentContainer() throws Exception {
-        // AC-1: ApplicationComponent containing 3 nested ApplicationFunctions
-        // (the literal Probe 5 View F 1708 case).
+        // ApplicationComponent containing 3 nested ApplicationFunctions.
         TreeStubAccessor accessor = new TreeStubAccessor("component-with-functions");
         ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
         handler.registerTools();
@@ -697,7 +695,7 @@ public class ViewHandlerTreeFormatTest {
     @SuppressWarnings("unchecked")
     @Test
     public void shouldNestElementChildren_underNodeContainer_inTechZonesView() throws Exception {
-        // AC-2: Node containing a nested SystemSoftware child, via the existing
+        // Node containing a nested SystemSoftware child, via the existing
         // tech-zones fixture (vo-sw parented under vo-app at fixture line ~820).
         TreeStubAccessor accessor = new TreeStubAccessor("tech-zones");
         ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
@@ -739,7 +737,7 @@ public class ViewHandlerTreeFormatTest {
     @SuppressWarnings("unchecked")
     @Test
     public void shouldNotEmitChildrenField_onLeafElement_inFlatView() throws Exception {
-        // AC-3: regression pin — flat view with no element-container nesting.
+        // regression pin — flat view with no element-container nesting.
         // Every element node renders byte-identically to v1.5 (no children/childCount).
         TreeStubAccessor accessor = new TreeStubAccessor("flat");
         ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
@@ -761,7 +759,7 @@ public class ViewHandlerTreeFormatTest {
     @SuppressWarnings("unchecked")
     @Test
     public void shouldKeepTotalElementsPolymorphicCorrect_acrossNestingLevels() throws Exception {
-        // AC-4: stats.totalElements counts every visualMetadata entry regardless of parent
+        // stats.totalElements counts every visualMetadata entry regardless of parent
         // type; ungroupedElements counts only root-level (parentViewObjectId == null) elements.
         TreeStubAccessor accessor = new TreeStubAccessor("component-with-functions");
         ViewHandler handler = new ViewHandler(accessor, formatter, registry, null);
@@ -980,9 +978,8 @@ public class ViewHandlerTreeFormatTest {
         }
 
         /**
-         * View F (1708 retail-bank) shape: 1 ApplicationComponent on canvas
+         * Retail-bank view shape: 1 ApplicationComponent on canvas
          * with 3 nested ApplicationFunctions (parentViewObjectId = component).
-         * Closes the Probe 5 case from c1-empirical-2026-05-29 (Story C1f).
          */
         private ViewContentsDto createComponentWithFunctionsView() {
             List<ElementDto> elements = List.of(

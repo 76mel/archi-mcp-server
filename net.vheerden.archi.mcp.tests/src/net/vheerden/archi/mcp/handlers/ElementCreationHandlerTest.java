@@ -37,7 +37,7 @@ import net.vheerden.archi.mcp.response.dto.ViewDto;
 import org.eclipse.gef.commands.Command;
 
 /**
- * Tests for {@link ElementCreationHandler} (Story 7-2).
+ * Tests for {@link ElementCreationHandler}.
  *
  * <p>Uses a StubCreationAccessor that returns canned DTOs for creation
  * methods, avoiding EMF/GEF dependencies in handler tests.</p>
@@ -379,7 +379,7 @@ public class ElementCreationHandlerTest {
         assertEquals("MODEL_NOT_LOADED", error.get("code"));
     }
 
-    // ---- Duplicate detection tests (Story 7-4) ----
+    // ---- Duplicate detection tests ----
 
     @Test
     public void shouldReturnPotentialDuplicatesError_whenDuplicatesFound() throws Exception {
@@ -471,7 +471,7 @@ public class ElementCreationHandlerTest {
         assertEquals(0.93, score.doubleValue(), 0.01);
     }
 
-    // ---- Source traceability tests (Story 7-6) ----
+    // ---- Source traceability tests ----
 
     @Test
     public void shouldPassSourceToAccessor_whenSourceProvided() throws Exception {
@@ -494,7 +494,7 @@ public class ElementCreationHandlerTest {
         assertNull("Source should be null when not provided", accessor.capturedSource);
     }
 
-    // ---- Approval mode tests (Story 7-6) ----
+    // ---- Approval mode tests ----
 
     @Test
     public void shouldReturnProposalResponse_whenApprovalModeEnabled() throws Exception {
@@ -520,7 +520,7 @@ public class ElementCreationHandlerTest {
 
         @SuppressWarnings("unchecked")
         List<String> nextSteps = (List<String>) result.get("nextSteps");
-        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("decide-mutation")));
+        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
         assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
     }
 
@@ -558,7 +558,7 @@ public class ElementCreationHandlerTest {
 
         @SuppressWarnings("unchecked")
         List<String> nextSteps = (List<String>) result.get("nextSteps");
-        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("decide-mutation")));
+        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
     }
 
     // ---- Batch mode tests ----
@@ -579,7 +579,7 @@ public class ElementCreationHandlerTest {
         assertTrue(nextSteps.stream().anyMatch(s -> s.contains("batch")));
     }
 
-    // ---- clone-view tests (Story C2) ----
+    // ---- clone-view tests ----
 
     @Test
     public void shouldRegisterCloneViewTool() {
@@ -692,7 +692,7 @@ public class ElementCreationHandlerTest {
         assertEquals("folder-42", capturedFolderId[0]);
     }
 
-    // ---- create-view connectionRouterType tests (Story 9-0c) ----
+    // ---- create-view connectionRouterType tests ----
 
     @Test
     public void shouldPassConnectionRouterType_whenCreateViewWithRouterType() throws Exception {
@@ -739,7 +739,7 @@ public class ElementCreationHandlerTest {
         assertTrue("create-view should have connectionRouterType property", found);
     }
 
-    // ---- Story 14-7 (G1) tests ----
+    // ---- G1 tests ----
 
     @Test
     @SuppressWarnings("unchecked")

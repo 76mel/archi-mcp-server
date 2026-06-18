@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
 
 /**
- * Unit tests for {@link RelationshipSemanticAttributes} (Story 14-7 / G1).
+ * Unit tests for {@link RelationshipSemanticAttributes} (G1).
  *
  * <p>Pure JUnit (no OSGi/EMF) — exercises the record + Jackson serialisation.</p>
  */

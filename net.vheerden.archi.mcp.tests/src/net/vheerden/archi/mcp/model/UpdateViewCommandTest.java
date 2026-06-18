@@ -10,7 +10,7 @@ import com.archimatetool.model.IArchimateFactory;
 import com.archimatetool.model.IDiagramModel;
 
 /**
- * Tests for {@link UpdateViewCommand} connection router type handling (Story 9-0c).
+ * Tests for {@link UpdateViewCommand} connection router type handling.
  *
  * <p>Uses real EMF objects (IArchimateFactory.eINSTANCE) to verify the command
  * correctly sets, undoes, and redoes connection router type changes.</p>

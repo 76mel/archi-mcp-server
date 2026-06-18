@@ -2,7 +2,13 @@ package net.vheerden.archi.mcp.server;
 
 import static org.junit.Assert.*;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
@@ -263,7 +269,244 @@ public class TransportConfigTest {
         assertFalse(transportConfig.isTlsEnabled());
     }
 
-    // ---- Helper ----
+    // ---- Runtime keystore-load classification ----
+    // validateTlsConfig only pre-flights filesystem facts (path/exists/readable/blank-password). A
+    // keystore that EXISTS + is READABLE but cannot be LOADED (wrong password, corrupt bytes) fails
+    // only inside jettyServer.start() SSL init — that failure must be classified INVALID_TLS_CONFIG,
+    // not swept into the generic SERVER_START_FAILED bucket.
+    // Port-offset map (avoid collisions): base TLS tests use +20..+24, these runtime keystore-load
+    // tests use +25/+26, the resource-guardrail tests use +30..+34. (These two tests expect the
+    // server NOT to start, so the port is never actually bound.)
+
+    @Test
+    public void shouldFailWithTlsError_whenKeystorePasswordWrong() throws Exception {
+        // A valid keystore protected by one password, opened with a different (non-blank) one.
+        String keystorePath = System.getProperty("java.io.tmpdir") + "/test-tls-wrongpw-" + System.nanoTime() + ".p12";
+        CertificateGenerator.Result certResult = CertificateGenerator.generate(keystorePath);
+
+        try {
+            transportConfig.startServer(TEST_PORT + 25, TEST_BIND_ADDRESS,
+                    true, certResult.keystorePath(), certResult.password() + "-not-the-password");
+            fail("Expected ServerStartException for a wrong keystore password");
+        } catch (ServerStartException e) {
+            assertEquals(ServerStartException.INVALID_TLS_CONFIG, e.getErrorCode());
+            assertFalse(transportConfig.isRunning());
+        } finally {
+            java.nio.file.Files.deleteIfExists(java.nio.file.Path.of(keystorePath));
+        }
+    }
+
+    @Test
+    public void shouldFailWithTlsError_whenKeystoreFileCorrupt() throws Exception {
+        // A readable, non-blank-named .p12 whose bytes are not a valid keystore — passes the
+        // pre-flight checks, fails when SslContextFactory tries to load it.
+        java.nio.file.Path keystore = java.nio.file.Path.of(
+                System.getProperty("java.io.tmpdir"), "test-tls-corrupt-" + System.nanoTime() + ".p12");
+        java.nio.file.Files.write(keystore, "not a real keystore".getBytes(StandardCharsets.UTF_8));
+
+        try {
+            transportConfig.startServer(TEST_PORT + 26, TEST_BIND_ADDRESS,
+                    true, keystore.toString(), "anyPassword");
+            fail("Expected ServerStartException for a corrupt keystore file");
+        } catch (ServerStartException e) {
+            assertEquals(ServerStartException.INVALID_TLS_CONFIG, e.getErrorCode());
+            assertFalse(transportConfig.isRunning());
+        } finally {
+            java.nio.file.Files.deleteIfExists(keystore);
+        }
+    }
+
+    // ---- Pure start-failure classifier (over-classification guard) ----
+    // classifyStartFailure walks the FULL cause chain; tested directly with hand-built chains so the
+    // nested-BindException case is deterministic (independent of how Jetty happens to wrap it).
+
+    @Test
+    public void shouldClassifyPortInUse_whenBindExceptionNestedDeepInChain() {
+        Throwable nested = new RuntimeException("wrap",
+                new java.io.IOException("io", new java.net.BindException("Address already in use")));
+        assertEquals(ServerStartException.PORT_IN_USE,
+                TransportConfig.classifyStartFailure(nested, false));
+        // A bind conflict wins even on a TLS run (checked before the keystore branch).
+        assertEquals(ServerStartException.PORT_IN_USE,
+                TransportConfig.classifyStartFailure(nested, true));
+    }
+
+    @Test
+    public void shouldClassifyPortInUse_whenBindExceptionIsRoot() {
+        assertEquals(ServerStartException.PORT_IN_USE,
+                TransportConfig.classifyStartFailure(new java.net.BindException("in use"), false));
+    }
+
+    @Test
+    public void shouldClassifyTlsConfig_whenWrongPasswordChainUnderTls() {
+        // Empirical wrong-password shape: IOException caused by UnrecoverableKeyException.
+        Throwable wrongPw = new java.io.IOException("keystore password was incorrect",
+                new java.security.UnrecoverableKeyException("failed to decrypt safe contents entry"));
+        assertEquals(ServerStartException.INVALID_TLS_CONFIG,
+                TransportConfig.classifyStartFailure(wrongPw, true));
+    }
+
+    @Test
+    public void shouldClassifyTlsConfig_whenCorruptKeystoreChainUnderTls() {
+        // Empirical corrupt-file shape: a bare EOFException, no JSSE-specific type.
+        assertEquals(ServerStartException.INVALID_TLS_CONFIG,
+                TransportConfig.classifyStartFailure(new java.io.EOFException(), true));
+    }
+
+    @Test
+    public void shouldNotClassifyTlsConfig_whenKeystoreShapedFailureButTlsDisabled() {
+        // The same IOException must NOT be called a TLS problem when TLS is off (no keystore loaded).
+        assertEquals(ServerStartException.SERVER_START_FAILED,
+                TransportConfig.classifyStartFailure(new java.io.EOFException(), false));
+    }
+
+    @Test
+    public void shouldNotClassifyTlsConfig_whenNonKeystoreProgrammingErrorUnderTls() {
+        // A RuntimeException with no IOException/GeneralSecurityException in the chain is NOT a
+        // keystore failure even under TLS — it stays the generic code (over-classification guard).
+        assertEquals(ServerStartException.SERVER_START_FAILED,
+                TransportConfig.classifyStartFailure(new IllegalStateException("bug"), true));
+    }
+
+    @Test
+    public void shouldClassifyGeneric_whenNullFailure() {
+        assertEquals(ServerStartException.SERVER_START_FAILED,
+                TransportConfig.classifyStartFailure(null, true));
+        assertEquals(ServerStartException.SERVER_START_FAILED,
+                TransportConfig.classifyStartFailure(null, false));
+    }
+
+    @Test
+    public void shouldTerminate_whenCauseChainIsCyclic() {
+        // A self-referential chain must not loop forever; the identity-visited set breaks the cycle.
+        // Note: Throwable.initCause only forbids DIRECT self-causation (cause == this); it does not
+        // walk the chain, so a.initCause(b) where b.getCause()==a succeeds and forms a real a->b->a
+        // cycle. hasCauseOfType must return (not hang) — proven by this completing.
+        Throwable a = new RuntimeException("a");
+        Throwable b = new RuntimeException("b", a);
+        a.initCause(b); // a -> b -> a cycle (initCause does NOT throw here)
+        assertFalse(TransportConfig.hasCauseOfType(a, java.net.BindException.class));
+    }
+
+    @Test
+    public void shouldStopAtDepthBound_whenTargetDeeperThanMaxCauseDepth() {
+        // The depth bound (MAX_CAUSE_DEPTH) is a safety stop for pathological chains: a target buried
+        // far deeper than any realistic Jetty wrapping (~2-4 levels) is intentionally NOT found, so a
+        // runaway/forged chain can't cost an unbounded walk. Build a BindException 30 levels down.
+        Throwable t = new java.net.BindException("deep");
+        for (int i = 0; i < 30; i++) {
+            t = new RuntimeException("layer " + i, t);
+        }
+        assertFalse("BindException beyond the depth bound must not be found",
+                TransportConfig.hasCauseOfType(t, java.net.BindException.class));
+        // Sanity: the SAME type shallow in the chain IS found (the bound is the only reason above).
+        assertTrue(TransportConfig.hasCauseOfType(
+                new RuntimeException("shallow", new java.net.BindException("x")),
+                java.net.BindException.class));
+    }
+
+    // ---- Resource guardrail tests ----
+
+    @Test
+    public void shouldEnforceConfiguredIdleTimeout_whenServerStarted() throws Exception {
+        transportConfig.startServer(TEST_PORT + 30, TEST_BIND_ADDRESS);
+
+        assertEquals(TransportConfig.IDLE_TIMEOUT_MS, transportConfig.getIdleTimeout());
+    }
+
+    @Test
+    public void shouldUseBoundedThreadPool_whenServerStarted() throws Exception {
+        transportConfig.startServer(TEST_PORT + 31, TEST_BIND_ADDRESS);
+
+        assertEquals(TransportConfig.MAX_THREADS, transportConfig.getMaxThreads());
+    }
+
+    @Test
+    public void shouldReturnSentinelGuardrails_whenNotStarted() {
+        assertEquals(-1L, transportConfig.getIdleTimeout());
+        assertEquals(-1, transportConfig.getMaxThreads());
+    }
+
+    @Test
+    public void shouldReturnSentinelGuardrails_afterServerStopped() throws Exception {
+        transportConfig.startServer(TEST_PORT + 34, TEST_BIND_ADDRESS);
+        transportConfig.stopServer();
+
+        // Both accessors gate on isRunning(), so the sentinels stay consistent once stopped.
+        assertEquals(-1L, transportConfig.getIdleTimeout());
+        assertEquals(-1, transportConfig.getMaxThreads());
+    }
+
+    @Test
+    public void shouldReject413_whenRequestBodyExceedsMax() throws Exception {
+        int port = TEST_PORT + 32;
+        transportConfig.startServer(port, TEST_BIND_ADDRESS);
+
+        // Declare a Content-Length one byte over the cap. SizeLimitHandler rejects on the declared
+        // length up-front (413) before reading the body, so no oversized payload is actually sent.
+        long oversized = TransportConfig.MAX_REQUEST_BODY_BYTES + 1;
+        int status = postStatus(port, "/mcp", oversized, new byte[0]);
+
+        assertEquals(413, status);
+    }
+
+    @Test
+    public void shouldNotReject413_whenRequestBodyUnderMax() throws Exception {
+        int port = TEST_PORT + 33;
+        transportConfig.startServer(port, TEST_BIND_ADDRESS);
+
+        // A small, well-under-limit body must not trip the size guard. The MCP servlet may answer
+        // with its own status (e.g. 400/406) for a non-protocol body — we only assert it is NOT 413.
+        byte[] body = "{}".getBytes(StandardCharsets.UTF_8);
+        int status = postStatus(port, "/mcp", body.length, body);
+
+        assertNotEquals(413, status);
+    }
+
+    // ---- Helpers ----
+
+    /**
+     * Sends a raw HTTP/1.1 POST with an explicit {@code Content-Length} header and the given body
+     * bytes, then returns the numeric HTTP status from the response status line. Uses a raw socket
+     * (not HttpURLConnection) so the declared Content-Length can exceed the bytes actually written —
+     * this exercises {@link TransportConfig}'s SizeLimitHandler up-front 413 without transmitting an
+     * oversized payload. {@code Connection: close} keeps it single-shot.
+     */
+    private int postStatus(int port, String path, long contentLength, byte[] body) throws Exception {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(TEST_BIND_ADDRESS, port), 5000);
+            socket.setSoTimeout(5000);
+
+            String requestHead = "POST " + path + " HTTP/1.1\r\n"
+                    + "Host: " + TEST_BIND_ADDRESS + ":" + port + "\r\n"
+                    + "Content-Type: application/json\r\n"
+                    + "Content-Length: " + contentLength + "\r\n"
+                    + "Connection: close\r\n"
+                    + "\r\n";
+
+            OutputStream out = socket.getOutputStream();
+            out.write(requestHead.getBytes(StandardCharsets.US_ASCII));
+            if (body.length > 0) {
+                out.write(body);
+            }
+            out.flush();
+
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII));
+            String statusLine;
+            try {
+                statusLine = reader.readLine(); // e.g. "HTTP/1.1 413 Payload Too Large"
+            } catch (java.net.SocketTimeoutException e) {
+                // Cleaner diagnostic than an opaque errored test if the server never responds.
+                fail("Server did not send an HTTP status line within the read timeout: " + e.getMessage());
+                return -1; // unreachable (fail() throws)
+            }
+            assertNotNull("No HTTP status line received", statusLine);
+            String[] parts = statusLine.split(" ");
+            assertTrue("Malformed status line: " + statusLine, parts.length >= 2);
+            return Integer.parseInt(parts[1]);
+        }
+    }
 
     private McpServerFeatures.SyncResourceSpecification createResourceSpec(
             String uri, String name, String description) {

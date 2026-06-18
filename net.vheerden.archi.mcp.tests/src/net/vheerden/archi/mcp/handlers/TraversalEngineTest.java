@@ -18,7 +18,7 @@ import net.vheerden.archi.mcp.response.dto.ElementDto;
 import net.vheerden.archi.mcp.response.dto.RelationshipDto;
 
 /**
- * Unit tests for TraversalEngine BFS algorithm (Story 7.0a).
+ * Unit tests for TraversalEngine BFS algorithm.
  *
  * <p>Uses a stub ArchiModelAccessor — no EMF/OSGi runtime required.
  * Tests cover: direction filtering, maxDepth limiting, cycle detection,

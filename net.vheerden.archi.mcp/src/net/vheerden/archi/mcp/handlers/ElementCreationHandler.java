@@ -30,7 +30,7 @@ import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
  * Handler for element creation tools: create-element, create-relationship,
- * create-view (Story 7-2).
+ * create-view.
  *
  * <p>Creates new ArchiMate model objects via the accessor's mutation methods.
  * Supports both GUI-attached (immediate) and batch (queued) operational modes.</p>
@@ -275,7 +275,7 @@ public class ElementCreationHandler {
                 + "and type does not exist in the model, it is auto-created. Profile creation "
                 + "and relationship creation are wrapped in a single undoable operation.");
 
-        // Story 14-7 (G1): ArchiMate semantic attributes (type-conditional)
+        // ArchiMate semantic attributes (type-conditional)
         Map<String, Object> accessTypeProp = new LinkedHashMap<>();
         accessTypeProp.put("type", "string");
         accessTypeProp.put("enum", List.of("access", "read", "write", "readwrite"));
@@ -352,7 +352,7 @@ public class ElementCreationHandler {
             String targetId = HandlerUtils.requireStringParam(args, "targetId");
             String name = HandlerUtils.optionalStringParam(args, "name");
             String specialization = HandlerUtils.optionalStringParam(args, "specialization");
-            // Story 14-7 (G1): semantic attributes (type-conditional)
+            // semantic attributes (type-conditional)
             RelationshipSemanticAttributes semanticAttributes = readSemanticAttributes(args);
 
             MutationResult<RelationshipDto> result = accessor.createRelationship(
@@ -490,7 +490,7 @@ public class ElementCreationHandler {
                 "Use get-view-contents with viewId '" + view.id() + "' to inspect the view");
     }
 
-    // ---- clone-view (Story C2) ----
+    // ---- clone-view ----
 
     private McpServerFeatures.SyncToolSpecification buildCloneViewSpec() {
         Map<String, Object> sourceViewIdProp = new LinkedHashMap<>();
@@ -629,7 +629,7 @@ public class ElementCreationHandler {
     }
 
     /**
-     * Story 14-7 (G1): reads the 3 semantic-attribute params from the request args
+     * Reads the 3 semantic-attribute params from the request args
      * and bundles them. Returns {@link RelationshipSemanticAttributes#NONE} when
      * none are supplied. Preserves empty-string {@code influenceStrength} (clear
      * semantic) via {@code containsKey} rather than blank-coercion.

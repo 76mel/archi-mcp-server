@@ -47,7 +47,6 @@ import net.vheerden.archi.mcp.response.dto.ClearViewResultDto;
 import net.vheerden.archi.mcp.response.dto.DetectHubElementsResultDto;
 import net.vheerden.archi.mcp.response.dto.HubElementEntryDto;
 import net.vheerden.archi.mcp.response.dto.LayoutFlatViewResultDto;
-import net.vheerden.archi.mcp.response.dto.LayoutViewResultDto;
 import net.vheerden.archi.mcp.response.dto.LayoutWithinGroupResultDto;
 import net.vheerden.archi.mcp.response.dto.OptimizeGroupOrderResultDto;
 import net.vheerden.archi.mcp.response.dto.RemoveFromViewResultDto;
@@ -60,7 +59,7 @@ import net.vheerden.archi.mcp.response.dto.ViewObjectDto;
 import net.vheerden.archi.mcp.response.dto.ViewPositionSpec;
 
 /**
- * Tests for {@link ViewPlacementHandler} (Story 7-7).
+ * Tests for {@link ViewPlacementHandler}.
  *
  * <p>Uses a StubViewPlacementAccessor that returns canned DTOs,
  * avoiding EMF/GEF dependencies in handler tests.</p>
@@ -86,22 +85,21 @@ public class ViewPlacementHandlerTest {
     // ---- Tool registration ----
 
     @Test
-    public void shouldRegisterTwentySixTools() {
-        // Parent composed-tool story (sprint-status row 718, commit `cf170df`)
-        // shipped `apply-spacing-recommendations` as the 24th registered tool
-        // but did not bump this assertion — silent-failure latent because
-        // Eclipse MCP `get_console_output` returns empty stdout for JUnit
-        // launches per the SILENT-FAILURE WARNING memory. Surfaced via direct
-        // Eclipse JUnit view run from the SuccessorB.KneeGuardTextTightening
-        // dev-story session 2026-05-12 PM; sweeper-cleanup applied here.
-        // Story 14-6 (G8) bumped 24→25 with add-view-reference-to-view.
-        // Story 14-8 (G16) bumped 25→26 with add-image-to-view.
-        assertEquals(26, registry.getToolSpecifications().size());
+    public void shouldRegisterTwentyFiveTools() {
+        // The parent composed-tool change shipped `apply-spacing-recommendations`
+        // as the 24th registered tool but did not bump this assertion —
+        // silent-failure latent because Eclipse MCP `get_console_output` returns
+        // empty stdout for JUnit launches per the SILENT-FAILURE WARNING memory.
+        // Surfaced via direct Eclipse JUnit view run; sweeper-cleanup applied here.
+        // add-view-reference-to-view bumped 24→25.
+        // add-image-to-view bumped 25→26.
+        // Archi 5.10 Zest-drop removed compute-layout: 26→25.
+        assertEquals(25, registry.getToolSpecifications().size());
     }
 
     @Test
     public void shouldRegisterAddImageToViewTool() {
-        // Story 14-8 (G16) — add-image-to-view registered alongside the
+        // add-image-to-view registered alongside the
         // existing add-X-to-view siblings (notes / groups / view-references).
         boolean found = registry.getToolSpecifications().stream()
                 .anyMatch(spec -> "add-image-to-view".equals(spec.tool().name()));
@@ -170,12 +168,11 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRouteConnections_descriptionShouldDocumentStructuredWarnings() {
-        // Story RoutingPreconditions.AutoRouteStructuredWarning, Row E: the
-        // tool description amendment per AC-8 must name the structuredWarnings
+        // The tool description must name the structuredWarnings
         // field, the canonical AUTO_NUDGE_SKIPPED_SIBLING_OVERLAP code, the
-        // remediation tool, and the remediationViolatorIds field. Per
-        // feedback_mcp_plugin_contract.md the LLM-facing-guidance channel for
-        // plugin-specific behaviour is the tool description (not CLAUDE.md).
+        // remediation tool, and the remediationViolatorIds field. The
+        // LLM-facing-guidance channel for plugin-specific behaviour is the
+        // tool description (not CLAUDE.md).
         String desc = registry.getToolSpecifications().stream()
                 .filter(spec -> "auto-route-connections".equals(spec.tool().name()))
                 .findFirst()
@@ -194,13 +191,12 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void applyElementSpacingRecommendations_descriptionShouldCrossReferenceComposedToolKneeGuard() {
-        // Story RoutingPreconditions.SuccessorB.KneeGuardTextTightening AC-2 +
-        // AC-3 + AC-4: the single-axis element sibling MUST cross-reference
+        // The single-axis element sibling MUST cross-reference
         // the composed tool `apply-spacing-recommendations(scope=both)` as the
         // surface with structural knee-enforcement (+80px element / +100px
-        // inter-group per-call clamp). Per feedback_mcp_plugin_contract.md
-        // the LLM-facing-guidance channel for plugin-specific behaviour is
-        // the tool description (not CLAUDE.md). AC-3 phrase-presence pin:
+        // inter-group per-call clamp). The LLM-facing-guidance channel for
+        // plugin-specific behaviour is the tool description (not CLAUDE.md).
+        // Phrase-presence pin:
         // asserts the cross-reference prose contains "+80px element" and
         // "+100px inter-group" — the "+NNpx" format is unique to the
         // cross-reference block and does NOT appear in the heuristic tier
@@ -232,7 +228,7 @@ public class ViewPlacementHandlerTest {
         // Sibling-symmetric with applyElementSpacingRecommendations_... above.
         // Same five substrings (composed tool name, knee, scope=both, +80px,
         // +100px) verified on the inter-group sibling. See element test comment
-        // for AC-3 phrase-presence pin rationale.
+        // for phrase-presence pin rationale.
         String desc = registry.getToolSpecifications().stream()
                 .filter(spec -> "apply-group-spacing-recommendations".equals(spec.tool().name()))
                 .findFirst()
@@ -265,14 +261,13 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void applyElementSpacingRecommendations_descriptionShouldDocumentControlLoopSemantics() {
-        // Story ConvenienceTool.ControlLoopArchitecturalRedesign AC-15: the
-        // tool description amendment must surface the new control-loop
+        // The tool description must surface the new control-loop
         // semantics + termination contract + iterationBudget parameter so
         // an LLM agent can select + invoke the tool correctly without
-        // out-of-band documentation. Per [[feedback_mcp_plugin_contract]]
-        // the LLM-facing-guidance channel for plugin-specific behaviour is
+        // out-of-band documentation. The
+        // LLM-facing-guidance channel for plugin-specific behaviour is
         // the tool description (not CLAUDE.md). Phrase-presence pins
-        // verify each load-bearing AC-15 sub-promise. If the wording
+        // verify each load-bearing sub-promise. If the wording
         // changes, update these assertions in lockstep with the tool
         // description in ViewPlacementHandler.
         String desc = registry.getToolSpecifications().stream()
@@ -335,7 +330,7 @@ public class ViewPlacementHandlerTest {
     @Test
     public void applyGroupSpacingRecommendations_descriptionShouldDocumentControlLoopSemantics() {
         // Sibling-symmetric with applyElementSpacingRecommendations_... above
-        // (AC-15 sub-promise pin). Same load-bearing substrings on the
+        // (sub-promise pin). Same load-bearing substrings on the
         // inter-group sibling. See element test comment for rationale.
         String desc = registry.getToolSpecifications().stream()
                 .filter(spec -> "apply-group-spacing-recommendations".equals(spec.tool().name()))
@@ -396,7 +391,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void applySpacingRecommendations_descriptionShouldDocumentTwoArmControlLoopSemantics() {
-        // Composer AC-15 sub-promise pin. The composer surfaces TWO
+        // Composer sub-promise pin. The composer surfaces TWO
         // coordinated control loops (element arm first, group arm second per
         // architecture-spec § 1.7 Option A) with PER-ARM terminationReason +
         // iterationCount + appliedDeltas DTO fields. Plus the composer-only
@@ -651,7 +646,7 @@ public class ViewPlacementHandlerTest {
         assertTrue((Boolean) batch.get("success"));
     }
 
-    // ---- add-group-to-view tests (Story 8-6) ----
+    // ---- add-group-to-view tests ----
 
     @Test
     public void shouldRegisterAddGroupToViewTool() {
@@ -774,7 +769,7 @@ public class ViewPlacementHandlerTest {
                 nextSteps.stream().anyMatch(s -> s.contains("layout-within-group")));
     }
 
-    // ---- add-note-to-view tests (Story 8-6) ----
+    // ---- add-note-to-view tests ----
 
     @Test
     public void shouldRegisterAddNoteToViewTool() {
@@ -1051,7 +1046,7 @@ public class ViewPlacementHandlerTest {
         assertTrue(content.contains("INTERNAL_ERROR"));
     }
 
-    // ---- update-view-object tests (Story 7-8) ----
+    // ---- update-view-object tests ----
 
     @Test
     public void shouldReturnUpdatedDto_whenUpdateViewObjectSucceeds() throws Exception {
@@ -1159,7 +1154,7 @@ public class ViewPlacementHandlerTest {
         assertTrue((Boolean) batch.get("success"));
     }
 
-    // ---- Story 11-2: Styling parameter tests ----
+    // ---- Styling parameter tests ----
 
     @Test
     public void shouldPassStylingParams_whenUpdateViewObjectWithStylingOnly() throws Exception {
@@ -1179,7 +1174,7 @@ public class ViewPlacementHandlerTest {
         assertNull("lineColor should be null when not provided", captured.lineColor());
     }
 
-    // ---- Story 14-1 (G4): labelExpression handler-level flow tests ----
+    // ---- labelExpression handler-level flow tests ----
 
     @Test
     public void shouldPassLabelExpression_whenUpdateViewObjectReceivesParam_AC2() throws Exception {
@@ -1287,7 +1282,7 @@ public class ViewPlacementHandlerTest {
         assertTrue("Should have fontColor property", props.containsKey("fontColor"));
     }
 
-    // ---- Story backlog-group-element-styling-surface: AC-8 + AC-9 schema property pins ----
+    // ---- group/element styling-surface schema property pins ----
 
     @Test
     public void addToViewSpec_includesFigureTypeAndTextAlignmentAndVerticalAlignment_AC8() {
@@ -1432,7 +1427,7 @@ public class ViewPlacementHandlerTest {
         assertNull("fillColor should be null for connections", captured.fillColor());
     }
 
-    // ---- update-view-connection tests (Story 7-8) ----
+    // ---- update-view-connection tests ----
 
     @Test
     public void shouldReturnUpdatedDto_whenUpdateConnectionSucceeds() throws Exception {
@@ -1542,7 +1537,7 @@ public class ViewPlacementHandlerTest {
                 content.contains("Invalid labelPosition"));
     }
 
-    // ---- absolute bendpoints tests (Story 8-0d) ----
+    // ---- absolute bendpoints tests ----
 
     @Test
     public void shouldAcceptAbsoluteBendpoints_forAddConnection() throws Exception {
@@ -1674,7 +1669,7 @@ public class ViewPlacementHandlerTest {
         assertEquals(1, bps.size());
     }
 
-    // ---- remove-from-view tests (Story 7-8) ----
+    // ---- remove-from-view tests ----
 
     @Test
     public void shouldReturnDto_whenRemoveElementSucceeds() throws Exception {
@@ -1802,7 +1797,7 @@ public class ViewPlacementHandlerTest {
         assertTrue((Boolean) batch.get("success"));
     }
 
-    // ---- clear-view tests (Story 8-0c) ----
+    // ---- clear-view tests ----
 
     @Test
     public void shouldReturnDto_whenClearViewSucceeds() throws Exception {
@@ -1853,7 +1848,7 @@ public class ViewPlacementHandlerTest {
         assertTrue(content.contains("VIEW_NOT_FOUND"));
     }
 
-    // ---- apply-positions tests (Story 9-0a, renamed 11-8) ----
+    // ---- apply-positions tests ----
 
     @Test
     public void applyViewLayout_shouldParsePositionsAndCallAccessor() throws Exception {
@@ -1977,7 +1972,7 @@ public class ViewPlacementHandlerTest {
 
         List<String> nextSteps = (List<String>) result.get("nextSteps");
         assertNotNull(nextSteps);
-        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("decide-mutation")));
+        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
         assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
     }
 
@@ -2001,139 +1996,7 @@ public class ViewPlacementHandlerTest {
         assertNotNull("Should have batch info", entity.get("batch"));
     }
 
-    // ---- compute-layout (Story 9-1, renamed 11-8) ----
-
-    @Test
-    public void shouldRegisterLayoutViewTool() {
-        boolean found = registry.getToolSpecifications().stream()
-                .anyMatch(spec -> "compute-layout".equals(spec.tool().name()));
-        assertTrue("compute-layout tool should be registered", found);
-    }
-
-    @Test
-    public void layoutView_shouldParseAlgorithmAndCallAccessor() throws Exception {
-        Map<String, Object> args = new HashMap<>();
-        args.put("viewId", "v-1");
-        args.put("algorithm", "tree");
-
-        Map<String, Object> result = callAndParse("compute-layout", args);
-
-        Map<String, Object> entity = getResult(result);
-        assertEquals("v-1", entity.get("viewId"));
-        assertEquals("tree", entity.get("algorithmUsed"));
-    }
-
-    @Test
-    public void layoutView_shouldParsePresetAndCallAccessor() throws Exception {
-        accessor.setLayoutViewBehavior((sid, vId, algo, preset, opts) -> {
-            LayoutViewResultDto dto = new LayoutViewResultDto(
-                    vId, "grid", preset, 4, 2, 6);
-            return new MutationResult<>(dto, null);
-        });
-
-        Map<String, Object> args = new HashMap<>();
-        args.put("viewId", "v-1");
-        args.put("preset", "compact");
-
-        Map<String, Object> result = callAndParse("compute-layout", args);
-
-        Map<String, Object> entity = getResult(result);
-        assertEquals("v-1", entity.get("viewId"));
-        assertEquals("compact", entity.get("presetUsed"));
-        assertEquals("grid", entity.get("algorithmUsed"));
-    }
-
-    @Test
-    public void layoutView_shouldPassSpacingOption() throws Exception {
-        accessor.setLayoutViewBehavior((sid, vId, algo, preset, opts) -> {
-            assertNotNull("Options should not be null", opts);
-            assertEquals("Spacing should be 80", 80, opts.get("spacing"));
-            LayoutViewResultDto dto = new LayoutViewResultDto(
-                    vId, algo, preset, 3, 1, 4);
-            return new MutationResult<>(dto, null);
-        });
-
-        Map<String, Object> args = new HashMap<>();
-        args.put("viewId", "v-1");
-        args.put("algorithm", "tree");
-        args.put("spacing", 80);
-
-        callAndParse("compute-layout", args);
-    }
-
-    @Test
-    public void layoutView_shouldRequireViewId() throws Exception {
-        Map<String, Object> args = new HashMap<>();
-        args.put("algorithm", "tree");
-
-        McpSchema.CallToolResult result = callTool("compute-layout", args);
-
-        assertTrue("Should be error", result.isError());
-    }
-
-    @SuppressWarnings("unchecked")
-    @Test
-    public void layoutView_shouldIncludeNextSteps() throws Exception {
-        Map<String, Object> args = new HashMap<>();
-        args.put("viewId", "v-1");
-        args.put("algorithm", "tree");
-
-        Map<String, Object> result = callAndParse("compute-layout", args);
-
-        List<String> nextSteps = (List<String>) result.get("nextSteps");
-        assertNotNull("Should have nextSteps", nextSteps);
-        assertTrue("Should suggest export-view",
-                nextSteps.stream().anyMatch(s -> s.contains("export-view")));
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    public void layoutView_shouldHandleApprovalMode() throws Exception {
-        accessor.setLayoutViewBehavior((sid, vId, algo, preset, opts) -> {
-            LayoutViewResultDto dto = new LayoutViewResultDto(
-                    vId, algo, preset, 6, 4, 10);
-            ProposalContext ctx = new ProposalContext(
-                    "p-compute-layout-1", "View layout computed and ready for application.", Instant.now());
-            return new MutationResult<>(dto, null, ctx);
-        });
-
-        Map<String, Object> args = new HashMap<>();
-        args.put("viewId", "v-1");
-        args.put("algorithm", "tree");
-
-        Map<String, Object> result = callAndParse("compute-layout", args);
-
-        Map<String, Object> entity = getResult(result);
-        assertNotNull("Should have proposal info", entity.get("proposal"));
-        Map<String, Object> proposal = (Map<String, Object>) entity.get("proposal");
-        assertEquals("p-compute-layout-1", proposal.get("proposalId"));
-        assertEquals("pending", proposal.get("status"));
-
-        List<String> nextSteps = (List<String>) result.get("nextSteps");
-        assertNotNull(nextSteps);
-        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("decide-mutation")));
-        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
-    }
-
-    @Test
-    public void layoutView_shouldHandleBatchMode() throws Exception {
-        accessor.setLayoutViewBehavior((sid, vId, algo, preset, opts) -> {
-            LayoutViewResultDto dto = new LayoutViewResultDto(
-                    vId, algo, preset, 5, 3, 8);
-            return new MutationResult<>(dto, 7);
-        });
-
-        Map<String, Object> args = new HashMap<>();
-        args.put("viewId", "v-1");
-        args.put("algorithm", "grid");
-
-        Map<String, Object> result = callAndParse("compute-layout", args);
-
-        Map<String, Object> entity = getResult(result);
-        assertNotNull("Should have batch info", entity.get("batch"));
-    }
-
-    // ---- detect-hub-elements (Story 13-3) ----
+    // ---- detect-hub-elements ----
 
     @Test
     public void shouldRegisterDetectHubElementsTool() {
@@ -2334,7 +2197,7 @@ public class ViewPlacementHandlerTest {
                 suggestions.get(0).contains("Consider 2D resize"));
     }
 
-    // ---- detect-hub-elements label-aware sizing (Story B23) ----
+    // ---- detect-hub-elements label-aware sizing ----
 
     @Test
     public void detectHubElements_shouldOmitMaxLabelWidthWhenZero() throws Exception {
@@ -2436,7 +2299,7 @@ public class ViewPlacementHandlerTest {
                 elements.get(0).get("maxLabelWidth"));
     }
 
-    // ---- layout-flat-view (Story 13-6) ----
+    // ---- layout-flat-view ----
 
     @Test
     public void shouldRegisterLayoutFlatViewTool() {
@@ -2645,7 +2508,7 @@ public class ViewPlacementHandlerTest {
         assertTrue("Should be error", result.isError());
     }
 
-    // ---- layout-flat-view autoLayoutChildren (B20) ----
+    // ---- layout-flat-view autoLayoutChildren ----
 
     @Test
     public void layoutFlatView_shouldForwardAutoLayoutChildrenTrue() throws Exception {
@@ -2737,7 +2600,6 @@ public class ViewPlacementHandlerTest {
             case "remove-from-view" -> handler.handleRemoveFromView(null, request);
             case "clear-view" -> handler.handleClearView(null, request);
             case "apply-positions" -> handler.handleApplyViewLayout(null, request);
-            case "compute-layout" -> handler.handleLayoutView(null, request);
             case "assess-layout" -> handler.handleAssessLayout(null, request);
             case "auto-route-connections" -> handler.handleAutoRouteConnections(null, request);
             case "auto-connect-view" -> handler.handleAutoConnectView(null, request);
@@ -2768,7 +2630,7 @@ public class ViewPlacementHandlerTest {
         return (Map<String, Object>) envelope.get("result");
     }
 
-    // ---- assess-layout (Story 9-2) ----
+    // ---- assess-layout ----
 
     @Test
     public void assessLayout_shouldParseViewIdAndCallAccessor() throws Exception {
@@ -2819,7 +2681,7 @@ public class ViewPlacementHandlerTest {
         @SuppressWarnings("unchecked")
         List<String> nextSteps = (List<String>) result.get("nextSteps");
         assertNotNull(nextSteps);
-        // Story 11-22: poor rating suggests auto-layout-and-route (no compute-layout)
+        // poor rating suggests auto-layout-and-route (no compute-layout)
         assertTrue("Should suggest auto-layout-and-route for poor rating",
                 nextSteps.stream().anyMatch(s -> s.contains("auto-layout-and-route")));
         assertFalse("Should NOT mention compute-layout (Story 11-22)",
@@ -3142,7 +3004,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void assessLayout_shouldIncludeRatingBreakdownInResponse() throws Exception {
-        // Story 11-19 review: verify ratingBreakdown serializes through handler→formatter→JSON
+        // verify ratingBreakdown serializes through handler→formatter→JSON
         Map<String, String> breakdown = new java.util.LinkedHashMap<>();
         breakdown.put("overlaps", "pass");
         breakdown.put("edgeCrossings", "good");
@@ -3186,7 +3048,7 @@ public class ViewPlacementHandlerTest {
         assertTrue(content.contains("VIEW_NOT_FOUND"));
     }
 
-    // ---- Story 10-14: orphan detection in assess-layout ----
+    // ---- orphan detection in assess-layout ----
 
     @Test
     public void assessLayout_shouldReportOrphanedConnections() throws Exception {
@@ -3245,7 +3107,7 @@ public class ViewPlacementHandlerTest {
                 nextSteps.stream().anyMatch(s -> s.contains("orphaned") && s.contains("clear-view")));
     }
 
-    // ---- Story 11-17: context-aware graduated nextSteps ----
+    // ---- context-aware graduated nextSteps ----
 
     @Test
     public void assessLayout_excellentRating_shouldOnlyRecommendExportView() throws Exception {
@@ -3465,7 +3327,7 @@ public class ViewPlacementHandlerTest {
                 nextSteps.get(nextSteps.size() - 1).contains("export-view"));
     }
 
-    // ---- B55: includeViolatorIds parameter passthrough ----
+    // ---- includeViolatorIds parameter passthrough ----
 
     @Test
     public void assessLayout_shouldPassIncludeViolatorIdsToAccessor() throws Exception {
@@ -3594,7 +3456,7 @@ public class ViewPlacementHandlerTest {
         assertEquals("p-99", proposal.get("proposalId"));
     }
 
-    // ---- auto-route Story 10-11: routerTypeSwitched ----
+    // ---- auto-route routerTypeSwitched ----
 
     @Test
     public void autoRoute_shouldIncludeRouterTypeSwitchedTrue() throws Exception {
@@ -3639,7 +3501,7 @@ public class ViewPlacementHandlerTest {
         assertEquals(false, data.get("routerTypeSwitched"));
     }
 
-    // ---- auto-route Story 10-21: selective routing & partial success ----
+    // ---- auto-route selective routing & partial success ----
 
     @Test
     public void autoRoute_shouldRouteOnlySpecifiedConnections_preservingOthers() throws Exception {
@@ -3756,7 +3618,7 @@ public class ViewPlacementHandlerTest {
                 nextSteps.stream().anyMatch(s -> s.contains("connectionIds")));
     }
 
-    // ---- auto-route Story 10-32: force mode ----
+    // ---- auto-route force mode ----
 
     @Test
     public void autoRoute_shouldDefaultForceToFalse() throws Exception {
@@ -3828,7 +3690,7 @@ public class ViewPlacementHandlerTest {
         assertNull("violations should be absent in default mode", data.get("violations"));
     }
 
-    // ---- auto-route-connections autoNudge tests (Story 13-7) ----
+    // ---- auto-route-connections autoNudge tests ----
 
     @Test
     public void autoRoute_shouldPassAutoNudgeToAccessor() throws Exception {
@@ -3943,7 +3805,7 @@ public class ViewPlacementHandlerTest {
                 Map.of("viewId", "v-1", "force", true, "autoNudge", true));
     }
 
-    // ---- auto-route B61: terminals-only mode parameter validation ----
+    // ---- auto-route terminals-only mode parameter validation ----
 
     @Test
     public void autoRoute_terminalsOnly_shouldPassModeParam() throws Exception {
@@ -4096,7 +3958,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoRoute_terminalsOnly_shouldForwardForceTrue() throws Exception {
-        // AC-8: force=true must propagate into terminals-only so the accessor
+        // force=true must propagate into terminals-only so the accessor
         // can bypass the obstacle + crossing veto.
         accessor.setAutoRouteConnectionsBehavior((sid, vId, connIds, strategy, force, autoNudge, snapThreshold, perimeterMargin, mode) -> {
             assertEquals("terminals-only", mode);
@@ -4135,7 +3997,7 @@ public class ViewPlacementHandlerTest {
         assertEquals(1, warnings.size());
     }
 
-    // ---- auto-layout-and-route (Story 10-29, targetRating Story 11-16) ----
+    // ---- auto-layout-and-route (targetRating) ----
 
     @Test
     public void autoLayoutAndRoute_shouldReturnResultWithoutTargetRating() throws Exception {
@@ -4269,7 +4131,7 @@ public class ViewPlacementHandlerTest {
         assertFalse("Should NOT suggest assess-layout when targetRating used", hasAssessLayout);
     }
 
-    // ---- auto-layout-and-route limiting factor (backlog-b13) ----
+    // ---- auto-layout-and-route limiting factor ----
 
     @Test
     @SuppressWarnings("unchecked")
@@ -4389,7 +4251,7 @@ public class ViewPlacementHandlerTest {
         assertEquals("Increase spacing", dto15.suggestedRemediation());
     }
 
-    // ---- auto-layout-and-route mode parameter (backlog-b24) ----
+    // ---- auto-layout-and-route mode parameter ----
 
     @Test
     public void autoLayoutAndRoute_shouldDefaultToAutoModeWhenOmitted() throws Exception {
@@ -4422,7 +4284,7 @@ public class ViewPlacementHandlerTest {
 
     @Test
     public void autoLayoutAndRoute_shouldReturnErrorForGroupedModeOnFlatView() throws Exception {
-        // AC-5: flat-view guard — accessor throws INVALID_PARAMETER when no groups exist
+        // flat-view guard — accessor throws INVALID_PARAMETER when no groups exist
         accessor.setAutoLayoutAndRouteBehavior((sid, vId, m, dir, sp, tr) -> {
             if ("grouped".equals(m)) {
                 throw new ModelAccessException(
@@ -4514,7 +4376,7 @@ public class ViewPlacementHandlerTest {
         assertEquals(0, dto15.groupsArranged());
     }
 
-    // ---- auto-connect-view (Story 9-6) ----
+    // ---- auto-connect-view ----
 
     @Test
     public void shouldRegisterAutoConnectViewTool() {
@@ -4627,7 +4489,7 @@ public class ViewPlacementHandlerTest {
         assertTrue(content.contains("INVALID_PARAMETER"));
     }
 
-    // ---- auto-connect-view showLabel (Story 13-5) ----
+    // ---- auto-connect-view showLabel ----
 
     @Test
     public void autoConnect_shouldPassShowLabelFalseToAccessor() throws Exception {
@@ -4676,7 +4538,7 @@ public class ViewPlacementHandlerTest {
         assertEquals(2, ((Number) data.get("connectionsCreated")).intValue());
     }
 
-    // ---- auto-connect-view styling (B52) ----
+    // ---- auto-connect-view styling ----
 
     @Test
     public void autoConnect_shouldPassStylingParamsToAccessor() throws Exception {
@@ -4814,7 +4676,7 @@ public class ViewPlacementHandlerTest {
         assertEquals(2, ((Number) data.get("connectionsCreated")).intValue());
     }
 
-    // ---- layout-within-group (Story 9-9) ----
+    // ---- layout-within-group ----
 
     @Test
     public void shouldRegisterLayoutWithinGroupTool() {
@@ -4978,7 +4840,7 @@ public class ViewPlacementHandlerTest {
                 nextSteps.stream().anyMatch(s -> s.contains("export-view")));
     }
 
-    // ---- Story 11-14: autoWidth tests ----
+    // ---- autoWidth tests ----
 
     @Test
     public void layoutWithinGroup_shouldParseAutoWidthParam() throws Exception {
@@ -5039,7 +4901,7 @@ public class ViewPlacementHandlerTest {
         assertEquals(true, data.get("autoWidth"));
     }
 
-    // ---- Story 11-18: columns + recursive tests ----
+    // ---- columns + recursive tests ----
 
     @Test
     public void layoutWithinGroup_shouldPassColumnsParam() throws Exception {
@@ -5116,7 +4978,7 @@ public class ViewPlacementHandlerTest {
         assertEquals(true, data.get("groupResized"));
     }
 
-    // ---- Story 10-20: Element-to-element nesting tests ----
+    // ---- Element-to-element nesting tests ----
 
     @Test
     public void shouldAddToView_withElementParent() throws Exception {
@@ -5232,7 +5094,7 @@ public class ViewPlacementHandlerTest {
         assertEquals("vo-element-parent", entity.get("parentViewObjectId"));
     }
 
-    // ---- add-note-to-view position tests (Story B16) ----
+    // ---- add-note-to-view position tests ----
 
     @Test
     public void addNote_positionAboveContent_shouldPassPositionToAccessor() throws Exception {
@@ -5341,7 +5203,7 @@ public class ViewPlacementHandlerTest {
         assertNotNull(entity);
     }
 
-    // ---- arrange-groups tests (Story 11-20) ----
+    // ---- arrange-groups tests ----
 
     @Test
     public void shouldRegisterArrangeGroupsTool() {
@@ -5460,7 +5322,7 @@ public class ViewPlacementHandlerTest {
         assertNull(capturedDirection[0]);
     }
 
-    // ---- optimize-group-order (Story 11-25) ----
+    // ---- optimize-group-order ----
 
     @Test
     public void shouldRegisterOptimizeGroupOrderTool() {
@@ -5601,7 +5463,7 @@ public class ViewPlacementHandlerTest {
         assertTrue(content.contains("INVALID_PARAMETER"));
     }
 
-    // ---- adjust-view-spacing (B68) ----
+    // ---- adjust-view-spacing ----
 
     @Test
     public void adjustViewSpacing_allDeltas_shouldReturnCombinedResult() throws Exception {
@@ -5788,12 +5650,6 @@ public class ViewPlacementHandlerTest {
     }
 
     @FunctionalInterface
-    interface LayoutViewBehavior {
-        MutationResult<LayoutViewResultDto> apply(String sessionId, String viewId,
-                String algorithm, String preset, Map<String, Object> options);
-    }
-
-    @FunctionalInterface
     interface AddToViewBehavior {
         MutationResult<AddToViewResultDto> apply(String sessionId, String viewId,
                 String elementId, Integer x, Integer y, Integer width, Integer height,
@@ -5877,7 +5733,6 @@ public class ViewPlacementHandlerTest {
         private RemoveFromViewBehavior removeFromViewBehavior;
         private ClearViewBehavior clearViewBehavior;
         private ApplyViewLayoutBehavior applyViewLayoutBehavior;
-        private LayoutViewBehavior layoutViewBehavior;
         private AssessLayoutBehavior assessLayoutBehavior;
         private AutoConnectViewBehavior autoConnectViewBehavior;
         private AutoLayoutAndRouteBehavior autoLayoutAndRouteBehavior;
@@ -5896,9 +5751,9 @@ public class ViewPlacementHandlerTest {
         StylingParams lastAddNoteToViewStyling;
         StylingParams lastUpdateViewConnectionStyling;
         StylingParams lastAutoConnectViewStyling;
-        // Story 14-1 (G4): capture last labelExpression param passed to update-view-object.
+        // capture last labelExpression param passed to update-view-object.
         String lastUpdateViewObjectLabelExpression;
-        // B55: capture last includeViolatorIds parameter
+        // capture last includeViolatorIds parameter
         boolean lastAssessLayoutIncludeViolatorIds;
 
         StubViewPlacementAccessor() {
@@ -5945,10 +5800,6 @@ public class ViewPlacementHandlerTest {
 
         void setApplyViewLayoutBehavior(ApplyViewLayoutBehavior behavior) {
             this.applyViewLayoutBehavior = behavior;
-        }
-
-        void setLayoutViewBehavior(LayoutViewBehavior behavior) {
-            this.layoutViewBehavior = behavior;
         }
 
         void setAssessLayoutBehavior(AssessLayoutBehavior behavior) {
@@ -6051,12 +5902,6 @@ public class ViewPlacementHandlerTest {
                 int connCount = (conns != null) ? conns.size() : 0;
                 ApplyViewLayoutResultDto dto = new ApplyViewLayoutResultDto(
                         vId, posCount, connCount, posCount + connCount);
-                return new MutationResult<>(dto, null);
-            };
-            this.layoutViewBehavior = (sid, vId, algo, preset, opts) -> {
-                String usedAlgo = (algo != null) ? algo : "tree";
-                LayoutViewResultDto dto = new LayoutViewResultDto(
-                        vId, usedAlgo, preset, 5, 3, 8);
                 return new MutationResult<>(dto, null);
             };
             this.assessLayoutBehavior = (vId) -> new AssessLayoutResultDto(
@@ -6201,13 +6046,6 @@ public class ViewPlacementHandlerTest {
                 List<ViewConnectionSpec> connections, String description) {
             return applyViewLayoutBehavior.apply(sessionId, viewId, positions, connections,
                     description);
-        }
-
-        @Override
-        public MutationResult<LayoutViewResultDto> layoutView(String sessionId,
-                String viewId, String algorithm, String preset,
-                Map<String, Object> options) {
-            return layoutViewBehavior.apply(sessionId, viewId, algorithm, preset, options);
         }
 
         @Override

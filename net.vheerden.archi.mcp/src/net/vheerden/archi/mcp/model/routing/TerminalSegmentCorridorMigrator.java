@@ -15,24 +15,22 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * primitives ({@link AlternativeCorridorSelector} / {@link CorridorSpreadEnforcer},
  * orchestrated by {@link HubPerimeterRoutingStage}) operate only on
  * <em>non-terminal-incident</em> segments — {@link HubFaceConnectionPartitioner}'s
- * cell loop bound is {@code for (s = 1; s < lastIdx - 1; s++)}, a correct B71
+ * cell loop bound is {@code for (s = 1; s < lastIdx - 1; s++)}, a correct perimeter-terminal-immutability
  * {@code TerminalAnchoring.preservesEndpoints} invariant for those generic
  * perpendicular-shift primitives. On the v1.4 HH/ST gate views 25 of 30 routed
  * paths are size-3 L-shapes whose <em>both</em> segments are terminal-incident, so
  * the partitioner emits zero cell members and H5 is a documented structural no-op
  * there. The M4 ({@code connectionEdgeCoincidence}) / V_p10 violators that block ST
  * agent-in-loop strict-PASS parity <em>are</em> those excluded terminal-incident
- * segments. This sibling reaches exactly that sub-case — see the Task-0
- * role-boundary spike outcome
- * ({@code _bmad-output/implementation-artifacts/hprps-task0-role-boundary-spike-2026-05-16.md}).
+ * segments. This sibling reaches exactly that sub-case.
  *
- * <p><b>The B71 reachability key (spike §3b, verbatim finding).</b> The B71
+ * <p><b>The perimeter-terminal immutability reachability key.</b> The perimeter-terminal immutability
  * contract {@link TerminalAnchoring#preservesTerminalAnchoring} is <em>not</em>
  * "a terminal bendpoint may not move" — it is precisely "the terminal bendpoint's
  * <em>orthogonal-axis</em> coordinate must stay exactly on the face line"
  * ({@code bp0Orthogonal == before.lineCoordinate(source)}). It places <b>no
  * constraint</b> on the terminal bendpoint's <em>parallel/slot</em> coordinate
- * (the Javadoc explicitly preserves "legitimate B9-distributed slots"). Sliding a
+ * (the Javadoc explicitly preserves "legitimate distributed slots"). Sliding a
  * terminal bendpoint <em>along</em> its face — changing only the slot coordinate
  * while the orthogonal coordinate stays pinned to the face line and the slot stays
  * within the face extent — is explicitly preserved behaviour, not a violation.
@@ -51,10 +49,10 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  *       not crossed.</li>
  * </ul>
  *
- * <p><b>Atomic-swap discipline (AC-5).</b> This is a NEW sibling. It does NOT route
+ * <p><b>Atomic-swap discipline.</b> This is a NEW sibling. It does NOT route
  * through {@link HubFaceConnectionPartitioner}'s non-terminal cell machinery (its
  * {@code s = 1; s < lastIdx - 1} loop bound is <b>not</b> relaxed and stays a
- * correct B71 invariant for the non-terminal primitives). It does its own
+ * correct perimeter-terminal-immutability invariant for the non-terminal primitives). It does its own
  * terminal-incident discovery, calls {@link TerminalAnchoring#preservesTerminalAnchoring}
  * only as a read-only contract guard (no mutation of {@code TerminalAnchoring}),
  * and never re-enters {@code EdgeAttachmentCalculator}, {@code VisibilityGraphRouter},
@@ -74,7 +72,7 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * segments the existing H5 primitives can already reach and are deliberately out
  * of MVP scope. On tight/saturated faces where no clearing slot exists within the
  * face extent the migrator emits no proposal — i.e. it degrades to a no-op rather
- * than a B71/role-boundary violation (spike §2: "at worst empirically behaves like
+ * than a perimeter-terminal-immutability/role-boundary violation (spike §2: "at worst empirically behaves like
  * Track B; the monotonicity guard handles tight geometry safely — never worse than
  * {@code main}").
  *
@@ -91,9 +89,9 @@ public class TerminalSegmentCorridorMigrator {
 
     // ----- Per-metric observer constants (lightweight mirror) ------------------
     // Inlined from net.vheerden.archi.mcp.model.LayoutQualityAssessor because the
-    // assessor is package-private and AC-9.6 forbids elevating its visibility (same
+    // assessor is package-private and elevating its visibility is forbidden (same
     // discipline + drift-acknowledgement as HubPerimeterRoutingStage). The
-    // mirror-helper drift guard is the 5-pin contract + the AC-3 verifier tests.
+    // mirror-helper drift guard is the 5-pin contract + the verifier tests.
 
     /** Mirror of {@code LayoutQualityAssessor.EDGE_COINCIDENCE_TOLERANCE_PX} (3.0). */
     static final double EDGE_COINCIDENCE_TOLERANCE_PX = 3.0;
@@ -246,7 +244,7 @@ public class TerminalSegmentCorridorMigrator {
         AbsoluteBendpointDto corner = path.get(cornerBpIdx);
 
         Face face = inferAttachedFace(term, elem);
-        if (face == null) return null; // not exactly on a B71 face line → EdgeAttachmentCalculator's domain
+        if (face == null) return null; // not exactly on a perimeter-terminal-immutability face line → EdgeAttachmentCalculator's domain
         TerminalAnchoring anchoring = new TerminalAnchoring(face);
         boolean slotIsY = anchoring.parallelAxis() == TerminalAnchoring.Axis.Y;
 
@@ -308,7 +306,7 @@ public class TerminalSegmentCorridorMigrator {
                 ? new AbsoluteBendpointDto(newSlot, corner.y())
                 : new AbsoluteBendpointDto(corner.x(), newSlot));
 
-        // Guard (i): explicit B71 contract — read-only call, no mutation of TerminalAnchoring.
+        // Guard (i): explicit perimeter-terminal immutability contract — read-only call, no mutation of TerminalAnchoring.
         int[] center = {elem.centerX(), elem.centerY()};
         List<AbsoluteBendpointDto> oriented = after;
         if (!sourceSide) {
@@ -329,8 +327,8 @@ public class TerminalSegmentCorridorMigrator {
     /**
      * Infer which element face the terminal bendpoint is anchored on, using
      * <em>exact</em> equality to {@link TerminalAnchoring#lineCoordinate} — the
-     * same exact {@code ==} test the B71 predicate itself applies. A terminal not
-     * exactly on a B71 face line is, by definition, not this primitive's domain
+     * same exact {@code ==} test the perimeter-terminal immutability predicate itself applies. A terminal not
+     * exactly on a perimeter-terminal-immutability face line is, by definition, not this primitive's domain
      * (it belongs to {@code EdgeAttachmentCalculator}); returning {@code null}
      * preserves that role boundary.
      */

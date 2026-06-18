@@ -11,8 +11,7 @@ import org.junit.Test;
 /**
  * Pin test for the {@code countZigzags} ↔ {@code detectPassThroughs} classification
  * precedence contract: a connection already classified as a cross-element passthrough
- * must not also be counted as a zigzag (Successor F of AC-19 verdict 2026-05-12;
- * Finding 5 of {@code 4arm-rerun-2026-05-11/ac19-verdict-numerics.md}).
+ * must not also be counted as a zigzag (Successor F of the classification verdict).
  *
  * <p>Pure-geometry tests per CLAUDE.md Eclipse Testing Workflow — no OSGi runtime
  * required.</p>
@@ -106,7 +105,7 @@ public class RoutingClassificationPrecedenceTest {
     public void unconditionalViolatorCollection_assertsBehaviour() {
         // Reuses the failed-detour geometry from test 1, but invokes
         // detectPassThroughs with collectViolatorIds=false. Per the precedence-guard
-        // contract (AC-4), the cross-element violator set is collected unconditionally
+        // contract, the cross-element violator set is collected unconditionally
         // so the guard works regardless of whether the assessor was invoked with
         // includeViolatorIds=false. Asserts violatorIds() is non-empty even when
         // collectViolatorIds=false.

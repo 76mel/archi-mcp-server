@@ -130,7 +130,7 @@ public class TraversalHandlerTest {
         new TraversalHandler(new StubAccessor(true), formatter, null, null);
     }
 
-    // ---- Depth 0 Tests (AC #1) ----
+    // ---- Depth 0 Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -160,7 +160,7 @@ public class TraversalHandlerTest {
         assertFalse("Depth 0 should not have 'target' key", rel.containsKey("target"));
     }
 
-    // ---- Depth 1 Tests (AC #2) ----
+    // ---- Depth 1 Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -231,7 +231,7 @@ public class TraversalHandlerTest {
         assertEquals("Business Process", target.get("name"));
     }
 
-    // ---- Depth 2 Tests (AC #3) ----
+    // ---- Depth 2 Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -276,7 +276,7 @@ public class TraversalHandlerTest {
                 target.containsKey("relationships"));
     }
 
-    // ---- Depth 3 Tests (AC #4) ----
+    // ---- Depth 3 Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -323,7 +323,7 @@ public class TraversalHandlerTest {
         assertEquals(2, nestedRels.size());
     }
 
-    // ---- Default Depth Tests (AC #5) ----
+    // ---- Default Depth Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -357,7 +357,7 @@ public class TraversalHandlerTest {
         assertFalse("Default depth summary should not have layer", source.containsKey("layer"));
     }
 
-    // ---- Element Not Found Tests (AC #6) ----
+    // ---- Element Not Found Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -420,7 +420,7 @@ public class TraversalHandlerTest {
         assertTrue(resultList.isEmpty());
     }
 
-    // ---- Error Path Tests (AC #6) ----
+    // ---- Error Path Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -637,7 +637,7 @@ public class TraversalHandlerTest {
         assertFalse(result.isError());
     }
 
-    // ---- nextSteps Tests (AC #7) ----
+    // ---- nextSteps Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -673,7 +673,7 @@ public class TraversalHandlerTest {
         assertTrue(nextSteps.get(1).contains("get-model-info"));
     }
 
-    // ---- _meta Tests (AC #7) ----
+    // ---- _meta Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -709,9 +709,9 @@ public class TraversalHandlerTest {
         assertEquals(0, meta.get("totalCount"));
     }
 
-    // ==== Traversal Mode Tests (Story 4.2) ====
+    // ==== Traversal Mode Tests ====
 
-    // ---- Outgoing Traversal (AC #1, #2) ----
+    // ---- Outgoing Traversal ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -768,7 +768,7 @@ public class TraversalHandlerTest {
         assertEquals(false, summary.get("cyclesDetected"));
     }
 
-    // ---- Incoming Traversal (AC #3) ----
+    // ---- Incoming Traversal ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -809,7 +809,7 @@ public class TraversalHandlerTest {
         assertEquals("elem-1", connected2.get("id"));
     }
 
-    // ---- Bidirectional Traversal (AC #4) ----
+    // ---- Bidirectional Traversal ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -839,7 +839,7 @@ public class TraversalHandlerTest {
         assertEquals(true, summary.get("cyclesDetected"));
     }
 
-    // ---- Cycle Detection (AC #5) ----
+    // ---- Cycle Detection ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -868,7 +868,7 @@ public class TraversalHandlerTest {
         assertEquals(2, summary.get("maxDepthReached"));
     }
 
-    // ---- Depth Limit Enforcement / Truncation (AC #6) ----
+    // ---- Depth Limit Enforcement / Truncation ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -913,7 +913,7 @@ public class TraversalHandlerTest {
         assertEquals(false, meta.get("isTruncated"));
     }
 
-    // ---- Traverse=false Preserves Story 4-1 Behavior ----
+    // ---- Traverse=false Preserves Non-Traversal Behavior ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -953,7 +953,7 @@ public class TraversalHandlerTest {
         TraversalHandler handler = new TraversalHandler(accessor, formatter, registry, null);
         handler.registerTools();
 
-        // No traverse parameter → Story 4-1 behavior
+        // No traverse parameter → non-traversal behavior
         McpSchema.CallToolResult result = invokeGetRelationships("elem-1", 1);
 
         assertFalse(result.isError());
@@ -961,7 +961,7 @@ public class TraversalHandlerTest {
 
         List<Map<String, Object>> resultList = (List<Map<String, Object>>) envelope.get("result");
         assertNotNull(resultList);
-        // Story 4-1 format: list of relationships (not traversal object)
+        // Non-traversal format: list of relationships (not traversal object)
         assertTrue(resultList.get(0).containsKey("source"));
     }
 
@@ -1174,7 +1174,7 @@ public class TraversalHandlerTest {
         assertEquals("INTERNAL_ERROR", error.get("code"));
     }
 
-    // ---- Response Structure (AC #1) ----
+    // ---- Response Structure ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1357,9 +1357,9 @@ public class TraversalHandlerTest {
         assertEquals("elem-2", rel.get("targetId"));
     }
 
-    // ==== Filter Tests (Story 4.3) ====
+    // ==== Filter Tests ====
 
-    // ---- Non-Traverse excludeTypes (Task 5.1) ----
+    // ---- Non-Traverse excludeTypes ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1715,7 +1715,7 @@ public class TraversalHandlerTest {
         TraversalHandler handler = new TraversalHandler(accessor, formatter, registry, null);
         handler.registerTools();
 
-        // Invoke without any filter params — should return same as Story 4.1 tests
+        // Invoke without any filter params — should return same as non-traversal tests
         McpSchema.CallToolResult result = invokeGetRelationships("elem-2", 0);
 
         assertFalse(result.isError());
@@ -1832,7 +1832,7 @@ public class TraversalHandlerTest {
         assertTrue(((String) error.get("message")).contains("filterLayer"));
     }
 
-    // ---- Schema Tests for Filter Params (AC #6) ----
+    // ---- Schema Tests for Filter Params ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1923,7 +1923,7 @@ public class TraversalHandlerTest {
         assertEquals(1, meta.get("resultCount"));
     }
 
-    // ---- Field Selection Integration Tests (Story 5.2, Task 11.7-11.8) ----
+    // ---- Field Selection Integration Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1989,7 +1989,7 @@ public class TraversalHandlerTest {
         assertNull("documentation should be excluded", source.get("documentation"));
     }
 
-    // ---- Traverse Mode Field Selection Tests (H1 code review fix) ----
+    // ---- Traverse Mode Field Selection Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -2060,7 +2060,7 @@ public class TraversalHandlerTest {
         assertNotNull("STANDARD fallback should include type", startElement.get("type"));
     }
 
-    // ---- Story 5.3: Model Version Change Detection Tests ----
+    // ---- Model Version Change Detection Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -2127,7 +2127,7 @@ public class TraversalHandlerTest {
         assertEquals(true, meta.get("modelChanged"));
     }
 
-    // ---- Story 5.4: Session Caching Tests ----
+    // ---- Session Caching Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -2185,7 +2185,7 @@ public class TraversalHandlerTest {
                 callsAfterFirst, accessor.getRelationshipsCount);
     }
 
-    // ---- Progress Indication Tests (Story 5.5 AC8) ----
+    // ---- Progress Indication Tests ----
 
     @Test
     public void shouldExtractProgressToken_whenMetaContainsToken() {
@@ -2227,7 +2227,7 @@ public class TraversalHandlerTest {
         assertNotNull(envelope.get("result"));
     }
 
-    // ---- Story 6.2: Dry-Run Cost Estimation Tests ----
+    // ---- Dry-Run Cost Estimation Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -2653,7 +2653,7 @@ public class TraversalHandlerTest {
     }
 
     /**
-     * StubAccessor with invocation counters for verifying cache hit behavior (Story 5.4).
+     * StubAccessor with invocation counters for verifying cache hit behavior.
      */
     private static class CountingAccessor extends StubAccessor {
         int getRelationshipsCount = 0;

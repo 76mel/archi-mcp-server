@@ -23,8 +23,8 @@ import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
- * Handler for session management tools: set-session-filter (Story 5.1),
- * get-session-filters (Story 5.1).
+ * Handler for session management tools: set-session-filter,
+ * get-session-filters.
  *
  * <p>This handler does NOT need an {@code ArchiModelAccessor} because
  * session tools do not access model data directly.</p>

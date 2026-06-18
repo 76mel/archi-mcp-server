@@ -17,7 +17,7 @@ import com.archimatetool.model.IDiagramModelImage;
 import com.archimatetool.model.IFolder;
 
 /**
- * Tests for {@link AddImageToViewCommand} (Story 14-8 / G16).
+ * Tests for {@link AddImageToViewCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * execute (add to container) and undo (remove from container) behaviour

@@ -13,15 +13,13 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- * JUnit pin for {@link SpacingIterationStep} (AC-7.2). Pure-unit tests
+ * JUnit pin for {@link SpacingIterationStep}. Pure-unit tests
  * (no OSGi). Sibling-symmetric with {@link ApplyElementSpacingDecision} +
  * {@link ApplyGroupSpacingDecision} + {@link ApplySpacingDecision} record
  * test patterns (record equality + null-safety).
  *
- * <p>Story:
- * `backlog-convenience-tool-control-loop-architectural-redesign` AC-7.2 —
- * minimum 4 @Test methods covering record equality + null-safety + ordering.
- * This class delivers 7 @Test methods (3 over minimum).</p>
+ * <p>Covers record equality + null-safety + ordering.
+ * This class delivers 7 @Test methods.</p>
  */
 public class SpacingIterationStepTest {
 

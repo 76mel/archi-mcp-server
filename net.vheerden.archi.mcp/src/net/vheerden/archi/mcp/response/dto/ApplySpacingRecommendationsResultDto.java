@@ -8,7 +8,7 @@ import java.util.List;
  * convenience tool. Bundles BOTH the element-arm and the group-arm of the
  * spacing-recommendation envelope into a single response, with knee-clamp
  * metadata surfaced via the {@code proposedXxxDelta} / {@code interXxxDelta}
- * pair + the {@code xxxKneeClampApplied} booleans (per AC-5).
+ * pair + the {@code xxxKneeClampApplied} booleans.
  *
  * <p>Under {@code dryRun=true} OR both-deltas-zero short-circuit (no
  * mutation), {@code after} and {@code adjustResult} are null; on the
@@ -32,8 +32,7 @@ import java.util.List;
  * @param interGroupConnectionCount count of connections crossing a top-level
  *                                  group boundary; computed by
  *                                  {@code countInterGroupConnections} (same
- *                                  source as the apply-group sibling tool's
- *                                  AC-7.3)
+ *                                  source as the apply-group sibling tool)
  * @param isConnected               true when
  *                                  {@code interGroupConnectionCount > 0};
  *                                  selects the connected column on the
@@ -97,9 +96,7 @@ import java.util.List;
  *                                  short-circuit
  */
 /**
- * <p><strong>Control-loop fields</strong> (Story
- * `backlog-convenience-tool-control-loop-architectural-redesign` AC-2 +
- * AC-5, 2026-05-15): the composer runs TWO coordinated control loops per
+ * <p><strong>Control-loop fields:</strong> the composer runs TWO coordinated control loops per
  * Option A from architecture-spec § 1.7 (element-arm first, then group-arm).
  * Each arm reports its own termination/trajectory via per-arm fields:
  * {@code elementTerminationReason} + {@code elementIterationCount} +
@@ -136,26 +133,22 @@ public record ApplySpacingRecommendationsResultDto(
         AssessLayoutResultDto before,
         AssessLayoutResultDto after,
         AdjustViewSpacingResultDto adjustResult,
-        // Control-loop per-arm fields (Story
-        // backlog-convenience-tool-control-loop-architectural-redesign
-        // AC-2 + AC-5, 2026-05-15). Appended; AC-9 backwards-compat.
+        // Control-loop per-arm fields. Appended; backwards-compat.
         String elementTerminationReason,
         int elementIterationCount,
         List<Integer> elementAppliedDeltas,
         String groupTerminationReason,
         int groupIterationCount,
         List<Integer> groupAppliedDeltas,
-        // Density-aware-termination per-arm fields (Story
-        // backlog-control-loop-density-aware-termination AC-6, 2026-05-17).
+        // Density-aware-termination per-arm fields.
         // Each arm's actionable PASS-honest reflow diagnosis; null on every
         // non-PASS-honest path. Appended; backwards-compat preserved.
         String elementDensityFloorDiagnosis,
         String groupDensityFloorDiagnosis) {
 
     /**
-     * Backwards-compatible 29-arg constructor (Story
-     * `backlog-control-loop-density-aware-termination` AC-6 — preserve every
-     * pre-existing 29-arg call site / pin; delegates with both per-arm
+     * Backwards-compatible 29-arg constructor — preserves every
+     * pre-existing 29-arg call site; delegates with both per-arm
      * {@code densityFloorDiagnosis = null}). Only the composer PASS-honest
      * path forwards the real per-arm diagnoses via the 31-arg form.
      */
@@ -204,9 +197,7 @@ public record ApplySpacingRecommendationsResultDto(
     }
 
     /**
-     * Backwards-compatible 23-arg constructor (Story
-     * `backlog-convenience-tool-control-loop-architectural-redesign`
-     * AC-9 backwards-compat). Pre-Task-3 callers construct without the six
+     * Backwards-compatible 23-arg constructor. Pre-Task-3 callers construct without the six
      * per-arm control-loop fields; delegating constructor populates with
      * neutral defaults ({@code null / 0 / List.of()} for both arms). The
      * Task 3 accessor refactor will switch to the canonical 29-arg form.

@@ -3,7 +3,7 @@ package net.vheerden.archi.mcp.response;
 import net.vheerden.archi.mcp.response.FieldSelector.FieldPreset;
 
 /**
- * Token estimation utility for dry-run cost estimation (Story 6.2, FR20).
+ * Token estimation utility for dry-run cost estimation (FR20).
  *
  * <p>Estimates approximate token counts for query results based on item count,
  * field preset, and item type. Uses character-per-item heuristics divided by

@@ -10,7 +10,7 @@ import org.junit.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Pure-JUnit tests for {@link DiagramImageDto} (Story 14-8 / G16).
+ * Pure-JUnit tests for {@link DiagramImageDto} (G16).
  *
  * <p>Verifies record construction, NON_NULL JSON omission discipline, and
  * round-trip serialisation. No OSGi/EMF dependencies.</p>

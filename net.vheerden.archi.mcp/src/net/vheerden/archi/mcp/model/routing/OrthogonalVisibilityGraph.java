@@ -14,7 +14,7 @@ import net.vheerden.archi.mcp.model.routing.VisEdge.Direction;
 import net.vheerden.archi.mcp.model.routing.VisNode.NodeType;
 
 /**
- * Orthogonal visibility graph for obstacle-aware connection routing (Story 10-6a).
+ * Orthogonal visibility graph for obstacle-aware connection routing.
  * Pure-geometry class — no EMF/SWT dependencies.
  *
  * <p>Algorithm:</p>
@@ -35,7 +35,7 @@ public class OrthogonalVisibilityGraph {
     /** Default clearance (px) around obstacles. */
     public static final int DEFAULT_MARGIN = 10;
 
-    /** Radius (px) around edge midpoint for congestion density computation (Story 11-30). */
+    /** Radius (px) around edge midpoint for congestion density computation. */
     static final int CONGESTION_RADIUS = 60;
 
     private final int margin;
@@ -53,7 +53,7 @@ public class OrthogonalVisibilityGraph {
     }
 
     /**
-     * Creates a visibility graph with separate clearance and perimeter margins (B36).
+     * Creates a visibility graph with separate clearance and perimeter margins.
      *
      * @param margin clearance in pixels around obstacles (used by expandObstacles)
      * @param perimeterMargin extension in pixels beyond outermost obstacles for exterior routing
@@ -65,7 +65,7 @@ public class OrthogonalVisibilityGraph {
     /**
      * Creates a visibility graph with the given margins and boundary mode.
      *
-     * <p><b>Spike 10-19c finding:</b> Inclusive mode ({@code true}) eliminates
+     * <p><b>Spike finding:</b> Inclusive mode ({@code true}) eliminates
      * corner nodes that sit ON expanded obstacle boundaries, breaking graph
      * connectivity. Always use strict mode ({@code false}) in production.</p>
      *
@@ -123,7 +123,7 @@ public class OrthogonalVisibilityGraph {
                 perimRight = Math.max(perimRight, er.right);
                 perimBottom = Math.max(perimBottom, er.bottom);
             }
-            // Extend perimeter beyond all obstacles by perimeterMargin (B36: separate from obstacle clearance)
+            // Extend perimeter beyond all obstacles by perimeterMargin (separate from obstacle clearance)
             perimLeft -= perimeterMargin;
             perimTop -= perimeterMargin;
             perimRight += perimeterMargin;
@@ -196,7 +196,7 @@ public class OrthogonalVisibilityGraph {
     }
 
     /**
-     * Computes the local obstacle density around the midpoint of an edge (Story 11-30).
+     * Computes the local obstacle density around the midpoint of an edge.
      * Counts the number of expanded obstacles whose bounding box overlaps a square
      * region centered at the edge midpoint with side length {@code 2 * CONGESTION_RADIUS}.
      *
@@ -223,7 +223,7 @@ public class OrthogonalVisibilityGraph {
 
     /**
      * Computes the minimum perpendicular distance from an edge to any expanded obstacle
-     * boundary whose parallel range overlaps the edge (B41).
+     * boundary whose parallel range overlaps the edge.
      *
      * <p>For a horizontal edge, measures vertical distance to the nearest obstacle
      * top/bottom boundary. For a vertical edge, measures horizontal distance to
@@ -569,7 +569,7 @@ public class OrthogonalVisibilityGraph {
      * through the interior. In inclusive mode, segments touching the boundary
      * are also blocked.
      *
-     * <p><b>Spike 10-19c finding:</b> Strict mode is required. Inclusive mode
+     * <p><b>Spike finding:</b> Strict mode is required. Inclusive mode
      * eliminates corner nodes that sit ON expanded obstacle boundaries, breaking
      * graph connectivity for single-obstacle and wall scenarios. The 10px
      * expansion margin already provides sufficient clearance.</p>

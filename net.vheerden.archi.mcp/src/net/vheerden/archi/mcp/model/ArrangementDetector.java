@@ -6,7 +6,6 @@ import java.util.List;
 /**
  * Pure-geometry utility for detecting arrangement patterns from element positions.
  * No EMF/Archi dependencies — safe for standard JUnit testing.
- * (Story backlog-b2)
  */
 class ArrangementDetector {
 

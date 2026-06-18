@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.model.routing;
 
 /**
- * Recommends moving a blocking element to unblock failed connection routes (Story 10-31).
+ * Recommends moving a blocking element to unblock failed connection routes.
  * Pure-geometry record — no EMF/SWT dependencies.
  *
  * @param elementId           view object ID of the blocking element

@@ -19,7 +19,7 @@ import net.vheerden.archi.mcp.response.dto.ConceptUsageDto;
 
 /**
  * Tests for {@link ArchiModelAccessorImpl#buildConceptUsageDto(com.archimatetool.model.IArchimateConcept)}
- * (Story 14-5 / G10). Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} —
+ * Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} —
  * runs as JUnit Plug-in Test in the OSGi runtime.
  *
  * <p>The accessor-impl test calls the package-private helper directly with

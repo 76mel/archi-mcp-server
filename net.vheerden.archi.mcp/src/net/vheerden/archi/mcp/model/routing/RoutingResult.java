@@ -6,7 +6,7 @@ import java.util.Map;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Composite result from the routing pipeline (Story 10-30, extended Story 10-31, 10-32, 11-31, backlog-b22).
+ * Composite result from the routing pipeline.
  * Separates successfully routed connections from those that failed constraint validation,
  * includes move recommendations for blocking elements, and label optimization results.
  * Pure-geometry record — no EMF/SWT dependencies.
@@ -16,9 +16,9 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * @param recommendations     move recommendations for elements blocking failed routes
  * @param violatedRoutes      map of connectionId to absolute bendpoints for connections that failed
  *                            validation but whose routes are preserved for force-mode application
- * @param labelsOptimized     count of labels whose position was changed by the optimizer (Story 11-31)
- * @param optimalPositions    map of connectionId to optimal textPosition for changed labels (Story 11-31)
- * @param straightLineCrossings straight-line crossing estimate before routing (backlog-b22)
+ * @param labelsOptimized     count of labels whose position was changed by the optimizer
+ * @param optimalPositions    map of connectionId to optimal textPosition for changed labels
+ * @param straightLineCrossings straight-line crossing estimate before routing
  */
 public record RoutingResult(Map<String, List<AbsoluteBendpointDto>> routed,
                              List<FailedConnection> failed,

@@ -16,17 +16,13 @@ import org.slf4j.LoggerFactory;
  * {@code applyGroupSpacingRecommendations} /
  * {@code applySpacingRecommendations}). Single source of truth for the
  * iteration semantics that close the 1/6 → 6/6 agent-in-loop strict-PASS gap
- * surfaced by Story
- * `backlog-routing-preconditions-empirical-when-triad-complete` AC-7
- * disposition B (REGRESSION) 2026-05-15.
+ * (REGRESSION disposition) 2026-05-15.
  *
- * <p><strong>Architectural contract (per Story
- * `backlog-convenience-tool-control-loop-architectural-redesign`
- * AC-1 + AC-3 + AC-4 + AC-5 + AC-6):</strong>
+ * <p><strong>Architectural contract:</strong>
  * <ol>
  *   <li>Pure-EMF-free helper — no transitive class-loading of
  *       {@code ArchiModelAccessorImpl} required at test time. Pinned by
- *       {@code SpacingControlLoopTest} (AC-7.1).</li>
+ *       {@code SpacingControlLoopTest}.</li>
  *   <li>The three existing single-shot decision records
  *       ({@link ApplyElementSpacingDecision} /
  *       {@link ApplyGroupSpacingDecision} /
@@ -34,16 +30,15 @@ import org.slf4j.LoggerFactory;
  *       GUARD for the loop. Their {@code decide(...)} short-circuit branches
  *       (no groups / no groups with 2+ children / no connections /
  *       heuristic-already-met / dryRun) are handled BEFORE the loop is even
- *       entered — branches (d) + (e) of AC-5 termination contract.</li>
+ *       entered — branches (d) + (e) of the termination contract.</li>
  *   <li>Back-off predicate uses aggregate {@link LayoutMetrics#thresholdsMet()}
- *       regression EXCLUSIVELY per AC-3 +
- *       {@code feedback_discipline_rules_aggregate_not_per_metric.md}.
+ *       regression EXCLUSIVELY (aggregate, not per-metric).
  *       Per-metric monotonicity rules are EXPLICITLY FORBIDDEN.</li>
  *   <li>Tie-break ordering when post.thresholdsMet == best.thresholdsMet:
  *       (1) lower M4; (2) lower coincidentSegmentCount; (3) higher HPQ;
  *       (4) lower edgeCrossings. Status-quo preserved when all four are
  *       equal (ACCEPT to keep the loop moving).</li>
- *   <li>Termination contract: exactly ONE of the AC-5 5 branches fires per
+ *   <li>Termination contract: exactly ONE of the 5 branches fires per
  *       loop invocation (loop handles (a), (b), (c); the accessor's
  *       entry-guard short-circuit handles (d), (e) BEFORE the loop is
  *       called).</li>
@@ -57,13 +52,10 @@ import org.slf4j.LoggerFactory;
  *       AND pushing that compound through the public command stack — the
  *       stack's {@code execute()} call re-runs each accepted command in
  *       order, landing the model in the post-loop state with exactly ONE
- *       undo entry per AC-6.</li>
+ *       undo entry.</li>
  * </ol></p>
  *
- * <p><strong>Author + date:</strong> 2026-05-15, Opus 4.7 1M,
- * {@code /bmad-bmm-dev-story} workflow, Task 2 implementation under sprint-
- * status row 703. Architecture spec:
- * {@code _bmad-output/implementation-artifacts/control-loop-redesign-spike-2026-05-15/architecture-spec.md}.</p>
+ * <p><strong>Author + date:</strong> 2026-05-15, Task 2 implementation.</p>
  */
 public final class SpacingControlLoop {
 
@@ -89,8 +81,8 @@ public final class SpacingControlLoop {
      *                               {@code initialSpacingPx +
      *                               originalDecision.interElementDelta()})
      * @param iterationBudget        maximum iterations the loop may attempt
-     *                               (5 element / 5 group / 8 composer per
-     *                               AC-4 defaults; caller-tunable in
+     *                               (5 element / 5 group / 8 composer
+     *                               defaults; caller-tunable in
      *                               {@code [1, 20]} range with handler-level
      *                               validation)
      * @param perIterationStepCapPx  per-iteration step cap; Option α composer
@@ -109,15 +101,14 @@ public final class SpacingControlLoop {
      *                               telemetry / logging
      * @param hubExtent              the view's dominant-hub descriptor
      *                               captured ONCE pre-loop from the EXISTING
-     *                               {@code detectHubElements} read (Story
-     *                               `backlog-control-loop-density-aware-termination`
-     *                               AC-2 hub sub-signal + AC-6 diagnosis
-     *                               payload). {@code null} = hub sub-signal
+     *                               {@code detectHubElements} read (hub
+     *                               sub-signal + diagnosis payload).
+     *                               {@code null} = hub sub-signal
      *                               absent — with a {@link Double#NaN}
      *                               {@code initialMetrics.avgSpacingPx()} the
      *                               density-aware discriminator is inert and
-     *                               the loop reduces to the row-703 2-state
-     *                               back-off (AC-1/AC-7/AC-12 pin preservation).
+     *                               the loop reduces to the 2-state
+     *                               back-off (pin preservation).
      */
     public record Request(
             int initialSpacingPx,
@@ -134,10 +125,9 @@ public final class SpacingControlLoop {
         }
 
         /**
-         * Backwards-compatible 6-arg constructor (Story
-         * `backlog-control-loop-density-aware-termination` AC-1 — preserve
+         * Backwards-compatible 6-arg constructor — preserve
          * every pre-existing {@code new Request(...)} pin site so the
-         * row-703 pin baseline stays GREEN, AC-7/AC-12). Delegates with
+         * pin baseline stays GREEN. Delegates with
          * {@code hubExtent = null} (hub sub-signal absent).
          */
         public Request(
@@ -191,7 +181,7 @@ public final class SpacingControlLoop {
          * pass the default — there is no narrow goal at the tool layer; the
          * loop runs to budget exhaustion or aggregate back-off. Returns true
          * only if a future caller wires up a narrow-goal predicate (out of
-         * scope for this story per Goal § "What this story is NOT").</p>
+         * scope here).</p>
          *
          * @param snapshot post-Apply layout metrics
          * @return true to terminate the loop with
@@ -202,28 +192,27 @@ public final class SpacingControlLoop {
         }
 
         /**
-         * One-shot hub-resize command for the AC-4 density-escalation path
-         * (Story `backlog-control-loop-density-aware-termination`,
-         * owner-ratified "Scoped Option B", 2026-05-17). Built + executed
+         * One-shot hub-resize command for the density-escalation path
+         * ("Scoped Option B", 2026-05-17). Built + executed
          * EXACTLY ONCE — on the first {@code escalate}-state iteration,
          * BEFORE that iteration's spacing-escalation command so the
          * subsequent {@code computeAdjustViewSpacing} route+assess observes
          * the resized hub. Wrapped (by the accessor closure) in the same
          * SWT-dispatch {@code GefSpacingMutationCommand} adapter as the
-         * spacing commands, so it inherits the row-703 Session-9
+         * spacing commands, so it inherits the
          * SWT-marshalling + the partial-commit graceful-degradation guard,
          * and is undone/re-applied by the same single-undo
-         * {@code finalizeWithReset} + outer-compound machinery (AC-6 — one
+         * {@code finalizeWithReset} + outer-compound machinery (one
          * undo entry).
          *
          * <p><strong>Default: {@code null}</strong> — no hub-resize available
          * (no large under-sized hub on the view, or the closure does not
          * supply one). Escalation then degrades to spacing-only; the loop is
          * unaffected. Pure-unit pin mocks inherit this default, so the
-         * row-703 pin baseline is untouched (AC-7/AC-12). The 3 accessor
+         * pin baseline is untouched. The 3 accessor
          * closures override it to resize the dominant hub toward the
          * HH-like fan-out regime via the existing {@code UpdateViewObjectCommand}
-         * (AC-13-clean — convenience-tool layer, NOT a routing primitive).</p>
+         * (convenience-tool layer, NOT a routing primitive).</p>
          *
          * @return a one-shot hub-resize mutation command, or {@code null}
          *         when no hub-resize is applicable / available
@@ -248,7 +237,7 @@ public final class SpacingControlLoop {
      *                          zero iterations were accepted (e.g.,
      *                          heuristic-already-met OR first-iteration
      *                          regression).
-     * @param terminationReason taxonomy string per AC-5 (5 branches; (d) +
+     * @param terminationReason taxonomy string (5 branches; (d) +
      *                          (e) are upstream-handled, never seen here)
      * @param finalSpacingPx    cumulative spacing of all accepted iterations
      *                          ({@code initialSpacingPx + sum(accepted
@@ -269,11 +258,10 @@ public final class SpacingControlLoop {
         }
 
         /**
-         * Backwards-compatible 4-arg constructor (Story
-         * `backlog-control-loop-density-aware-termination` AC-1 — preserve
-         * every pre-existing {@code new Result(...)} site / pin assertion;
-         * AC-7/AC-12). Delegates with {@code densityDiagnosis = null} (only
-         * the AC-6 {@code REASON_DENSITY_FLOOR_REFLOW_REQUIRED} PASS-honest
+         * Backwards-compatible 4-arg constructor — preserve
+         * every pre-existing {@code new Result(...)} site / pin assertion.
+         * Delegates with {@code densityDiagnosis = null} (only
+         * the {@code REASON_DENSITY_FLOOR_REFLOW_REQUIRED} PASS-honest
          * branch populates it).
          */
         public Result(
@@ -287,37 +275,37 @@ public final class SpacingControlLoop {
     }
 
     // ------------------------------------------------------------------
-    // Termination-reason taxonomy (AC-5 strings)
+    // Termination-reason taxonomy strings
     // ------------------------------------------------------------------
 
-    /** AC-5 (e) sub-string — heuristic target already met at iteration 0. */
+    /** (e) sub-string — heuristic target already met at iteration 0. */
     public static final String REASON_HEURISTIC_ALREADY_MET =
             "heuristic_already_met_no_change";
 
-    /** AC-5 (a) prefix — goal envelope reached at iteration N (caller goal). */
+    /** (a) prefix — goal envelope reached at iteration N (caller goal). */
     public static final String REASON_GOAL_REACHED_PREFIX =
             "goal_reached_at_iteration_";
 
     /**
-     * AC-5 (b) prefix — iteration budget consumed OR ladder exhausted (target
+     * (b) prefix — iteration budget consumed OR ladder exhausted (target
      * reached but no narrow goal triggered).
      */
     public static final String REASON_BUDGET_EXHAUSTED_PREFIX =
             "budget_exhausted_after_";
 
-    /** AC-5 (b) suffix — same as prefix. */
+    /** (b) suffix — same as prefix. */
     public static final String REASON_BUDGET_EXHAUSTED_SUFFIX =
             "_iterations";
 
-    /** AC-5 (c) prefix — aggregate thresholdsMet regressed; iteration reverted. */
+    /** (c) prefix — aggregate thresholdsMet regressed; iteration reverted. */
     public static final String REASON_AGGREGATE_REGRESSED_PREFIX =
             "aggregate_threshold_regressed_at_iteration_";
 
-    /** AC-5 (c) infix when reverted to a prior accepted iteration. */
+    /** (c) infix when reverted to a prior accepted iteration. */
     public static final String REASON_REVERTED_TO_ITERATION =
             "_reverted_to_iteration_";
 
-    /** AC-5 (c) infix when reverted to the loop's initial pre-loop state. */
+    /** (c) infix when reverted to the loop's initial pre-loop state. */
     public static final String REASON_REVERTED_TO_INITIAL =
             "_reverted_to_initial_state";
 
@@ -334,11 +322,9 @@ public final class SpacingControlLoop {
      * then unwinds prior accepted iterations via
      * {@link #finalizeWithReset(List, List, String, int)} so the caller's
      * outer dispatch produces a clean compound (the accepted iterations are
-     * re-applied via the public command stack as a single undo entry per
-     * AC-6).</p>
+     * re-applied via the public command stack as a single undo entry).</p>
      *
-     * <p>Root cause: Session 6 + Session 7 empirical (control-loop-redesign-
-     * empirical-2026-05-15-session7/aggregate.md) Arm B 0/6 strict-PASS
+     * <p>Root cause: Session 6 + Session 7 empirical Arm B 0/6 strict-PASS
      * IDENTICAL across pre-patch + Session-7-patch; cmd.execute() partial-
      * throw is the unguarded throw site that propagates to the accessor's
      * outer catch and surfaces as MCP {@code INTERNAL_ERROR}. Neither Fix 1
@@ -347,30 +333,29 @@ public final class SpacingControlLoop {
      * upstream / downstream of the loop's APPLY step.</p>
      *
      * <p>Pinned by {@code SpacingControlLoopPartialCommitRegressionTest} +
-     * {@code SpacingControlLoopTest} (AC-7.1 extension).</p>
+     * {@code SpacingControlLoopTest}.</p>
      */
     public static final String REASON_ITERATION_APPLY_FAILED_PREFIX =
             "iteration_apply_failed_at_iteration_";
 
-    /** AC-5 (g) infix — "_reverted_after_". */
+    /** (g) infix — "_reverted_after_". */
     public static final String REASON_ITERATION_APPLY_FAILED_AFTER =
             "_reverted_after_";
 
-    /** AC-5 (g) suffix — "_accepted_iterations". */
+    /** (g) suffix — "_accepted_iterations". */
     public static final String REASON_ITERATION_APPLY_FAILED_SUFFIX =
             "_accepted_iterations";
 
     /**
      * NEW pre-loop accessor-layer reason — Decision-A.1.3 = α''' Fix-1 (RC-1)
-     * guarded form, Session 11 (2026-05-16), Task 10.5 under sprint-status
-     * row 703.
+     * guarded form, Session 11 (2026-05-16), Task 10.5.
      *
      * <p>Emitted by the accessor's {@code Callbacks}-building closure (NOT by
      * {@link #iterate} — this is a PRE-loop reason, sibling to
      * {@code dry_run_recommendation_not_applied}) when Fix-1's
      * route-normalized baseline is materially worse than the bare input
-     * baseline. Winston's party-mode falsification (Task 10.4 resolved-design
-     * doc § 2) raised that silently route-normalizing the baseline could
+     * baseline. A falsification review (Task 10.4) raised that silently
+     * route-normalizing the baseline could
      * swallow a real regression — if the tool's own reroute pass <em>degrades</em>
      * the input, the pre-fix iteration-0 revert accidentally protected the
      * user; route-normalizing removes that accidental safety net. Resolution:
@@ -389,32 +374,30 @@ public final class SpacingControlLoop {
             "reroute_degraded_input_baseline";
 
     // ------------------------------------------------------------------
-    // Density-aware 3-state termination — Story
-    // `backlog-control-loop-density-aware-termination` (successor to
-    // row 703). Replaces the 2-state (continue / back-off-at-structural-
-    // floor) termination with a 3-state {continue, escalate, PASS-honest}
-    // discriminator on a 2×2 of aggregate-trend × spacing-regime-position.
-    // Owner-ratified design (party-mode §8 + 2-round Task-0.5 AskUserQuestion
-    // 2026-05-17): Scoped-Option-B one-shot hub-resize / ceiling-raise +
-    // row-703 back-off safety net / 3 iters & 112px / 2-step stall window.
+    // Density-aware 3-state termination. Replaces the 2-state (continue /
+    // back-off-at-structural-floor) termination with a 3-state {continue,
+    // escalate, PASS-honest} discriminator on a 2×2 of aggregate-trend ×
+    // spacing-regime-position.
+    // Design (2026-05-17): Scoped-Option-B one-shot hub-resize / ceiling-raise
+    // + back-off safety net / 3 iters & 112px / 2-step stall window.
     // ------------------------------------------------------------------
 
     /**
-     * AC-6 PASS-honest terminal — the aggregate stalled while the view is
+     * PASS-honest terminal — the aggregate stalled while the view is
      * AT/ABOVE the prescribed spacing regime, so more spacing/hub-resize
      * cannot help: a structural reflow is required. The loop NEVER
-     * auto-reflows (AC-6); it reverts any non-improving step (never presents
+     * auto-reflows; it reverts any non-improving step (never presents
      * a degraded view), emits this reason + an actionable
      * {@link Result#densityDiagnosis()} naming the violated precondition, and
      * the accessor surfaces it for explicit user consent. Distinct from every
-     * row-703 back-off reason.
+     * back-off reason.
      */
     public static final String REASON_DENSITY_FLOOR_REFLOW_REQUIRED =
             "density_floor_reflow_required";
 
     /**
-     * AC-4 — maximum number of loop iterations that may run in
-     * {@code escalate} mode (owner-finalized 2026-05-17, Task-0.5 Q3). An
+     * Maximum number of loop iterations that may run in
+     * {@code escalate} mode (2026-05-17, Task-0.5 Q3). An
      * escalate iteration carries the full N×K best-of-K route+assess cost
      * (Given B), so escalation is hard-capped; combined with the large step
      * (escalate converges the spacing knob to {@link #DENSITY_MIDBAND_TARGET_PX}
@@ -423,18 +406,18 @@ public final class SpacingControlLoop {
     public static final int MAX_DENSITY_ESCALATION_ITERS = 3;
 
     /**
-     * AC-4 — the mid-band spacing-knob target escalation drives toward
-     * (owner-finalized 2026-05-17, Task-0.5 Q3): the midpoint of the
+     * The mid-band spacing-knob target escalation drives toward
+     * (2026-05-17, Task-0.5 Q3): the midpoint of the
      * {@code project-context.md} Layout-Strategy 100–124px flow-view band.
      * Escalation raises the loop's effective target ceiling to AT LEAST this
      * value (Task-0.5 Q2) so the large step structurally reaches the regime
      * within {@link #MAX_DENSITY_ESCALATION_ITERS} — PASS-honest then only
-     * ever fires in-regime (no AC-8 "reflow-claimed-while-below-regime" FAIL).
+     * ever fires in-regime (no "reflow-claimed-while-below-regime" FAIL).
      */
     public static final int DENSITY_MIDBAND_TARGET_PX = 112;
 
     /**
-     * AC-2 spacing-regime-position lower bound — {@code project-context.md}
+     * Spacing-regime-position lower bound — {@code project-context.md}
      * Layout Strategy: flow views want "100px+ average" spacing ("24px →
      * poor, 124px → excellent"). Measured {@code avgSpacingPx} strictly below
      * this is "below-regime".
@@ -442,15 +425,15 @@ public final class SpacingControlLoop {
     public static final int DENSITY_REGIME_LOWER_PX = 100;
 
     /**
-     * AC-6 diagnosis text only — the {@code project-context.md} "excellent"
+     * Diagnosis text only — the {@code project-context.md} "excellent"
      * upper anchor of the 100–124px band (names the target band in the
      * actionable diagnosis; not used in any classification arithmetic).
      */
     public static final int DENSITY_REGIME_EXCELLENT_PX = 124;
 
     /**
-     * AC-2 aggregate-trend stall window (owner-finalized 2026-05-17,
-     * Task-0.5 Q4): the aggregate is "stalled/flat" when the row-703
+     * Aggregate-trend stall window (2026-05-17,
+     * Task-0.5 Q4): the aggregate is "stalled/flat" when the
      * ship-gate {@link LayoutMetrics#thresholdsMet()} aggregate has not
      * strictly increased across this many consecutive attempted iterations.
      * 2 (not 1) per Given A — best-of-K K=12 damps per-iteration routing
@@ -460,7 +443,7 @@ public final class SpacingControlLoop {
     public static final int DENSITY_TREND_WINDOW = 2;
 
     /**
-     * AC-2 hub sub-signal — a hub with MORE than this many connections is
+     * Hub sub-signal — a hub with MORE than this many connections is
      * "large" (matches the accessor's existing density-aware default
      * {@code connectionCount() > 6} large-hub gate). Only large hubs are
      * subject to the {@link #hubUnderSizedForFanOut(HubExtent)} regime check.
@@ -468,14 +451,13 @@ public final class SpacingControlLoop {
     public static final int DENSITY_HUB_FANOUT_CONN_THRESHOLD = 6;
 
     /**
-     * AC-2 hub sub-signal — HH-like adequate-hub <em>base</em> minimum width:
+     * Hub sub-signal — HH-like adequate-hub <em>base</em> minimum width:
      * the minimum for the SMALLEST "large" hub (exactly
      * {@link #DENSITY_HUB_FANOUT_CONN_THRESHOLD}+1 connections). The reframe's
-     * "HH-like ≥300×250" vs the ST clone's 214×68. Story
-     * `backlog-control-loop-density-aware-fixes` Fix-2: this is the base of a
+     * "HH-like ≥300×250" vs the ST clone's 214×68. This is the base of a
      * <strong>fan-out-scaled</strong> minimum (see
      * {@link #requiredHubMinWidthPx(int)}), NOT a flat exclusive-{@code <}
-     * floor — a flat 300×250 mis-classified the row-773 AC-8 HH 300×250 hub
+     * floor — a flat 300×250 mis-classified the HH 300×250 hub
      * with 17 connections as "adequate" ({@code 300<300=false}), so the loop
      * PASS-honested a view Arm-A proved clearable to HPQ 0.97 by resizing
      * that hub to ≈390×325.
@@ -483,29 +465,29 @@ public final class SpacingControlLoop {
     public static final int DENSITY_HUB_MIN_WIDTH_PX = 300;
 
     /**
-     * AC-2 hub sub-signal — HH-like adequate-hub <em>base</em> minimum height
+     * Hub sub-signal — HH-like adequate-hub <em>base</em> minimum height
      * for the smallest "large" hub (see {@link #DENSITY_HUB_MIN_WIDTH_PX} /
-     * {@link #requiredHubMinHeightPx(int)} for the Fix-2 fan-out scaling).
+     * {@link #requiredHubMinHeightPx(int)} for the fan-out scaling).
      */
     public static final int DENSITY_HUB_MIN_HEIGHT_PX = 250;
 
     /**
-     * Story `backlog-control-loop-density-aware-fixes` Fix-2 — extra adequate
+     * Extra adequate
      * width (px) required PER hub connection above the smallest "large" hub
      * (i.e. per connection beyond {@link #DENSITY_HUB_FANOUT_CONN_THRESHOLD}+1).
-     * Calibrated against the row-773 AC-8 A-HH-R1 datapoint: a 300×250 hub is
+     * Calibrated against the A-HH-R1 datapoint: a 300×250 hub is
      * inadequate for 17 connections; ≈390×325 cleared HPQ 0.97 / M4 4 /
      * coincSeg 0. With base 300 and {@code extra(17)=10}, this yields a
      * required minimum width of {@code 300 + 10×10 = 400 ≥ 390} so
      * {@code (300,250,17)} flags under-sized AND the coupled
      * {@code buildDensityHubResizeCommand} resize target is ≥ the
      * Arm-A-proven-clearable extent (predicate↔resize-target consistency —
-     * Fix-2's hidden coupling: fan-out-scale BOTH or it is a no-op loop).
+     * the hidden coupling: fan-out-scale BOTH or it is a no-op loop).
      */
     public static final int DENSITY_HUB_WIDTH_PER_CONN_PX = 10;
 
     /**
-     * Story `backlog-control-loop-density-aware-fixes` Fix-2 — extra adequate
+     * Extra adequate
      * height (px) per hub connection above the smallest "large" hub.
      * Calibrated so {@code 250 + 8×extra(17)=330 ≥ 325} (the A-HH-R1
      * proven-clearable height); monotone in connection count.
@@ -561,14 +543,14 @@ public final class SpacingControlLoop {
         int currentSpacing = request.initialSpacingPx();
         boolean bestStateIsInitial = true;
 
-        // --- Density-aware 3-state termination loop state (this story) ---
+        // --- Density-aware 3-state termination loop state ---
         // All inert unless a regime signal is present (avgSpacingPx != NaN
         // OR hubExtent != null); when absent the loop is byte-identical to
-        // the row-703 2-state back-off (AC-1/AC-7/AC-12 pin preservation).
+        // the 2-state back-off (pin preservation).
         int stepsSinceAggregateGain = 0;            // Q4 stall-window counter
-        int escalationItersUsed = 0;                // AC-4 escalate-cap counter
+        int escalationItersUsed = 0;                // escalate-cap counter
         boolean escalating = false;                 // escalate-mode latch
-        boolean hubResizeApplied = false;           // AC-4 one-shot guard
+        boolean hubResizeApplied = false;           // one-shot guard
         int escalationCeilingPx = request.targetSpacingPx(); // raised on
                 // escalate to ≥ DENSITY_MIDBAND_TARGET_PX (Task-0.5 Q2)
 
@@ -580,10 +562,10 @@ public final class SpacingControlLoop {
             //    guard runs against escalationCeilingPx — equal to
             //    request.targetSpacingPx() until escalate raises it to
             //    ≥ DENSITY_MIDBAND_TARGET_PX (Task-0.5 Q2), so the NON-
-            //    escalating path is byte-identical to row-703. In escalate
-            //    mode the +10 ladder is overridden by a LARGE step that
-            //    converges the spacing knob to the raised ceiling in
-            //    ≤ MAX_DENSITY_ESCALATION_ITERS jumps (AC-4 cost-aware).
+            //    escalating path is byte-identical to the 2-state form. In
+            //    escalate mode the +10 ladder is overridden by a LARGE step
+            //    that converges the spacing knob to the raised ceiling in
+            //    ≤ MAX_DENSITY_ESCALATION_ITERS jumps (cost-aware).
             // ----------------------------------------------------------
             SpacingIterationDecision decision =
                     SpacingIterationDecision.decideNextStep(
@@ -621,12 +603,12 @@ public final class SpacingControlLoop {
                             request.perIterationStepCapPx());
                 }
                 if (!decision.keepGoing()) {
-                    // NOT escalating → row-703 ladder-exhausted
+                    // NOT escalating → ladder-exhausted
                     // budget-exhausted terminal (regime absent →
                     // byte-identical). Escalating but the raised ceiling
                     // ALSO has no headroom (knob already ≥ mid-band yet
                     // measured avgSpacing still below regime) → the
-                    // Task-0.5 Q2 safety net: preserved row-703 terminal,
+                    // Task-0.5 Q2 safety net: preserved terminal,
                     // accepted state intact (honest, NOT a false reflow
                     // claim, never a degraded view).
                     return finalizeWithReset(iterations, acceptedCommands,
@@ -649,7 +631,7 @@ public final class SpacingControlLoop {
                         request.perIterationStepCapPx());
                 if (proposedDelta <= 0) {
                     // Escalation headroom exhausted (Task-0.5 Q2 safety
-                    // net) — preserved row-703 budget-exhausted terminal.
+                    // net) — preserved budget-exhausted terminal.
                     return finalizeWithReset(iterations, acceptedCommands,
                             REASON_BUDGET_EXHAUSTED_PREFIX
                                     + acceptedCommands.size()
@@ -661,14 +643,14 @@ public final class SpacingControlLoop {
             }
 
             // ----------------------------------------------------------
-            // 1b. AC-4 ONE-SHOT hub-resize (owner-ratified Scoped Option
+            // 1b. ONE-SHOT hub-resize (Scoped Option
             //     B) — built + executed EXACTLY ONCE, at the top of the
             //     first escalate-mode iteration, BEFORE the spacing
             //     command so the spacing helper's best-of-K route+assess
             //     observes the resized hub. Paired with this iteration's
             //     spacing step (accepted/reverted together); the accessor
             //     wraps it in the SWT-dispatch GefSpacingMutationCommand
-            //     so it inherits the row-703 partial-commit guard. null
+            //     so it inherits the partial-commit guard. null
             //     (no large under-sized hub / unavailable) → escalation
             //     degrades to spacing-only (loop unaffected).
             // ----------------------------------------------------------
@@ -735,10 +717,9 @@ public final class SpacingControlLoop {
             // 3. APPLY — speculative execute, then observe
             //
             // GRACEFUL-DEGRADATION (Decision-A.1.1 = α' patch, Session 8
-            // 2026-05-15, root-cause fix for AC-8.7 disposition C
-            // model-bias-unfixable-via-loop-design under Session 7 patch
-            // observed in `control-loop-redesign-empirical-2026-05-15-
-            // session7/aggregate.md`): cmd.execute() invokes the helper's
+            // 2026-05-15, root-cause fix for the disposition-C
+            // model-bias-unfixable-via-loop-design observed under the
+            // Session 7 patch): cmd.execute() invokes the helper's
             // mergedCompound.execute() which is a GEF CompoundCommand. GEF
             // CompoundCommand.execute() iterates inner commands FORWARD and
             // does NOT roll back on partial-throw — any RuntimeException
@@ -750,8 +731,7 @@ public final class SpacingControlLoop {
             // (ArchiModelAccessorImpl.java:7707 region), and is wrapped as
             // MCP `INTERNAL_ERROR` — the exact symptom triad
             // (INTERNAL_ERROR + partial-commit + silent-state-advance)
-            // documented across Sessions 6 + 7 + memory anchor
-            // [[feedback_control_loop_internal_error_partial_commit]].
+            // documented across Sessions 6 + 7.
             //
             // Recovery: best-effort cmd.undo() rolls back what DID apply
             // (GEF CompoundCommand.undo() reverses sub-commands; for sub-
@@ -760,7 +740,7 @@ public final class SpacingControlLoop {
             // visibility but is NOT added to `acceptedCommands`. Then
             // finalizeWithReset() unwinds the prior accepted commands so
             // the caller's outer compound dispatch sees a clean re-execute
-            // path with ONE undo entry per AC-6.
+            // path with ONE undo entry.
             //
             // Pinned by `SpacingControlLoopPartialCommitRegressionTest`
             // graceful-degradation cmd.execute()-throws assertion +
@@ -775,7 +755,7 @@ public final class SpacingControlLoop {
             } catch (RuntimeException applyFailure) {
                 // Decision-A.1.2 = α'' diagnostic patch (Session 9
                 // 2026-05-15): surface the actual throw site's stack trace
-                // to the Archi runtime log so the next AC-8 re-empirical
+                // to the Archi runtime log so the next re-empirical
                 // captures the underlying NPE/ISE for root-cause
                 // identification. User-facing behaviour unchanged — sub-
                 // agents still observe the graceful-degradation
@@ -854,7 +834,7 @@ public final class SpacingControlLoop {
 
             // ----------------------------------------------------------
             // 4. BACK-OFF predicate — aggregate thresholdsMet + tie-breaks
-            //    (row-703 single-step ACCEPT rule; UNCHANGED).
+            //    (single-step ACCEPT rule; UNCHANGED).
             // ----------------------------------------------------------
             boolean accept = acceptStepDecision(postState, bestState);
 
@@ -872,18 +852,16 @@ public final class SpacingControlLoop {
                     stepsSinceAggregateGain >= DENSITY_TREND_WINDOW;
 
             // ----------------------------------------------------------
-            // 4b. DENSITY-AWARE 3-STATE DISCRIMINATOR (AC-1/AC-2). Active
+            // 4b. DENSITY-AWARE 3-STATE DISCRIMINATOR. Active
             //     ONLY when a regime signal is present; otherwise the loop
-            //     skips this block entirely and the PRESERVED row-703
+            //     skips this block entirely and the PRESERVED
             //     2-state §4/§5/§6 below runs byte-identically (the
-            //     invariant that keeps every pre-existing pin GREEN —
-            //     AC-1/AC-7/AC-12).
+            //     invariant that keeps every pre-existing pin GREEN).
             // ----------------------------------------------------------
             if (regimeSignalAvailable(postState, request.hubExtent())) {
                 boolean below =
                         belowRegime(postState, request.hubExtent());
-                // Story `backlog-control-loop-st-escalate-condition-agent-
-                // in-loop` (row 776) Q1+Q2: thread the escalation-budget
+                // Q1+Q2: thread the escalation-budget
                 // signal into the (now decoupled) classifier as a pure
                 // parameter — `escalationItersUsed` is loop-internal state,
                 // NOT read inside the classifier (keeps it 2×2×2-pinnable).
@@ -892,14 +870,14 @@ public final class SpacingControlLoop {
                 // inside the SAME `regimeSignalAvailable` master gate as the
                 // :882 density block, so the decoupled ESCALATE state is
                 // actually reachable at :933 on the budget-exhausting
-                // trajectory the row-775 probe verbatim took (closing the
+                // trajectory the probe verbatim took (closing the
                 // :1141-before-:607 bypass) — escalate is attempted on
                 // every below-regime+budget iteration, so the loop cannot
                 // budget-exhaust below-regime with budget remaining without
                 // having attempted escalate. The cost cap
                 // (MAX_DENSITY_ESCALATION_ITERS, Given B N×K) is NOT
                 // loosened. Regime-signal-absent ⇒ this whole block is
-                // skipped ⇒ row-703-byte-identical (AC-4).
+                // skipped ⇒ 2-state-byte-identical.
                 boolean escalationBudgetRemaining =
                         escalationItersUsed < MAX_DENSITY_ESCALATION_ITERS;
                 DensityTerminationState densityState =
@@ -910,8 +888,8 @@ public final class SpacingControlLoop {
                         == DensityTerminationState.PASS_HONEST) {
                     // Stalled AND in-regime → more spacing/hub-resize
                     // cannot help (Given A: best-of-K-optimised, so this
-                    // is a trustworthy reflow signal). NEVER auto-reflow
-                    // (AC-6): keep an accept-able (non-degrading) step,
+                    // is a trustworthy reflow signal). NEVER auto-reflow:
+                    // keep an accept-able (non-degrading) step,
                     // revert a degrading one (never present a degraded
                     // view), emit the actionable diagnosis, HALT.
                     if (accept) {
@@ -955,14 +933,14 @@ public final class SpacingControlLoop {
                         && escalationItersUsed
                                 < MAX_DENSITY_ESCALATION_ITERS) {
                     // Stalled AND below-regime AND escalation budget
-                    // remains → DO NOT halt (THE row-703 too-early
+                    // remains → DO NOT halt (THE too-early
                     // back-off fix). Keep an accept-able step; revert a
                     // degrading one (best preserved — never degrade).
                     // Enter/continue escalate mode + raise the effective
                     // ceiling to ≥ DENSITY_MIDBAND_TARGET_PX (Task-0.5
                     // Q2) so the large step reaches in-regime within the
                     // cap (PASS-honest then only ever fires in-regime —
-                    // no AC-8 reflow-claimed-while-below-regime FAIL).
+                    // no reflow-claimed-while-below-regime FAIL).
                     if (accept) {
                         if (hubResizeCmd != null) {
                             acceptedCommands.add(hubResizeCmd);
@@ -1010,7 +988,7 @@ public final class SpacingControlLoop {
                     // Climbing window not yet stalled, regime signal
                     // present, this step regressed: revert it (best
                     // preserved) but KEEP ITERATING so escalate /
-                    // PASS-honest can be reached — the row-703 too-early
+                    // PASS-honest can be reached — the too-early
                     // back-off fix applied pre-stall too.
                     cmd.undo();
                     if (hubResizeCmd != null) {
@@ -1027,29 +1005,28 @@ public final class SpacingControlLoop {
                                     + stepIndex));
                     continue;
                 }
-                // else fall through to the PRESERVED row-703 2-state:
+                // else fall through to the PRESERVED 2-state:
                 //   - CONTINUE + accept  → §5 ACCEPT (climbing happy path)
                 //   - ESCALATE, cap exhausted, !accept  → §4 back-off
-                //     (Task-0.5 Q2 safety net; preserved row-703 terminal,
-                //     NOT PASS-honest → no AC-8 FAIL; no 4th state)
+                //     (Task-0.5 Q2 safety net; preserved terminal,
+                //     NOT PASS-honest → no FAIL; no 4th state)
                 //   - ESCALATE, cap exhausted, accept  → §5 ACCEPT then
                 //     budget-bounded preserved terminal (honest).
             }
 
             // ----------------------------------------------------------
-            // 4 (PRESERVED row-703 2-state). Byte-identical to row-703
+            // 4 (PRESERVED 2-state). Byte-identical to the 2-state form
             //    when the regime signal is ABSENT (pure-unit: NaN
             //    avgSpacing + null hubExtent → every pin GREEN). Also the
             //    Task-0.5 Q2 escalation-cap safety net + the CONTINUE+
             //    accept happy path. The only additive change is the
             //    no-op-when-null hubResizeCmd unwind (hubResizeCmd is
-            //    always null unless escalate ran → row-703 unaffected).
+            //    always null unless escalate ran → 2-state unaffected).
             // ----------------------------------------------------------
             if (!accept) {
                 // ------------------------------------------------------
-                // Story `backlog-control-loop-st-passhonest-branch-agent-
-                // in-loop` (row 775) — TERMINAL-REINTERPRETATION,
-                // insertion point #1. If this preserved row-703 §4 give-up
+                // TERMINAL-REINTERPRETATION,
+                // insertion point #1. If this preserved §4 give-up
                 // fires while a regime signal is present AND the view is
                 // in-regime, it IS the density-floor stall (Given A: the
                 // post/baseline are best-of-K-optimised → a give-up
@@ -1059,15 +1036,14 @@ public final class SpacingControlLoop {
                 // PASS_HONEST (emit the actionable diagnosis, revert the
                 // degrading step — never present a degraded view), gated
                 // EXACTLY like the :882 density block so regime-signal-
-                // absent ⇒ row-703-byte-identical (AC-4). Byte-mirrors the
+                // absent ⇒ 2-state-byte-identical. Byte-mirrors the
                 // L888 PASS_HONEST !accept handling (:912-930) WITHOUT
-                // touching that branch (AC-2/AC-4). NOTE: by the loop's
+                // touching that branch. NOTE: by the loop's
                 // control flow this §4 terminal is reached only via the
                 // ESCALATE-cap-exhausted fall-through (⇒ belowRegime==true
                 // by construction), so this guard is a defensive,
-                // AC-4-preserving sibling of insertion point #2 (:1081,
-                // the active in-regime terminal); see the row-775 story
-                // Debug Log + AC-2.
+                // invariant-preserving sibling of insertion point #2
+                // (:1081, the active in-regime terminal).
                 if (inRegimeWithSignal(postState, request.hubExtent())) {
                     cmd.undo();
                     if (hubResizeCmd != null) {
@@ -1137,8 +1113,7 @@ public final class SpacingControlLoop {
         }
 
         // ------------------------------------------------------------------
-        // Story `backlog-control-loop-st-passhonest-branch-agent-in-loop`
-        // (row 775) — TERMINAL-REINTERPRETATION, insertion point #2 (the
+        // TERMINAL-REINTERPRETATION, insertion point #2 (the
         // ACTIVE in-regime terminal — the B-ST-R2 pattern). The loop spent
         // its whole iterationBudget without ladder-exhaustion / goal /
         // regression — many-small-gains kept resetting the :882 2-step
@@ -1149,11 +1124,11 @@ public final class SpacingControlLoop {
         // actionable diagnosis. No step to revert here (budget exhausted on
         // ACCEPTED state — `bestState` is non-degrading by construction:
         // every accepted step had post.thresholdsMet ≥ best.thresholdsMet;
-        // never a degraded view — AC-6). Loop-local `postState` is out of
+        // never a degraded view). Loop-local `postState` is out of
         // scope post-loop; `bestState` IS the loop's final accepted
         // post-state at this terminal. Gated EXACTLY like the :882 density
-        // block ⇒ regime-signal-absent ⇒ the preserved row-703
-        // `budget_exhausted` fires byte-identically (AC-4).
+        // block ⇒ regime-signal-absent ⇒ the preserved
+        // `budget_exhausted` fires byte-identically.
         if (inRegimeWithSignal(bestState, request.hubExtent())) {
             return finalizeAsDensityPassHonest(iterations, acceptedCommands,
                     currentSpacing, bestState, request.hubExtent());
@@ -1173,7 +1148,7 @@ public final class SpacingControlLoop {
     // ------------------------------------------------------------------
 
     /**
-     * Per AC-3 + tie-break ordering documented in architecture-spec § 1.3.
+     * Aggregate ACCEPT rule + tie-break ordering.
      *
      * <p>ACCEPT rule: {@code post.thresholdsMet >= best.thresholdsMet}
      * (strictly increasing OR equal). On equality, four-tier tie-break:
@@ -1211,41 +1186,40 @@ public final class SpacingControlLoop {
     }
 
     // ------------------------------------------------------------------
-    // Density-aware 3-state discriminator (AC-2) + axis helpers + the
-    // AC-6 actionable PASS-honest diagnosis builder. All pure static —
+    // Density-aware 3-state discriminator + axis helpers + the
+    // actionable PASS-honest diagnosis builder. All pure static —
     // pinned directly by SpacingControlLoopDensityAwareTerminationTest.
     // ------------------------------------------------------------------
 
-    /** The AC-1 3-state termination decision (replaces the 2-state). */
+    /** The 3-state termination decision (replaces the 2-state). */
     public enum DensityTerminationState {
-        /** Aggregate still climbing — keep iterating (row-703 ACCEPT path). */
+        /** Aggregate still climbing — keep iterating (ACCEPT path). */
         CONTINUE,
         /** Stalled + below-regime — escalate spacing/hub (fixes the
-         *  row-703 too-early back-off bug). */
+         *  too-early back-off bug). */
         ESCALATE,
         /** Stalled + in-regime — surface the actionable reflow-required
-         *  diagnosis; NEVER auto-reflow (AC-6). */
+         *  diagnosis; NEVER auto-reflow. */
         PASS_HONEST
     }
 
     /**
-     * The single AC-2 discriminator: classifies a post-iteration state on the
-     * 2×2 of aggregate-trend × spacing-regime-position, with the Story
-     * `backlog-control-loop-st-escalate-condition-agent-in-loop` (row 776)
+     * The single discriminator: classifies a post-iteration state on the
+     * 2×2 of aggregate-trend × spacing-regime-position, with the
      * escalation-budget axis added so ESCALATE is DECOUPLED from the
      * aggregate-stall window.
      *
-     * <p><strong>Row-776 decoupling (the ONLY behavioural delta vs the
-     * pre-776 2-arg table):</strong> the NEW cell {@code !aggregateStalled &
+     * <p><strong>Escalation-budget decoupling (the ONLY behavioural delta vs
+     * the earlier 2-arg table):</strong> the NEW cell {@code !aggregateStalled &
      * belowRegime & escalationBudgetRemaining → ESCALATE}. Every other cell
-     * is preserved EXACTLY. Root cause #1 of the row-775 Task-8 AC-6 FAIL:
+     * is preserved EXACTLY. Root cause #1 of the earlier FAIL:
      * on the pathological ST view under the agent-in-loop the trajectory is
      * "many-small-gains" — {@code aggregateGained} keeps being true so the
      * 2-step stall window ({@link #DENSITY_TREND_WINDOW}, reset every gain at
-     * the caller) NEVER accumulates, so the pre-776 {@code !aggregateStalled
+     * the caller) NEVER accumulates, so the earlier {@code !aggregateStalled
      * → CONTINUE} returned CONTINUE forever, the {@code :933} post-state
      * ESCALATE branch was never entered, the loop budget-exhausted
-     * BELOW-regime and the already-built row-775 insertion #2 (gated on
+     * BELOW-regime and the already-built insertion #2 (gated on
      * in-regime) stayed dormant (ST PASS-honest 0/3). A below-regime state
      * WITH escalation budget is a trustworthy "escalate the spacing" signal
      * even before the stall window trips (Given A: every iteration is
@@ -1253,7 +1227,7 @@ public final class SpacingControlLoop {
      * deficit, not routing jitter) — so escalate on it directly. CONTINUE is
      * kept for in-regime climbing (preserved) AND for the
      * no-escalation-budget case (cannot escalate ⇒ must fall through to the
-     * preserved row-703 terminal, must NOT livelock).
+     * preserved terminal, must NOT livelock).
      * {@link #DENSITY_TREND_WINDOW} is byte-unchanged and remains the
      * PASS_HONEST trigger ONLY.</p>
      *
@@ -1261,8 +1235,7 @@ public final class SpacingControlLoop {
      * parameter by the caller ({@code escalationItersUsed <
      * MAX_DENSITY_ESCALATION_ITERS}); it does NOT read mutable loop state —
      * so the (now 2×2×2) table is directly truth-table-pinnable
-     * ({@code SpacingControlLoopDensityAwareTerminationTest} §A,
-     * AC-5-re-derived).</p>
+     * ({@code SpacingControlLoopDensityAwareTerminationTest} §A).</p>
      *
      * @param aggregateStalled trend axis — true iff the ship-gate
      *        {@link LayoutMetrics#thresholdsMet()} aggregate has not strictly
@@ -1270,25 +1243,25 @@ public final class SpacingControlLoop {
      *        iterations (Given A makes this best-of-K-optimised, trustworthy).
      * @param belowRegime regime axis — true iff the view is below the
      *        prescribed spacing/hub regime (see {@link #belowRegime}).
-     * @param escalationBudgetRemaining row-776 escalation-budget axis — true
+     * @param escalationBudgetRemaining escalation-budget axis — true
      *        iff escalation budget remains (the caller passes
      *        {@code escalationItersUsed < MAX_DENSITY_ESCALATION_ITERS}); the
      *        cost cap itself is NOT loosened (Given B, N×K — byte-unchanged).
      * @return CONTINUE (in-regime climbing, OR below-regime climbing with no
      *         escalation budget) / ESCALATE (below-regime with budget —
-     *         row-776 decoupled; OR stalled + below-regime — preserved) /
+     *         decoupled; OR stalled + below-regime — preserved) /
      *         PASS_HONEST (stalled + in-regime — preserved). No 4th state.
      */
     public static DensityTerminationState classifyDensityTermination(
             boolean aggregateStalled, boolean belowRegime,
             boolean escalationBudgetRemaining) {
         if (!aggregateStalled) {
-            // Row-776 decoupling: escalate on below-regime + budget even
-            // before the stall window trips (defeats the row-775 Task-8
-            // FAIL root cause #1). In-regime climbing, or below-regime with
+            // Escalation-budget decoupling: escalate on below-regime +
+            // budget even before the stall window trips (defeats FAIL
+            // root cause #1). In-regime climbing, or below-regime with
             // no escalation budget, stays CONTINUE (preserved
             // !aggregateStalled→CONTINUE; the no-budget case must fall
-            // through to the preserved row-703 terminal — cannot livelock).
+            // through to the preserved terminal — cannot livelock).
             if (belowRegime && escalationBudgetRemaining) {
                 return DensityTerminationState.ESCALATE;
             }
@@ -1303,20 +1276,20 @@ public final class SpacingControlLoop {
      * Regime-signal availability gate. When NEITHER a measured
      * {@code avgSpacingPx} NOR a {@link HubExtent} is supplied, the
      * density-aware discriminator is INERT and the loop reduces
-     * byte-identically to the row-703 2-state back-off — the invariant that
-     * preserves every pre-existing pin (AC-1/AC-7/AC-12).
+     * byte-identically to the 2-state back-off — the invariant that
+     * preserves every pre-existing pin.
      */
     static boolean regimeSignalAvailable(LayoutMetrics post, HubExtent hub) {
         return !Double.isNaN(post.avgSpacingPx()) || hub != null;
     }
 
     /**
-     * AC-2 spacing-regime-position axis. Below-regime iff the measured
+     * Spacing-regime-position axis. Below-regime iff the measured
      * average spacing is strictly below {@link #DENSITY_REGIME_LOWER_PX}
      * (when supplied) OR the dominant hub is under-sized for its fan-out.
      * In-regime iff neither sub-signal trips. Derived ONLY from the existing
      * {@code averageSpacing()} read + the existing {@code detectHubElements}
-     * read — NO new {@code LayoutQualityAssessor} metric (AC-3/AC-13).
+     * read — NO new {@code LayoutQualityAssessor} metric.
      */
     static boolean belowRegime(LayoutMetrics post, HubExtent hub) {
         boolean avgKnown = !Double.isNaN(post.avgSpacingPx());
@@ -1332,8 +1305,8 @@ public final class SpacingControlLoop {
      * adequate-hub minimum grows from its HH-like base by this many
      * connection-increments. {@code 0} at (and below) the smallest large hub
      * so the established HH-like base 300×250 is preserved exactly there
-     * (zero behaviour change at the row-773 anchor; growth ONLY for higher
-     * fan-out). Story `backlog-control-loop-density-aware-fixes` Fix-2.
+     * (zero behaviour change at the anchor; growth ONLY for higher
+     * fan-out).
      */
     static int hubFanOutExcess(int connectionCount) {
         return Math.max(0,
@@ -1341,7 +1314,7 @@ public final class SpacingControlLoop {
     }
 
     /**
-     * Fix-2 — the fan-out-scaled adequate-hub minimum WIDTH for a hub
+     * The fan-out-scaled adequate-hub minimum WIDTH for a hub
      * carrying {@code connectionCount} connections: the HH-like base
      * {@link #DENSITY_HUB_MIN_WIDTH_PX} plus
      * {@link #DENSITY_HUB_WIDTH_PER_CONN_PX} per connection beyond the
@@ -1351,7 +1324,7 @@ public final class SpacingControlLoop {
      * {@link #hubUnderSizedForFanOut(HubExtent)} (the predicate) and
      * {@code ArchiModelAccessorImpl.buildDensityHubResizeCommand} (the resize
      * target) MUST both read THIS — fan-out-scale both or the escalate
-     * hub-resize is a no-op loop (Fix-2's hidden coupling).
+     * hub-resize is a no-op loop (the hidden coupling).
      */
     static int requiredHubMinWidthPx(int connectionCount) {
         return DENSITY_HUB_MIN_WIDTH_PX
@@ -1360,7 +1333,7 @@ public final class SpacingControlLoop {
     }
 
     /**
-     * Fix-2 — the fan-out-scaled adequate-hub minimum HEIGHT for
+     * The fan-out-scaled adequate-hub minimum HEIGHT for
      * {@code connectionCount} connections (see
      * {@link #requiredHubMinWidthPx(int)} for the coupling contract).
      */
@@ -1371,20 +1344,20 @@ public final class SpacingControlLoop {
     }
 
     /**
-     * AC-2 hub sub-signal: a LARGE hub (&gt;
+     * Hub sub-signal: a LARGE hub (&gt;
      * {@link #DENSITY_HUB_FANOUT_CONN_THRESHOLD} connections) whose width OR
      * height is below the <strong>fan-out-scaled</strong> adequate minimum
      * for its OWN connection count is under-sized for its fan-out (the ST
-     * clone's 214×68 hub on 7+ connections; the row-773 AC-8 HH 300×250 hub
+     * clone's 214×68 hub on 7+ connections; the HH 300×250 hub
      * on 17 connections — {@code 300 < requiredHubMinWidthPx(17)=400}).
      *
-     * <p>Story `backlog-control-loop-density-aware-fixes` Fix-2: replaced the
+     * <p>Replaced the
      * flat exclusive-{@code <} 300×250 (which evaluated a 300×250/17-conn hub
      * {@code 300<300=false ∧ 250<250=false ⇒ "adequate"} and PASS-honested a
      * clearable HH view) with a fan-out-scaled minimum keyed off
      * {@code maxHubConnectionCount}. The {@code >} fan-out gate, the
      * width-OR-height disjunction, and {@code null}/small-hub semantics are
-     * UNCHANGED — calibration only, no 2×2 / enum / objective change (AC-4).</p>
+     * UNCHANGED — calibration only, no 2×2 / enum / objective change.</p>
      */
     static boolean hubUnderSizedForFanOut(HubExtent hub) {
         if (hub == null
@@ -1398,12 +1371,12 @@ public final class SpacingControlLoop {
     }
 
     /**
-     * AC-6 actionable PASS-honest diagnosis — names the violated
+     * Actionable PASS-honest diagnosis — names the violated
      * precondition (measured avgSpacing vs the 100–124px band; hub WxH vs
      * its connection count) and OFFERS a structural reflow as an explicit
      * user-consentable next step. Text/affordance ONLY — the loop never
-     * invokes any auto-layout/reflow/RoutingPipeline path (AC-6/AC-13).
-     * LLM-self-contained ([[feedback_tool_description_llm_self_contained]]).
+     * invokes any auto-layout/reflow/RoutingPipeline path.
+     * LLM-self-contained.
      */
     static String buildDensityDiagnosis(LayoutMetrics post, HubExtent hub) {
         StringBuilder sb = new StringBuilder();
@@ -1443,26 +1416,25 @@ public final class SpacingControlLoop {
     }
 
     // ------------------------------------------------------------------
-    // Story `backlog-control-loop-st-passhonest-branch-agent-in-loop`
-    // (row 775) — terminal-reinterpretation helpers. Both are NEW private
-    // statics consumed ONLY by the two row-775 guarded pre-emptions (the
+    // Terminal-reinterpretation helpers. Both are NEW private
+    // statics consumed ONLY by the two guarded pre-emptions (the
     // §4 :1027 insertion #1 + the unconditional budget-exhausted :1081
     // insertion #2). They do NOT touch — and are NOT called by — the L888
     // PASS_HONEST branch, the L933 ESCALATE branch, the L987 CONTINUE
     // branch, `classifyDensityTermination`, `DENSITY_TREND_WINDOW`, the
-    // Fix-1 `ComposerSpeculativeReplay`/`SwtUiThreadDispatcher` boundary,
-    // the Fix-2 fan-out hub sub-signal, or `RouteNormalizedBaseline`
-    // (AC-2/AC-4 byte-unchanged invariant).
+    // `ComposerSpeculativeReplay`/`SwtUiThreadDispatcher` boundary,
+    // the fan-out hub sub-signal, or `RouteNormalizedBaseline`
+    // (byte-unchanged invariant).
     // ------------------------------------------------------------------
 
     /**
-     * Row-775 reinterpretation gate — TRUE iff a regime signal is present
+     * Reinterpretation gate — TRUE iff a regime signal is present
      * AND the view is in-regime. This is the SAME predicate the :882
      * density block uses (`regimeSignalAvailable(...) && !belowRegime(...)`)
-     * applied at the two preserved row-703 give-up terminals so that, when
+     * applied at the two preserved give-up terminals so that, when
      * NO regime signal is present, the guard is inert and those terminals
-     * fire byte-identically to row-703 (the AC-4 regime-signal-absent ⇒
-     * row-703-byte-identical invariant; pinned by the regimeAbsent_* pins).
+     * fire byte-identically to the 2-state form (the regime-signal-absent ⇒
+     * 2-state-byte-identical invariant; pinned by the regimeAbsent_* pins).
      * {@link #regimeSignalAvailable}/{@link #belowRegime} themselves are
      * UNCHANGED — this only composes them at the new sites.
      */
@@ -1472,7 +1444,7 @@ public final class SpacingControlLoop {
     }
 
     /**
-     * Row-775 reinterpretation finalize — terminate the loop on the AC-6
+     * Reinterpretation finalize — terminate the loop on the
      * PASS-honest terminal: emit {@link #REASON_DENSITY_FLOOR_REFLOW_REQUIRED}
      * + the actionable {@link #buildDensityDiagnosis} text, resetting the
      * accepted commands via the existing {@link #finalizeWithReset} 5-arg
@@ -1498,7 +1470,7 @@ public final class SpacingControlLoop {
     // Internal — finalize with reset (undo accepted commands in reverse
     // order so the caller can push the compound through the stack which
     // will re-run each accepted command's execute() in order, recording
-    // ONE undo entry per AC-6)
+    // ONE undo entry)
     // ------------------------------------------------------------------
 
     private static Result finalizeWithReset(
@@ -1511,9 +1483,9 @@ public final class SpacingControlLoop {
     }
 
     /**
-     * AC-6 overload — carries the actionable density diagnosis on the
+     * Overload — carries the actionable density diagnosis on the
      * {@link #REASON_DENSITY_FLOOR_REFLOW_REQUIRED} PASS-honest branch (null
-     * on every preserved row-703 terminal — the 4-arg form delegates here
+     * on every preserved terminal — the 4-arg form delegates here
      * with null).
      */
     private static Result finalizeWithReset(

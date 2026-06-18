@@ -10,7 +10,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Post-routing path straightening (backlog-b42, B71).
+ * Post-routing path straightening.
  * Pure-geometry class — no EMF/SWT dependencies.
  *
  * <p>Cleans up routed paths after all pipeline stages by applying four
@@ -22,15 +22,15 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  *   <li>{@link #collapseBends} — removes redundant intermediate bendpoints</li>
  * </ol>
  *
- * <h2>B71 perimeter-terminal immutability wrap</h2>
+ * <h2>Perimeter-terminal immutability wrap</h2>
  *
  * <p>Each of the four mutators above is one of the five "wrap sites" governed by
  * {@link TerminalAnchoring#preservesTerminalAnchoring}. The new overloads accept
  * source/target {@link TerminalAnchoring} pairs and snapshot the path on entry,
  * run the mutation, then roll back if the predicate is violated at either
  * terminal. The legacy overloads (without anchorings) bypass the wrap and are
- * preserved for pre-B71 callers — primarily {@link PathStraightener}'s own unit
- * tests. The B70 / B70-a {@code containsPerimeterBP} guards previously living
+ * preserved for legacy callers — primarily {@link PathStraightener}'s own unit
+ * tests. The legacy {@code containsPerimeterBP} guards previously living
  * inside {@link #eliminateReversals} and {@link #collapseBends} are removed by
  * this rewrite — the predicate-based wrap supersedes them.
  *
@@ -51,7 +51,7 @@ public class PathStraightener {
     /**
      * Snaps near-aligned consecutive points to eliminate small jogs.
      *
-     * <p>Legacy overload — runs the mutation without the B71 wrap. Used by unit
+     * <p>Legacy overload — runs the mutation without the wrap. Used by unit
      * tests that have no terminal anchoring context.</p>
      */
     public static void snapToStraight(List<AbsoluteBendpointDto> path, int threshold,
@@ -60,7 +60,7 @@ public class PathStraightener {
     }
 
     /**
-     * B71 wrap-site overload: runs {@link #snapToStraight} with terminal
+     * Wrap-site overload: runs {@link #snapToStraight} with terminal
      * anchoring rollback. On predicate violation at either terminal, the
      * path is rolled back to its pre-mutation snapshot.
      *
@@ -150,7 +150,7 @@ public class PathStraightener {
     /**
      * Eliminates direction reversal patterns (overshoot-then-doubleback).
      *
-     * <p>Legacy overload — runs the mutation without the B71 wrap.</p>
+     * <p>Legacy overload — runs the mutation without the wrap.</p>
      */
     public static void eliminateReversals(List<AbsoluteBendpointDto> path,
             List<RoutingRect> obstacles) {
@@ -158,7 +158,7 @@ public class PathStraightener {
     }
 
     /**
-     * B71 wrap-site overload. Replaces the B70 perimeter-terminal guard with
+     * Wrap-site overload. Replaces the perimeter-terminal guard with
      * the {@link TerminalAnchoring} predicate snapshot/rollback pattern.
      *
      * @param augmented see {@link #snapToStraight(List, int, List, RoutingRect,
@@ -190,18 +190,18 @@ public class PathStraightener {
     /**
      * Core reversal-elimination scan.
      *
-     * <p>C2 (exit-then-return terminal zigzag): when {@code protectTerminals} is true the
+     * <p>Exit-then-return terminal zigzag: when {@code protectTerminals} is true the
      * path is the stage-4.7i <em>augmented</em> frame — sentinel source/target centers occupy
      * index {@code 0} and {@code size - 1}, so the real terminal anchors sit at index {@code 1}
      * and {@code size - 2}. A collapse removes the range {@code [i+1 .. j]}; if that range
      * covers a terminal anchor ({@code i == 0} → index 1; {@code j >= size - 2} → the target
-     * anchor) the B71 wrap ({@link #eliminateReversals(List, List, RoutingRect, RoutingRect,
+     * anchor) the wrap ({@link #eliminateReversals(List, List, RoutingRect, RoutingRect,
      * int[], int[], TerminalAnchoring, TerminalAnchoring, boolean)}) would roll the entire pass
      * back, so the otherwise-valid narrower interior collapse never commits and an
      * exit-then-return overshoot at a terminal survives. Skipping anchor-deleting pairs confines
      * the scan to interior collapses — anchors may still be collapse <em>endpoints</em> but are
      * never <em>removed</em> — so the overshoot body collapses while both terminals stay
-     * byte-identical. The guard only blocks collapses that today always trip the B71 rollback to
+     * byte-identical. The guard only blocks collapses that today always trip the rollback to
      * net no-change, so every currently-kept collapse is unaffected (byte-identical preservation).
      * The legacy {@code (path, obstacles)} overload passes {@code false} — unchanged behaviour.
      */
@@ -224,7 +224,7 @@ public class PathStraightener {
                     if (i == 0 && j + 1 == path.size() - 1) {
                         continue;
                     }
-                    // C2: never collapse across a terminal anchor in the augmented frame
+                    // never collapse across a terminal anchor in the augmented frame
                     // (anchors at index 1 / size-2 of the CURRENT path — size is live,
                     // re-read each guard evaluation, not entry-snapped) — see Javadoc.
                     if (protectTerminals && (i == 0 || j >= path.size() - 2)) {
@@ -275,7 +275,7 @@ public class PathStraightener {
      * Collapses redundant intermediate bendpoints where a direct straight-line
      * connection is obstacle-free.
      *
-     * <p>Legacy overload — runs the mutation without the B71 wrap.</p>
+     * <p>Legacy overload — runs the mutation without the wrap.</p>
      */
     public static void collapseBends(List<AbsoluteBendpointDto> path,
             List<RoutingRect> obstacles) {
@@ -283,10 +283,10 @@ public class PathStraightener {
     }
 
     /**
-     * B71 wrap-site overload. Replaces the B70-a Mode A perimeter-midpoint
+     * Wrap-site overload. Replaces the Mode A perimeter-midpoint
      * guard with the {@link TerminalAnchoring} predicate snapshot/rollback
-     * pattern. This is the primary V4 API Gateway → Relationship Manager
-     * Portal slot 3/7 replay site (compose §10).
+     * pattern. This is the primary site for the fully-collinear hub-center
+     * slot scenario described below.
      *
      * @param augmented see {@link #snapToStraight(List, int, List, RoutingRect,
      *                  RoutingRect, int[], int[], TerminalAnchoring,
@@ -355,7 +355,7 @@ public class PathStraightener {
      * Collapses staircase jog patterns where two parallel segments are connected
      * by a small perpendicular step within the snap threshold.
      *
-     * <p>Legacy overload — runs the mutation without the B71 wrap.</p>
+     * <p>Legacy overload — runs the mutation without the wrap.</p>
      */
     public static void collapseStaircaseJogs(List<AbsoluteBendpointDto> path, int threshold,
             List<RoutingRect> obstacles) {
@@ -363,7 +363,7 @@ public class PathStraightener {
     }
 
     /**
-     * B71 wrap-site overload: runs {@link #collapseStaircaseJogs} with
+     * Wrap-site overload: runs {@link #collapseStaircaseJogs} with
      * terminal anchoring rollback.
      *
      * @param augmented see {@link #snapToStraight(List, int, List, RoutingRect,
@@ -447,7 +447,7 @@ public class PathStraightener {
     // ---------------------------------------------------------------------
 
     /**
-     * B71 wrap helper. Returns {@code true} iff
+     * Wrap helper. Returns {@code true} iff
      * {@link TerminalAnchoring#preservesEndpoints} reports both terminals
      * intact post-mutation.
      *
@@ -458,9 +458,9 @@ public class PathStraightener {
      * wrap site is always ≥ 4 BPs (sentinel + realSrc + realTgt + sentinel),
      * so any post-mutation size below 4 means at least one real terminal
      * has been collapsed out of the interior — REJECT. This is the
-     * load-bearing replacement for the B70 {@code containsPerimeterBP}
+     * load-bearing replacement for the legacy {@code containsPerimeterBP}
      * guard that used to live inside the core mutators: it catches the
-     * slot-at-hub-center class (V4 API Gateway / Rel Mgr Portal) where a
+     * slot-at-hub-center class where a
      * fully-collinear augmented path trivially collapses to
      * {@code [sourceCenter, targetCenter]} under {@link #collapseBendsCore},
      * wiping the perimeter terminals and leaving an empty BP list after

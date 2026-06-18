@@ -46,7 +46,7 @@ public class ViewNoteDtoTest {
         assertEquals(dto1.hashCode(), dto2.hashCode());
     }
 
-    // ---- Story B16: note field tests ----
+    // ---- note field tests ----
 
     @Test
     public void shouldStoreNoteField_whenCanonicalConstructor() {

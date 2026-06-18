@@ -15,13 +15,11 @@ import java.util.List;
  * (current spacing already meets/exceeds the heuristic), {@code after} and
  * {@code adjustResult} are null and {@code noChangeReason} is populated.</p>
  *
- * <p><strong>Control-loop fields</strong> (Story
- * `backlog-convenience-tool-control-loop-architectural-redesign` AC-2 +
- * AC-5, 2026-05-15): {@code terminationReason} + {@code iterationCount} +
+ * <p><strong>Control-loop fields:</strong> {@code terminationReason} + {@code iterationCount} +
  * {@code appliedDeltas} surface the control-loop trajectory to the LLM agent.
  * On any short-circuit / dryRun / pre-control-loop branch, these fields are
  * null / 0 / empty. On the control-loop happy path, {@code terminationReason}
- * is one of the AC-5 taxonomy strings (see
+ * is one of the control-loop taxonomy strings (see
  * {@code SpacingControlLoop} constants), {@code iterationCount} is the number
  * of ACCEPTED iterations (excludes any back-off-reverted attempt), and
  * {@code appliedDeltas} is the ordered list of per-iteration accepted deltas
@@ -65,7 +63,7 @@ import java.util.List;
  * @param adjustResult       delegate result from {@code adjustViewSpacing};
  *                           null under dryRun=true OR when
  *                           interElementDelta=0 (no mutation occurred)
- * @param terminationReason  AC-5 taxonomy string surfaced when the control
+ * @param terminationReason  taxonomy string surfaced when the control
  *                           loop fires; null on pre-loop short-circuit /
  *                           dryRun paths. See {@code SpacingControlLoop}
  *                           constants for the 5-branch taxonomy.
@@ -89,22 +87,18 @@ public record ApplyElementSpacingRecommendationsResultDto(
         AssessLayoutResultDto before,
         AssessLayoutResultDto after,
         AdjustViewSpacingResultDto adjustResult,
-        // Control-loop fields (Story
-        // backlog-convenience-tool-control-loop-architectural-redesign
-        // AC-2 + AC-5, 2026-05-15). Appended; AC-9 backwards-compat.
+        // Control-loop fields. Appended; backwards-compat.
         String terminationReason,
         int iterationCount,
         List<Integer> appliedDeltas,
-        // Density-aware-termination field (Story
-        // backlog-control-loop-density-aware-termination AC-6, 2026-05-17).
+        // Density-aware-termination field.
         // The actionable PASS-honest reflow-required diagnosis; null on
         // every non-PASS-honest path. Appended; backwards-compat preserved.
         String densityFloorDiagnosis) {
 
     /**
-     * Backwards-compatible 14-arg constructor (Story
-     * `backlog-control-loop-density-aware-termination` AC-6 — preserve every
-     * pre-existing 14-arg call site / pin; delegates with
+     * Backwards-compatible 14-arg constructor — preserves every
+     * pre-existing 14-arg call site; delegates with
      * {@code densityFloorDiagnosis = null}). Only the control-loop
      * PASS-honest path forwards the real diagnosis via the 15-arg form.
      */
@@ -131,9 +125,7 @@ public record ApplyElementSpacingRecommendationsResultDto(
     }
 
     /**
-     * Backwards-compatible 11-arg constructor (Story
-     * `backlog-convenience-tool-control-loop-architectural-redesign`
-     * AC-9 backwards-compat for the pre-control-loop callers).
+     * Backwards-compatible 11-arg constructor for the pre-control-loop callers.
      *
      * <p>Pre-Task-3 callers (existing accessor short-circuit + happy-path
      * sites + existing tool-test fixtures) construct the DTO without the

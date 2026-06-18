@@ -5,7 +5,7 @@ import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 
 /**
- * Tests for {@link NudgedElementDto} (Story 13-7).
+ * Tests for {@link NudgedElementDto}.
  */
 public class NudgedElementDtoTest {
 

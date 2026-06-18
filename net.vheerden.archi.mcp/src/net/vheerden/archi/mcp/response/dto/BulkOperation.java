@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Represents a single operation within a bulk-mutate request (Story 7-5).
+ * Represents a single operation within a bulk-mutate request.
  *
  * <p>Each operation specifies a mutation tool to invoke and the parameters
  * for that tool. Supported tools are limited to deterministic mutation

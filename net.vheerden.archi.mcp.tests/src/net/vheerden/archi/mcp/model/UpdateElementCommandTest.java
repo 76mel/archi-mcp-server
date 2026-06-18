@@ -18,7 +18,7 @@ import com.archimatetool.model.IFolder;
 import com.archimatetool.model.IProperty;
 
 /**
- * Tests for {@link UpdateElementCommand} (Story 7-3).
+ * Tests for {@link UpdateElementCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * execute/undo/redo with name, documentation, and property changes.</p>

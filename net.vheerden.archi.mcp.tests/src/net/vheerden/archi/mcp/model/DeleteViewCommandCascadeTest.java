@@ -17,7 +17,7 @@ import com.archimatetool.model.IDiagramModelReference;
 import com.archimatetool.model.IFolder;
 
 /**
- * Tests for {@link DeleteViewCommand} cascade behaviour (Story 14-6.1).
+ * Tests for {@link DeleteViewCommand} cascade behaviour.
  *
  * <p>When a view is deleted, every {@link IDiagramModelReference} visual
  * placeholder elsewhere in the model whose {@code getReferencedModel()} is
@@ -69,7 +69,6 @@ public class DeleteViewCommandCascadeTest {
         return new DeleteViewCommand(view, folder, idx);
     }
 
-    /** AC-1. */
     @Test
     public void shouldCascadeRemoveSinglePlaceholder_whenReferencedViewDeleted() {
         IDiagramModelReference refInB = newRefTo(viewA);
@@ -84,7 +83,7 @@ public class DeleteViewCommandCascadeTest {
                 diagramsFolder.getElements().contains(viewA));
     }
 
-    /** AC-2 (multiple placeholders across sibling views, including a Group nested one). */
+    /** Multiple placeholders across sibling views, including a Group nested one. */
     @Test
     public void shouldCascadeRemoveMultiplePlaceholdersAcrossViews_whenReferencedViewDeleted() {
         IArchimateDiagramModel viewC = factory.createArchimateDiagramModel();
@@ -109,7 +108,7 @@ public class DeleteViewCommandCascadeTest {
                 0, viewC.getChildren().size());
     }
 
-    /** AC-3 (undo restores all cascaded placeholders at original indices). */
+    /** Undo restores all cascaded placeholders at original indices. */
     @Test
     public void shouldRestorePlaceholders_onUndo() {
         IDiagramModelReference refIdx0 = newRefTo(viewA);
@@ -132,7 +131,7 @@ public class DeleteViewCommandCascadeTest {
                 diagramsFolder.getElements().contains(viewA));
     }
 
-    /** AC-2 specific — nested placeholder inside a Group child. */
+    /** Nested placeholder inside a Group child. */
     @Test
     public void shouldHandleNestedPlaceholder_inGroupChild() {
         IDiagramModelGroup group = factory.createDiagramModelGroup();
@@ -158,7 +157,7 @@ public class DeleteViewCommandCascadeTest {
         assertSame(nestedRef, group.getChildren().get(0));
     }
 
-    /** AC-4 (redo correctness — lazy capture survives a full undo→redo cycle). */
+    /** Redo correctness — lazy capture survives a full undo→redo cycle. */
     @Test
     public void shouldRemovePlaceholdersAgain_onRedo() {
         IDiagramModelReference refIdx0 = newRefTo(viewA);
@@ -248,7 +247,7 @@ public class DeleteViewCommandCascadeTest {
         assertSame("Index 4 preserved (non-cascaded)", regularAt4, viewB.getChildren().get(4));
     }
 
-    /** AC-5 (self-reference inside deleted view must NOT be cascaded). */
+    /** Self-reference inside deleted view must NOT be cascaded. */
     @Test
     public void shouldSkipSelfReferenceInsideDeletedView() {
         IDiagramModelReference selfRef = newRefTo(viewA);

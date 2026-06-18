@@ -17,13 +17,13 @@ import com.archimatetool.model.IProperty;
 import net.vheerden.archi.mcp.response.dto.RelationshipSemanticAttributes;
 
 /**
- * GEF Command that updates an existing ArchiMate relationship (Story C10).
+ * GEF Command that updates an existing ArchiMate relationship.
  *
  * <p>Supports updating name, documentation, and properties. Only non-null
  * fields are modified; null fields are left unchanged. For properties,
  * a merge semantic applies: non-null values add/update, null values remove.</p>
  *
- * <p>Story 14-7 (G1): also supports ArchiMate semantic attributes —
+ * <p>Also supports ArchiMate semantic attributes —
  * {@code accessType} (AccessRelationship), {@code associationDirected}
  * (AssociationRelationship), {@code influenceStrength} (InfluenceRelationship).
  * Same null-means-leave-unchanged semantics; empty-string {@code influenceStrength}
@@ -49,7 +49,7 @@ public class UpdateRelationshipCommand extends Command {
     private final String oldName;
     private final String oldDocumentation;
     private final List<PropertySnapshot> oldProperties;
-    // Story 14-7 (G1): old-state snapshots for the 3 semantic-attribute fields.
+    // Old-state snapshots for the 3 semantic-attribute fields.
     // Each is null when the relationship is NOT of the matching subtype.
     private final Integer oldAccessType;
     private final Boolean oldAssociationDirected;
@@ -59,11 +59,11 @@ public class UpdateRelationshipCommand extends Command {
     private final String newName;
     private final String newDocumentation;
     private final Map<String, String> newProperties; // null value = remove key
-    // Story 14-7 (G1): new-state — each null = leave unchanged.
+    // New-state — each null = leave unchanged.
     private final RelationshipSemanticAttributes newSemanticAttributes;
 
     /**
-     * Back-compat 4-arg constructor preserving the pre-G1 signature. Delegates to the
+     * Back-compat 4-arg constructor preserving the prior signature. Delegates to the
      * 5-arg constructor with {@link RelationshipSemanticAttributes#NONE}.
      */
     public UpdateRelationshipCommand(IArchimateRelationship relationship, String newName,
@@ -73,13 +73,13 @@ public class UpdateRelationshipCommand extends Command {
     }
 
     /**
-     * Creates a command to update a relationship's fields (Story 14-7 / G1 canonical).
+     * Creates a command to update a relationship's fields (canonical).
      *
      * @param relationship           the relationship to update
      * @param newName                new name, or null to leave unchanged
      * @param newDocumentation       new documentation, or null to leave unchanged
      * @param newProperties          property merge map (null value = remove key), or null to leave unchanged
-     * @param newSemanticAttributes  G1 semantic-attribute bundle; pass NONE for none
+     * @param newSemanticAttributes  semantic-attribute bundle; pass NONE for none
      */
     public UpdateRelationshipCommand(IArchimateRelationship relationship, String newName,
             String newDocumentation, Map<String, String> newProperties,
@@ -96,7 +96,7 @@ public class UpdateRelationshipCommand extends Command {
         this.oldDocumentation = relationship.getDocumentation();
         this.oldProperties = snapshotProperties(relationship);
 
-        // Story 14-7 (G1): snapshot semantic-attribute old state
+        // Snapshot semantic-attribute old state
         this.oldAccessType = (relationship instanceof IAccessRelationship ar)
                 ? ar.getAccessType() : null;
         this.oldAssociationDirected = (relationship instanceof IAssociationRelationship asr)
@@ -139,8 +139,8 @@ public class UpdateRelationshipCommand extends Command {
     }
 
     /**
-     * Story 14-7 (G1): apply G1 semantic attributes with idempotence guards.
-     * EMF setters fire notifications even on same-value writes (Task 0.6); we guard
+     * Apply semantic attributes with idempotence guards.
+     * EMF setters fire notifications even on same-value writes; we guard
      * to avoid spurious model-dirty flips on no-op update-relationship calls.
      */
     private void applySemanticAttributes() {
@@ -175,7 +175,7 @@ public class UpdateRelationshipCommand extends Command {
     }
 
     /**
-     * Story 14-7 (G1): restore old semantic-attribute values on undo.
+     * Restore old semantic-attribute values on undo.
      *
      * <p><strong>Intentional asymmetry:</strong> the {@code accessType} and
      * {@code associationDirected} blocks are guarded by {@code oldAccessType != null}

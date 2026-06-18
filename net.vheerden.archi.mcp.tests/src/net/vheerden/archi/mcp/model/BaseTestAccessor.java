@@ -33,7 +33,6 @@ import net.vheerden.archi.mcp.response.dto.FolderDto;
 import net.vheerden.archi.mcp.response.dto.FolderTreeDto;
 import net.vheerden.archi.mcp.response.dto.LayoutFlatViewResultDto;
 import net.vheerden.archi.mcp.response.dto.ResizeElementsResultDto;
-import net.vheerden.archi.mcp.response.dto.LayoutViewResultDto;
 import net.vheerden.archi.mcp.response.dto.LayoutWithinGroupResultDto;
 import net.vheerden.archi.mcp.response.dto.MoveResultDto;
 import net.vheerden.archi.mcp.response.dto.OptimizeGroupOrderResultDto;
@@ -61,7 +60,7 @@ import net.vheerden.archi.mcp.response.dto.ViewPositionSpec;
  * methods throw {@link NoModelLoadedException} (matching the pattern
  * established by existing test stubs).</p>
  *
- * <p><strong>Story 7-0b:</strong> Created to prevent existing test
+ * <p>Created to prevent existing test
  * StubAccessor classes from breaking when new accessor methods are
  * added (e.g., folder navigation methods).</p>
  */
@@ -253,6 +252,14 @@ public class BaseTestAccessor implements ArchiModelAccessor {
     }
 
     @Override
+    public BulkMutationResult executeBulk(String sessionId, List<BulkOperation> operations,
+            String description, boolean continueOnError, String intent) {
+        // Delegate to the four-arg overload so test doubles that override only that one (the
+        // earlier contract) are honoured — intent is metadata the test double does not need.
+        return executeBulk(sessionId, operations, description, continueOnError);
+    }
+
+    @Override
     public MutationResult<ElementDto> createElement(String sessionId, String type, String name,
             String documentation, Map<String, String> properties, String folderId,
             String specialization) {
@@ -392,14 +399,6 @@ public class BaseTestAccessor implements ArchiModelAccessor {
             List<ViewConnectionSpec> connections, String description) {
         throw new UnsupportedOperationException(
                 "applyViewLayout not implemented in test accessor");
-    }
-
-    @Override
-    public MutationResult<LayoutViewResultDto> layoutView(String sessionId,
-            String viewId, String algorithm, String preset,
-            Map<String, Object> options) {
-        throw new UnsupportedOperationException(
-                "layoutView not implemented in test accessor");
     }
 
     @Override

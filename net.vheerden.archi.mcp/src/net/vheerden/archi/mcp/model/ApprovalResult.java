@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.model;
 
 /**
- * Result of approving a pending mutation proposal (Story 7-6).
+ * Result of approving a pending mutation proposal.
  *
  * <p>Returned by {@link MutationDispatcher#approveProposal(String, String)}.
  * Contains the entity DTO that was stored in the proposal (for the response)

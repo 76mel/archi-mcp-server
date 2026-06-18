@@ -12,7 +12,7 @@ import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IProperty;
 
 /**
- * GEF Command that updates the loaded ArchiMate model's own metadata (Story 14-3, G6).
+ * GEF Command that updates the loaded ArchiMate model's own metadata.
  *
  * <p>Supports updating name, purpose, and custom properties. Only non-null
  * fields are modified; null fields are left unchanged. For properties, a
@@ -21,14 +21,13 @@ import com.archimatetool.model.IProperty;
  * <p>Captures old state at construction time for full undo support.
  * Properties are deep-copied because EMF property objects are live references.</p>
  *
- * <p><strong>Story 14-3 (G6):</strong> the {@code documentation} field
+ * <p>The {@code documentation} field
  * (mentioned in some jArchi documentation) is OUT-OF-SCOPE here because
  * {@code IArchimateModel} does NOT extend {@code IDocumentable} in Archi 5.7/5.8
  * — there is no model-level documentation API. The {@code purpose} field is the
  * model-level free-text Archi exposes (shown in File → Properties → "Purpose").
  * jArchi's {@code model.documentation} is most plausibly an alias to {@code model.purpose}
- * at the jArchi layer. See Story 14-3 Dev Agent Record "Task 0 OUTCOME" for the
- * full per-field disposition.</p>
+ * at the jArchi layer.</p>
  *
  * <p><strong>CRITICAL:</strong> This command MUST be executed via
  * {@code CommandStack.execute()} through {@link MutationDispatcher}.

@@ -1,12 +1,11 @@
 package net.vheerden.archi.mcp.model;
 
 /**
- * Value object bundling optional visual styling parameters (Story 11-2;
- * extended for story {@code backlog-group-element-styling-surface} with
+ * Value object bundling optional visual styling parameters. Extended with
  * {@code figureType} + {@code textAlignment} + {@code verticalTextAlignment};
- * extended for Story 14-2 (G5) with typography ({@code fontName} / {@code fontSize} /
+ * later extended with typography ({@code fontName} / {@code fontSize} /
  * {@code fontStyle}), connection {@code lineStyle}, {@code gradient},
- * note {@code borderType}, {@code deriveLineColor}, and {@code outlineOpacity}).
+ * note {@code borderType}, {@code deriveLineColor}, and {@code outlineOpacity}.
  *
  * <p>Used to pass styling parameters through accessor method signatures
  * without bloating individual parameter lists. All fields are nullable:
@@ -73,7 +72,7 @@ public record StylingParams(
 
     /**
      * Back-compatibility convenience constructor matching the original 5-field record
-     * shape (Story 11-2). Delegates to the 16-field canonical constructor with
+     * shape. Delegates to the 16-field canonical constructor with
      * trailing nulls. Preserves existing
      * {@code new StylingParams(fill, line, font, opacity, lineWidth)} call sites byte-identically.
      */
@@ -85,7 +84,7 @@ public record StylingParams(
 
     /**
      * Back-compatibility convenience constructor matching the post-predecessor 8-field
-     * record shape ({@code backlog-group-element-styling-surface}). Delegates to the
+     * record shape. Delegates to the
      * 16-field canonical constructor with trailing nulls. Preserves existing
      * {@code new StylingParams(fill, line, font, opacity, lineWidth, figureType, textAlignment, verticalTextAlignment)}
      * call sites byte-identically.

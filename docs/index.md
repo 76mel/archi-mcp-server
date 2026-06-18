@@ -24,7 +24,7 @@ The multi-stage orthogonal connection routing system: visibility graph construct
 
 ### [Layout Engine](layout-engine.md)
 
-Zest-based layout algorithms, ELK Layered integration, layout presets, group-aware layout tools (layout-within-group, arrange-groups, optimize-group-order), element auto-sizing (autoSize and resize-elements-to-fit), the multi-metric quality assessment framework, and auto-layout-and-route with target rating iteration.
+ELK Layered layout and routing integration, group-aware layout tools (layout-within-group, arrange-groups, optimize-group-order), element auto-sizing (autoSize and resize-elements-to-fit), the multi-metric quality assessment framework, and auto-layout-and-route with target rating iteration.
 
 ### [Mutation Model](mutation-model.md)
 
@@ -32,7 +32,7 @@ The PreparedMutation pattern, CommandStack integration, operational modes (GUI-a
 
 ### [MCP Integration](mcp-integration.md)
 
-Tool registration via CommandRegistry, the standard response envelope format, structured error responses, session management (filters, caching, field selection), MCP resources, and transport layer configuration (HTTP, SSE, TLS).
+Tool registration via CommandRegistry, the standard response envelope format, structured error responses, session management (filters, caching, field selection), MCP resources, and transport layer configuration (HTTP, SSE, TLS, bearer-token authentication).
 
 ### [Extension Guide](extension-guide.md)
 

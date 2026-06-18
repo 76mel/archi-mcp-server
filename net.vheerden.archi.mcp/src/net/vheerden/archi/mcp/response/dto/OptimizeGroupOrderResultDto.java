@@ -3,7 +3,7 @@ package net.vheerden.archi.mcp.response.dto;
 import java.util.List;
 
 /**
- * Result DTO for the optimize-group-order tool (Story 11-25).
+ * Result DTO for the optimize-group-order tool.
  *
  * @param viewId              the view that was optimized
  * @param crossingsBefore     inter-group edge crossings before optimization

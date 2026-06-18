@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.response.dto;
 
 /**
- * Result DTO for the apply-positions compound operation (Story 9-0a, renamed 11-8).
+ * Result DTO for the apply-positions compound operation.
  */
 public record ApplyViewLayoutResultDto(
     String viewId,

@@ -23,7 +23,7 @@ import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelGroup;
 
 /**
- * Tests for {@link RemoveFromViewCommand} (Story 7-8).
+ * Tests for {@link RemoveFromViewCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * execute (remove + cascade disconnect) and undo (re-add + reconnect).</p>
@@ -160,11 +160,11 @@ public class RemoveFromViewCommandTest {
                 cmd.getLabel().contains("from view"));
     }
 
-    // --- Story B (v1.6): nested-parent + SOUND postcondition certificate ---
+    // --- nested-parent + SOUND postcondition certificate (v1.6) ---
 
     /**
-     * AC-1: nested ArchiMate-element view-object inside another element acting
-     * as a container (Story 10-20 element-as-container nesting). Reproduces the
+     * Nested ArchiMate-element view-object inside another element acting
+     * as a container (element-as-container nesting). Reproduces the
      * literal 1708 retail-bank failure mode — z/OS placed under Mobile App Binary
      * (a Component) and then removed.
      */
@@ -201,7 +201,7 @@ public class RemoveFromViewCommandTest {
     }
 
     /**
-     * AC-2: nested element inside a Node (Story 10-20 node-as-container).
+     * Nested element inside a Node (node-as-container).
      */
     @Test
     public void shouldRemoveNestedElement_fromContainerNode() {
@@ -236,7 +236,7 @@ public class RemoveFromViewCommandTest {
     }
 
     /**
-     * AC-3 (regression pin): nested element inside a native DiagramModelGroup.
+     * Regression pin: nested element inside a native DiagramModelGroup.
      * Proves the fix is parent-type-agnostic — same behaviour whether the
      * parent is a Group, a Component-as-container, a Node-as-container, or
      * the view itself.
@@ -272,7 +272,7 @@ public class RemoveFromViewCommandTest {
     }
 
     /**
-     * AC-3 invariant: undo restores the nested element at its original index
+     * Invariant: undo restores the nested element at its original index
      * inside the real parent container (not at index 0 of the view, and not
      * appended at the end of the parent's children).
      */
@@ -327,12 +327,12 @@ public class RemoveFromViewCommandTest {
     }
 
     /**
-     * AC-5 + accessor-prepare-stage regression-pin proxy. Reproduces the v1.5
+     * Accessor-prepare-stage regression-pin proxy. Reproduces the v1.5
      * bug shape at the command layer: a nested element lives at
      * {@code view → componentA → nestedE}, but the command is constructed with
      * the top-level view as the prepared parent (instead of componentA). This
      * is exactly what {@code ArchiModelAccessorImpl.prepareRemoveFromView} did
-     * for nested elements before Story B's {@code findParentContainer} rewire
+     * for nested elements before the {@code findParentContainer} rewire
      * at the element branch. The SOUND postcondition certificate must fire,
      * proving that any future accessor-prepare regression (e.g. someone reverts
      * the {@code findParentContainer} call) would be caught at execute time
@@ -340,7 +340,7 @@ public class RemoveFromViewCommandTest {
      *
      * <p>This test is a proxy regression-pin for the accessor's element-branch
      * parent-resolution fix at {@code ArchiModelAccessorImpl.java:14573} — the
-     * Story B unit tests + integration test all construct the command directly
+     * unit tests + integration test all construct the command directly
      * with the correct parent (which would still pass even if the accessor's
      * parent-resolution regressed), so this test closes that coverage gap by
      * asserting the certificate fires for the bug-shape input.</p>
@@ -369,7 +369,7 @@ public class RemoveFromViewCommandTest {
         componentA.getChildren().add(nestedE);
 
         // Construct command with WRONG parent (v instead of componentA) —
-        // mimics the pre-Story-B prepareRemoveFromView element-branch bug.
+        // mimics the prior prepareRemoveFromView element-branch bug.
         RemoveFromViewCommand cmdWithWrongParent = new RemoveFromViewCommand(
                 nestedE, v, List.of());
 
@@ -393,7 +393,7 @@ public class RemoveFromViewCommandTest {
     }
 
     /**
-     * AC-5: SOUND postcondition certificate. Simulates a stale prepare-vs-execute
+     * SOUND postcondition certificate. Simulates a stale prepare-vs-execute
      * condition — the diagram object is removed from the prepared parent before
      * the command's execute runs (e.g. a future findParentContainer regression
      * or out-of-band mutation). Execute must refuse-to-mutate with a structured

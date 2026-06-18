@@ -49,7 +49,7 @@ import net.vheerden.archi.mcp.response.dto.ViewDto;
 
 /**
  * Integration test verifying error response consistency across all tools.
- * Tests AC #3: all tools produce structured errors in identical format.
+ * Verifies all tools produce structured errors in identical format.
  *
  * <p>Uses three accessor configurations: no model loaded, model loaded (for not-found),
  * and exploding accessor (for internal errors).</p>
@@ -136,9 +136,7 @@ public class ErrorConsistencyTest {
                 Map.entry("get-or-create-element", Map.of("type", "BusinessActor", "name", "Test")),
                 Map.entry("search-and-create", Map.of("query", "test", "createType", "BusinessActor", "createName", "Test")),
                 Map.entry("bulk-mutate", Map.of("operations", List.of(Map.of("tool", "create-element", "params", Map.of("type", "BusinessActor", "name", "Test"))))),
-                Map.entry("set-approval-mode", Map.of("enabled", true)),
                 Map.entry("list-pending-approvals", Collections.emptyMap()),
-                Map.entry("decide-mutation", Map.of("proposalId", "p-1", "decision", "approve")),
                 Map.entry("add-to-view", Map.of("viewId", "v-1", "elementId", "e-1")),
                 Map.entry("add-connection-to-view", Map.of("viewId", "v-1", "relationshipId", "r-1", "sourceViewObjectId", "vo-1", "targetViewObjectId", "vo-2")),
                 Map.entry("update-view-object", Map.of("viewObjectId", "vo-1", "x", 100)),
@@ -578,76 +576,10 @@ public class ErrorConsistencyTest {
         assertNotNull("BULK_VALIDATION_FAILED should have details", error.get("details"));
     }
 
-    @SuppressWarnings("unchecked")
-    @Test
-    public void shouldReturnConsistentApprovalErrors() throws Exception {
-        // decide-mutation with non-existent proposal → PROPOSAL_NOT_FOUND
-        McpSchema.CallToolResult decideResult = invokeTool(registryWithModel, "decide-mutation",
-                Map.of("proposalId", "p-999", "decision", "approve"));
-        assertTrue("decide-mutation should be an error", decideResult.isError());
-        Map<String, Object> decideEnvelope = parseJson(decideResult);
-        Map<String, Object> decideError = (Map<String, Object>) decideEnvelope.get("error");
-        assertNotNull("decide-mutation should have error object", decideError);
-        assertEquals("PROPOSAL_NOT_FOUND", decideError.get("code"));
-        assertNotNull("PROPOSAL_NOT_FOUND should have message", decideError.get("message"));
-        assertNotNull("PROPOSAL_NOT_FOUND should have suggestedCorrection",
-                decideError.get("suggestedCorrection"));
-
-        // decide-mutation with invalid decision string → INVALID_PARAMETER
-        McpSchema.CallToolResult invalidDecisionResult = invokeTool(registryWithModel, "decide-mutation",
-                Map.of("proposalId", "p-1", "decision", "maybe"));
-        assertTrue("decide-mutation should be an error for invalid decision", invalidDecisionResult.isError());
-        Map<String, Object> invalidDecisionEnvelope = parseJson(invalidDecisionResult);
-        Map<String, Object> invalidDecisionError = (Map<String, Object>) invalidDecisionEnvelope.get("error");
-        assertNotNull(invalidDecisionError);
-        assertEquals("INVALID_PARAMETER", invalidDecisionError.get("code"));
-
-        // decide-mutation approve-all with no pending → APPROVAL_NOT_ACTIVE
-        McpSchema.CallToolResult approveAllResult = invokeTool(registryWithModel, "decide-mutation",
-                Map.of("proposalId", "all", "decision", "approve"));
-        assertTrue("decide-mutation approve-all should be an error", approveAllResult.isError());
-        Map<String, Object> approveAllEnvelope = parseJson(approveAllResult);
-        Map<String, Object> approveAllError = (Map<String, Object>) approveAllEnvelope.get("error");
-        assertNotNull(approveAllError);
-        assertEquals("APPROVAL_NOT_ACTIVE", approveAllError.get("code"));
-        assertNotNull("APPROVAL_NOT_ACTIVE should have message", approveAllError.get("message"));
-        assertNotNull("APPROVAL_NOT_ACTIVE should have suggestedCorrection",
-                approveAllError.get("suggestedCorrection"));
-
-        // set-approval-mode with missing enabled → INVALID_PARAMETER
-        McpSchema.CallToolResult setModeResult = invokeTool(registryWithModel, "set-approval-mode",
-                Collections.emptyMap());
-        assertTrue("set-approval-mode should be an error for missing enabled", setModeResult.isError());
-        Map<String, Object> setModeEnvelope = parseJson(setModeResult);
-        Map<String, Object> setModeError = (Map<String, Object>) setModeEnvelope.get("error");
-        assertNotNull(setModeError);
-        assertEquals("INVALID_PARAMETER", setModeError.get("code"));
-    }
-
-    @SuppressWarnings("unchecked")
-    @Test
-    public void shouldReturnConsistentInvalidParameterErrors_forApprovalTools() throws Exception {
-        // decide-mutation with missing proposalId
-        McpSchema.CallToolResult missingIdResult = invokeTool(registryWithModel, "decide-mutation",
-                Map.of("decision", "approve"));
-        assertTrue("decide-mutation should be an error for missing proposalId",
-                missingIdResult.isError());
-        Map<String, Object> missingIdEnvelope = parseJson(missingIdResult);
-        Map<String, Object> missingIdError = (Map<String, Object>) missingIdEnvelope.get("error");
-        assertNotNull(missingIdError);
-        assertEquals("INVALID_PARAMETER", missingIdError.get("code"));
-
-        // decide-mutation with missing decision
-        McpSchema.CallToolResult missingDecisionResult = invokeTool(registryWithModel, "decide-mutation",
-                Map.of("proposalId", "p-1"));
-        assertTrue("decide-mutation should be an error for missing decision",
-                missingDecisionResult.isError());
-        Map<String, Object> missingDecisionEnvelope = parseJson(missingDecisionResult);
-        Map<String, Object> missingDecisionError =
-                (Map<String, Object>) missingDecisionEnvelope.get("error");
-        assertNotNull(missingDecisionError);
-        assertEquals("INVALID_PARAMETER", missingDecisionError.get("code"));
-    }
+    // The approval-error tests for set-approval-mode and decide-mutation were removed
+    // with those tools. Approve/reject now lives in the UI-callable ApprovalService (no MCP error
+    // envelope), exercised by ApprovalServiceTest; the read-only list-pending-approvals retains its
+    // MODEL_NOT_LOADED consistency coverage in the table-driven test above.
 
     // ---- Helper Methods ----
 

@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Pure-geometry two-phase crossing minimizer for grouped views (Story 11-25, backlog-b6).
+ * Pure-geometry two-phase crossing minimizer for grouped views.
  * Reorders elements within groups to minimize inter-group edge crossings.
  *
  * <p>No EMF imports — operates on simple coordinate arrays and string IDs.
@@ -17,8 +17,7 @@ import java.util.Map;
  * Phase 1 (barycentric): standard 2-layer heuristic — elements sorted by
  * average position index of connected elements in other groups.
  * Phase 2 (adjacent-swap): greedy local search that tries adjacent-element
- * swaps to escape barycentric fixed points on multi-group topologies
- * (backlog-b6).</p>
+ * swaps to escape barycentric fixed points on multi-group topologies.</p>
  */
 class CrossingMinimizer {
 

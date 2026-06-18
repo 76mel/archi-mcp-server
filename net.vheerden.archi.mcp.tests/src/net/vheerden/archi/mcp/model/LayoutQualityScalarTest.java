@@ -6,24 +6,21 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * JUnit pin for {@link LayoutQualityScalar} — Decision-A.1.3 = α''' Fix-2
- * (RC-2), Session 11 (2026-05-16), Task 10.6 under sprint-status row 703
- * (Story {@code backlog-convenience-tool-control-loop-architectural-redesign}).
+ * JUnit pin for {@link LayoutQualityScalar} — Fix-2 (2026-05-16).
  *
  * <p>Pure-unit (no OSGi, no EMF). The single source of truth for the band
- * arithmetic is {@code LayoutQualityScalar}; this class + architecture-spec
- * § 1.10 Appendix (Session-11) are coordinated edits against it.</p>
+ * arithmetic is {@code LayoutQualityScalar}.</p>
  *
- * <p>Covers party-mode-resolved pins (Task 10.4 resolved-design doc § 4):
+ * <p>Covers the band-arithmetic pins:
  * <ul>
- *   <li><strong>T4</strong> — band-width property: no M4/coincSeg band ≤ 2
+ *   <li>band-width property: no M4/coincSeg band ≤ 2
  *       units wide (reroute jitter ±1 cannot cross a band → coarse bands are
- *       the noise filter; Quinn attack A2 defang).</li>
- *   <li><strong>Quinn A1</strong> — per-metric-monotonic-in-disguise FAILS:
- *       the 2026-05-13 Arm-6 lesson reproduced (M4↑ + HPQ↑ but coincSeg↓ →
+ *       the noise filter).</li>
+ *   <li>per-metric-monotonic-in-disguise FAILS:
+ *       the 2026-05-13 lesson reproduced (M4↑ + HPQ↑ but coincSeg↓ →
  *       net positive scalar → genuinely aggregate, not per-metric).</li>
- *   <li><strong>T6</strong> — graded 0→N: the scalar perceives M4 12→5
- *       progress the old binary-at-0 aggregate could not (the RC-2 fix).</li>
+ *   <li>graded 0→N: the scalar perceives M4 12→5
+ *       progress the old binary-at-0 aggregate could not.</li>
  *   <li>qualityScalar range [0,12]; correctnessBits binary-at-0; HPQ 0.75
  *       anchor RETAINED.</li>
  * </ul></p>
@@ -31,7 +28,7 @@ import org.junit.Test;
 public class LayoutQualityScalarTest {
 
     // ------------------------------------------------------------------
-    // T4 — band-width property test (party-mode § 4 T4).
+    // Band-width property test.
     //
     // "no M4/coincSeg band <= 2 units wide": there is NO x where the credit
     // changes at x->x+1 AND again at x+1->x+2 (that would mean a band of
@@ -70,8 +67,7 @@ public class LayoutQualityScalarTest {
     @Test
     public void t4_bandBoundaryConstants_matchCreditFunctionTransitions() {
         // The public band-boundary constants ARE the credit-function
-        // transition points (single source of truth for the property test
-        // + the architecture-spec § 1.10 Appendix enumeration).
+        // transition points (single source of truth for the property test).
         assertEquals(3, LayoutQualityScalar.severityTierCreditM4(
                 LayoutQualityScalar.M4_BAND_BOUNDARIES[0]));
         assertEquals(2, LayoutQualityScalar.severityTierCreditM4(
@@ -93,7 +89,7 @@ public class LayoutQualityScalarTest {
                 LayoutQualityScalar.COINCSEG_BAND_BOUNDARIES[1]));
         assertEquals(1, LayoutQualityScalar.severityTierCreditCoincSeg(
                 LayoutQualityScalar.COINCSEG_BAND_BOUNDARIES[1] + 1));
-        // AC-13 review Finding 2 (Session 11): pin the third coincSeg
+        // Pin the third coincSeg
         // boundary transition explicitly (was only covered by the width
         // sweep — a wrong cut-point at [2] that preserved band width would
         // have slipped through).
@@ -104,7 +100,7 @@ public class LayoutQualityScalarTest {
     }
 
     // ------------------------------------------------------------------
-    // HPQ — 0.75 anchor RETAINED (party-mode § 3.2).
+    // HPQ — 0.75 anchor RETAINED.
     // ------------------------------------------------------------------
 
     @Test
@@ -182,13 +178,12 @@ public class LayoutQualityScalarTest {
     }
 
     // ------------------------------------------------------------------
-    // Quinn adversarial attack A1 — "per-metric-monotonic in disguise?"
-    // (the exact landmine Winston used to reject Session-3 option (c)).
+    // Adversarial attack — "per-metric-monotonic in disguise?"
     //
-    // The canonical 2026-05-13 Arm-6 lesson: a step that improves M4 + HPQ
+    // The canonical 2026-05-13 lesson: a step that improves M4 + HPQ
     // into PASS but regresses coincSeg must be classified ACCEPT by the
     // AGGREGATE rule (overall improvement) even though a per-metric rule
-    // would reject it (coincSeg got worse). A1 FAILS because qualityScalar
+    // would reject it (coincSeg got worse). It FAILS because qualityScalar
     // SUMS the dimensions — it never compares them individually.
     // ------------------------------------------------------------------
 
@@ -229,7 +224,7 @@ public class LayoutQualityScalarTest {
     }
 
     // ------------------------------------------------------------------
-    // T6 — graded 0->N: the RC-2 fix. The graded scalar PERCEIVES M4 12->5
+    // Graded 0->N fix. The graded scalar PERCEIVES M4 12->5
     // progress the OLD binary-at-0 aggregate could not (M4==0 bit was dead
     // weight on dense views — both 12 and 5 scored the bit as 0).
     // ------------------------------------------------------------------
@@ -238,7 +233,7 @@ public class LayoutQualityScalarTest {
     public void t6_gradedScalar_perceivesM4ProgressOldBinaryAtZeroCouldNot() {
         // Old binary-at-0 contribution from M4: (M4==0)?1:0. On dense views
         // M4 stays 3-18 so the old M4 bit is 0 at BOTH 12 and 5 (flat —
-        // the RC-2 bug). The graded credit is NOT flat.
+        // the bug). The graded credit is NOT flat.
         int oldM4BitAt12 = (12 == 0) ? 1 : 0;
         int oldM4BitAt5 = (5 == 0) ? 1 : 0;
         assertEquals("old binary-at-0 M4 bit was FLAT 12 vs 5 (the bug)",
@@ -252,8 +247,8 @@ public class LayoutQualityScalarTest {
 
     @Test
     public void t6_gradedScalar_monotoneAlongRealisticImprovementTrajectory() {
-        // Realistic post-hub-resize -> agent-improved trajectory (Session
-        // 10 empirical magnitudes). The scalar must increase monotonically
+        // Realistic post-hub-resize -> agent-improved trajectory (empirical
+        // magnitudes). The scalar must increase monotonically
         // as the view genuinely improves — the loop can now climb it.
         int sBad = LayoutQualityScalar.qualityScalar(
                 0, 0, 0, /*m4=*/ 16, /*cs=*/ 11, /*hpq=*/ 0.18); // ST source

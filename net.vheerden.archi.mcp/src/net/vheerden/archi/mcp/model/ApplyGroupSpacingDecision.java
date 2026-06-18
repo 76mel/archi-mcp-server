@@ -18,7 +18,7 @@ package net.vheerden.archi.mcp.model;
  * {@code interGroupConnectionCount} input (for context-only — the
  * isConnected determination is supplied via {@code isConnected}) and the
  * group-tier-specific short-circuit reasons. Pinned by JUnit
- * {@code ApplyGroupSpacingRecommendationsToolTest} AC-7.10.</p>
+ * {@code ApplyGroupSpacingRecommendationsToolTest}.</p>
  *
  * @param interGroupDelta            the delta the tool would pass to
  *                                   {@code adjustViewSpacing}; 0 on every

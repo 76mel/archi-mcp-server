@@ -6,7 +6,7 @@ import com.archimatetool.model.IConnectable;
 import com.archimatetool.model.IDiagramModelArchimateConnection;
 
 /**
- * GEF Command that connects a diagram connection between two view objects (Story 7-7).
+ * GEF Command that connects a diagram connection between two view objects.
  *
  * <p>The connection must be fully configured (archimate relationship, optional
  * bendpoints) before this command is created. Source and target are captured at

@@ -11,7 +11,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.model.routing.VisEdge.Direction;
 
 /**
- * A* path search with direction tracking for orthogonal visibility graphs (Story 10-6b).
+ * A* path search with direction tracking for orthogonal visibility graphs.
  * Pure-geometry class — no EMF/SWT dependencies.
  *
  * <p>Finds optimal connection routes that minimize a weighted cost of
@@ -23,10 +23,10 @@ public class VisibilityGraphRouter {
     /** Default bend penalty in pixels — penalizes direction changes. */
     public static final int DEFAULT_BEND_PENALTY = 30;
 
-    /** Small penalty for edges moving away from target on dominant axis (Story 10-28). */
+    /** Small penalty for edges moving away from target on dominant axis. */
     static final int DIRECTION_PENALTY = 15;
 
-    /** Default congestion weight — 0.0 disables congestion-aware routing (Story 11-30). */
+    /** Default congestion weight — 0.0 disables congestion-aware routing. */
     static final double DEFAULT_CONGESTION_WEIGHT = 0.0;
 
     /**
@@ -40,18 +40,18 @@ public class VisibilityGraphRouter {
     static final String B43_WEIGHT_PROP = "archi.mcp.weights.b43";
     static final String B47_WEIGHT_PROP = "archi.mcp.weights.b47";
 
-    /** Default clearance weight — penalizes edges close to obstacle boundaries (B41). */
+    /** Default clearance weight — penalizes edges close to obstacle boundaries. */
     static final double DEFAULT_CLEARANCE_WEIGHT =
             Double.parseDouble(System.getProperty(B41_WEIGHT_PROP, "75.0"));
 
-    /** Default directionality weight — penalizes edges moving away from target (B43). */
+    /** Default directionality weight — penalizes edges moving away from target. */
     static final double DEFAULT_DIRECTIONALITY_WEIGHT =
             Double.parseDouble(System.getProperty(B43_WEIGHT_PROP, "30.0"));
 
-    /** Maximum effective clearance — corridors wider than this get no additional benefit (B43-a). */
+    /** Maximum effective clearance — corridors wider than this get no additional benefit. */
     static final double MAX_EFFECTIVE_CLEARANCE = 60.0;
 
-    /** Default occupancy weight — multiplicative penalty for occupied corridors (B47). */
+    /** Default occupancy weight — multiplicative penalty for occupied corridors. */
     public static final double DEFAULT_OCCUPANCY_WEIGHT =
             Double.parseDouble(System.getProperty(B47_WEIGHT_PROP, "0.75"));
 
@@ -79,7 +79,7 @@ public class VisibilityGraphRouter {
     }
 
     /**
-     * Creates a router with configurable bend penalty and congestion weight (Story 11-30).
+     * Creates a router with configurable bend penalty and congestion weight.
      *
      * @param bendPenalty      penalty in pixels for direction changes (bends)
      * @param congestionWeight multiplier for local obstacle density — 0.0 disables congestion awareness
@@ -90,11 +90,11 @@ public class VisibilityGraphRouter {
 
     /**
      * Creates a router with configurable bend penalty, congestion weight,
-     * and clearance weight (B41).
+     * and clearance weight.
      *
      * @param bendPenalty      penalty in pixels for direction changes (bends)
      * @param congestionWeight multiplier for local obstacle density — 0.0 disables congestion awareness
-     * @param clearanceWeight  inverse clearance penalty weight — higher values penalize edges near obstacles more (B41)
+     * @param clearanceWeight  inverse clearance penalty weight — higher values penalize edges near obstacles more
      */
     public VisibilityGraphRouter(int bendPenalty, double congestionWeight, double clearanceWeight) {
         this(bendPenalty, congestionWeight, clearanceWeight, DEFAULT_DIRECTIONALITY_WEIGHT);
@@ -102,12 +102,12 @@ public class VisibilityGraphRouter {
 
     /**
      * Creates a router with configurable bend penalty, congestion weight,
-     * clearance weight, and directionality weight (B43).
+     * clearance weight, and directionality weight.
      *
      * @param bendPenalty          penalty in pixels for direction changes (bends)
      * @param congestionWeight     multiplier for local obstacle density — 0.0 disables congestion awareness
-     * @param clearanceWeight      inverse clearance penalty weight — higher values penalize edges near obstacles more (B41)
-     * @param directionalityWeight cosine-based penalty for edges moving away from target (B43)
+     * @param clearanceWeight      inverse clearance penalty weight — higher values penalize edges near obstacles more
+     * @param directionalityWeight cosine-based penalty for edges moving away from target
      */
     public VisibilityGraphRouter(int bendPenalty, double congestionWeight, double clearanceWeight,
             double directionalityWeight) {
@@ -115,13 +115,13 @@ public class VisibilityGraphRouter {
     }
 
     /**
-     * Creates a router with all configurable weights and group boundaries (B43-b).
+     * Creates a router with all configurable weights and group boundaries.
      *
      * @param bendPenalty          penalty in pixels for direction changes (bends)
      * @param congestionWeight     multiplier for local obstacle density — 0.0 disables congestion awareness
-     * @param clearanceWeight      inverse clearance penalty weight — higher values penalize edges near obstacles more (B41)
-     * @param directionalityWeight cosine-based penalty for edges moving away from target (B43)
-     * @param groupBoundaries      group rectangles for group-wall clearance cost (B43-b); connections near group walls
+     * @param clearanceWeight      inverse clearance penalty weight — higher values penalize edges near obstacles more
+     * @param directionalityWeight cosine-based penalty for edges moving away from target
+     * @param groupBoundaries      group rectangles for group-wall clearance cost; connections near group walls
      *                             get higher cost to prefer inter-group gap corridors
      */
     public VisibilityGraphRouter(int bendPenalty, double congestionWeight, double clearanceWeight,
@@ -131,14 +131,14 @@ public class VisibilityGraphRouter {
     }
 
     /**
-     * Creates a router with all configurable weights, group boundaries, and occupancy weight (B47).
+     * Creates a router with all configurable weights, group boundaries, and occupancy weight.
      *
      * @param bendPenalty          penalty in pixels for direction changes (bends)
      * @param congestionWeight     multiplier for local obstacle density — 0.0 disables congestion awareness
-     * @param clearanceWeight      inverse clearance penalty weight — higher values penalize edges near obstacles more (B41)
-     * @param directionalityWeight cosine-based penalty for edges moving away from target (B43)
-     * @param groupBoundaries      group rectangles for group-wall clearance cost (B43-b)
-     * @param occupancyWeight      multiplicative penalty for occupied corridors (B47) — 0.0 disables
+     * @param clearanceWeight      inverse clearance penalty weight — higher values penalize edges near obstacles more
+     * @param directionalityWeight cosine-based penalty for edges moving away from target
+     * @param groupBoundaries      group rectangles for group-wall clearance cost
+     * @param occupancyWeight      multiplicative penalty for occupied corridors — 0.0 disables
      */
     public VisibilityGraphRouter(int bendPenalty, double congestionWeight, double clearanceWeight,
             double directionalityWeight, List<RoutingRect> groupBoundaries, double occupancyWeight) {
@@ -179,7 +179,7 @@ public class VisibilityGraphRouter {
     }
 
     /**
-     * Finds the optimal path with occupancy-aware corridor cost (B47).
+     * Finds the optimal path with occupancy-aware corridor cost.
      * When a non-null tracker is provided, corridors already used by prior
      * connections receive a multiplicative distance penalty:
      * {@code effectiveDistance = distance * (1 + occupancyWeight * occupancy)}.
@@ -261,7 +261,7 @@ public class VisibilityGraphRouter {
      * @param entryDir         direction by which the search arrived at {@code from}; {@code null}
      *                         for the initial state (bend cost is then 0)
      * @param graph            visibility graph (used for density + clearance lookups)
-     * @param occupancyTracker corridor occupancy tracker (B47); nullable (disables occupancyExtra)
+     * @param occupancyTracker corridor occupancy tracker; nullable (disables occupancyExtra)
      */
     CostBreakdown computeEdgeCost(
             VisNode from, VisEdge edge, VisNode target,
@@ -320,7 +320,7 @@ public class VisibilityGraphRouter {
      *
      * @param graph         visibility graph (used for density + clearance lookups)
      * @param canonicalPath ordered list of nodes, length ≥ 2; {@code null}/shorter returns {@link CostBreakdown#EMPTY}
-     * @param tracker       corridor occupancy tracker (B47); nullable
+     * @param tracker       corridor occupancy tracker; nullable
      * @return summed per-edge {@link CostBreakdown} across the path
      */
     public CostBreakdown evaluatePathCost(
@@ -390,7 +390,7 @@ public class VisibilityGraphRouter {
     }
 
     /**
-     * Computes a small directional preference cost (Story 10-28).
+     * Computes a small directional preference cost.
      * Penalizes edges that move away from the target on the dominant axis.
      * Returns 0 for edges moving toward target or on the perpendicular axis.
      */
@@ -415,7 +415,7 @@ public class VisibilityGraphRouter {
 
     /**
      * Computes a continuous directional penalty using cosine of the angle between
-     * the edge direction and the vector to the target (B43).
+     * the edge direction and the vector to the target.
      *
      * <p>Penalty = directionalityWeight * (1 - cos(angle)) / 2, giving:
      * <ul>
@@ -453,7 +453,7 @@ public class VisibilityGraphRouter {
     }
 
     /**
-     * Computes minimum perpendicular distance from an edge to the nearest group wall (B43-b).
+     * Computes minimum perpendicular distance from an edge to the nearest group wall.
      * Uses the same logic as {@link OrthogonalVisibilityGraph#computePerpendicularClearance}
      * but against group boundaries instead of expanded obstacles.
      *

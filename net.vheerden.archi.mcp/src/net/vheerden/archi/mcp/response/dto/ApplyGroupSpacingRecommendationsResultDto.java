@@ -69,9 +69,7 @@ import java.util.List;
  *                                  mutation occurred)
  */
 /**
- * <p><strong>Control-loop fields</strong> (Story
- * `backlog-convenience-tool-control-loop-architectural-redesign` AC-2 +
- * AC-5, 2026-05-15): {@code terminationReason} + {@code iterationCount} +
+ * <p><strong>Control-loop fields:</strong> {@code terminationReason} + {@code iterationCount} +
  * {@code appliedDeltas} surface the control-loop trajectory to the LLM agent.
  * Sibling-symmetric with {@link ApplyElementSpacingRecommendationsResultDto}.</p>
  */
@@ -90,21 +88,17 @@ public record ApplyGroupSpacingRecommendationsResultDto(
         AssessLayoutResultDto before,
         AssessLayoutResultDto after,
         AdjustViewSpacingResultDto adjustResult,
-        // Control-loop fields (Story
-        // backlog-convenience-tool-control-loop-architectural-redesign
-        // AC-2 + AC-5, 2026-05-15). Appended; AC-9 backwards-compat.
+        // Control-loop fields. Appended; backwards-compat.
         String terminationReason,
         int iterationCount,
         List<Integer> appliedDeltas,
-        // Density-aware-termination field (Story
-        // backlog-control-loop-density-aware-termination AC-6, 2026-05-17).
+        // Density-aware-termination field.
         // Actionable PASS-honest reflow-required diagnosis; null otherwise.
         String densityFloorDiagnosis) {
 
     /**
-     * Backwards-compatible 16-arg constructor (Story
-     * `backlog-control-loop-density-aware-termination` AC-6 — preserve every
-     * pre-existing 16-arg call site / pin; delegates with
+     * Backwards-compatible 16-arg constructor — preserves every
+     * pre-existing 16-arg call site; delegates with
      * {@code densityFloorDiagnosis = null}). Only the control-loop
      * PASS-honest path forwards the real diagnosis via the 17-arg form.
      */
@@ -134,9 +128,7 @@ public record ApplyGroupSpacingRecommendationsResultDto(
     }
 
     /**
-     * Backwards-compatible 13-arg constructor (Story
-     * `backlog-convenience-tool-control-loop-architectural-redesign`
-     * AC-9 backwards-compat). Pre-Task-3 callers construct without the three
+     * Backwards-compatible 13-arg constructor. Pre-Task-3 callers construct without the three
      * control-loop fields; delegating constructor populates with neutral
      * defaults ({@code null / 0 / List.of()}). The Task 3 accessor refactor
      * will switch to the canonical 16-arg form.

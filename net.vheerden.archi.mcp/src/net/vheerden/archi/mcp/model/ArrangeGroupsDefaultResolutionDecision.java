@@ -2,8 +2,8 @@ package net.vheerden.archi.mcp.model;
 
 /**
  * Pure-unit-testable decision for the density-aware default-resolution code
- * path inside {@code arrangeGroups} (Story
- * RoutingPreconditions.InterGroup.DensityAwareDefault).
+ * path inside {@code arrangeGroups}
+ * (RoutingPreconditions.InterGroup.DensityAwareDefault).
  *
  * <p>When {@code spacing} is omitted (parameter is {@code null}) AND the view
  * has at least 2 top-level groups AND the view has at least one inter-group
@@ -21,11 +21,11 @@ package net.vheerden.archi.mcp.model;
  * is {@code resolvedSpacing} (absolute, in pixels — {@code arrangeGroups}
  * positions groups from scratch) vs the sibling's {@code resolvedDelta}
  * (relative, in pixels — {@code adjustViewSpacing} inflates from the
- * existing layout). AC-7.9 (heuristic-cross-class consistency) is the
+ * existing layout). The heuristic-cross-class consistency check is the
  * multi-class tripwire that protects the shared single-source-of-truth.</p>
  *
- * <p><strong>Trigger model (Q4=(b) Model B — advisory-literal,
- * pinned by JUnit AC-7.2):</strong> the trigger fires when
+ * <p><strong>Trigger model (Model B — advisory-literal,
+ * pinned by JUnit):</strong> the trigger fires when
  * {@code isConnected == true} (the view has at least one connection crossing
  * a top-level group boundary). All connected grouped views with omitted
  * {@code spacing} get the heuristic default; unconnected views keep the
@@ -34,8 +34,7 @@ package net.vheerden.archi.mcp.model;
  * <p>Revising the trigger model requires a coordinated edit across THREE
  * artefacts: (1) this record, (2) the JUnit test
  * {@code ArrangeGroupsDefaultResolutionTest}, (3) the {@code arrange-groups}
- * tool description. Pinned per
- * {@code feedback_metric_and_regression_test_together.md}.</p>
+ * tool description.</p>
  *
  * @param fired           true when the default-resolution fired (the
  *                        omitted-spacing path resolved to a heuristic-driven
@@ -69,7 +68,7 @@ public record ArrangeGroupsDefaultResolutionDecision(
 
     /** Default static spacing applied when no trigger fires. Mirrors the
      *  accessor-side {@code DEFAULT_ARRANGE_GROUPS_SPACING} constant; kept
-     *  in sync via JUnit AC-7.2 / AC-7.6. */
+     *  in sync via JUnit. */
     public static final int DEFAULT_ARRANGE_GROUPS_SPACING = 40;
 
     /**
@@ -130,7 +129,7 @@ public record ArrangeGroupsDefaultResolutionDecision(
      *                                   {@link GroupSpacingHeuristic} to
      *                                   select the hub-aware connected tier
      *                                   (Row C of the 2026-05-06 rating-
-     *                                   signal investigation, F4 closure).
+     *                                   signal investigation).
      *                                   Caller-provided input — the record
      *                                   stays pure-unit and does NOT scan
      *                                   view contents.

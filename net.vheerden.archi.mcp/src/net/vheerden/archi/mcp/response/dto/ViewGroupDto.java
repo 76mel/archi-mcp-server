@@ -5,21 +5,21 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Data Transfer Object for a visual grouping rectangle on a view (Story 8-6, 11-2).
+ * Data Transfer Object for a visual grouping rectangle on a view.
  *
  * <p>Groups are diagram-only objects (not ArchiMate model elements) used to
  * visually organize related elements, label tiers, or annotate sections.
  * Elements can be nested inside groups using add-to-view with parentViewObjectId.</p>
  *
- * <p><strong>Story 11-2:</strong> Added optional styling fields (fillColor,
+ * <p>Added optional styling fields (fillColor,
  * lineColor, fontColor, opacity, lineWidth). Omitted from JSON when null.</p>
  *
- * <p><strong>Story C3 (v1.6):</strong> Closes the read-back symmetry gap. Adds
- * {@code labelExpression} (14-1 G4) and {@code fontName}/{@code fontSize}/{@code fontStyle}/
+ * <p><strong>v1.6:</strong> Closes the read-back symmetry gap. Adds
+ * {@code labelExpression} and {@code fontName}/{@code fontSize}/{@code fontStyle}/
  * {@code gradient}/{@code deriveLineColor}/{@code outlineOpacity}/{@code lineStyle}
- * (14-2 G5) so that {@code get-view-contents} surfaces every v1.5 styling field that the
+ * so that {@code get-view-contents} surfaces every v1.5 styling field that the
  * write tools accept. {@code borderType} is intentionally absent — groups own the
- * orthogonal {@code figureType} (tabbed/rectangular) surface per 14-2 AC6 disambiguation;
+ * orthogonal {@code figureType} (tabbed/rectangular) surface per the figureType/borderType disambiguation;
  * dogear/rectangle/none semantics belong on {@link ViewNoteDto} only. All fields are
  * omitted from JSON when null via NON_NULL.</p>
  */
@@ -55,10 +55,10 @@ public record ViewGroupDto(
 ) {
 
     /**
-     * Constructor matching the pre-{@code backlog-group-element-styling-surface} 16-field shape
+     * Constructor matching the prior 16-field shape
      * (styling + image fields, no figureType/textAlignment/verticalTextAlignment). Delegates to the
      * canonical 27-field constructor with eleven trailing nulls
-     * (3 predecessor styling row + 8 Story C3 v1.5 styling fields).
+     * (3 predecessor styling row + 8 v1.5 styling fields).
      */
     public ViewGroupDto(
             String viewObjectId, String label,
@@ -76,11 +76,11 @@ public record ViewGroupDto(
     }
 
     /**
-     * Constructor matching the pre-{@code Story C3} 19-field shape
+     * Constructor matching the prior 19-field shape
      * (predecessor styling row added figureType/textAlignment/verticalTextAlignment, but no
-     * Story C3 labelExpression / fontName / fontSize / fontStyle / gradient / deriveLineColor /
+     * labelExpression / fontName / fontSize / fontStyle / gradient / deriveLineColor /
      * outlineOpacity / lineStyle). Delegates to the canonical 27-field constructor with eight
-     * trailing nulls for the Story C3 v1.5 styling fields. Preserves existing
+     * trailing nulls for the v1.5 styling fields. Preserves existing
      * prepareAddGroupToView call sites byte-identically.
      */
     public ViewGroupDto(

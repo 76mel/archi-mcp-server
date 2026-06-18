@@ -14,15 +14,17 @@ import net.vheerden.archi.mcp.response.dto.BatchStatusDto;
 import net.vheerden.archi.mcp.response.dto.BatchSummaryDto;
 
 /**
- * Per-session state for mutation operations (Story 7-1, extended Story 7-6).
+ * Per-session state for mutation operations.
  *
  * <p>Package-private — only used within the {@code model/} package by
  * {@link MutationDispatcher}. Tracks the current operational mode, queued
  * commands, batch timing, and approval state for a single session.</p>
  *
- * <p>Approval mode is an independent boolean flag orthogonal to the
- * GUI_ATTACHED/BATCH operational mode. When approval is active, mutations
- * are stored as proposals instead of being dispatched or queued.</p>
+ * <p>Pending <em>proposals</em> remain per-session here. The approval-mode
+ * <em>bit</em>, however, is no longer per-session: it is a single
+ * global, human-owned switch read through {@code ApprovalModeProvider} in
+ * {@link MutationDispatcher}. This context therefore stores proposals but not the
+ * mode flag.</p>
  *
  * <p>Thread safety: All public methods are synchronized. One session maps
  * to one Jetty thread at a time, but synchronization guards against any
@@ -38,21 +40,33 @@ class MutationContext {
     private int sequenceCounter = 0;
     private Instant batchStarted;
     private String batchDescription;
+    // Agent-supplied intent for this batch (optional). Recorded but never depended on by the
+    // server; kept distinct from batchDescription (the undo-history label) — never merged (design §4 D6).
+    private String batchIntent;
 
-    // ---- Approval state (Story 7-6) ----
-    private boolean approvalRequired = false;
+    // ---- Approval state (mode bit globalised — proposals stay per-session) ----
     private final LinkedHashMap<String, PendingProposal> pendingProposals = new LinkedHashMap<>();
     private int proposalCounter = 0;
 
     // ---- Batch operations ----
 
     synchronized void beginBatch(String description) {
+        beginBatch(description, null);
+    }
+
+    synchronized void beginBatch(String description, String intent) {
         if (mode == OperationalMode.BATCH) {
             throw new IllegalStateException("Already in batch mode");
         }
         mode = OperationalMode.BATCH;
         batchStarted = Instant.now();
         batchDescription = description;
+        batchIntent = intent;
+    }
+
+    /** The agent-supplied batch intent, or null when none was given. */
+    synchronized String getBatchIntent() {
+        return batchIntent;
     }
 
     synchronized int queueCommand(Command command, String description) {
@@ -104,6 +118,7 @@ class MutationContext {
         sequenceCounter = 0;
         batchStarted = null;
         batchDescription = null;
+        batchIntent = null;
     }
 
     synchronized OperationalMode getMode() {
@@ -115,31 +130,23 @@ class MutationContext {
     }
 
     synchronized BatchStatusDto getBatchStatus() {
-        Boolean approval = approvalRequired ? Boolean.TRUE : null;
+        // Approval bit is global — MutationDispatcher.getBatchStatus overlays it.
         Integer pendingCount = pendingProposals.isEmpty() ? null : pendingProposals.size();
 
         if (mode == OperationalMode.GUI_ATTACHED) {
             return new BatchStatusDto(
                     mode.name(), null, null, null,
-                    approval, pendingCount);
+                    null, pendingCount);
         }
         return new BatchStatusDto(
                 mode.name(),
                 commandQueue.size(),
                 List.copyOf(descriptions),
                 batchStarted != null ? batchStarted.toString() : null,
-                approval, pendingCount);
+                null, pendingCount);
     }
 
-    // ---- Approval operations (Story 7-6) ----
-
-    synchronized void setApprovalRequired(boolean required) {
-        this.approvalRequired = required;
-    }
-
-    synchronized boolean isApprovalRequired() {
-        return approvalRequired;
-    }
+    // ---- Approval operations (proposal storage only — mode bit globalised) ----
 
     /**
      * Stores a proposal and assigns it an ID.
@@ -155,12 +162,47 @@ class MutationContext {
                     + "). Approve or reject existing proposals before creating new ones.");
         }
         String id = "p-" + (++proposalCounter);
-        PendingProposal withId = new PendingProposal(
-                id, proposal.tool(), proposal.description(), proposal.command(),
-                proposal.entity(), proposal.currentState(), proposal.proposedChanges(),
-                proposal.validationSummary(), proposal.createdAt());
+        // Arity-proof copy that stamps the id (record-arity discipline) — preserves the deferred rebuild
+        // handle + staleness capture + all card fields without re-listing them here.
+        PendingProposal withId = proposal.withProposalId(id);
         pendingProposals.put(id, withId);
         return id;
+    }
+
+    /**
+     * Sweeps proposals older than {@code ttl} (Design §4 D5 — proposal expiry). Relieves the
+     * {@link #MAX_PENDING_PROPOSALS hard cap} so abandoned proposals do not block new ones; non-destructive
+     * to the model (a proposal is an un-applied request). The proposal currently being approved is never
+     * passed here — {@link MutationDispatcher#approveProposal} removes it from this map <em>before</em>
+     * rebuilding/dispatching, so it cannot be swept mid-approve.
+     *
+     * @param now the current instant (injected for testability)
+     * @param ttl the time-to-live; proposals with {@code createdAt} older than this are removed
+     * @return the proposal ids that were swept (empty if none)
+     */
+    synchronized List<String> sweepExpired(Instant now, Duration ttl) {
+        List<String> swept = new ArrayList<>();
+        var it = pendingProposals.entrySet().iterator();
+        while (it.hasNext()) {
+            var entry = it.next();
+            if (isExpired(entry.getValue().createdAt(), now, ttl)) {
+                swept.add(entry.getKey());
+                it.remove();
+            }
+        }
+        return swept;
+    }
+
+    /**
+     * Pure TTL-expiry predicate. A proposal is expired when its age
+     * ({@code now - createdAt}) strictly exceeds {@code ttl}. Null {@code createdAt} is treated as
+     * not-expired (defensive — a proposal always has a timestamp).
+     */
+    static boolean isExpired(Instant createdAt, Instant now, Duration ttl) {
+        if (createdAt == null || now == null || ttl == null) {
+            return false;
+        }
+        return Duration.between(createdAt, now).compareTo(ttl) > 0;
     }
 
     synchronized PendingProposal getProposal(String proposalId) {

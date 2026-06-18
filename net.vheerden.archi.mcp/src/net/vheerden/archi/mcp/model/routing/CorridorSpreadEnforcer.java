@@ -18,13 +18,13 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * high-N corridors have ZERO intra-corridor spread"), enforce a minimum spread
  * between parallel segments via localised track allocation.
  *
- * <p><b>Runs ALONGSIDE {@link ChannelNudgingPass}, NEVER mutates it.</b> Per AC-4.3
- * + AC-9.5 atomic-swap discipline: {@code ChannelNudgingPass.allocateTracks}'s
- * divisor-7 width-aware cap stays at current calibration; Story #5 R8 ≥ 0.25 floor
+ * <p><b>Runs ALONGSIDE {@link ChannelNudgingPass}, NEVER mutates it.</b> Per
+ * atomic-swap discipline: {@code ChannelNudgingPass.allocateTracks}'s
+ * divisor-7 width-aware cap stays at current calibration; the R8 ≥ 0.25 floor
  * protection stays intact. This enforcer fills the SAME-COORD high-N gap that the
  * divisor-7 cap does NOT enforce.
  *
- * <p><b>B71 TerminalAnchoring exemption (AC-4.4).</b> Members whose segment is
+ * <p><b>TerminalAnchoring exemption.</b> Members whose segment is
  * incident to a terminal bp (segmentStartBpIdx == 0 OR segmentEndBpIdx ==
  * path.size()-1) are skipped — shifting a terminal bp would violate
  * {@code TerminalAnchoring.preservesEndpoints} contract.
@@ -52,10 +52,10 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  */
 public class CorridorSpreadEnforcer {
 
-    /** Default minimum perpendicular spread (px) between parallel segments per AC-4.2. */
+    /** Default minimum perpendicular spread (px) between parallel segments. */
     static final int MIN_SPREAD_PX = 20;
 
-    /** Minimum parallel-segment count at the same coord that triggers spread enforcement per AC-4.2. */
+    /** Minimum parallel-segment count at the same coord that triggers spread enforcement. */
     static final int MIN_PARALLEL_COUNT = 3;
 
     /** Coord-equality tolerance (px) when grouping segments by perpendicular position. */
@@ -64,7 +64,7 @@ public class CorridorSpreadEnforcer {
     /** Required clearance from any non-hub obstacle's perpendicular edge (px). */
     static final double NON_HUB_OBSTACLE_CLEARANCE_PX = 10.0;
 
-    /** Per AC-4.3: fallback channel width assumed when no obstacle is in the away direction. */
+    /** Fallback channel width assumed when no obstacle is in the away direction. */
     private static final int UNBOUNDED_CHANNEL_PX = 1000;
 
     /**
@@ -110,7 +110,7 @@ public class CorridorSpreadEnforcer {
         if (cell == null || paths == null) return List.of();
         if (cell.members().size() < MIN_PARALLEL_COUNT) return List.of();
 
-        // Filter out terminal-incident members (B71 exemption).
+        // Filter out terminal-incident members (TerminalAnchoring exemption).
         List<EligibleMember> eligible = new ArrayList<>();
         for (HubFaceConnectionPartitioner.CellMember m : cell.members()) {
             if (!isEligibleMember(m, paths)) continue;
@@ -226,7 +226,7 @@ public class CorridorSpreadEnforcer {
         List<AbsoluteBendpointDto> path = paths.get(m.pathIndex());
         if (path == null || path.size() < 2) return false;
         int lastIdx = path.size() - 1;
-        // B71 TerminalAnchoring exemption: segment must NOT touch a terminal bp.
+        // TerminalAnchoring exemption: segment must NOT touch a terminal bp.
         return m.segmentStartBpIdx() > 0 && m.segmentEndBpIdx() < lastIdx;
     }
 

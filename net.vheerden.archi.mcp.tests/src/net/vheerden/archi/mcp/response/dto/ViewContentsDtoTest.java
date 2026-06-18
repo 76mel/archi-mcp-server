@@ -83,7 +83,7 @@ public class ViewContentsDtoTest {
         assertTrue(dto.connections().get(0).bendpoints().isEmpty());
     }
 
-    // ---- Story 14-8 (G16) AXIS C — images array ----
+    // ---- G16 AXIS C — images array ----
 
     @Test
     public void shouldSerialiseImagesArrayWhenSet_AC5() throws Exception {
@@ -116,11 +116,11 @@ public class ViewContentsDtoTest {
 
     @Test
     public void shouldPreserveBackCompat10ArgCtor_AC5() throws Exception {
-        // Story 8-6 callers used the 10-arg ctor; Story 14-8 added an 11th
-        // `images` field via a NEW canonical ctor + preserved the 10-arg form
+        // Earlier callers used the 10-arg ctor; the 11th
+        // `images` field was added via a NEW canonical ctor + preserved the 10-arg form
         // as a back-compat delegating ctor that passes null for images. JSON
         // for a view without image visuals must be byte-identical to its
-        // pre-Story-14-8 form.
+        // earlier form.
         ViewContentsDto dto = new ViewContentsDto(
                 "v-3", "Legacy View", "layered", "manual",
                 List.of(), List.of(), List.of(), List.of(),
@@ -137,7 +137,7 @@ public class ViewContentsDtoTest {
 
     @Test
     public void shouldPreserveBackCompat7ArgCtor_AC5() throws Exception {
-        // Pre-Story-8-6 callers used the 7-arg ctor. Story 14-8 preserves it
+        // Earlier callers used the 7-arg ctor. It is preserved
         // by delegating with null for connectionRouterType, groups, notes,
         // AND images.
         ViewContentsDto dto = new ViewContentsDto(

@@ -58,7 +58,7 @@ public class ViewHandlerTest {
         objectMapper = new ObjectMapper();
     }
 
-    // ---- Tool Registration Tests (AC #4) ----
+    // ---- Tool Registration Tests ----
 
     @Test
     public void shouldRegisterGetViewsTool() {
@@ -106,7 +106,7 @@ public class ViewHandlerTest {
         assertTrue(tool.description().contains("views"));
     }
 
-    // ---- Success Path Tests (AC #1) ----
+    // ---- Success Path Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -125,7 +125,7 @@ public class ViewHandlerTest {
         List<Map<String, Object>> views = (List<Map<String, Object>>) envelope.get("result");
         assertEquals(3, views.size());
 
-        // Verify first view fields (AC #1: id, name, viewpointType, folderPath)
+        // Verify first view fields: id, name, viewpointType, folderPath
         Map<String, Object> firstView = views.get(0);
         assertEquals("view-1", firstView.get("id"));
         assertEquals("Application Landscape", firstView.get("name"));
@@ -182,7 +182,7 @@ public class ViewHandlerTest {
         assertTrue(nextSteps.get(0).contains("get-model-info"));
     }
 
-    // ---- Viewpoint Filter Tests (AC #3) ----
+    // ---- Viewpoint Filter Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -269,7 +269,7 @@ public class ViewHandlerTest {
         assertTrue(nextSteps.get(0).contains("get-model-info"));
     }
 
-    // ---- Pagination Tests (Story 6.1) ----
+    // ---- Pagination Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -539,7 +539,7 @@ public class ViewHandlerTest {
         assertEquals("INTERNAL_ERROR", error.get("code"));
     }
 
-    // ---- get-view-contents: Tool Registration Tests (AC #4) ----
+    // ---- get-view-contents: Tool Registration Tests ----
 
     @Test
     public void shouldRegisterGetViewContentsTool() {
@@ -577,7 +577,7 @@ public class ViewHandlerTest {
         assertTrue(required.contains("viewId"));
     }
 
-    // ---- get-view-contents: Success Path Tests (AC #1) ----
+    // ---- get-view-contents: Success Path Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -600,7 +600,7 @@ public class ViewHandlerTest {
         assertEquals("Application Landscape", contents.get("viewName"));
         assertEquals("Application Usage", contents.get("viewpoint"));
 
-        // Verify elements (AC #1: elements as ElementDto)
+        // Verify elements as ElementDto
         List<Map<String, Object>> elements = (List<Map<String, Object>>) contents.get("elements");
         assertNotNull(elements);
         assertEquals(2, elements.size());
@@ -609,7 +609,7 @@ public class ViewHandlerTest {
         assertEquals("ApplicationComponent", elements.get(0).get("type"));
         assertEquals("Application", elements.get(0).get("layer"));
 
-        // Verify relationships (AC #1: RelationshipDto with sourceId, targetId, type, name)
+        // Verify relationships: RelationshipDto with sourceId, targetId, type, name
         List<Map<String, Object>> relationships = (List<Map<String, Object>>) contents.get("relationships");
         assertNotNull(relationships);
         assertEquals(1, relationships.size());
@@ -619,7 +619,7 @@ public class ViewHandlerTest {
         assertEquals("elem-1", relationships.get(0).get("sourceId"));
         assertEquals("elem-2", relationships.get(0).get("targetId"));
 
-        // Verify visual metadata (AC #1: positions/sizes)
+        // Verify visual metadata: positions/sizes
         List<Map<String, Object>> visualMetadata = (List<Map<String, Object>>) contents.get("visualMetadata");
         assertNotNull(visualMetadata);
         assertEquals(2, visualMetadata.size());
@@ -629,7 +629,7 @@ public class ViewHandlerTest {
         assertEquals(120, visualMetadata.get(0).get("width"));
         assertEquals(55, visualMetadata.get(0).get("height"));
 
-        // Verify nextSteps (AC #1)
+        // Verify nextSteps
         List<String> nextSteps = (List<String>) envelope.get("nextSteps");
         assertNotNull(nextSteps);
         assertEquals(2, nextSteps.size());
@@ -680,7 +680,7 @@ public class ViewHandlerTest {
         assertEquals(0, meta.get("totalCount"));
     }
 
-    // ---- get-view-contents: Error Path Tests (AC #2) ----
+    // ---- get-view-contents: Error Path Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -810,7 +810,7 @@ public class ViewHandlerTest {
         assertEquals("INVALID_PARAMETER", error.get("code"));
     }
 
-    // ---- Field Selection Integration Tests (Story 5.2, Task 11.5-11.6) ----
+    // ---- Field Selection Integration Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -880,7 +880,7 @@ public class ViewHandlerTest {
         new ViewHandler(new StubAccessor(true), formatter, null, null);
     }
 
-    // ---- Story 5.3: Model Version Change Detection Tests ----
+    // ---- Model Version Change Detection Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -947,7 +947,7 @@ public class ViewHandlerTest {
         assertEquals(true, meta.get("modelChanged"));
     }
 
-    // ---- Story 5.4: Session Cache Tests ----
+    // ---- Session Cache Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -995,7 +995,7 @@ public class ViewHandlerTest {
         assertEquals("Accessor should not be called again", 1, accessor.getViewContentsCount);
     }
 
-    // ---- Story 6.2: DryRun Tests ----
+    // ---- DryRun Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1121,7 +1121,7 @@ public class ViewHandlerTest {
         assertTrue("get-view-contents should have dryRun property", properties.containsKey("dryRun"));
     }
 
-    // ---- Story 6.4: Name Filtering Tests ----
+    // ---- Name Filtering Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1435,7 +1435,7 @@ public class ViewHandlerTest {
                 new TypeReference<Map<String, Object>>() {});
     }
 
-    // ---- update-view tool registration tests (Story 8-7) ----
+    // ---- update-view tool registration tests ----
 
     @Test
     public void shouldRegisterThreeTools_includingUpdateView() {
@@ -1467,7 +1467,7 @@ public class ViewHandlerTest {
         assertEquals(1, tool.inputSchema().required().size());
     }
 
-    // ---- update-view success tests (Story 8-7) ----
+    // ---- update-view success tests ----
 
     @Test
     public void shouldReturnUpdatedViewDto_whenNameUpdated() throws Exception {
@@ -1581,7 +1581,7 @@ public class ViewHandlerTest {
         assertTrue(nextSteps.stream().anyMatch(s -> s.contains("get-views")));
     }
 
-    // ---- update-view error tests (Story 8-7) ----
+    // ---- update-view error tests ----
 
     @Test
     public void shouldReturnError_whenViewNotFound() throws Exception {
@@ -1619,7 +1619,7 @@ public class ViewHandlerTest {
         assertTrue(toolResult.isError());
     }
 
-    // ---- update-view approval mode tests (Story 8-7 / AC8) ----
+    // ---- update-view approval mode tests ----
 
     @Test
     public void shouldReturnProposalInfo_whenApprovalModeEnabled() throws Exception {
@@ -1645,7 +1645,7 @@ public class ViewHandlerTest {
         assertNotNull("Should have proposal info", entity.get("proposal"));
     }
 
-    // ---- update-view batch mode tests (Story 8-7) ----
+    // ---- update-view batch mode tests ----
 
     @Test
     public void shouldReturnBatchInfo_whenUpdateViewInBatchMode() throws Exception {
@@ -1668,7 +1668,7 @@ public class ViewHandlerTest {
         assertTrue(nextSteps.stream().anyMatch(s -> s.contains("batch")));
     }
 
-    // ---- update-view connectionRouterType tests (Story 9-0c) ----
+    // ---- update-view connectionRouterType tests ----
 
     @Test
     public void shouldPassConnectionRouterType_whenProvided() throws Exception {
@@ -1888,7 +1888,7 @@ public class ViewHandlerTest {
     }
 
     /**
-     * Stub accessor that counts method invocations for cache hit/miss verification (Story 5.4).
+     * Stub accessor that counts method invocations for cache hit/miss verification.
      */
     private static class CountingAccessor extends StubAccessor {
         int getViewsCount = 0;
@@ -1911,7 +1911,7 @@ public class ViewHandlerTest {
         }
     }
 
-    // ---- MutationStubAccessor for update-view tests (Story 8-7) ----
+    // ---- MutationStubAccessor for update-view tests ----
 
     @FunctionalInterface
     interface UpdateViewBehavior {

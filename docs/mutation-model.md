@@ -105,7 +105,17 @@ dispatchImmediate(Command command) {
 
 ### Version Tracking
 
-After each dispatch, `ModelVersionTracker` increments the model version. This invalidates session caches and enables the `_meta.modelChanged` flag in responses.
+`ArchiModelAccessorImpl` holds a private `AtomicLong versionCounter`; `getModelVersion()` returns its current value as a string (or `null` when no model is loaded). The value is a **monotonic change-detection token**: it *strictly increases* on every model change — agent mutations **and** human GUI edits alike — and never decreases (even an `undo` advances it, because the model did change). Consumers compare it for **equality only** ("did it change since I last looked"), which invalidates session caches, invalidates stale pagination cursors, and enables the `_meta.modelChanged` flag in responses. **Nothing consumes the delta** — only whether the value differs.
+
+Because only equality is consumed, the *magnitude* of an increment is deliberately unspecified. A single change can advance the counter by more than one: an agent `CommandStack.execute` advances it via the inline per-method bump **and** via Archi's `PROPERTY_ECORE_EVENT` (see below), so an agent op is observed live to advance it by **+2**. This multi-bump is **benign by design** for a change-token and is long-standing (the `PROPERTY_ECORE_EVENT` lifecycle bump predates the approval work).
+
+The increment sources are:
+
+- **`handleModelContentChanged()`** — fires on Archi's `PROPERTY_ECORE_EVENT`, i.e. for **every** EMF notification on the active model. This is the source that covers **human GUI edits** (hand-draw, drag, rename, delete) as well as agent ops, and it is the per-op bump that fires live regardless of the inline guards.
+- **Inline per-method bumps + the immediate-dispatch callback** — `versionCounter.incrementAndGet()` guards on each mutation body (and the `setOnImmediateDispatchCallback` on the approve path). These exist because the **headless** test harness uses a mock `IEditorModelManager` that fires **no** `PROPERTY_ECORE_EVENT`; without them the counter would not advance in offline tests.
+- **Lifecycle bumps** — `setActiveModel()` and the no-model branch advance the counter on a model switch / close (a different model is now active ⇒ the token must change).
+
+> Note: a class named `ModelVersionTracker` (`model/ModelVersionTracker.java`) does exist, but it is the **session-side** version-diff store — `checkAndUpdateVersion` records the last version seen per session and returns whether it changed (`!previousVersion.equals(currentVersion)`). It does **not** increment the model version; the `versionCounter` `AtomicLong` is the incrementer.
 
 ### Per-Session State
 
@@ -119,16 +129,18 @@ After each dispatch, `ModelVersionTracker` increments the model version. This in
 stateDiagram-v2
     [*] --> GUI_ATTACHED: Default
     GUI_ATTACHED --> BATCH: begin-batch
-    GUI_ATTACHED --> APPROVAL: set-approval-mode(true)
+    GUI_ATTACHED --> APPROVAL: human toggles Approval Mode ON in Archi
     BATCH --> GUI_ATTACHED: end-batch
-    APPROVAL --> GUI_ATTACHED: set-approval-mode(false)
+    APPROVAL --> GUI_ATTACHED: human toggles Approval Mode OFF in Archi
 ```
 
 | Mode | Behavior | Undo Granularity |
 |------|----------|------------------|
 | **GUI-ATTACHED** | Mutations execute immediately, UI updates in real-time | Each mutation is a separate undo unit |
 | **BATCH** | Mutations are queued; committed atomically on `end-batch` | Entire batch is a single undo unit |
-| **APPROVAL** | Mutations become proposals; executed only on explicit approval | Each approved mutation is a separate undo unit |
+| **APPROVAL** | Mutations become proposals; executed only on explicit **human** approval | Each approved mutation is a separate undo unit |
+
+> **Approval mode is global, not per-session.** It is one human-owned switch for the whole plugin, toggled only from Archi's desktop UI. The setting is persisted in MCP preferences and restored on start; a fresh install defaults to ON (gated).
 
 ## Undo and Redo
 
@@ -140,12 +152,41 @@ The `CommandStackHandler` exposes Archi's native GEF CommandStack as MCP tools.
 - Pops N commands from the undo stack
 - Returns list of undone command labels
 - Standard sequential undo (most recent first)
+- **Scoped to agent-authored changes** — see below
 
 ### redo
 
 - **Parameters:** `steps` (integer, default 1, minimum 1)
 - Pushes N commands back from the redo stack
 - Redo stack is cleared on any new mutation post-undo
+- **Scoped to agent-authored changes** — see below
+
+### Origin tagging and scoped agent undo/redo
+
+A native GEF `CommandStack` carries **no per-entry provenance** — once a command is on the stack
+there is no way to recover who authored it. So every agent mutation is stamped with its origin **at
+admission**: `MutationDispatcher.dispatchImmediate` wraps each command in an
+`AgentAuthoredCompoundCommand` (a plain single-child `CompoundCommand` implementing the
+`AgentAuthoredCommand` marker) immediately before `CommandStack.execute`. Every agent write —
+immediate single ops, the batch-commit compound, and approved proposals — funnels through that one
+chokepoint, so all of them are tagged; human GUI edits reach Archi's CommandStack directly and stay
+untagged. The wrapper is behaviourally transparent (delegates `execute/undo/redo` to its one child
+and reports the delegate's label) and is **one stack entry**, so the undo/redo menu, tool labels, and
+the speculative-undo arithmetic are unchanged.
+
+The **`undo`/`redo` MCP tools are scoped to the agent's own changes** (the "betrayal" guard): they
+act only on agent-authored top-of-stack entries.
+
+- If the top of the stack is the **human's** change, the agent's `undo`/`redo` performs **zero**
+  operations and returns a distinct refusal — *"Cannot undo — the most recent change is the
+  human's."* — never silently evaporating hand-drawn work. To revert a human change the agent must
+  submit a **new proposal** the human decides on. This refusal is distinct from an empty stack
+  (*"Nothing to undo"*).
+- For `steps > 1`, the agent undoes consecutive agent entries and **stops without error** at the
+  first human entry, returning the labels actually undone (it never crosses a human edit).
+- **Archi's native Edit ▸ Undo/Redo (Ctrl+Z / Ctrl+Y) is unchanged** — it calls `CommandStack`
+  directly and is **not** scoped, so the human still owns the whole timeline and can undo anything,
+  including the agent's work.
 
 ### Experimental Workflow
 
@@ -162,44 +203,75 @@ Undo/redo enables speculative layout workflows:
 
 ## Approval Workflow
 
-The approval workflow provides human-in-the-loop control for experimental or high-risk mutations.
+The approval workflow provides human-in-the-loop control for high-risk mutations. **The control plane is the human's**: the agent submits mutations and observes the gate but cannot move it. A self-ungating safety control would be theatre, so the toggle and the approve/reject decision live on the human (desktop) side, and the corresponding MCP tools (`set-approval-mode`, `decide-mutation`) no longer exist.
 
-### set-approval-mode
+### Human-owned toggle (Archi UI, not MCP)
 
-- **Parameters:** `enabled` (boolean, required)
-- When enabled: all mutations become proposals (queued, not executed)
-- When disabled: mutations apply immediately
-- State is per-session
+- Toggled from the checkable **MCP Server → Approval Mode** menu item in Archi. There is no MCP tool to flip it (the only robust guard is non-existence).
+- The bit is **global** (one human, one desktop, one gate), **persisted in MCP preferences and restored on start**; a fresh install defaults to ON (gated) — fail safe.
+- Friction asymmetry: turning the gate **on** is one click; turning it **off** requires a confirmation.
 
-### list-pending-approvals
+### list-pending-approvals (the agent's only approval tool — read-only)
 
-- Returns all pending proposals for the current session
-- Each proposal includes: proposalId, tool name, description, parameters
+- Returns all pending proposals for the current session, and the current `approvalMode`.
+- Each proposal includes: proposalId, tool name, description, parameters.
+- Its `nextSteps` direct the agent to tell the human to approve/reject in Archi — never to call a removed tool.
+- The agent can also read `approvalMode` from `get-model-info`.
 
-### decide-mutation
+### Approve / reject (human side, via `ApprovalService`)
 
-- **Parameters:**
-  - `proposalId` (string): `"p-1"`, `"p-2"`, etc., or `"all"` for batch decision
-  - `decision` (string): `"approve"` or `"reject"`
-  - `reason` (optional string): explanation
-- **Single approval:** execute the mutation immediately
-- **Single rejection:** discard the mutation
-- **Approve all:** process in order, stop on first stale proposal
-- **Reject all:** discard all pending
-- **Stale proposals:** if the model changed since proposal creation, the proposal cannot be approved (prevents applying outdated mutations to a changed model)
+Approve/reject orchestration lives in the UI-callable `server/ApprovalService` (no MCP surface) that the Pending Approvals view binds to:
+
+- **Approve:** execute the proposal's command immediately (or queue it if a batch is active).
+- **Reject:** discard the proposal, no model change.
+- **Stale proposals:** if the held command fails to apply because the model changed since proposal creation, approval surfaces a stale error (the held-`Command` hazard is retired by storing the request rather than a live command — see *Store-the-request* below).
+
+### Pending Approvals view (the human surface)
+
+The human reviews and decides in the **Pending Approvals** dock view in Archi (`ui/PendingApprovalsView`), which calls `ApprovalService` directly — there is no MCP path to it.
+
+- **One card per proposal** = one card per gated tool-call (a whole `bulk-mutate` is a single card, never N). Cards are the cross-session union (`ApprovalService.listAllPending()`), oldest first; each carries its `sessionId` so Approve/Reject routes to the right session.
+- **Effect rollup** is derived client-side from the proposal's `tool` + `proposedChanges` by the headless `ui/ApprovalCardModel` (destructive counts in amber, deletes hoisted, names resolved where the DTO provides them). The `ViewPart` is a thin renderer over it.
+- **Live refresh** rides a new `model/ApprovalQueueListener` fired from the dispatcher's store/remove/approve/reject/clear points; the view marshals to the SWT thread (`Display.asyncExec`) — `model/` stays SWT-free.
+- A destructive card keeps `Approve` disabled until its changes are expanded once; bulk **`Approve all safe`** / **`Approve all ⚠`** chain whole-card approvals oldest-first and halt on the first stale proposal.
+
+### Effect vs. intent
+
+A proposal carries **two separate, nullable description fields** that are **never merged** — they hold different trust levels:
+
+- **`effectDescription` (server-owned).** Rich, human-readable, non-spoofable text the server generates from the model's own truth: real element **names** and types, relationship **source→target** names, and server-derived consequences already on the result DTO (cascade counts). Relationship effects are named at propose time — `Create ServingRelationship: 'Payment Gateway' → 'Fraud Engine'` and `Delete …: 'A' → 'B' (cascade: 2 view connections)` — resolved by a private helper in `model/ArchiModelAccessorImpl` (no new accessor-interface surface). The **visual-connection** tools name their endpoints the same way: `add-connection-to-view` → `Add connection ServingRelationship: 'A' → 'B'` and `update-view-connection` → `Update connection …: 'A' → 'B'` (the drawn connection is *for* an existing model relationship, so its endpoints resolve cleanly at propose time). For `bulk-mutate`, `proposedChanges.operations` is a **structured list** (`{index, tool, name, type, source, target}`) so the card renders named rows without the human opening `Technical details`.
+
+  Every **view-visual** add / update / delete effect text also **names the destination view**: the server resolves `viewId` — or, for the update tools that carry only an object id, the object's owning diagram — to the live `IDiagramModel.getName()` and appends it, so the card reads `Add ApplicationComponent 'X' to view 'Main View'`, `Update connection …: 'A' → 'B' in view 'Main View'`, or `Remove … from view 'Main View'`. This covers the whole family (`add-to-view`, `add-group-to-view`, `add-note-to-view`, `add-view-reference-to-view`, `add-image-to-view`, `add-connection-to-view`, `update-view-object`, `update-view-connection`, `remove-from-view`) via the same private `model/ArchiModelAccessorImpl` resolver (no accessor-interface surface). The view name degrades cleanly: an unresolvable id or blank name yields the bare un-named text (never `view ''`).
+
+The card icon encodes the concept **kind** so the four are distinguishable at a glance: model element `▢`, model relationship `↔`, visual object (a placed node) `▣`, visual connection (a drawn line) `⇿`; a destructive op is always `🗑` and an update always `✎` (action dominates kind). Kind is carried by the icon + wording only — **colour is never used to encode kind** (amber stays destructive-only), and card fonts are unchanged: the cards are dock chrome (peers of Properties/Navigator) and read as native Archi UI via `parent.getFont()`. (Archi exposes no readable global default-diagram-font preference to inherit anyway, and its diagram-object font exists for canvas-object portability across OSes when a model is shared — irrelevant to ephemeral local dock chrome. Settled UX decision.) These are pure decisions in `ui/ApprovalCardModel` (`iconOf`/`verbOf`/`categoryOf`), unit-tested headlessly.
+- **`intent` (agent-supplied).** The agent's optional plain-language "why". It is **batch-seam only** — an optional `intent` string on **`begin-batch`** and **`bulk-mutate`** (never a per-tool param). On `bulk-mutate` it lands on that proposal's `intent`; on `begin-batch` it is recorded on the session's `MutationContext` (`batchIntent`). The **server never depends on intent** — with it absent every path behaves exactly as before, and it is never logged at INFO.
+
+The card prefers `effectDescription` over the mechanical `description` for its row/headline, falling back to `description` then to a raw id (the honesty ladder). Intent renders as a quiet, italic `agent's note:` line **below** the effect and never outranks it; **hollow intent** (empty/whitespace, generic phrases like "Updating the model", or text that merely restates the tool) is **suppressed** by a pure `ApprovalCardModel.isHollowIntent` predicate so vagueness never occupies the trust slot. Both fields are `@JsonInclude(NON_NULL)`, so when absent they cost nothing on the wire (`list-pending-approvals` is byte-identical when both fields are absent).
+
+### Store-the-request, staleness guard, and version counter
+
+The review window is **human-paced** — minutes can pass between an agent proposing a change and the human approving it. A proposal therefore **stores the request, not a pre-built `Command`**: it no longer holds a frozen GEF `Command` closed over propose-time `EObject`s (which could NPE, misapply, or clobber the human's hand-edits if they touched a targeted object in the meantime). Instead `model/PendingProposal` holds a **deferred rebuild handle** (`Supplier<PreparedMutation<?>>`, closing over param primitives / id-strings — never live objects) plus a `StalenessCapture`. The propose-time card fields (`entity`, `effectDescription`, `intent`, `proposedChanges`, …) are unchanged (the propose-time card enrichment runs verbatim).
+
+- **Re-resolve, re-check, rebuild fresh (approve path).** `MutationDispatcher.approveProposal` first vets staleness, then asks `model/ProposalBuilder` to re-invoke the **same** per-tool `prepareXxx(...)` the immediate path runs — against the **current** model — producing a fresh command + re-resolved entity. The fresh command dispatches through the same `dispatchImmediate` seam, so it is still **one** agent-authored stack entry (the agent-origin tag holds). The two paths share the `prepareXxx` family, so they cannot drift. A target that no longer resolves makes `prepareXxx` throw, which `ProposalBuilder` translates into a clean stale `MutationException` — never an NPE or raw exception.
+- **Staleness guard (`model/ProposalStalenessGuard`).** Registers **exactly one** `CommandStackEventListener` on the active model's `CommandStack` (re-registered on model switch, removed on close — no leak). Every post-change stack event advances a monotonic sequence; a non-`AgentAuthoredCommand` (human) event also advances `lastHumanSequence`. At propose it captures `{sequence, per-target fingerprint, per-target name}` for the proposal's `targetIds`. At approve it re-resolves each target: a target that **no longer resolves** ⇒ stale (named), a target whose **attribute fingerprint changed while a human command intervened** ⇒ stale (named, *"…edited…"*), and — for a diagram-object target — a target whose **bounds fingerprint changed** (a pure drag/move) **while a human intervened** ⇒ stale (named, *"…moved…"*; tracked orthogonally to the attribute fingerprint so an edit and a drag stay distinguishable). Unrelated human edits never touch the proposal's targets, so they never trip staleness — the reviewed change still applies. The reject-stale reason is plain-language and **names what the human touched** (e.g. *"This proposal is stale because you edited 'Payment Gateway' after the agent proposed it. Reject it and ask the agent to retry."*), surfaced on the Pending Approvals card's inline strip.
+- **Single-op vs. compound proposals.** Single create/update/delete/folder proposals carry a true re-resolving handle (`() -> prepareXxx(args)`) — rebuild is cheap and deterministic-equivalent, fully retiring the frozen-command hazard. Layout/route/spacing compounds (`apply-positions`, `auto-route-connections`, `auto-layout-and-route`, `auto-connect-view`, `layout-within-group`, `layout-flat-view`, `optimize-group-order`, `arrange-groups`, `resize-elements-to-fit`) and `bulk-mutate` are **reviewed-or-reject**: the handle returns the already-reviewed compound rather than re-running the algorithm (which could differ from what was reviewed — that would violate the approved-or-nothing contract). Their tracked set is **broadened**: the guard walks the already-built compound's typed child commands at propose-time and tracks the id of every pre-existing view-object / connection the compound touches (plus the `viewId`), so it rejects-stale if a human **deletes**, **edits**, or **drags** any of those children during review — without ever re-running the layout/route algorithm.
+  - **What is caught.** For a compound proposal the guard now tracks the affected child view-objects/connections (extracted from the compound's `UpdateViewObjectCommand` / `UpdateViewConnectionCommand` / `SetTextPositionCommand` / `AddConnectionToViewCommand` children via their typed accessors — this project never uses Archi's accessor-less `SetConstraintCommand`), and for `bulk-mutate` it tracks each op's pre-existing entity id **plus** the resolvable source/target endpoint ids of create-relationship ops. So a human deleting a child node on the targeted view, editing it, dragging it, or removing a relationship endpoint between propose and approve now reject-stales the compound (the frozen child command can no longer no-op/misapply on a detached object). Bounds are fingerprinted orthogonally to attributes, so a drag is reported as *moved* and a rename as *edited*.
+    - **Remaining residual (deliberate).** Ids that name a **not-yet-created** object — a being-created connection (`auto-connect-view`) or a `bulk-mutate` `$N.id` back-reference / created relationship — are not resolvable at propose-time (`getSource()`/`getTarget()` are null until the command executes), so they are skipped by capture and fall through to the `ProposalBuilder` rebuild-throw safety net (which still surfaces a clean stale message, never an NPE). `bulk-mutate` secondary-dependency tracking is **scoped to create-relationship endpoint ids**; a pre-existing dependency named only by another op type (e.g. the `elementId` placed by a bulk `add-to-view`, or a bulk view-connection's diagram endpoints) is **not** added to the tracked set and likewise relies on that rebuild-throw safety net if the human removes it. A human edit to a view object the compound does **not** touch (e.g. `auto-route-connections` rectifies only connections; a human moves an unrelated node) does **not** reject — that is correct, the frozen route does not depend on it. Single-op proposals never had this gap (they rebuild fresh and re-resolve every target; a drag of a single-op's own diagram-object target also reject-stales it, which is the intended behaviour — the human touched the exact target).
+- **TTL / expiry sweep.** Abandoned proposals are swept after `MutationDispatcher.PROPOSAL_TTL` (30 min) on both `list-pending-approvals` and on propose, so the per-session queue never silently fills to the `MutationContext.MAX_PENDING_PROPOSALS` (100) hard cap. Expiry is **surfaced** (logged + the proposal drops out of the live list), never a destructive model change, and the proposal under approval is never swept (approve removes it from the map before rebuilding).
+- **Version counter.** `getModelVersion()` already advances on **every** model change — human edits included — because `ArchiModelAccessorImpl.handleModelContentChanged` bumps the counter on Archi's `PROPERTY_ECORE_EVENT`, which fires for all EMF notifications on the active model. The staleness work therefore adds **no** version-counter logic (the listener it adds serves the staleness guard only). **Contract:** the counter is a **monotonic change-token** — it advances strictly on every change; the **exact delta is unspecified and not consumed**. In practice a single agent op advances it by **+2** (the inline/callback bump *plus* the `PROPERTY_ECORE_EVENT` bump on the same `CommandStack.execute`). That multi-count is a **benign, long-standing** property of a change-token — consumers compare for equality only (see "Version Tracking" above) — not a defect.
 
 ### Workflow Example
 
 ```text
-1. set-approval-mode(enabled=true)
-2. create-element(...)          → returns proposal p-1
-3. create-relationship(...)     → returns proposal p-2
-4. list-pending-approvals       → shows p-1, p-2
-5. decide-mutation(p-1, approve) → element created
-6. decide-mutation(p-2, reject)  → relationship discarded
+1. Human toggles Approval Mode ON in Archi (or it is already gated on a fresh start)
+2. create-element(...)          → returns proposal p-1 (NOT applied)
+3. create-relationship(...)     → returns proposal p-2 (NOT applied)
+4. agent: list-pending-approvals → shows p-1, p-2; tells the user to confirm in Archi
+5. Human approves p-1 in Archi  → element created
+6. Human rejects p-2 in Archi   → relationship discarded
 ```
 
-**Source:** `handlers/ApprovalHandler.java`
+**Source:** `handlers/ApprovalHandler.java` (read-only tool), `server/ApprovalService.java` (approve/reject + cross-session aggregation), `server/ApprovalMode.java` (human-owned bit), `ui/PendingApprovalsView.java` + `ui/ApprovalCardModel.java` (the human surface), `model/ApprovalQueueListener.java` (live-refresh seam)
 
 ## Batch Mode
 
@@ -207,7 +279,7 @@ Batch mode groups multiple mutations into a single atomic, undoable operation.
 
 ### begin-batch
 
-- **Parameters:** `description` (optional string)
+- **Parameters:** `description` (optional string — undo-history label), `intent` (optional string — the agent's "why", recorded on the batch context; see [Effect vs. intent](#effect-vs-intent))
 - Transitions session from GUI-attached to BATCH mode
 - Subsequent mutations are queued, not executed
 - Error if batch already active
@@ -234,6 +306,7 @@ The `bulk-mutate` tool executes multiple mutations in a single request.
 |-----------|----------|-------------|
 | `operations` | Yes | Array of mutation objects |
 | `description` | No | Undo history label |
+| `intent` | No | The agent's plain-language "why" — shown as a quiet `agent's note:` on the approval card; server never depends on it (see [Effect vs. intent](#effect-vs-intent)) |
 | `continueOnError` | No | `false` = all-or-nothing (default), `true` = partial failure |
 
 ### Supported Operations

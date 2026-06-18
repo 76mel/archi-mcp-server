@@ -26,7 +26,7 @@ import net.vheerden.archi.mcp.response.dto.FolderDto;
 import net.vheerden.archi.mcp.response.dto.ViewDto;
 
 /**
- * Unit tests for the find-concept-usage tool (Story 14-5 / G10) on
+ * Unit tests for the find-concept-usage tool (G10) on
  * {@link ModelQueryHandler}. Uses a stub accessor — no EMF/OSGi runtime.
  */
 public class FindConceptUsageHandlerTest {

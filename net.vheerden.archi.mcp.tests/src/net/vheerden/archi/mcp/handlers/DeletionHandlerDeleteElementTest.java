@@ -28,7 +28,7 @@ import net.vheerden.archi.mcp.response.dto.DeleteResultDto;
 import org.eclipse.gef.commands.Command;
 
 /**
- * Tests for {@link DeletionHandler} delete-element tool (Story 8-4).
+ * Tests for {@link DeletionHandler} delete-element tool.
  */
 public class DeletionHandlerDeleteElementTest {
 
@@ -230,7 +230,7 @@ public class DeletionHandlerDeleteElementTest {
 
         @SuppressWarnings("unchecked")
         List<String> nextSteps = (List<String>) result.get("nextSteps");
-        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("decide-mutation")));
+        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
     }
 
     // ---- Batch mode ----

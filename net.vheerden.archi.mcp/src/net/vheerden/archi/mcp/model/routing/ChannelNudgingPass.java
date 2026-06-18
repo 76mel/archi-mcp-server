@@ -18,7 +18,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * B69-B — Channel-global ordered nudging post-pass.
+ * Channel-global ordered nudging post-pass.
  *
  * <p>Operates on the full route set produced by the A* routing pipeline, groups
  * axis-aligned segment runs by the <b>obstacle-bounded corridor</b> they occupy,
@@ -32,24 +32,24 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * This class operates post-A* on routes-with-global-visibility, which is the layer
  * prescribed by Wybrow/Marriott/Stuckey 2009 §4 "Ordering and Nudging",
  * Hegemann &amp; Wolff 2023 §3-§4, and libavoid {@code orthogonal.cpp}'s
- * {@code nudgeOrthogonalRoutes}. Per-edge cost terms (B41, B43, B69-A) and
- * per-connection post-passes (B66) both failed to address the corridor-occupancy
+ * {@code nudgeOrthogonalRoutes}. Per-edge cost terms and
+ * per-connection post-passes both failed to address the corridor-occupancy
  * problem because they operate at the wrong layer; this class is the first proposal
  * at the correct layer.
  *
  * <p><b>Key scheme:</b> Phase 1 groups runs by {@link ChannelKey} computed via
  * {@link CoincidentSegmentDetector#computeCorridorGap} per-segment. Two runs threading
  * the same obstacle pair produce identical keys regardless of their current
- * perpendicular coordinates — which is the load-bearing fix for the Task 0.1 spike
- * falsification of the original rounded-sharedCoord key inherited from B47's
- * {@link CorridorOccupancyTracker}. The B47 occupancy tracker is not touched by this
+ * perpendicular coordinates — which is the load-bearing fix for the spike
+ * falsification of the original rounded-sharedCoord key inherited from
+ * {@link CorridorOccupancyTracker}. The occupancy tracker is not touched by this
  * class; its read API at {@code VisibilityGraphRouter:222} is preserved.
  *
  * <p><b>Pure geometry.</b> No EMF, no SWT, no PDE. All inputs are in-memory
  * DTOs and RoutingRects; all mutation is to the caller-supplied bendpoint lists.
  * Callable from standard JUnit tests without OSGi.
  *
- * <p><b>Per-route rollback (AC-5 + AC-8).</b> Every nudge is attempted under a
+ * <p><b>Per-route rollback.</b> Every nudge is attempted under a
  * snapshot. Three post-condition checks in order — terminal-alignment invariant,
  * obstacle clearance, no-new-coincident-pair — restore the snapshot on failure.
  * A route is never left in a "nudged-and-broken" state.
@@ -63,7 +63,7 @@ public class ChannelNudgingPass {
     private static final Logger logger = LoggerFactory.getLogger(ChannelNudgingPass.class);
 
     /** System property gating verbose per-decision diagnostic log lines (default off). */
-    public static final String DIAGNOSTIC_PROPERTY = "archi.mcp.b69b.diagnostic";
+    public static final String DIAGNOSTIC_PROPERTY = "archi.mcp.channelnudging.diagnostic";
 
     /**
      * Minimum nudge magnitude in pixels. A run whose current perpendicular coordinate
@@ -72,7 +72,7 @@ public class ChannelNudgingPass {
      */
     static final int MIN_NUDGE_PX = 4;
 
-    /** Minimum clearance between a track and the corridor walls. Matches B25 / {@code RoutingPipeline.MIN_CLEARANCE}. */
+    /** Minimum clearance between a track and the corridor walls. Matches {@code RoutingPipeline.MIN_CLEARANCE}. */
     static final int MIN_CLEARANCE_PX = 10;
 
     /** Minimum spacing between adjacent tracks in a multi-occupant channel. Matches {@code EdgeNudger.DEFAULT_MIN_SPACING}. */
@@ -87,14 +87,14 @@ public class ChannelNudgingPass {
     /**
      * Minimum parallel length of a segment to be a nudge candidate. Segments shorter
      * than this are treated as inter-route fan-out micro-jogs produced by the A*
-     * router under full-batch conditions (with B47 corridor occupancy tracking),
+     * router under full-batch conditions (with corridor occupancy tracking),
      * not as corridor-body runs.
      *
      * <p><b>Rationale for 100 px:</b> empirically determined from the V3 API Management
-     * Platform → Branch Teller pathology observed during B69-B Task 6 live E2E
-     * (2026-04-13 evening). Under full-batch routing, A* produces 40-57 px
+     * Platform → Branch Teller pathology observed during live E2E.
+     * Under full-batch routing, A* produces 40-57 px
      * terminal-adjacent jogs to separate co-exiting connections from the same source.
-     * B69-B's Phase 2 would otherwise nudge these micro-jogs to their channel midpoint,
+     * Phase 2 would otherwise nudge these micro-jogs to their channel midpoint,
      * creating visible hooks because the perpendicular "catch-up" segments at each end
      * dominate the segment being improved.
      *
@@ -117,8 +117,7 @@ public class ChannelNudgingPass {
     enum Axis { H, V }
 
     /**
-     * Obstacle-bounded channel identity. Replaces the B47 rounded-sharedCoord key per
-     * Task 0.1 re-scope (user-ratified, party-mode confirmed 2026-04-13 evening).
+     * Obstacle-bounded channel identity. Replaces the rounded-sharedCoord key.
      * Two runs threading the same obstacle pair produce identical keys regardless
      * of their current perpendicular coordinates.
      */
@@ -188,7 +187,7 @@ public class ChannelNudgingPass {
      * {@link #introducesNewCoincidentPair} to detect cross-channel collisions — two
      * runs in <em>different</em> obstacle-bounded channels can still coincident-pair
      * if their post-nudge (axis, sharedCoord) match and their parallel ranges overlap
-     * (H1 fix 2026-04-13 evening; pre-fix the check only scanned same-channel occupants
+     * (H1 fix; pre-fix the check only scanned same-channel occupants
      * and missed this case entirely).
      */
     private final List<NudgedRun> nudgedRunsLog = new ArrayList<>();
@@ -235,7 +234,7 @@ public class ChannelNudgingPass {
     /**
      * Run the channel nudging pass on all routes, with inter-group corridor awareness.
      *
-     * <p>B75: when {@code topLevelGroupBounds} is non-empty, group boundaries tighten
+     * <p>When {@code topLevelGroupBounds} is non-empty, group boundaries tighten
      * the obstacle-bounded gap computed by {@link CoincidentSegmentDetector#computeCorridorGap}.
      * Segments in inter-group corridors (where no element obstacles bound the corridor)
      * get channel walls from adjacent group edges instead of the synthetic
@@ -245,7 +244,7 @@ public class ChannelNudgingPass {
      * @param connections          per-route endpoint records (source, target, id)
      * @param paths                per-route bendpoint lists (mutated in place)
      * @param allObstacles         all element rectangles on the view
-     * @param topLevelGroupBounds  top-level group rectangles (AC-4: no nested groups)
+     * @param topLevelGroupBounds  top-level group rectangles (no nested groups)
      * @return total number of nudges successfully applied across all routes
      */
     public int run(List<RoutingPipeline.ConnectionEndpoints> connections,
@@ -307,7 +306,7 @@ public class ChannelNudgingPass {
      * runs by parallel-range overlap. Returns the full flat list of channels in
      * deterministic iteration order.
      *
-     * <p>B75: after {@code computeCorridorGap()} returns the element-level gap, each
+     * <p>After {@code computeCorridorGap()} returns the element-level gap, each
      * group boundary is checked as a potential tighter bound. Group edges that fall
      * between the current gap bound and the segment's shared coordinate replace the
      * bound. This causes inter-group corridor segments to share a single
@@ -360,7 +359,7 @@ public class ChannelNudgingPass {
                     continue;
                 }
 
-                // B75: tighten gap bounds using top-level group boundaries.
+                // Tighten gap bounds using top-level group boundaries.
                 // Group edges that fall between the current bound and the segment's
                 // shared coordinate replace the bound, giving inter-group corridor
                 // segments a ChannelKey derived from real group walls instead of the
@@ -405,7 +404,7 @@ public class ChannelNudgingPass {
     }
 
     /**
-     * B75: tighten an element-level corridor gap using top-level group boundaries.
+     * Tighten an element-level corridor gap using top-level group boundaries.
      *
      * <p>For each group boundary, checks whether either perpendicular edge falls
      * between the current gap bound and the segment's shared coordinate. If so,
@@ -489,7 +488,7 @@ public class ChannelNudgingPass {
     /**
      * Walks channels in deterministic order; for each channel, either centres the
      * single occupant on the slack midpoint or fans out multiple occupants with even
-     * spacing. Every nudge is attempted under per-route rollback (AC-5 + AC-8).
+     * spacing. Every nudge is attempted under per-route rollback.
      */
     void allocateTracks(List<RoutingPipeline.ConnectionEndpoints> connections,
                         List<List<AbsoluteBendpointDto>> paths,
@@ -542,12 +541,12 @@ public class ChannelNudgingPass {
             // fan-out widening without disrupting dense sibling layouts.
             // divisor=7 gives cap=30 for gap≤216, cap=35 for gap=250,
             // cap=42 for gap=300 — calibrated to keep V7-widened (gap=254)
-            // within the wall-buffer band the B71 / WCU pinned tests guarantee.
+            // within the wall-buffer band the WCU pinned tests guarantee.
             int corridorWidth = available + 2 * MIN_CLEARANCE_PX;
             int dynamicCap = Math.max(MAX_TRACK_SPACING_PX, corridorWidth / 7);
             spacing = Math.min(spacing, dynamicCap);
 
-            // Deterministic tie-break: sort occupants by connection ID lexicographic (AC-9).
+            // Deterministic tie-break: sort occupants by connection ID lexicographic.
             List<RouteSegmentRun> sortedOccupants = new ArrayList<>(channel.occupants);
             sortedOccupants.sort(Comparator.comparing(r -> r.connectionId));
 
@@ -561,7 +560,7 @@ public class ChannelNudgingPass {
     }
 
     /**
-     * Per-route monotone rollback (AC-5 + AC-8). Takes a snapshot, applies the nudge,
+     * Per-route monotone rollback. Takes a snapshot, applies the nudge,
      * runs three post-condition checks in order, and restores the snapshot on any
      * failure. A route is never left in a "nudged-and-broken" state.
      */
@@ -571,7 +570,7 @@ public class ChannelNudgingPass {
             return;
         }
 
-        // Short-segment skip (B69-B V3 hook fix, 2026-04-13 evening).
+        // Short-segment skip (V3 hook fix).
         // Segments whose parallel length is below MIN_INTERIOR_SEGMENT_LENGTH_PX are
         // treated as inter-route fan-out micro-jogs produced by the A* router under
         // full-batch conditions, NOT as corridor-body runs. Nudging them typically
@@ -593,7 +592,7 @@ public class ChannelNudgingPass {
             return;
         }
 
-        // Terminal-side-preservation skip (B69-B V3 ATM/Contact-Centre fix, 2026-04-13 evening).
+        // Terminal-side-preservation skip (V3 ATM/Contact-Centre fix).
         // A nudge that moves a segment from one side of the source or target perpendicular
         // center to the other flips the adjacent terminal-approach segment's direction,
         // producing a visible direction reversal. Observed on V3 API Mgmt → ATM: horizontal
@@ -638,7 +637,7 @@ public class ChannelNudgingPass {
         run.path.set(run.bpIdxHi, newHi);
         run.currentSharedCoord = idealCoord;
 
-        // Check 1 — terminal alignment invariant (AC-8).
+        // Check 1 — terminal alignment invariant.
         if (!preservesTerminalAlignment(run.path,
                 conn.source().centerX(), conn.source().centerY(),
                 conn.target().centerX(), conn.target().centerY())) {
@@ -646,13 +645,13 @@ public class ChannelNudgingPass {
             return;
         }
 
-        // Check 2 — no new obstacle pass-through (AC-5).
+        // Check 2 — no new obstacle pass-through.
         if (introducesObstaclePassThrough(run.path, conn.source(), conn.target(), allObstacles)) {
             rollback(run, snapLo, snapHi, preCoord, "new-obstacle-violation");
             return;
         }
 
-        // Check 3 — no new coincident-pair with any already-nudged run on the view (AC-5).
+        // Check 3 — no new coincident-pair with any already-nudged run on the view.
         // Cross-channel check via the global nudgedRunsLog, not just current-channel occupants.
         if (introducesNewCoincidentPair(run)) {
             rollback(run, snapLo, snapHi, preCoord, "new-coincident-pair");
@@ -689,11 +688,11 @@ public class ChannelNudgingPass {
     // =====================================================================
 
     /**
-     * Task 0.2 predicate. Returns {@code true} iff the first bendpoint shares at least
+     * Returns {@code true} iff the first bendpoint shares at least
      * one coordinate with the source centre AND the last bendpoint shares at least one
      * coordinate with the target centre — i.e., the terminal segment from source-centre
      * to {@code BP[0]} is orthogonal (vertical or horizontal), and the same for
-     * {@code BP[last]} to target-centre. Replaces B66's pre-eligibility skip guard
+     * {@code BP[last]} to target-centre. Replaces a pre-eligibility skip guard
      * (which excluded 21/22 paths on View 7 widened) with a post-condition assertion.
      *
      * <p>The OR (not XOR) is deliberate: if both coordinates match, {@code BP[0]} is at
@@ -701,8 +700,8 @@ public class ChannelNudgingPass {
      * neither matches, {@code BP[0]} is diagonally displaced from the source and the
      * terminal segment is diagonal — not aligned.
      *
-     * <p>This is the literal implementation of the spec in the story file's Task 0.2
-     * Outcome section: "path.first().x == source.centerX || path.first().y == source.centerY".
+     * <p>This is the literal implementation of the spec:
+     * "path.first().x == source.centerX || path.first().y == source.centerY".
      */
     static boolean preservesTerminalAlignment(List<AbsoluteBendpointDto> path,
                                               int sourceCenterX, int sourceCenterY,
@@ -738,7 +737,7 @@ public class ChannelNudgingPass {
         // Iterate stored-bp-internal segments (not terminal extensions — terminal alignment
         // is checked separately). For each segment, test against every obstacle with an
         // AABB early-exit to skip obstacles whose bounding box does not overlap the
-        // segment's own bounding box (M5 perf fix 2026-04-13 evening).
+        // segment's own bounding box (M5 perf fix).
         for (int i = 0; i < path.size() - 1; i++) {
             AbsoluteBendpointDto a = path.get(i);
             AbsoluteBendpointDto b = path.get(i + 1);
@@ -774,7 +773,7 @@ public class ChannelNudgingPass {
      * coincident pair iff they share the same axis + sharedCoord and their parallel
      * ranges overlap.
      *
-     * <p>H1 fix (2026-04-13 evening): the check was originally scoped to
+     * <p>H1 fix: the check was originally scoped to
      * {@code channel.occupants}, which missed the case where two runs from different
      * obstacle-bounded channels ended up at the same post-nudge coordinate because
      * their channel midpoints collided. The check is now against the global
@@ -816,7 +815,7 @@ public class ChannelNudgingPass {
 
     /**
      * Axis-aligned segment-vs-rectangle intersection test. Segments are assumed
-     * horizontal or vertical (B69-B never nudges diagonals).
+     * horizontal or vertical (this pass never nudges diagonals).
      */
     static boolean segmentIntersectsRect(int x1, int y1, int x2, int y2, RoutingRect rect) {
         int rxLo = rect.x();

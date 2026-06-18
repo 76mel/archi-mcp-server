@@ -6,24 +6,24 @@ import java.util.Set;
 
 /**
  * Result of layout quality assessment containing all metrics,
- * issue descriptions, and improvement suggestions (Story 9-2, 9-0d, 10-14, 11-15, 11-17).
+ * issue descriptions, and improvement suggestions.
  *
  * <p>{@code overlapCount} contains only sibling overlaps (genuine layout problems).
  * {@code containmentOverlapCount} tracks expected ancestor-descendant overlaps separately.
  * {@code orphanedConnectionCount} tracks connections whose source/target view objects
- * are missing from the view hierarchy (Story 10-14).
- * {@code noteOverlapCount} tracks note-element overlaps (informational, not penalizing — Story 11-15).
- * {@code hasGroups} indicates whether the view contains group containers (Story 11-17).
- * {@code ratingBreakdown} shows per-metric contributions to the overall rating (Story 11-19).
- * {@code coincidentSegmentCount} tracks overlapping connection route segments (Story 11-23).
- * {@code nonOrthogonalTerminalCount} tracks connections with diagonal terminal segments (B38;
- * M1 corrected definition: post-clip visible segment, ignores Archi-clipped diagonals when
+ * are missing from the view hierarchy.
+ * {@code noteOverlapCount} tracks note-element overlaps (informational, not penalizing).
+ * {@code hasGroups} indicates whether the view contains group containers.
+ * {@code ratingBreakdown} shows per-metric contributions to the overall rating.
+ * {@code coincidentSegmentCount} tracks overlapping connection route segments.
+ * {@code nonOrthogonalTerminalCount} tracks connections with diagonal terminal segments
+ * (corrected definition: post-clip visible segment, ignores Archi-clipped diagonals when
  * the bendpoint lies on or inside the source/target element).
- * {@code contentBounds} is the axis-aligned bounding box of all visual content (Story 11-29).
+ * {@code contentBounds} is the axis-aligned bounding box of all visual content.
  * {@code labelTruncationCount}, {@code parentLabelObscuredCount}, {@code imageSiblingOverlapCount}
- * are informational detections added by B53. Under M6: {@code parentLabelObscuredCount} is
+ * are informational detections. {@code parentLabelObscuredCount} is
  * promoted to layout Tier 1L; {@code labelTruncationCount} is promoted to routing Tier 2R.
- * {@code violatorIds} maps metric names to sets of visual object IDs that violate each metric (B55).
+ * {@code violatorIds} maps metric names to sets of visual object IDs that violate each metric.
  * Null when not requested (includeViolatorIds=false). Crossings excluded (emergent property).
  *
  * <p>Assessor.Redesign (M2-M6, 2026-04-26):
@@ -34,9 +34,11 @@ import java.util.Set;
  *       at a shared axis (M3). Routing Tier 1R.</li>
  *   <li>{@code connectionEdgeCoincidenceCount} — connection segments hugging a foreign element's
  *       edge within {@code EDGE_COINCIDENCE_TOLERANCE}px (M4). Routing Tier 2R.</li>
- *   <li>{@code hubPortQualityScore} — view-aggregate mean of per-hub-face distinct-slot ratios
- *       for any element face with ≥4 connections (M5). 1.0 when no hub face exists. Quality
- *       below 0.5 contributes to Tier 2R.</li>
+ *   <li>{@code hubPortQualityScore} — view-aggregate = the WORST (min) per-hub-face distinct-slot
+ *       ratio across any element face with ≥4 connections (M5). 1.0 when no hub face exists. min
+ *       (not mean) so one degraded face on an otherwise-healthy hub is surfaced honestly rather than
+ *       averaged away (2026-06-14). Quality below 0.5
+ *       contributes to Tier 2R.</li>
  *   <li>{@code hubPortQualityFaces} — per-face details when {@code includeViolatorIds=true},
  *       else empty.</li>
  *   <li>{@code layoutRating} / {@code routingRating} — two-dimensional decomposition.
@@ -87,7 +89,7 @@ record LayoutAssessmentResult(
         List<String> imageSiblingOverlapDescriptions,
         Map<String, Set<String>> violatorIds,
         List<String> suggestions,
-        // Assessor.Redesign M2-M6 (appended; AC-9 backwards-compat)
+        // Assessor.Redesign M2-M6 (appended; backwards-compat)
         int interiorTerminationCount,
         List<String> interiorTerminationDescriptions,
         int zigzagCount,
@@ -101,7 +103,7 @@ record LayoutAssessmentResult(
         // R8 (appended)
         double corridorUtilisationScore,
         List<CorridorUtilisationDetail> corridorUtilisationChannels,
-        // Successor D parallelConnectionGap (appended; AC-12 backwards-compat)
+        // Successor D parallelConnectionGap (appended; backwards-compat)
         Double vAxisParallelGapP10,
         int vAxisParallelGapNarrow25Count,
         ParallelConnectionGapDetail parallelConnectionGapDetail) {

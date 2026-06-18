@@ -33,8 +33,8 @@ import net.vheerden.archi.mcp.response.ErrorCode;
 import net.vheerden.archi.mcp.response.dto.EmbeddedViewDto;
 
 /**
- * Tests for {@link ArchiModelAccessorImpl#addViewReferenceToView}
- * (Story 14-6 / G8). Real EMF via {@link IArchimateFactory#eINSTANCE}; runs
+ * Tests for {@link ArchiModelAccessorImpl#addViewReferenceToView}.
+ * Real EMF via {@link IArchimateFactory#eINSTANCE}; runs
  * as a JUnit Plug-in Test in the OSGi runtime.
  *
  * <p>The accessor under test is wired with a minimal {@link IEditorModelManager}
@@ -44,7 +44,7 @@ import net.vheerden.archi.mcp.response.dto.EmbeddedViewDto;
  * pattern). The DTO + command + validation paths are exercised end-to-end
  * against real EMF objects.</p>
  *
- * <p>The empirical live-Archi run (AC11, Task 7.3) is the broader integration
+ * <p>The empirical live-Archi run is the broader integration
  * gate — these tests cover the EMF assembly + validation contract.</p>
  */
 public class ArchiModelAccessorImplAddViewReferenceToViewTest {
@@ -265,6 +265,9 @@ public class ArchiModelAccessorImplAddViewReferenceToViewTest {
                 }
             }
         };
+        // The dispatcher now defaults to GATED (fail-safe). These tests exercise the
+        // immediate-apply path, so opt approval OFF explicitly (production wires the human bit).
+        testDispatcher.setApprovalModeProvider(() -> false);
         return new ArchiModelAccessorImpl(stubModelManager, testDispatcher);
     }
 

@@ -5,7 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Result DTO for the layout-flat-view tool (Story 13-6, enhanced B20).
+ * Result DTO for the layout-flat-view tool.
  *
  * @param viewId               the view whose top-level elements were positioned
  * @param arrangement          the arrangement pattern used (row, column, grid)

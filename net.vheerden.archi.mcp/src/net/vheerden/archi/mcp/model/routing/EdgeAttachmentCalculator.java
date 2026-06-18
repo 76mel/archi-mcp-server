@@ -14,7 +14,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Computes edge attachment points for connections at element perimeters (Story 10-16).
+ * Computes edge attachment points for connections at element perimeters.
  * Pure-geometry class — no EMF/SWT dependencies.
  *
  * <p>After A* routing, path ordering, and edge nudging produce intermediate bendpoints,
@@ -39,12 +39,12 @@ public class EdgeAttachmentCalculator {
      * connection count the algorithm redistributes connections across element faces.
      * Distinct from {@code LayoutQualityAssessor.HUB_DETECTION_THRESHOLD} (public, 5)
      * and {@code LayoutQualityAssessor.M5_FACE_GUARD_MIN_CONNECTIONS} (4).
-     * Renamed from {@code DEFAULT_HUB_THRESHOLD} in Story routing-preconditions, 2026-05-04.
+     * Renamed from {@code DEFAULT_HUB_THRESHOLD}, 2026-05-04.
      */
     static final int HUB_FACE_REDISTRIBUTION_THRESHOLD = 6;
 
     /**
-     * B73: below this spacing (in pixels), connections on a face are mapped to a
+     * Below this spacing (in pixels), connections on a face are mapped to a
      * reduced number of evenly-spaced ports instead of being fully distributed.
      * On undersized hubs, distributed ports at sub-12px spacing are visually
      * indistinguishable through ChopboxAnchor rendering but each locks out the
@@ -125,7 +125,7 @@ public class EdgeAttachmentCalculator {
             case TOP: {
                 int attachY = y - 1;
                 int attachX = computeDistributedPosition(x, w, index, totalOnFace);
-                // B72-c: nudge slot off centerX to break ChopboxAnchor ray collinearity
+                // Nudge slot off centerX to break ChopboxAnchor ray collinearity
                 if (totalOnFace > 1 && attachX == x + w / 2) {
                     attachX += 1;
                 }
@@ -142,7 +142,7 @@ public class EdgeAttachmentCalculator {
             case LEFT: {
                 int attachX = x - 1;
                 int attachY = computeDistributedPosition(y, h, index, totalOnFace);
-                // B72-c: nudge slot off centerY to break ChopboxAnchor ray collinearity
+                // Nudge slot off centerY to break ChopboxAnchor ray collinearity
                 if (totalOnFace > 1 && attachY == y + h / 2) {
                     attachY += 1;
                 }
@@ -178,7 +178,7 @@ public class EdgeAttachmentCalculator {
             usableLength = edgeLength;
         }
         double spacing = (double) usableLength / (total + 1);
-        // B73: when spacing is below the visual distinguishability threshold,
+        // When spacing is below the visual distinguishability threshold,
         // reduce the number of ports to what the face can visually accommodate.
         // Multiple connections share each reduced port. This preserves
         // directional diversity (paths start from different y/x positions)
@@ -213,8 +213,8 @@ public class EdgeAttachmentCalculator {
      * a target-face terminal bendpoint. When multiple connections share a face,
      * attachment points are distributed across the face.</p>
      *
-     * <p>Legacy 3-arg overload — delegates to the B71 5-arg variant with
-     * throwaway output anchoring lists. Used by pre-B71 tests that have no
+     * <p>Legacy 3-arg overload — delegates to the 5-arg variant with
+     * throwaway output anchoring lists. Used by earlier tests that have no
      * use for the per-connection {@link TerminalAnchoring} record.</p>
      *
      * @param connectionIds  connection identifiers
@@ -229,7 +229,7 @@ public class EdgeAttachmentCalculator {
     }
 
     /**
-     * B71 producer overload: applies edge attachment terminal bendpoints AND
+     * Producer overload: applies edge attachment terminal bendpoints AND
      * exposes the per-connection {@link TerminalAnchoring} pairs to the caller.
      *
      * <p>When {@code outSourceAnchorings} / {@code outTargetAnchorings} are
@@ -277,16 +277,16 @@ public class EdgeAttachmentCalculator {
             }
         }
 
-        // Phase 1.1: Face load balancing for hub elements (Story backlog-b9)
+        // Phase 1.1: Face load balancing for hub elements
         redistributeHubFaces(connectionIds, bendpointLists, connections, sourceFaces, targetFaces);
 
-        // Phase 1.2: Natural approach direction correction (Stories backlog-b32, backlog-b46)
+        // Phase 1.2: Natural approach direction correction
         // When source and target are aligned on one axis (dominant axis > 1.2x minor axis),
         // prefer the natural entry direction over the bendpoint-derived face.
         // Hub elements are skipped for weak alignments (1.2:1-2:1) but corrected for strong (2:1+).
         correctApproachDirection(connectionIds, connections, sourceFaces, targetFaces);
 
-        // Phase 1.3: Self-element pass-through face validation (Story backlog-b35)
+        // Phase 1.3: Self-element pass-through face validation
         // ORDERING CONSTRAINT: Must run AFTER Phase 1.1 (hub) and 1.2 (approach) which may
         // change faces, and BEFORE Phase 1.5 (face groups) which consumes the final faces.
         // After all face adjustments (hub redistribution, natural approach), validate that
@@ -294,17 +294,17 @@ public class EdgeAttachmentCalculator {
         validateFacesForSelfPassThrough(connectionIds, bendpointLists, connections,
                 sourceFaces, targetFaces);
 
-        // Phase 1.4: Re-apply strong-alignment face corrections after B35 (Story backlog-b46)
-        // TECH DEBT: This is a workaround for B35's hasSelfPassThrough() using trial paths that lack
+        // Phase 1.4: Re-apply strong-alignment face corrections after self-pass-through validation
+        // TECH DEBT: This is a workaround for the self-pass-through hasSelfPassThrough() using trial paths that lack
         // ensurePerpendicularSegment alignment BPs, causing false-positive pass-through detection.
-        // The proper fix is to make B35's trial path include alignment BPs. Until then, Phase 1.4
-        // re-corrects only strong-alignment hub connections that B35 falsely reverted.
-        // Only strong alignments (2:1+) are re-corrected — weaker B46 corrections stay reverted.
+        // The proper fix is to make the self-pass-through trial path include alignment BPs. Until then, Phase 1.4
+        // re-corrects only strong-alignment hub connections that self-pass-through validation falsely reverted.
+        // Only strong alignments (2:1+) are re-corrected — weaker diagonal-gap corrections stay reverted.
         correctApproachDirection(connectionIds, connections, sourceFaces, targetFaces, true);
 
-        // B71: Faces are now final — populate the output anchoring lists
-        // (per Dev Notes §5.3 / AC-1). Skipped when caller passes nulls
-        // (legacy 3-arg overload, used by pre-B71 unit tests).
+        // Faces are now final — populate the output anchoring lists
+        // (per Dev Notes §5.3). Skipped when caller passes nulls
+        // (legacy 3-arg overload, used by earlier unit tests).
         if (outSourceAnchorings != null) {
             outSourceAnchorings.clear();
             for (int i = 0; i < connectionIds.size(); i++) {
@@ -318,7 +318,7 @@ public class EdgeAttachmentCalculator {
             }
         }
 
-        // Phase 1.5: Build unified face groups (Story 10-28)
+        // Phase 1.5: Build unified face groups
         // Key: elementId + "|" + face → list of connection indices (both inbound and outbound)
         Map<String, List<Integer>> unifiedFaceGroups = new HashMap<>();
 
@@ -400,7 +400,7 @@ public class EdgeAttachmentCalculator {
     }
 
     /** Offset steps tried when the original alignment is blocked by an obstacle.
-     *  Extended range (B28): ±48, ±64, ±96 provide wider search before forced fallback. */
+     *  Extended range: ±48, ±64, ±96 provide wider search before forced fallback. */
     private static final int[] ALTERNATIVE_OFFSETS = {8, -8, 16, -16, 24, -24, 32, -32,
             48, -48, 64, -64, 96, -96};
 
@@ -410,7 +410,7 @@ public class EdgeAttachmentCalculator {
      * an L-shaped approach. When the original alignment is blocked by an obstacle,
      * tries alternative offsets (±8 through ±96) before force-inserting at offset=0.
      *
-     * <p><b>B28 change:</b> No longer silently skips alignment when all offsets are blocked.
+     * <p><b>Behavior change:</b> No longer silently skips alignment when all offsets are blocked.
      * Instead, force-inserts the alignment at offset=0. A perpendicular segment that crosses
      * an obstacle is preferable to a diagonal — downstream stages
      * ({@code removeObstacleViolations}, {@code enforceSegmentClearance}) will correct
@@ -467,7 +467,7 @@ public class EdgeAttachmentCalculator {
             }
 
             if (!found) {
-                // B28: Force-insert at original alignment (offset=0) — downstream stages
+                // Force-insert at original alignment (offset=0) — downstream stages
                 // (removeObstacleViolations, enforceSegmentClearance) will handle any
                 // resulting obstacle crossing. A perpendicular segment that crosses
                 // is better than a diagonal segment.
@@ -549,7 +549,7 @@ public class EdgeAttachmentCalculator {
     }
 
     // =========================================================================
-    // Phase 1.1: Hub port distribution (Story backlog-b9)
+    // Phase 1.1: Hub port distribution
     // =========================================================================
 
     /**
@@ -685,7 +685,7 @@ public class EdgeAttachmentCalculator {
      * Corrects terminal approach direction when it contradicts the natural source-to-target
      * alignment. When elements are aligned on one axis (dominant axis offset > 1.2x
      * minor axis offset), the approach should use the dominant axis direction.
-     * B46 relaxed the threshold from 2:1 to 1.2:1 to handle diagonal-gap cases.
+     * Relaxed the threshold from 2:1 to 1.2:1 to handle diagonal-gap cases.
      *
      * <p>For example, if source is nearly directly above target (large dy, small dx),
      * the target should be entered from TOP, not from LEFT/RIGHT — even if the A* path's
@@ -709,8 +709,8 @@ public class EdgeAttachmentCalculator {
 
     /**
      * @param strongHubOnly when true, only correct hub elements with strong alignment (2:1+).
-     *                      Used by Phase 1.4 to re-apply hub corrections that B35 falsely reverted.
-     *                      Non-hub corrections reverted by B35 are kept because B35's pass-through
+     *                      Used by Phase 1.4 to re-apply hub corrections that self-pass-through validation falsely reverted.
+     *                      Non-hub corrections reverted by self-pass-through validation are kept because its pass-through
      *                      detection is accurate for non-hub paths.
      */
     void correctApproachDirection(
@@ -735,15 +735,15 @@ public class EdgeAttachmentCalculator {
             int dy = Math.abs(target.centerY() - source.centerY());
 
             // Skip if not aligned on one axis (need 6:5 = 1.2:1 ratio minimum)
-            // B46: relaxed from 2:1 to catch diagonal-gap cases where one axis
+            // Relaxed from 2:1 to catch diagonal-gap cases where one axis
             // dominates by 20%+ but the old threshold skipped correction entirely
             if (5 * dy <= 6 * dx && 5 * dx <= 6 * dy) {
                 continue;
             }
 
-            // Note: "nearlyVertical" includes the B46 diagonal-gap range (1.2:1+), not just B32's 2:1+
+            // Note: "nearlyVertical" includes the diagonal-gap range (1.2:1+), not just the 2:1+ range
             boolean nearlyVertical = 5 * dy > 6 * dx;
-            // B46: distinguish diagonal-gap corrections (1.2:1 to 2:1) from B32 strong corrections (2:1+)
+            // Distinguish diagonal-gap corrections (1.2:1 to 2:1) from strong corrections (2:1+)
             boolean strongAlignment = nearlyVertical ? dy > 2 * dx : dx > 2 * dy;
 
             // Phase 1.4 only re-corrects strong-alignment hub connections
@@ -754,7 +754,7 @@ public class EdgeAttachmentCalculator {
             String logPrefix = strongAlignment ? "B32" : "B46";
 
             // Correct target face if it contradicts natural alignment
-            // B46: hubs skipped for weak alignments (1.2:1-2:1); corrected for strong (2:1+)
+            // Hubs skipped for weak alignments (1.2:1-2:1); corrected for strong (2:1+)
             // Phase 1.4 (strongHubOnly): only re-corrects hub targets with strong alignment
             boolean targetIsHub = elementConnectionCounts.getOrDefault(target.id(), 0) >= hubThreshold;
             boolean shouldCorrectTarget = strongHubOnly
@@ -842,7 +842,7 @@ public class EdgeAttachmentCalculator {
     }
 
     // =========================================================================
-    // Phase 1.3: Self-element pass-through face validation (Story backlog-b35)
+    // Phase 1.3: Self-element pass-through face validation
     // =========================================================================
 
     /** Inset distance for self-element pass-through detection (matches RoutingPipeline and assessor). */

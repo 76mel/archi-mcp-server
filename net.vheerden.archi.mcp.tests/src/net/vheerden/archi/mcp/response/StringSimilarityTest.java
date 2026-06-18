@@ -6,7 +6,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * Tests for {@link StringSimilarity} utility (Story 7-4, Task 1).
+ * Tests for {@link StringSimilarity} utility.
  */
 public class StringSimilarityTest {
 

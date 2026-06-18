@@ -2,6 +2,8 @@ package net.vheerden.archi.mcp.integration;
 
 import static org.junit.Assert.*;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,23 +14,8 @@ import org.junit.Test;
 
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
-import net.vheerden.archi.mcp.handlers.ApprovalHandler;
-import net.vheerden.archi.mcp.handlers.DeletionHandler;
-import net.vheerden.archi.mcp.handlers.DiscoveryHandler;
-import net.vheerden.archi.mcp.handlers.ElementCreationHandler;
-import net.vheerden.archi.mcp.handlers.ElementUpdateHandler;
-import net.vheerden.archi.mcp.handlers.FolderHandler;
-import net.vheerden.archi.mcp.handlers.FolderMutationHandler;
-import net.vheerden.archi.mcp.handlers.ModelQueryHandler;
-import net.vheerden.archi.mcp.handlers.MutationHandler;
+import net.vheerden.archi.mcp.handlers.HandlerRegistrar;
 import net.vheerden.archi.mcp.handlers.SearchHandler;
-import net.vheerden.archi.mcp.handlers.TraversalHandler;
-import net.vheerden.archi.mcp.handlers.SessionHandler;
-import net.vheerden.archi.mcp.handlers.SpecializationHandler;
-import net.vheerden.archi.mcp.handlers.RenderHandler;
-import net.vheerden.archi.mcp.handlers.ViewHandler;
-import net.vheerden.archi.mcp.handlers.CommandStackHandler;
-import net.vheerden.archi.mcp.handlers.ViewPlacementHandler;
 import net.vheerden.archi.mcp.model.ArchiModelAccessor;
 import net.vheerden.archi.mcp.registry.CommandRegistry;
 import net.vheerden.archi.mcp.response.ResponseFormatter;
@@ -54,46 +41,36 @@ public class ToolDiscoveryIntegrationTest {
 
         SessionManager sm = new SessionManager(SearchHandler.VALID_TYPES, SearchHandler.VALID_LAYERS);
 
-        ModelQueryHandler mqh = new ModelQueryHandler(accessor, formatter, registry, sm);
-        ViewHandler vh = new ViewHandler(accessor, formatter, registry, sm);
-        SearchHandler sh = new SearchHandler(accessor, formatter, registry, sm);
-        TraversalHandler th = new TraversalHandler(accessor, formatter, registry, sm);
-        SessionHandler sessionH = new SessionHandler(sm, formatter, registry);
-        FolderHandler fh = new FolderHandler(accessor, formatter, registry, sm);
-        MutationHandler mh = new MutationHandler(accessor, formatter, registry, sm);
-        mqh.registerTools();
-        vh.registerTools();
-        sh.registerTools();
-        th.registerTools();
-        sessionH.registerTools();
-        fh.registerTools();
-        mh.registerTools();
-        ElementCreationHandler ech = new ElementCreationHandler(accessor, formatter, registry, sm);
-        ech.registerTools();
-        SpecializationHandler spec = new SpecializationHandler(accessor, formatter, registry, sm);
-        spec.registerTools();
-        ElementUpdateHandler euh = new ElementUpdateHandler(accessor, formatter, registry, sm);
-        euh.registerTools();
-        DiscoveryHandler dh = new DiscoveryHandler(accessor, formatter, registry, sm);
-        dh.registerTools();
-        ApprovalHandler ah = new ApprovalHandler(accessor, formatter, registry, sm);
-        ah.registerTools();
-        ViewPlacementHandler vph = new ViewPlacementHandler(accessor, formatter, registry, sm);
-        vph.registerTools();
-        RenderHandler rh = new RenderHandler(accessor, formatter, registry);
-        rh.registerTools();
-        DeletionHandler delh = new DeletionHandler(accessor, formatter, registry, sm);
-        delh.registerTools();
-        FolderMutationHandler fmh = new FolderMutationHandler(accessor, formatter, registry, sm);
-        fmh.registerTools();
-        CommandStackHandler csh = new CommandStackHandler(accessor, formatter, registry);
-        csh.registerTools();
+        // Wire handlers through the SAME single source of truth production boots from
+        // (McpServerManager.initializeHandlers also calls registerAll). This test can no
+        // longer hand-omit a handler — as it once dropped ImageHandler and its 2 tools.
+        HandlerRegistrar.registerAll(accessor, formatter, registry, sm);
     }
 
     @Test
-    public void shouldDiscoverAllRegisteredTools() {
+    public void shouldRegisterToolsThroughSharedPath() {
+        // Correctness is DERIVED from the shared registration path
+        // (HandlerRegistrar.registerAll) rather than pinned to a hand-counted total
+        // that re-stales on every new tool. The required-tool allowlist lives in
+        // shouldReturnCorrectToolNames, and each handler's own count is pinned in its
+        // own unit test. Here we only assert the shared path produced a non-empty set.
         List<McpServerFeatures.SyncToolSpecification> tools = registry.getToolSpecifications();
-        assertEquals("Expected exactly 70 tools (5 ModelQuery + 3 View + 2 Search + 1 Traversal + 2 Session + 2 Folder + 4 Mutation + 4 Creation + 4 Specialization + 2 Update + 2 Discovery + 3 Approval + 26 ViewPlacement + 1 Render + 4 Deletion + 3 FolderMutation + 2 CommandStack — Story 14-8 G16 add-image-to-view bumped ViewPlacement 25→26 and total 69→70)", 70, tools.size());
+        assertFalse("Registration path produced no tools", tools.isEmpty());
+    }
+
+    @Test
+    public void shouldNotRegisterDuplicateToolNames() {
+        // Guards a silent-registration bug a magic count could never catch: two
+        // handlers (or one handler twice) registering the same tool name.
+        Set<String> seen = new HashSet<>();
+        List<String> duplicates = new ArrayList<>();
+        for (McpServerFeatures.SyncToolSpecification spec : registry.getToolSpecifications()) {
+            String name = spec.tool().name();
+            if (!seen.add(name)) {
+                duplicates.add(name);
+            }
+        }
+        assertTrue("Duplicate tool name(s) registered: " + duplicates, duplicates.isEmpty());
     }
 
     @Test
@@ -125,71 +102,75 @@ public class ToolDiscoveryIntegrationTest {
         assertTrue("Missing get-or-create-element", toolNames.contains("get-or-create-element"));
         assertTrue("Missing search-and-create", toolNames.contains("search-and-create"));
         assertTrue("Missing bulk-mutate", toolNames.contains("bulk-mutate"));
-        // Story 7-6: Approval tools
-        assertTrue("Missing set-approval-mode", toolNames.contains("set-approval-mode"));
+        // Only the read-only observation tool remains on the MCP surface.
+        // set-approval-mode (toggle) and decide-mutation (approve/reject) were removed — the
+        // control plane is the human's, so the agent cannot move its own gate.
         assertTrue("Missing list-pending-approvals", toolNames.contains("list-pending-approvals"));
-        assertTrue("Missing decide-mutation", toolNames.contains("decide-mutation"));
-        // Story 7-7: View placement tools
+        assertFalse("set-approval-mode must be removed (S6a AC-1)", toolNames.contains("set-approval-mode"));
+        assertFalse("decide-mutation must be removed (S6a AC-2)", toolNames.contains("decide-mutation"));
+        // View placement tools
         assertTrue("Missing add-to-view", toolNames.contains("add-to-view"));
         assertTrue("Missing add-connection-to-view", toolNames.contains("add-connection-to-view"));
-        // Story 7-8: View editing and removal tools
+        // View editing and removal tools
         assertTrue("Missing update-view-object", toolNames.contains("update-view-object"));
         assertTrue("Missing update-view-connection", toolNames.contains("update-view-connection"));
         assertTrue("Missing remove-from-view", toolNames.contains("remove-from-view"));
-        // Story 8-0c: Clear view tool
+        // Clear view tool
         assertTrue("Missing clear-view", toolNames.contains("clear-view"));
-        // Story 8-1: Render/export tool
+        // Render/export tool
         assertTrue("Missing export-view", toolNames.contains("export-view"));
-        // Story 8-4: Deletion tools
+        // Deletion tools
         assertTrue("Missing delete-element", toolNames.contains("delete-element"));
         assertTrue("Missing delete-relationship", toolNames.contains("delete-relationship"));
         assertTrue("Missing delete-view", toolNames.contains("delete-view"));
         assertTrue("Missing delete-folder", toolNames.contains("delete-folder"));
-        // Story 8-5: Folder mutation tools
+        // Folder mutation tools
         assertTrue("Missing create-folder", toolNames.contains("create-folder"));
         assertTrue("Missing update-folder", toolNames.contains("update-folder"));
         assertTrue("Missing move-to-folder", toolNames.contains("move-to-folder"));
-        // Story 8-6: Visual grouping tools
+        // Visual grouping tools
         assertTrue("Missing add-group-to-view", toolNames.contains("add-group-to-view"));
         assertTrue("Missing add-note-to-view", toolNames.contains("add-note-to-view"));
-        // Story 14-6 (G8): View reference placement tool
+        // View reference placement tool
         assertTrue("Missing add-view-reference-to-view",
                 toolNames.contains("add-view-reference-to-view"));
-        // Story 8-7: View update tool
+        // View update tool
         assertTrue("Missing update-view", toolNames.contains("update-view"));
-        // Story 14-3 (G6): Model metadata update tool
+        // Model metadata update tool
         assertTrue("Missing update-model", toolNames.contains("update-model"));
-        // Story 9-0a / 11-8: Apply positions tool (renamed from apply-view-layout)
+        // Apply positions tool (renamed from apply-view-layout)
         assertTrue("Missing apply-positions", toolNames.contains("apply-positions"));
-        // Story 9-1 / 11-8: Compute layout tool (renamed from layout-view)
-        assertTrue("Missing compute-layout", toolNames.contains("compute-layout"));
         assertTrue("Missing assess-layout", toolNames.contains("assess-layout"));
-        // Story 9-5: Auto-route connections tool
+        // Auto-route connections tool
         assertTrue("Missing auto-route-connections", toolNames.contains("auto-route-connections"));
-        // Story 9-6: Auto-connect view tool
+        // Auto-connect view tool
         assertTrue("Missing auto-connect-view", toolNames.contains("auto-connect-view"));
-        // Story 9-9: Layout within group tool
+        // Layout within group tool
         assertTrue("Missing layout-within-group", toolNames.contains("layout-within-group"));
-        // Story 10-29: ELK combined layout+routing tool
+        // ELK combined layout+routing tool
         assertTrue("Missing auto-layout-and-route", toolNames.contains("auto-layout-and-route"));
-        // Story 11-1: Undo/redo tools
+        // Undo/redo tools
         assertTrue("Missing undo", toolNames.contains("undo"));
         assertTrue("Missing redo", toolNames.contains("redo"));
-        // Story 11-20: Group positioning tool
+        // Group positioning tool
         assertTrue("Missing arrange-groups", toolNames.contains("arrange-groups"));
-        // Story 11-25: Element order optimization tool
+        // Element order optimization tool
         assertTrue("Missing optimize-group-order", toolNames.contains("optimize-group-order"));
-        // Story 13-2: Hub element detection tool
+        // Hub element detection tool
         assertTrue("Missing detect-hub-elements", toolNames.contains("detect-hub-elements"));
-        // Story 13-6: Flat view layout tool
+        // Flat view layout tool
         assertTrue("Missing layout-flat-view", toolNames.contains("layout-flat-view"));
-        // Story C3a: read-only specialization listing
+        // Read-only specialization listing
         assertTrue("Missing list-specializations", toolNames.contains("list-specializations"));
-        // Story C3c: specialization profile management
+        // Specialization profile management
         assertTrue("Missing create-specialization", toolNames.contains("create-specialization"));
         assertTrue("Missing update-specialization", toolNames.contains("update-specialization"));
         assertTrue("Missing delete-specialization", toolNames.contains("delete-specialization"));
         assertTrue("Missing get-specialization-usage", toolNames.contains("get-specialization-usage"));
+        // Image tools — previously unchecked here, which is how the
+        // integration test's hand-wiring silently dropped ImageHandler's 2 tools.
+        assertTrue("Missing add-image-to-model", toolNames.contains("add-image-to-model"));
+        assertTrue("Missing list-model-images", toolNames.contains("list-model-images"));
     }
 
     @SuppressWarnings("unchecked")
@@ -299,7 +280,7 @@ public class ToolDiscoveryIntegrationTest {
         assertFalse("get-relationships 'direction' should be optional",
                 relSchema.required().contains("direction"));
 
-        // Story 4.3: filter parameters
+        // filter parameters
         assertTrue("get-relationships should have 'excludeTypes' property",
                 relSchema.properties().containsKey("excludeTypes"));
         assertTrue("get-relationships should have 'includeTypes' property",
@@ -313,7 +294,7 @@ public class ToolDiscoveryIntegrationTest {
         assertFalse("get-relationships 'filterLayer' should be optional",
                 relSchema.required().contains("filterLayer"));
 
-        // Story 5.1: Session tools
+        // Session tools
         // set-session-filter: optional type, layer, clear
         McpSchema.JsonSchema setFilterSchema = findTool("set-session-filter").inputSchema();
         assertNotNull(setFilterSchema);
@@ -352,7 +333,7 @@ public class ToolDiscoveryIntegrationTest {
                 (Map<String, Object>) relSchema.properties().get("filterLayer");
         assertEquals("filterLayer should be string type", "string", filterLayerProp.get("type"));
 
-        // Story 5.2: Field selection parameters on all query commands
+        // Field selection parameters on all query commands
         assertFieldSelectionParams("search-elements", searchSchema);
         assertFieldSelectionParams("search-relationships", searchRelSchema);
         assertFieldSelectionParams("get-element", elementSchema);
@@ -361,7 +342,7 @@ public class ToolDiscoveryIntegrationTest {
         assertFieldSelectionParams("get-relationships", relSchema);
         assertFieldSelectionParams("set-session-filter", setFilterSchema);
 
-        // Story 7-0b: Folder tools
+        // Folder tools
         // get-folders: optional parentId, name, fields, exclude
         McpSchema.JsonSchema foldersSchema = findTool("get-folders").inputSchema();
         assertNotNull(foldersSchema);
@@ -391,7 +372,7 @@ public class ToolDiscoveryIntegrationTest {
                 modelInfoSchema.properties() != null
                         && modelInfoSchema.properties().containsKey("fields"));
 
-        // Story 7-1: Mutation tools
+        // Mutation tools
         // begin-batch: optional description
         McpSchema.JsonSchema beginBatchSchema = findTool("begin-batch").inputSchema();
         assertNotNull(beginBatchSchema);
@@ -417,7 +398,7 @@ public class ToolDiscoveryIntegrationTest {
         assertTrue("get-batch-status should have no required params",
                 batchStatusSchema.required() == null || batchStatusSchema.required().isEmpty());
 
-        // Story 7-2: Element creation tools
+        // Element creation tools
         // create-element: requires type, name; optional documentation, properties, folderId
         McpSchema.JsonSchema createElementSchema = findTool("create-element").inputSchema();
         assertNotNull(createElementSchema);
@@ -480,7 +461,7 @@ public class ToolDiscoveryIntegrationTest {
         assertFalse("create-view 'folderId' should be optional",
                 createViewSchema.required().contains("folderId"));
 
-        // Story 7-3: Element update tool
+        // Element update tool
         // update-element: requires id; optional name, documentation, properties
         McpSchema.JsonSchema updateElementSchema = findTool("update-element").inputSchema();
         assertNotNull(updateElementSchema);
@@ -503,7 +484,7 @@ public class ToolDiscoveryIntegrationTest {
         assertFalse("update-element 'properties' should be optional",
                 updateElementSchema.required().contains("properties"));
 
-        // Story C10: Relationship update tool
+        // Relationship update tool
         // update-relationship: requires id; optional name, documentation, properties
         McpSchema.JsonSchema updateRelSchema = findTool("update-relationship").inputSchema();
         assertNotNull(updateRelSchema);
@@ -526,7 +507,7 @@ public class ToolDiscoveryIntegrationTest {
         assertFalse("update-relationship 'properties' should be optional",
                 updateRelSchema.required().contains("properties"));
 
-        // Story 7-4: create-element force parameter
+        // create-element force parameter
         assertTrue("create-element should have 'force' property",
                 createElementSchema.properties().containsKey("force"));
         Map<String, Object> forceProp =
@@ -535,7 +516,7 @@ public class ToolDiscoveryIntegrationTest {
         assertFalse("create-element 'force' should be optional",
                 createElementSchema.required().contains("force"));
 
-        // Story 7-6: create-element source parameter
+        // create-element source parameter
         assertTrue("create-element should have 'source' property",
                 createElementSchema.properties().containsKey("source"));
         Map<String, Object> createElementSourceProp =
@@ -545,7 +526,7 @@ public class ToolDiscoveryIntegrationTest {
         assertFalse("create-element 'source' should be optional",
                 createElementSchema.required().contains("source"));
 
-        // Story 7-4: Discovery tools
+        // Discovery tools
         // get-or-create-element: requires type, name; optional documentation, properties, folderId
         McpSchema.JsonSchema getOrCreateSchema = findTool("get-or-create-element").inputSchema();
         assertNotNull(getOrCreateSchema);
@@ -567,7 +548,7 @@ public class ToolDiscoveryIntegrationTest {
                 getOrCreateSchema.required().contains("name"));
         assertFalse("get-or-create-element 'documentation' should be optional",
                 getOrCreateSchema.required().contains("documentation"));
-        // Story 7-6: get-or-create-element source parameter
+        // get-or-create-element source parameter
         assertTrue("get-or-create-element should have 'source' property",
                 getOrCreateSchema.properties().containsKey("source"));
         Map<String, Object> getOrCreateSourceProp =
@@ -598,7 +579,7 @@ public class ToolDiscoveryIntegrationTest {
                 searchAndCreateSchema.required().contains("createName"));
         assertFalse("search-and-create 'type' should be optional",
                 searchAndCreateSchema.required().contains("type"));
-        // Story 7-6: search-and-create createSource parameter
+        // search-and-create createSource parameter
         assertTrue("search-and-create should have 'createSource' property",
                 searchAndCreateSchema.properties().containsKey("createSource"));
         Map<String, Object> searchCreateSourceProp =
@@ -608,7 +589,7 @@ public class ToolDiscoveryIntegrationTest {
         assertFalse("search-and-create 'createSource' should be optional",
                 searchAndCreateSchema.required().contains("createSource"));
 
-        // Story 7-5: Bulk mutation tool
+        // Bulk mutation tool
         // bulk-mutate: requires operations; optional description
         McpSchema.JsonSchema bulkMutateSchema = findTool("bulk-mutate").inputSchema();
         assertNotNull(bulkMutateSchema);
@@ -635,12 +616,11 @@ public class ToolDiscoveryIntegrationTest {
         assertFalse("bulk-mutate 'operations' description must not advertise the stale 50-op cap",
                 operationsDescription.contains("Max 50") || operationsDescription.contains("max 50"));
 
-        // Story backlog-bulk-mutate-supported-tools-advertising-completeness:
         // Both advertised supported-tools enumerations — the operations[].tool property
         // description AND the tool-level description — must name EVERY tool the bulk path
         // actually dispatches (BulkOperation.SUPPORTED_TOOLS). Both are built from
         // BulkOperation.SUPPORTED_TOOLS_ORDERED, so this guard fails the build if a tool is
-        // ever added to the set but not advertised (the drift this story fixed).
+        // ever added to the set but not advertised (the drift this guard fixes).
         Map<String, Object> bulkOpItemSchema =
                 (Map<String, Object>) operationsProp.get("items");
         assertNotNull("bulk-mutate 'operations' should have an items schema", bulkOpItemSchema);
@@ -664,7 +644,7 @@ public class ToolDiscoveryIntegrationTest {
                     advertisesBulkTool(bulkMutateToolDescription, supportedTool));
         }
 
-        // Story 7-7: View placement tools
+        // View placement tools
         // add-to-view: requires viewId, elementId; optional x, y, width, height, autoConnect
         McpSchema.JsonSchema addToViewSchema = findTool("add-to-view").inputSchema();
         assertNotNull(addToViewSchema);
@@ -734,7 +714,7 @@ public class ToolDiscoveryIntegrationTest {
                 (Map<String, Object>) addConnSchema.properties().get("bendpoints");
         assertEquals("add-connection-to-view 'bendpoints' should be array type", "array",
                 bendpointsProp.get("type"));
-        // Story 8-0d: absoluteBendpoints should be present and optional
+        // absoluteBendpoints should be present and optional
         assertTrue("add-connection-to-view should have 'absoluteBendpoints' property",
                 addConnSchema.properties().containsKey("absoluteBendpoints"));
         assertFalse("add-connection-to-view 'absoluteBendpoints' should be optional",
@@ -745,7 +725,7 @@ public class ToolDiscoveryIntegrationTest {
         assertEquals("add-connection-to-view 'absoluteBendpoints' should be array type", "array",
                 addConnAbsBpProp.get("type"));
 
-        // Story 7-8: View editing and removal tools
+        // View editing and removal tools
         // update-view-object: requires viewObjectId; optional x, y, width, height
         McpSchema.JsonSchema updateVoSchema = findTool("update-view-object").inputSchema();
         assertNotNull(updateVoSchema);
@@ -779,14 +759,14 @@ public class ToolDiscoveryIntegrationTest {
                 updateVcSchema.required());
         assertTrue("update-view-connection should require 'viewConnectionId'",
                 updateVcSchema.required().contains("viewConnectionId"));
-        // Story 8-0d: bendpoints is now optional (was required)
+        // bendpoints is now optional (was required)
         assertFalse("update-view-connection 'bendpoints' should be optional",
                 updateVcSchema.required().contains("bendpoints"));
         Map<String, Object> updateBpProp =
                 (Map<String, Object>) updateVcSchema.properties().get("bendpoints");
         assertEquals("update-view-connection 'bendpoints' should be array type", "array",
                 updateBpProp.get("type"));
-        // Story 8-0d: absoluteBendpoints should be present and optional
+        // absoluteBendpoints should be present and optional
         assertTrue("update-view-connection should have 'absoluteBendpoints' property",
                 updateVcSchema.properties().containsKey("absoluteBendpoints"));
         assertFalse("update-view-connection 'absoluteBendpoints' should be optional",
@@ -811,7 +791,7 @@ public class ToolDiscoveryIntegrationTest {
         assertTrue("remove-from-view should require 'viewObjectId'",
                 removeSchema.required().contains("viewObjectId"));
 
-        // Story 8-0c: clear-view: requires viewId
+        // clear-view: requires viewId
         McpSchema.JsonSchema clearViewSchema = findTool("clear-view").inputSchema();
         assertNotNull(clearViewSchema);
         assertTrue("clear-view should have 'viewId' property",
@@ -821,43 +801,13 @@ public class ToolDiscoveryIntegrationTest {
         assertTrue("clear-view should require 'viewId'",
                 clearViewSchema.required().contains("viewId"));
 
-        // Story 7-6: Approval tools
-        // set-approval-mode: requires enabled (boolean)
-        McpSchema.JsonSchema setApprovalSchema = findTool("set-approval-mode").inputSchema();
-        assertNotNull(setApprovalSchema);
-        assertTrue("set-approval-mode should have 'enabled' property",
-                setApprovalSchema.properties().containsKey("enabled"));
-        Map<String, Object> enabledProp =
-                (Map<String, Object>) setApprovalSchema.properties().get("enabled");
-        assertEquals("set-approval-mode 'enabled' should be boolean", "boolean", enabledProp.get("type"));
-        assertNotNull("set-approval-mode should have required list",
-                setApprovalSchema.required());
-        assertTrue("set-approval-mode should require 'enabled'",
-                setApprovalSchema.required().contains("enabled"));
-
+        // Only list-pending-approvals remains (set-approval-mode and
+        // decide-mutation were removed from the MCP surface — see the existence test above).
         // list-pending-approvals: no required params
         McpSchema.JsonSchema listApprovalsSchema = findTool("list-pending-approvals").inputSchema();
         assertNotNull(listApprovalsSchema);
         assertTrue("list-pending-approvals should have no required params",
                 listApprovalsSchema.required() == null || listApprovalsSchema.required().isEmpty());
-
-        // decide-mutation: requires proposalId, decision; optional reason
-        McpSchema.JsonSchema decideMutationSchema = findTool("decide-mutation").inputSchema();
-        assertNotNull(decideMutationSchema);
-        assertTrue("decide-mutation should have 'proposalId' property",
-                decideMutationSchema.properties().containsKey("proposalId"));
-        assertTrue("decide-mutation should have 'decision' property",
-                decideMutationSchema.properties().containsKey("decision"));
-        assertTrue("decide-mutation should have 'reason' property",
-                decideMutationSchema.properties().containsKey("reason"));
-        assertNotNull("decide-mutation should have required list",
-                decideMutationSchema.required());
-        assertTrue("decide-mutation should require 'proposalId'",
-                decideMutationSchema.required().contains("proposalId"));
-        assertTrue("decide-mutation should require 'decision'",
-                decideMutationSchema.required().contains("decision"));
-        assertFalse("decide-mutation 'reason' should be optional",
-                decideMutationSchema.required().contains("reason"));
     }
 
     @SuppressWarnings("unchecked")
@@ -875,7 +825,7 @@ public class ToolDiscoveryIntegrationTest {
                 props.containsKey("scale"));
         assertTrue("export-view should have 'inline' property",
                 props.containsKey("inline"));
-        // Story 14-4: quality prop added
+        // quality prop added
         assertTrue("export-view should have 'quality' property",
                 props.containsKey("quality"));
 
@@ -891,7 +841,7 @@ public class ToolDiscoveryIntegrationTest {
         assertFalse("export-view 'quality' should be optional",
                 schema.required().contains("quality"));
 
-        // Verify format enum values — Story 14-4 expanded to 4 values
+        // Verify format enum values — expanded to 4 values
         Map<String, Object> formatProp = (Map<String, Object>) props.get("format");
         assertNotNull("format property should have enum", formatProp.get("enum"));
         List<String> formatEnum = (List<String>) formatProp.get("enum");

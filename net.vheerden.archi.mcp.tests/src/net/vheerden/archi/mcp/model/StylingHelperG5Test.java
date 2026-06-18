@@ -17,7 +17,7 @@ import com.archimatetool.model.IDiagramModelObject;
 import net.vheerden.archi.mcp.response.ErrorCode;
 
 /**
- * Tests for the Story 14-2 G5 styling extensions to {@link StylingHelper}:
+ * Tests for the G5 styling extensions to {@link StylingHelper}:
  * typography (fontName / fontSize / fontStyle), connection lineStyle,
  * gradient, note borderType, deriveLineColor, outlineOpacity.
  *
@@ -237,7 +237,7 @@ public class StylingHelperG5Test {
     }
 
     // ------------------------------------------------------------------
-    // assembleFontString — partial-update permutations (AC2/AC3 merge discipline)
+    // assembleFontString — partial-update permutations (merge discipline)
     // ------------------------------------------------------------------
 
     @Test
@@ -454,7 +454,7 @@ public class StylingHelperG5Test {
     }
 
     // ------------------------------------------------------------------
-    // Read-helpers — DTO null-omit discipline (AC9)
+    // Read-helpers — DTO null-omit discipline
     // ------------------------------------------------------------------
 
     @Test
@@ -505,7 +505,7 @@ public class StylingHelperG5Test {
     }
 
     // ------------------------------------------------------------------
-    // View-object lineStyle (AC4, post Task-9 empirical correction)
+    // View-object lineStyle (post Task-9 empirical correction)
     // ------------------------------------------------------------------
 
     @Test
@@ -561,7 +561,7 @@ public class StylingHelperG5Test {
     }
 
     // ------------------------------------------------------------------
-    // StylingParams back-compat constructors (AC11/AC18)
+    // StylingParams back-compat constructors
     // ------------------------------------------------------------------
 
     @Test

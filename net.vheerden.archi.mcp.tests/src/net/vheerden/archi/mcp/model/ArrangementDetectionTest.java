@@ -8,7 +8,7 @@ import org.junit.Test;
 
 /**
  * Unit tests for ArrangementDetector.detect() — pure geometry,
- * no EMF/OSGi required. (Story backlog-b2)
+ * no EMF/OSGi required.
  */
 public class ArrangementDetectionTest {
 

@@ -45,7 +45,6 @@ import net.vheerden.archi.mcp.response.dto.ClearViewResultDto;
 import net.vheerden.archi.mcp.response.dto.DetectHubElementsResultDto;
 import net.vheerden.archi.mcp.response.dto.DiagramImageDto;
 import net.vheerden.archi.mcp.response.dto.LayoutFlatViewResultDto;
-import net.vheerden.archi.mcp.response.dto.LayoutViewResultDto;
 import net.vheerden.archi.mcp.response.dto.LayoutWithinGroupResultDto;
 import net.vheerden.archi.mcp.response.dto.OptimizeGroupOrderResultDto;
 import net.vheerden.archi.mcp.response.dto.RemoveFromViewResultDto;
@@ -63,7 +62,7 @@ import net.vheerden.archi.mcp.session.SessionManager;
  * add-to-view, add-group-to-view, add-note-to-view, add-view-reference-to-view,
  * add-connection-to-view,
  * update-view-object, update-view-connection, remove-from-view, clear-view,
- * apply-positions, compute-layout, assess-layout, auto-route-connections,
+ * apply-positions, assess-layout, auto-route-connections,
  * auto-connect-view, layout-within-group, auto-layout-and-route, arrange-groups,
  * optimize-group-order, detect-hub-elements, layout-flat-view, adjust-view-spacing.
  *
@@ -99,7 +98,7 @@ public class ViewPlacementHandler {
      * Registers: add-to-view, add-group-to-view, add-note-to-view,
      * add-view-reference-to-view, add-connection-to-view,
      * update-view-object, update-view-connection,
-     * remove-from-view, clear-view, apply-positions, compute-layout,
+     * remove-from-view, clear-view, apply-positions,
      * assess-layout, auto-route-connections, auto-connect-view,
      * layout-within-group, auto-layout-and-route, arrange-groups,
      * optimize-group-order, detect-hub-elements,
@@ -117,7 +116,6 @@ public class ViewPlacementHandler {
         registry.registerTool(buildRemoveFromViewSpec());
         registry.registerTool(buildClearViewSpec());
         registry.registerTool(buildApplyViewLayoutSpec());
-        registry.registerTool(buildLayoutViewSpec());
         registry.registerTool(buildAssessLayoutSpec());
         registry.registerTool(buildAutoRouteConnectionsSpec());
         registry.registerTool(buildAutoConnectViewSpec());
@@ -327,7 +325,7 @@ public class ViewPlacementHandler {
         return steps;
     }
 
-    // ---- add-group-to-view (Story 8-6) ----
+    // ---- add-group-to-view ----
 
     private McpServerFeatures.SyncToolSpecification buildAddGroupToViewSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -477,7 +475,7 @@ public class ViewPlacementHandler {
                         + "' to resize or relabel the group.");
     }
 
-    // ---- add-note-to-view (Story 8-6) ----
+    // ---- add-note-to-view ----
 
     private McpServerFeatures.SyncToolSpecification buildAddNoteToViewSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -654,7 +652,7 @@ public class ViewPlacementHandler {
                 "Use remove-from-view to remove the note from the view.");
     }
 
-    // ---- add-view-reference-to-view (Story 14-6 / G8) ----
+    // ---- add-view-reference-to-view ----
 
     private McpServerFeatures.SyncToolSpecification buildAddViewReferenceToViewSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -809,7 +807,7 @@ public class ViewPlacementHandler {
                         + " or add-to-view to add element placements.");
     }
 
-    // ---- add-image-to-view (Story 14-8 / G16) ----
+    // ---- add-image-to-view ----
 
     private McpServerFeatures.SyncToolSpecification buildAddImageToViewSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -860,10 +858,10 @@ public class ViewPlacementHandler {
                 + "to the parent's origin (top-left corner), not absolute canvas coordinates. "
                 + "Omit to place at the top level of the view.");
 
-        // Story 14-8 follow-up (AC10 Step 5): IDiagramModelImage extends
+        // IDiagramModelImage extends
         // IBorderObject + IDocumentable — surface their fields as image-specific
         // schema properties (NOT in addStylingProperties because those are
-        // generic IDiagramModelObject G5 fields).
+        // generic IDiagramModelObject fields).
         Map<String, Object> borderColorProp = new LinkedHashMap<>();
         borderColorProp.put("type", "string");
         borderColorProp.put("description",
@@ -1259,7 +1257,7 @@ public class ViewPlacementHandler {
                 null);
     }
 
-    // ---- update-view-object (Story 7-8) ----
+    // ---- update-view-object ----
 
     private McpServerFeatures.SyncToolSpecification buildUpdateViewObjectSpec() {
         Map<String, Object> viewObjectIdProp = new LinkedHashMap<>();
@@ -1358,7 +1356,7 @@ public class ViewPlacementHandler {
                         + "lineColor is used verbatim instead of derived from fill). Optional "
                         + "outlineOpacity (0-255). Optional lineStyle ('solid'/'dashed'/'dotted'/'none' "
                         + "— view-object outline border style). "
-                        + "Respects approval mode (set-approval-mode). All changes (including labelExpression, "
+                        + "Respects approval mode (human-gated in Archi). All changes (including labelExpression, "
                         + "figureType, textAlignment, verticalTextAlignment, typography, gradient, borderType, "
                         + "deriveLineColor, outlineOpacity, lineStyle) execute as a single undo unit. "
                         + "Related: get-view-contents (inspect view + get viewObjectIds), "
@@ -1389,7 +1387,7 @@ public class ViewPlacementHandler {
             String text = HandlerUtils.optionalStringParam(args, "text");
             StylingParams styling = extractStylingParams(args);
             ImageParams imageParams = extractImageParams(args);
-            // Story 14-1 (G4): allow-empty variant — empty string "" clears the label
+            // allow-empty variant — empty string "" clears the label
             // expression; absent key leaves it unchanged.
             String labelExpression = HandlerUtils.optionalStringParamAllowEmpty(args, "labelExpression");
 
@@ -1426,7 +1424,7 @@ public class ViewPlacementHandler {
                 "Use remove-from-view to remove the element from the view.");
     }
 
-    // ---- update-view-connection (Story 7-8) ----
+    // ---- update-view-connection ----
 
     private McpServerFeatures.SyncToolSpecification buildUpdateViewConnectionSpec() {
         Map<String, Object> viewConnectionIdProp = new LinkedHashMap<>();
@@ -1522,7 +1520,7 @@ public class ViewPlacementHandler {
                         + "('normal'/'bold'/'italic'/'bold-italic'). "
                         + "NOTE: lineStyle is a view-object property; connection line style is determined "
                         + "by the ArchiMate relationship type (per Archi 5.8). "
-                        + "Respects approval mode (set-approval-mode). All changes execute as a single undo unit. "
+                        + "Respects approval mode (human-gated in Archi). All changes execute as a single undo unit. "
                         + "Related: get-view-contents (inspect view + get connection IDs and "
                         + "absoluteBendpoints), add-connection-to-view (add connections), "
                         + "archimate-view-patterns resource (styling completeness reference).")
@@ -1566,8 +1564,8 @@ public class ViewPlacementHandler {
                     sessionId, viewConnectionId, bendpoints, absoluteBendpoints, styling,
                     showLabel, textPosition);
 
-            // Story 14-2 AC16 fix: distinguish "caller intentionally changed bendpoints" from
-            // "caller passed only styling/labelling — bendpoints unchanged". The pre-14-2 code
+            // Distinguish "caller intentionally changed bendpoints" from
+            // "caller passed only styling/labelling — bendpoints unchanged". The earlier code
             // treated null as "cleared" and emitted the misleading message
             // "Connection bendpoints cleared" for styling-only updates.
             return HandlerUtils.formatMutationResponse(result.entity(), result,
@@ -1603,7 +1601,7 @@ public class ViewPlacementHandler {
                     "Use get-batch-status to check batch progress",
                     "Use end-batch to commit all queued mutations");
         }
-        // Story 14-2 AC16: detect what the caller actually changed and tailor the message.
+        // Detect what the caller actually changed and tailor the message.
         boolean bendpointsCleared = autoClearedBendpoints
                 || (bendpoints != null && bendpoints.isEmpty())
                 || (absoluteBendpoints != null && absoluteBendpoints.isEmpty());
@@ -1631,7 +1629,7 @@ public class ViewPlacementHandler {
                 "Use update-view-connection to change bendpoints, styling, or label visibility.");
     }
 
-    // ---- remove-from-view (Story 7-8) ----
+    // ---- remove-from-view ----
 
     private McpServerFeatures.SyncToolSpecification buildRemoveFromViewSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -1659,7 +1657,7 @@ public class ViewPlacementHandler {
                         + "The viewObjectId can reference either a view object (element) or a view "
                         + "connection. Required: viewId (string), viewObjectId (string) — the ID "
                         + "of the view object or connection to remove. "
-                        + "Respects approval mode (set-approval-mode). "
+                        + "Respects approval mode (human-gated in Archi). "
                         + "Related: get-view-contents (inspect view + get IDs), "
                         + "add-to-view (re-place elements), "
                         + "add-connection-to-view (re-add connections).")
@@ -1730,7 +1728,7 @@ public class ViewPlacementHandler {
                 "Use add-connection-to-view to add a connection back.");
     }
 
-    // ---- clear-view (Story 8-0c) ----
+    // ---- clear-view ----
 
     private McpServerFeatures.SyncToolSpecification buildClearViewSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -1750,7 +1748,7 @@ public class ViewPlacementHandler {
                         + "operation that clears the entire view contents, dramatically more efficient "
                         + "than calling remove-from-view for each individual element. "
                         + "Required: viewId (string). "
-                        + "Respects approval mode (set-approval-mode). "
+                        + "Respects approval mode (human-gated in Archi). "
                         + "Related: get-view-contents (inspect view before clearing), "
                         + "add-to-view (re-populate the view after clearing).")
                 .inputSchema(inputSchema)
@@ -1811,7 +1809,7 @@ public class ViewPlacementHandler {
                 "Use add-to-view to re-populate the view with elements.");
     }
 
-    // ---- apply-positions (Story 9-0a, renamed 11-8) ----
+    // ---- apply-positions ----
 
     private McpServerFeatures.SyncToolSpecification buildApplyViewLayoutSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -2091,116 +2089,7 @@ public class ViewPlacementHandler {
                 "Use export-view to visually inspect the result.");
     }
 
-    // ---- compute-layout (Story 9-1, renamed 11-8) ----
-
-    private McpServerFeatures.SyncToolSpecification buildLayoutViewSpec() {
-        Map<String, Object> viewIdProp = new LinkedHashMap<>();
-        viewIdProp.put("type", "string");
-        viewIdProp.put("description", "ID of the view to layout");
-
-        Map<String, Object> algorithmProp = new LinkedHashMap<>();
-        algorithmProp.put("type", "string");
-        algorithmProp.put("description",
-                "Layout algorithm: tree, spring, directed, radial, grid, horizontal-tree. "
-                + "Mutually exclusive with 'preset'.");
-
-        Map<String, Object> presetProp = new LinkedHashMap<>();
-        presetProp.put("type", "string");
-        presetProp.put("description",
-                "Semantic preset: compact, spacious, hierarchical, organic. "
-                + "Mutually exclusive with 'algorithm'.");
-
-        Map<String, Object> spacingProp = new LinkedHashMap<>();
-        spacingProp.put("type", "integer");
-        spacingProp.put("description",
-                "Spacing between elements in pixels (default varies by algorithm, typically 40-60)");
-
-        Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("viewId", viewIdProp);
-        properties.put("algorithm", algorithmProp);
-        properties.put("preset", presetProp);
-        properties.put("spacing", spacingProp);
-
-        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
-                "object", properties, List.of("viewId"), null, null, null);
-
-        McpSchema.Tool tool = McpSchema.Tool.builder()
-                .name("compute-layout")
-                .description("[Mutation] Apply an automatic layout algorithm to a view. "
-                        + "Repositions all elements and clears all connection bendpoints "
-                        + "(straight lines) in a single atomic operation with a single undo unit. "
-                        + "Provide either 'algorithm' (direct algorithm selection) or 'preset' "
-                        + "(semantic preset), not both. After layout, use export-view to visually "
-                        + "inspect the result. Supported algorithms: tree (top-down hierarchy), "
-                        + "spring (force-directed, non-deterministic), directed (Sugiyama layered), "
-                        + "radial (concentric circles), grid (regular grid), horizontal-tree "
-                        + "(left-to-right tree). Supported presets: compact (tight grid), spacious "
-                        + "(generous tree), hierarchical (top-down tree), organic (force-directed "
-                        + "clustering). Related: apply-positions (manual position application), "
-                        + "export-view (visual verification), get-view-contents (inspect layout).")
-                .inputSchema(inputSchema)
-                .build();
-
-        return McpServerFeatures.SyncToolSpecification.builder()
-                .tool(tool)
-                .callHandler(this::handleLayoutView)
-                .build();
-    }
-
-    McpSchema.CallToolResult handleLayoutView(
-            McpSyncServerExchange exchange, McpSchema.CallToolRequest request) {
-        logger.info("Handling compute-layout request");
-        try {
-            HandlerUtils.requireModelLoaded(accessor);
-            String sessionId = HandlerUtils.extractSessionId(sessionManager, exchange);
-
-            Map<String, Object> args = request.arguments();
-            String viewId = HandlerUtils.requireStringParam(args, "viewId");
-            String algorithm = HandlerUtils.optionalStringParam(args, "algorithm");
-            String preset = HandlerUtils.optionalStringParam(args, "preset");
-
-            // Build options map from optional spacing parameter
-            Map<String, Object> options = null;
-            Object spacingObj = args != null ? args.get("spacing") : null;
-            if (spacingObj instanceof Number n) {
-                options = new LinkedHashMap<>();
-                options.put("spacing", n.intValue());
-            }
-
-            MutationResult<LayoutViewResultDto> result =
-                    accessor.layoutView(sessionId, viewId, algorithm, preset, options);
-
-            return HandlerUtils.formatMutationResponse(result.entity(), result,
-                    buildLayoutViewNextSteps(result), accessor, formatter);
-
-        } catch (NoModelLoadedException e) {
-            return HandlerUtils.buildModelNotLoadedError(formatter, e);
-        } catch (ModelAccessException e) {
-            return HandlerUtils.buildModelAccessError(formatter, e);
-        } catch (MutationException e) {
-            return HandlerUtils.buildMutationError(formatter, e);
-        } catch (Exception e) {
-            logger.error("Unexpected error handling compute-layout", e);
-            return HandlerUtils.buildInternalError(formatter, e.getMessage());
-        }
-    }
-
-    private List<String> buildLayoutViewNextSteps(
-            MutationResult<LayoutViewResultDto> result) {
-        if (result.isBatched()) {
-            return List.of(
-                    "Mutation queued as operation #" + result.batchSequenceNumber()
-                            + " in current batch",
-                    "Use get-batch-status to check batch progress",
-                    "Use end-batch to commit all queued mutations");
-        }
-        return List.of(
-                "Use export-view to visually verify the layout.",
-                "Use apply-positions to fine-tune individual element positions.",
-                "Connection bendpoints were cleared — use update-view-connection to add routing if needed.");
-    }
-
-    // ---- assess-layout (Story 9-2) ----
+    // ---- assess-layout ----
 
     private McpServerFeatures.SyncToolSpecification buildAssessLayoutSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -2241,7 +2130,7 @@ public class ViewPlacementHandler {
                         + "SPECULATIVE WORKFLOW: apply mutation → assess-layout → undo if "
                         + "unsatisfied → adjust parameters → retry. This is the recommended "
                         + "way to 'preview' layout or routing changes without needing a dry-run. "
-                        + "Related: compute-layout (automatic layout), auto-route-connections "
+                        + "Related: auto-layout-and-route (automatic ELK layout + routing), auto-route-connections "
                         + "(routing), adjust-view-spacing (inflate spacing and re-route in "
                         + "one call), undo (roll back if unsatisfied), get-view-contents "
                         + "(inspect elements), export-view (visual verification).\n\n"
@@ -2303,13 +2192,17 @@ public class ViewPlacementHandler {
                         + "Use this for safe placement calculations — e.g., place a title note at "
                         + "(contentBounds.x, contentBounds.y - 40) without inspecting individual elements. "
                         + "Null/omitted on empty views.\n\n"
-                        + "INFORMATIONAL DETECTIONS (no rating impact): "
+                        + "RATING-AFFECTING DETECTIONS: "
                         + "`labelTruncationCount` / `labelTruncations` — elements whose label text "
                         + "exceeds the available display width (element width minus type-icon area). "
+                        + "Since M6 a nonzero count caps routingTier at 'fair' (Tier-2R). "
                         + "Use resize-elements-to-fit or increase element width to fix. "
                         + "`parentLabelObscuredCount` / `parentLabelObscuredDescriptions` — parent "
                         + "elements (groups) whose label text area is overlapped by the topmost child. "
-                        + "Move children down or increase parent top padding. "
+                        + "Since M6 a nonzero count drops layoutTier to 'poor' and vetoes the overall rating (Tier-1L), "
+                        + "so fix it before a view can rate 'good'. "
+                        + "Move children down or increase parent top padding.\n\n"
+                        + "INFORMATIONAL DETECTIONS (no rating impact): "
                         + "`imageSiblingOverlapCount` / `imageSiblingOverlapDescriptions` — elements "
                         + "with images whose image area is overlapped by a sibling element. "
                         + "Increase element spacing or reposition the image.\n\n"
@@ -2365,11 +2258,11 @@ public class ViewPlacementHandler {
     }
 
     /**
-     * Builds context-aware nextSteps graduated by quality rating and view structure (Story 11-17, 11-22).
+     * Builds context-aware nextSteps graduated by quality rating and view structure.
      * Recommends the lightest effective intervention first: auto-route-connections, then
      * auto-layout-and-route (ELK). Never recommends compute-layout.
      */
-    // Story 11-17: thresholds for "good" rating spacing/alignment fix recommendations.
+    // Thresholds for "good" rating spacing/alignment fix recommendations.
     // Stricter than assessor's EXCELLENT thresholds (30.0 / 60) because a "good" view
     // with adequate spacing should only get routing advice, not layout rearrangement.
     private static final double GOOD_SPACING_FIX_THRESHOLD = 40.0;
@@ -2408,11 +2301,11 @@ public class ViewPlacementHandler {
                     + " Use clear-view to rebuild the view cleanly.");
         }
 
-        // AC-4 (Story routing-preconditions, 2026-05-04): precondition-class nextSteps wired
+        // Precondition-class nextSteps wired
         // to remediation tools by name with violator IDs. Surfaced BEFORE the rating-switch
         // advice so an LLM agent acts on hub/spacing preconditions first.
 
-        // AC-4 #1: Hub-port quality below 0.5 → name detect-hub-elements + violator hub IDs.
+        // #1: Hub-port quality below 0.5 → name detect-hub-elements + violator hub IDs.
         // Violator IDs require includeViolatorIds=true at the call site (LayoutQualityAssessor
         // populates hubPortQualityFaces only when includeViolatorIds=true to save allocation in
         // the default path). When IDs are unavailable, point the agent at includeViolatorIds=true
@@ -2439,7 +2332,7 @@ public class ViewPlacementHandler {
                     hpq, violatorClause));
         }
 
-        // AC-4 #2: Spacing tightness — name the right inflation tool for the view's shape.
+        // #2: Spacing tightness — name the right inflation tool for the view's shape.
         // adjust-view-spacing requires a grouped view (per ArchiModelAccessorImpl.adjustViewSpacing
         // runtime guard); flat views need layout-flat-view with increased spacing instead.
         if (dto.coincidentSegmentCount() > 2
@@ -2457,7 +2350,7 @@ public class ViewPlacementHandler {
                     + "16-30 → 80/100; 30+ → 100/120.");
         }
 
-        // AC-4 #3: High inter-group crossing density on a grouped view → name arrange-groups
+        // #3: High inter-group crossing density on a grouped view → name arrange-groups
         // (topology) and optimize-group-order.
         if (hasGroups && hasConnections && dto.crossingsPerConnection() > 4.0) {
             steps.add(String.format(
@@ -2579,7 +2472,7 @@ public class ViewPlacementHandler {
         return steps;
     }
 
-    // ---- auto-route-connections (Story 9-5) ----
+    // ---- auto-route-connections ----
 
     private McpServerFeatures.SyncToolSpecification buildAutoRouteConnectionsSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -2650,7 +2543,7 @@ public class ViewPlacementHandler {
         Map<String, Object> modeProp = new LinkedHashMap<>();
         modeProp.put("type", "string");
         modeProp.put("description",
-                "Routing scope (B61). 'full' (default) re-routes whole connections "
+                "Routing scope. 'full' (default) re-routes whole connections "
                 + "via visibility-graph A*. 'terminals-only' leaves all intermediate "
                 + "bendpoints unchanged and only modifies the first and/or last "
                 + "bendpoint to make terminal segments orthogonal. Use terminals-only "
@@ -2735,7 +2628,7 @@ public class ViewPlacementHandler {
                         + "every L-bend (matches force semantics on the orthogonal strategy). "
                         + "terminals-only is mutually exclusive with strategy='clear' and "
                         + "autoNudge=true. "
-                        + "Related: compute-layout (position elements first), assess-layout "
+                        + "Related: auto-layout-and-route (position elements first), assess-layout "
                         + "(evaluate quality after routing), adjust-view-spacing (inflate "
                         + "spacing and re-route in one call), apply-element-spacing-recommendations "
                         + "and apply-group-spacing-recommendations (precondition convenience tools), "
@@ -2796,28 +2689,28 @@ public class ViewPlacementHandler {
             // Extract optional connectionIds array
             List<String> connectionIds = extractStringList(args, "connectionIds");
 
-            // Extract optional force parameter (Story 10-32)
+            // Extract optional force parameter
             Boolean forceObj = args != null ? (Boolean) args.get("force") : null;
             boolean force = forceObj != null && forceObj;
 
-            // Extract optional autoNudge parameter (Story 13-7)
+            // Extract optional autoNudge parameter
             Boolean autoNudgeObj = args != null ? (Boolean) args.get("autoNudge") : null;
             boolean autoNudge = autoNudgeObj != null && autoNudgeObj;
 
-            // Extract optional snapThreshold parameter (backlog-b17)
+            // Extract optional snapThreshold parameter
             Integer snapThresholdObj = args != null ? (Integer) args.get("snapThreshold") : null;
             int snapThreshold = snapThresholdObj != null
                     ? Math.max(0, Math.min(50, snapThresholdObj)) : 20;
 
-            // Extract optional perimeterMargin parameter (B36)
+            // Extract optional perimeterMargin parameter
             Integer perimeterMarginObj = args != null ? (Integer) args.get("perimeterMargin") : null;
             int perimeterMargin = perimeterMarginObj != null
                     ? Math.max(10, Math.min(200, perimeterMarginObj)) : 50;
 
-            // Extract optional mode parameter (B61: terminals-only routing)
+            // Extract optional mode parameter (terminals-only routing)
             String mode = HandlerUtils.optionalStringParam(args, "mode");
 
-            // Extract optional enableChannelNudging parameter (B69-B, AC-11).
+            // Extract optional enableChannelNudging parameter.
             // Default true — channel-global ordered nudging post-pass runs unless
             // explicitly disabled.
             boolean enableChannelNudging =
@@ -2977,7 +2870,7 @@ public class ViewPlacementHandler {
         return steps;
     }
 
-    // ---- auto-connect-view (Story 9-6) ----
+    // ---- auto-connect-view ----
 
     private McpServerFeatures.SyncToolSpecification buildAutoConnectViewSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -3098,11 +2991,11 @@ public class ViewPlacementHandler {
         return List.of(
                 "Use export-view to visually verify the created connections.",
                 "Use auto-route-connections to apply orthogonal routing to newly created connections.",
-                "Use compute-layout if elements need repositioning after connections are added.",
+                "Use auto-layout-and-route if elements need repositioning after connections are added.",
                 "Use assess-layout to evaluate overall diagram quality.");
     }
 
-    // ---- layout-within-group (Story 9-9) ----
+    // ---- layout-within-group ----
 
     private McpServerFeatures.SyncToolSpecification buildLayoutWithinGroupSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -3276,7 +3169,7 @@ public class ViewPlacementHandler {
         return steps;
     }
 
-    // ---- auto-layout-and-route (Story 10-29) ----
+    // ---- auto-layout-and-route ----
 
     private McpServerFeatures.SyncToolSpecification buildAutoLayoutAndRouteSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -3390,7 +3283,7 @@ public class ViewPlacementHandler {
             Integer spacingParam = HandlerUtils.optionalIntegerParam(args, "spacing");
             int spacing = spacingParam != null ? spacingParam : 50;
 
-            // Validate mode parameter (backlog-b24)
+            // Validate mode parameter
             if (mode != null && !"auto".equals(mode) && !"grouped".equals(mode)) {
                 throw new ModelAccessException(
                         "Invalid mode: '" + mode + "'",
@@ -3400,7 +3293,7 @@ public class ViewPlacementHandler {
                         null);
             }
 
-            // Story 11-16: optional targetRating for quality iteration
+            // Optional targetRating for quality iteration
             String targetRating = HandlerUtils.optionalStringParam(args, "targetRating");
             if (targetRating != null
                     && !"excellent".equals(targetRating)
@@ -3451,7 +3344,7 @@ public class ViewPlacementHandler {
             steps.add("View router type switched to manual (bendpoint mode) "
                     + "so that computed paths are rendered correctly.");
         }
-        // Story 11-16: when targetRating was used, quality assessment already done
+        // When targetRating was used, quality assessment already done
         if (dto != null && dto.targetRating() != null) {
             if (dto.achievedRating() != null
                     && !dto.achievedRating().equals(dto.targetRating())
@@ -3496,7 +3389,7 @@ public class ViewPlacementHandler {
         };
     }
 
-    // ---- arrange-groups (Story 11-20) ----
+    // ---- arrange-groups ----
 
     private McpServerFeatures.SyncToolSpecification buildArrangeGroupsSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -3673,7 +3566,7 @@ public class ViewPlacementHandler {
                 "Use assess-layout to evaluate overall layout quality.");
     }
 
-    // ---- optimize-group-order (Story 11-25) ----
+    // ---- optimize-group-order ----
 
     private McpServerFeatures.SyncToolSpecification buildOptimizeGroupOrderSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -3873,7 +3766,7 @@ public class ViewPlacementHandler {
         return steps;
     }
 
-    // ---- Styling helper methods (Story 11-2) ----
+    // ---- Styling helper methods ----
 
     /**
      * Adds styling property definitions (fillColor, lineColor, fontColor, opacity, lineWidth,
@@ -3952,7 +3845,7 @@ public class ViewPlacementHandler {
                 + "header band of the figure). Example: 'centre' to vertically centre a group "
                 + "label inside the group's bounding rectangle.");
 
-        // Story 14-2 G5 — typography (shared with addConnectionStylingProperties).
+        // Typography (shared with addConnectionStylingProperties).
         Map<String, Object> fontNameProp = new LinkedHashMap<>();
         fontNameProp.put("type", "string");
         fontNameProp.put("description",
@@ -3974,7 +3867,7 @@ public class ViewPlacementHandler {
                 "Font style. Values: 'normal' (default), 'bold', 'italic', or 'bold-italic'. "
                 + "Omit to leave unchanged. Example: 'bold'.");
 
-        // Story 14-2 G5 — gradient (view-object only — silently ignored on connections).
+        // Gradient (view-object only — silently ignored on connections).
         Map<String, Object> gradientProp = new LinkedHashMap<>();
         gradientProp.put("type", "string");
         gradientProp.put("enum", java.util.List.of("none", "top-bottom", "bottom-top", "left-right", "right-left"));
@@ -3985,7 +3878,7 @@ public class ViewPlacementHandler {
                 + "silently ignored on connections. Empty string clears to 'none'. Omit to leave "
                 + "unchanged. Example: 'top-bottom'.");
 
-        // Story 14-2 G5 — note borderType (note-only — silently ignored on other view objects).
+        // Note borderType (note-only — silently ignored on other view objects).
         Map<String, Object> borderTypeProp = new LinkedHashMap<>();
         borderTypeProp.put("type", "string");
         borderTypeProp.put("enum", java.util.List.of("dogear", "rectangle", "none"));
@@ -3997,7 +3890,7 @@ public class ViewPlacementHandler {
                 + "figureType (which uses tabbed/rectangular vocabulary for groups). Empty string "
                 + "clears to 'dogear'. Omit to leave unchanged. Example: 'rectangle'.");
 
-        // Story 14-2 G5 — deriveLineColor (view-object only).
+        // deriveLineColor (view-object only).
         Map<String, Object> deriveLineColorProp = new LinkedHashMap<>();
         deriveLineColorProp.put("type", "boolean");
         deriveLineColorProp.put("description",
@@ -4006,7 +3899,7 @@ public class ViewPlacementHandler {
                 + "verbatim. Applies to view objects — silently ignored on connections. Omit to "
                 + "leave unchanged. Example: false (to honour an explicit lineColor regardless of fill).");
 
-        // Story 14-2 G5 — outlineOpacity (view-object only).
+        // outlineOpacity (view-object only).
         Map<String, Object> outlineOpacityProp = new LinkedHashMap<>();
         outlineOpacityProp.put("type", "integer");
         outlineOpacityProp.put("description",
@@ -4015,7 +3908,7 @@ public class ViewPlacementHandler {
                 + "Applies to view objects — silently ignored on connections. Omit to leave "
                 + "unchanged. Example: 128 (half-transparent outline).");
 
-        // Story 14-2 G5 — lineStyle on view objects (Task-9 empirical correction —
+        // lineStyle on view objects (empirical correction —
         // Archi's lineStyle property is view-object only, not a connection property).
         Map<String, Object> lineStyleProp = new LinkedHashMap<>();
         lineStyleProp.put("type", "string");
@@ -4035,7 +3928,6 @@ public class ViewPlacementHandler {
         properties.put("figureType", figureTypeProp);
         properties.put("textAlignment", textAlignmentProp);
         properties.put("verticalTextAlignment", verticalTextAlignmentProp);
-        // Story 14-2 G5:
         properties.put("fontName", fontNameProp);
         properties.put("fontSize", fontSizeProp);
         properties.put("fontStyle", fontStyleProp);
@@ -4048,8 +3940,8 @@ public class ViewPlacementHandler {
 
     /**
      * Adds connection styling property definitions (lineColor, lineWidth, fontColor;
-     * Story 14-2 G5: fontName/fontSize/fontStyle — lineStyle is view-object-only per
-     * Task-9 empirical correction) to a tool spec properties map.
+     * fontName/fontSize/fontStyle — lineStyle is view-object-only per
+     * empirical correction) to a tool spec properties map.
      * Connections don't support fillColor or opacity.
      */
     private void addConnectionStylingProperties(Map<String, Object> properties) {
@@ -4070,7 +3962,7 @@ public class ViewPlacementHandler {
         lineWidthProp.put("description",
                 "Line width from 1 to 3. Default is 1. Omit to leave unchanged.");
 
-        // Story 14-2 G5 — typography for connection labels.
+        // Typography for connection labels.
         Map<String, Object> fontNameProp = new LinkedHashMap<>();
         fontNameProp.put("type", "string");
         fontNameProp.put("description",
@@ -4093,7 +3985,7 @@ public class ViewPlacementHandler {
         properties.put("lineColor", lineColorProp);
         properties.put("fontColor", fontColorProp);
         properties.put("lineWidth", lineWidthProp);
-        // Story 14-2 G5 — typography only (lineStyle is view-object-only per Task-9 empirical correction):
+        // Typography only (lineStyle is view-object-only per empirical correction):
         properties.put("fontName", fontNameProp);
         properties.put("fontSize", fontSizeProp);
         properties.put("fontStyle", fontStyleProp);
@@ -4101,7 +3993,7 @@ public class ViewPlacementHandler {
 
     /**
      * Parses a labelPosition string ("source"/"middle"/"target") to integer (0/1/2).
-     * Returns null if the value is not provided (Story 13-11).
+     * Returns null if the value is not provided.
      */
     private Integer parseLabelPosition(Map<String, Object> args) {
         Object value = args.get("labelPosition");
@@ -4122,13 +4014,13 @@ public class ViewPlacementHandler {
         String fontColor = HandlerUtils.optionalStringParamAllowEmpty(args, "fontColor");
         Integer opacity = HandlerUtils.optionalIntegerParam(args, "opacity");
         Integer lineWidth = HandlerUtils.optionalIntegerParam(args, "lineWidth");
-        // AC-11: empty string for the three new fields is treated as null ("unchanged")
+        // Empty string for the three new fields is treated as null ("unchanged")
         // — they have no symmetric "clear" semantics like colours do.
         String figureType = HandlerUtils.optionalStringParam(args, "figureType");
         String textAlignment = HandlerUtils.optionalStringParam(args, "textAlignment");
         String verticalTextAlignment = HandlerUtils.optionalStringParam(args, "verticalTextAlignment");
 
-        // Story 14-2 G5 — typography (allow empty to clear fontName to default; the enum fields
+        // Typography (allow empty to clear fontName to default; the enum fields
         // use the no-empty helper, since "" is not a meaningful enum value).
         String fontName = HandlerUtils.optionalStringParamAllowEmpty(args, "fontName");
         Integer fontSize = HandlerUtils.optionalIntegerParam(args, "fontSize");
@@ -4156,7 +4048,7 @@ public class ViewPlacementHandler {
                 deriveLineColor, outlineOpacity);
     }
 
-    // ---- Image helper methods (Story C4) ----
+    // ---- Image helper methods ----
 
     /**
      * Adds image property definitions (imagePath, imagePosition, showIcon)
@@ -4203,7 +4095,7 @@ public class ViewPlacementHandler {
         return new ImageParams(imagePath, imagePosition, showIcon);
     }
 
-    // ---- detect-hub-elements (Story 13-3) ----
+    // ---- detect-hub-elements ----
 
     private McpServerFeatures.SyncToolSpecification buildDetectHubElementsSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -4301,7 +4193,7 @@ public class ViewPlacementHandler {
         return steps;
     }
 
-    // ---- layout-flat-view (Story 13-6) ----
+    // ---- layout-flat-view ----
 
     private McpServerFeatures.SyncToolSpecification buildLayoutFlatViewSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -4460,7 +4352,7 @@ public class ViewPlacementHandler {
                         + "if the result is unsatisfactory.");
     }
 
-    // ---- resize-elements-to-fit (Story B48) ----
+    // ---- resize-elements-to-fit ----
 
     private McpServerFeatures.SyncToolSpecification buildResizeElementsToFitSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();
@@ -4477,9 +4369,21 @@ public class ViewPlacementHandler {
                 + "If omitted, resizes all elements on the view. "
                 + "Get valid IDs from get-view-contents visualMetadata.");
 
+        Map<String, Object> wrapFitProp = new LinkedHashMap<>();
+        wrapFitProp.put("type", "boolean");
+        wrapFitProp.put("description",
+                "Optional (default false). When true, uses compact WRAP-FIT sizing: each targeted "
+                + "element KEEPS its current width and only grows its height so the label wraps to a "
+                + "second line and fits, instead of widening to a single line. Ancestor containers "
+                + "grow height-only to contain the taller children. Use this for embedded elements in "
+                + "a dense grid (e.g. nested ApplicationFunctions in 150x26 boxes) where single-line "
+                + "widening would shift neighbours — wrap-fit preserves the grid's horizontal pitch. "
+                + "Scope with elementIds to target only the labels you want wrapped.");
+
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("viewId", viewIdProp);
         properties.put("elementIds", elementIdsProp);
+        properties.put("wrapFit", wrapFitProp);
 
         McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
                 "object", properties, List.of("viewId"), null, null, null);
@@ -4499,6 +4403,9 @@ public class ViewPlacementHandler {
                         + "For nested elements, uses two-pass algorithm: children sized first, "
                         + "then parents sized to contain children + own label + padding. "
                         + "Recommended after placing elements on flat views to prevent label truncation. "
+                        + "Set wrapFit=true for compact WRAP-FIT sizing (keep width, grow height so the "
+                        + "label wraps to a 2nd line) — use for embedded elements in a dense grid where "
+                        + "single-line widening would shift neighbours; preserves the grid's horizontal pitch. "
                         + "Related: add-to-view with autoSize (size at placement time), "
                         + "layout-flat-view (reposition elements), "
                         + "detect-hub-elements + update-view-object (size hubs for connection fan-out), "
@@ -4534,8 +4441,10 @@ public class ViewPlacementHandler {
                 }
             }
 
+            boolean wrapFit = Boolean.TRUE.equals(args.get("wrapFit"));
+
             MutationResult<ResizeElementsResultDto> result =
-                    accessor.resizeElementsToFit(sessionId, viewId, elementIds);
+                    accessor.resizeElementsToFit(sessionId, viewId, elementIds, wrapFit);
 
             return HandlerUtils.formatMutationResponse(result.entity(), result,
                     buildResizeElementsNextSteps(result), accessor, formatter);
@@ -4568,7 +4477,7 @@ public class ViewPlacementHandler {
                 "Use undo to roll back if the sizes are unsatisfactory.");
     }
 
-    // ---- adjust-view-spacing (B68) ----
+    // ---- adjust-view-spacing ----
 
     private McpServerFeatures.SyncToolSpecification buildAdjustViewSpacingSpec() {
         Map<String, Object> viewIdProp = new LinkedHashMap<>();

@@ -5,7 +5,7 @@ import org.eclipse.gef.commands.Command;
 import com.archimatetool.model.IDiagramModelConnection;
 
 /**
- * GEF Command that changes a connection's textPosition (Story 11-31).
+ * GEF Command that changes a connection's textPosition.
  * Supports undo/redo by capturing old and new positions.
  *
  * <p>Text positions: 0=source (15%), 1=middle (50%), 2=target (85%).</p>

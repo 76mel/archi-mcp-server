@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.response.dto;
 
 /**
- * Result of a single operation within a bulk-mutate response (Story 7-5).
+ * Result of a single operation within a bulk-mutate response.
  *
  * @param index      the 0-based position of this operation in the bulk array
  * @param tool       the tool that was executed

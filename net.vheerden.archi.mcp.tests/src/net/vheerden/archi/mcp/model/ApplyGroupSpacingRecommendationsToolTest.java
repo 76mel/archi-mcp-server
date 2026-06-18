@@ -18,14 +18,11 @@ import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
  * table + delta-clamp + connected/unconnected-column-selection + DTO-shape
  * contracts. Pure-unit tests (no OSGi).
  *
- * <p>Per Story RoutingPreconditions.InterGroup.ApplyGroupSpacingRecommendations
- * AC-7 — sub-tests AC-7.1 (heuristic table pin, connected column),
- * AC-7.2 (heuristic table pin, unconnected column), AC-7.3 (connected-vs-
- * unconnected determination), AC-7.4 (delta clamp at 0 short-circuit),
- * AC-7.5 (negative-delta clamp), AC-7.6 (dryRun envelope shape),
- * AC-7.7 (happy-path math + envelope shape), AC-7.8 (tier boundaries
- * 15/16/30/31, both columns), AC-7.9 (no-groups / fewer-than-2-top-level-
- * groups), AC-7.10 (ApplyGroupSpacingDecision pure-unit pin).</p>
+ * <p>Sub-tests: heuristic table pin (connected column), heuristic table pin
+ * (unconnected column), connected-vs-unconnected determination, delta clamp
+ * at 0 short-circuit, negative-delta clamp, dryRun envelope shape, happy-path
+ * math + envelope shape, tier boundaries 15/16/30/31 (both columns), no-groups
+ * / fewer-than-2-top-level-groups, ApplyGroupSpacingDecision pure-unit pin.</p>
  *
  * <p>Per {@code feedback_metric_and_regression_test_together.md}: the
  * heuristic-table boundaries (both columns) are pinned here. Any change to
@@ -35,19 +32,18 @@ import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
  * caught here.</p>
  *
  * <p>Behavioural assertions involving real model state (e.g., "after.M4 &lt;
- * before.M4 strict inequality") are deferred to AC-12 live smoke + AC-13
- * empirical paired-arc-when-triad-complete sibling, per Soft-AC-15 trade-off
- * + the three-tool-triad empirical-dependency lesson.</p>
+ * before.M4 strict inequality") are deferred to live smoke + empirical
+ * paired-arc-when-triad-complete sibling, plus the three-tool-triad
+ * empirical-dependency lesson.</p>
  *
  * <p>This test class mirrors {@code ApplyElementSpacingRecommendationsToolTest}
  * verbatim where applicable (sibling-symmetric structure). The novel surface
- * vs the sibling: the connected/unconnected column selection (AC-7.2 +
- * AC-7.3) and the {@code interGroupConnectionCount} field on the decision
- * record + DTO.</p>
+ * vs the sibling: the connected/unconnected column selection and the
+ * {@code interGroupConnectionCount} field on the decision record + DTO.</p>
  */
 public class ApplyGroupSpacingRecommendationsToolTest {
 
-    // ---- AC-7.1 — heuristic table pin: connected column (one per tier) ----
+    // ---- heuristic table pin: connected column (one per tier) ----
 
     @Test
     public void targetSpacing_tier1_connected_returns_80px() {
@@ -70,7 +66,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
                 40, /*isConnected=*/ true, false));
     }
 
-    // ---- AC-7.2 — heuristic table pin: unconnected column (one per tier) ----
+    // ---- heuristic table pin: unconnected column (one per tier) ----
 
     @Test
     public void targetSpacing_tier1_unconnected_returns_40px() {
@@ -95,7 +91,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
                 40, /*isConnected=*/ false, false));
     }
 
-    // ---- AC-7.8 — tier boundaries (15/16/30/31), both columns ----
+    // ---- tier boundaries (15/16/30/31), both columns ----
 
     @Test
     public void targetSpacing_boundary_15_top_of_tier1_connected_returns_80() {
@@ -145,12 +141,12 @@ public class ApplyGroupSpacingRecommendationsToolTest {
                 31, false, false));
     }
 
-    // ---- AC-7.3 — connected-vs-unconnected determination semantics ----
+    // ---- connected-vs-unconnected determination semantics ----
     //         The accessor's countInterGroupConnections walk produces an
     //         interGroupConnectionCount; isConnected = (count > 0).
     //         This block pins the heuristic-column-selection branch on
-    //         that boolean (the walk itself is exercised by live smoke
-    //         AC-12, since spy-pattern over EMF is brittle).
+    //         that boolean (the walk itself is exercised by live smoke,
+    //         since spy-pattern over EMF is brittle).
 
     @Test
     public void columnSelection_isConnected_true_picks_connected_column() {
@@ -194,7 +190,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
         assertEquals(40, t2u);
     }
 
-    // ---- AC-7.5 — negative-delta clamp (generous-spacing view) ----
+    // ---- negative-delta clamp (generous-spacing view) ----
 
     @Test
     public void delta_clamp_when_current_is_120_and_connected_target_is_80_returns_zero() {
@@ -215,7 +211,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
         assertEquals(0, delta);
     }
 
-    // ---- AC-7.7 (math) — happy-path delta computation ----
+    // ---- happy-path delta computation ----
 
     @Test
     public void delta_happy_path_n20_connected_current40_yields_60() {
@@ -237,7 +233,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
         assertEquals(80, delta);
     }
 
-    // ---- AC-7.6 — dryRun envelope shape (after==null, adjustResult==null) ----
+    // ---- dryRun envelope shape (after==null, adjustResult==null) ----
 
     @Test
     public void dto_dryRun_envelope_shape_has_null_after_and_null_adjustResult() {
@@ -270,7 +266,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
                 dto.noChangeReason());
     }
 
-    // ---- AC-7.4 / AC-7.9 — no-change envelope shape ----
+    // ---- no-change envelope shape ----
 
     @Test
     public void dto_no_change_envelope_shape_has_populated_reason() {
@@ -301,7 +297,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
                 dto.adjustResult());
     }
 
-    // ---- AC-7.7 (shape) — happy-path envelope shape ----
+    // ---- happy-path envelope shape ----
 
     @Test
     public void dto_happy_path_envelope_shape_has_populated_before_and_after() {
@@ -328,7 +324,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
                 dto.noChangeReason());
     }
 
-    // ---- AC-14 — heuristics-table runtime override ----
+    // ---- heuristics-table runtime override ----
 
     @Test
     public void targetSpacingOverride_supersedes_heuristic() {
@@ -347,8 +343,8 @@ public class ApplyGroupSpacingRecommendationsToolTest {
         assertEquals(80, reportedHeuristic.intValue());
     }
 
-    // ---- AC-7.10 — behavioural pins on the pure-unit decision function
-    //         ApplyGroupSpacingDecision. Mirrors sibling-element AC-7's
+    // ---- behavioural pins on the pure-unit decision function
+    //         ApplyGroupSpacingDecision. Mirrors the sibling-element
     //         decision-record block. The production accessor calls
     //         decide(...) once and dispatches on
     //         shouldCallAdjustViewSpacing(). ----
@@ -550,7 +546,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
                 !d1.noChangeReason().contains("1 inter-group connections"));
     }
 
-    // ---- Row C — hub-aware tier integration pins (AC-7 secondary) ----
+    // ---- hub-aware tier integration pins ----
 
     @Test
     public void hubAware_connectedTier1_returns100_whenHasLargeHubsTrue() {
@@ -604,11 +600,11 @@ public class ApplyGroupSpacingRecommendationsToolTest {
                 GroupSpacingHeuristic.targetSpacingForConnectionCount(40, true, false));
     }
 
-    // ---- AC-8 — heuristic-cross-class consistency tripwire ----
+    // ---- heuristic-cross-class consistency tripwire ----
 
     @Test
     public void hubAware_tripwire_directHeuristicCallMatchesIntegrationContract() {
-        // AC-8 single-source-of-truth pin: the hub-aware connected tier 2
+        // Single-source-of-truth pin: the hub-aware connected tier 2
         // value that the accessor computes (ArchiModelAccessorImpl.applyGroup
         // SpacingRecommendations step 4) is identical to a direct heuristic
         // call with the same inputs. Pins the expected return value so any
@@ -658,15 +654,13 @@ public class ApplyGroupSpacingRecommendationsToolTest {
     }
 
     // ===================================================================
-    // AC-7.5 — Control-loop extensions (Story
-    //          backlog-convenience-tool-control-loop-architectural-redesign
-    //          Task 3.10, 2026-05-15). Sibling-symmetric with the
-    //          ApplyElementSpacingRecommendationsToolTest AC-7.5 block.
+    // Control-loop extensions (2026-05-15). Sibling-symmetric with the
+    // ApplyElementSpacingRecommendationsToolTest control-loop block.
     // ===================================================================
 
     @Test
     public void controlLoop_engagedOnPositiveDelta_iterateProducesIterations() {
-        // AC-7.5 (1) sibling: control-loop-engaged on group-spacing path.
+        // (1) sibling: control-loop-engaged on group-spacing path.
         // Given initial=40, target=70 (gap=30, fits in 1 iteration of the
         // +10 ladder at index 0 → ladder=30).
         LayoutMetrics initial = new LayoutMetrics(
@@ -687,7 +681,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_bypassed_targetAlreadyMet_zeroIterations() {
-        // AC-7.5 (2) sibling: short-circuit when target already met.
+        // (2) sibling: short-circuit when target already met.
         LayoutMetrics initial = new LayoutMetrics(4, 0.95, 0, 0, 0, 13.3, 5);
         SpacingControlLoop.Request request = new SpacingControlLoop.Request(
                 120, 120, 5, Integer.MAX_VALUE, initial, "group");
@@ -701,7 +695,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_dtoTerminationReasonField_roundTripsAllFiveBranches() {
-        // AC-7.5 (3) sibling: 5 termination-reason strings round-trip
+        // (3) sibling: 5 termination-reason strings round-trip
         // through the group DTO's terminationReason field.
         AssessLayoutResultDto before = stubAssessLayoutResult("view-grp", 20);
         String[] reasons = new String[] {
@@ -723,7 +717,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_dtoIterationCount_equalsAppliedDeltasSize() {
-        // AC-7.5 (4) sibling: iterationCount field == appliedDeltas.size().
+        // (4) sibling: iterationCount field == appliedDeltas.size().
         AssessLayoutResultDto before = stubAssessLayoutResult("view-grp", 20);
         AssessLayoutResultDto after = stubAssessLayoutResult("view-grp", 20);
         List<Integer> deltas = List.of(30, 40, 50, 60);
@@ -741,7 +735,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_iterationBudget_respectedAsCap() {
-        // AC-7.5 (5) sibling: iterationBudget cap honoured.
+        // (5) sibling: iterationBudget cap honoured.
         LayoutMetrics initial = new LayoutMetrics(1, 0.5, 8, 4, 0, 0.0, 20);
         LayoutMetrics post = new LayoutMetrics(2, 0.8, 4, 2, 0, 8.0, 15);
 
@@ -759,7 +753,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_aggregateBackOff_revertsRegressingIteration() {
-        // AC-7.5 (6) sibling: aggregate back-off reverts on regression.
+        // (6) sibling: aggregate back-off reverts on regression.
         LayoutMetrics initial = new LayoutMetrics(2, 0.8, 4, 2, 0, 8.0, 15);
         LayoutMetrics regressedPost = new LayoutMetrics(1, 0.6, 6, 2, 0, 8.0, 22);
 
@@ -774,7 +768,7 @@ public class ApplyGroupSpacingRecommendationsToolTest {
         assertTrue(result.iterations().get(0).backedOff());
     }
 
-    // ---- AC-7.5 helper — group-tool variant of the callbacks stub ----
+    // ---- helper — group-tool variant of the callbacks stub ----
 
     private static final class GroupToolTestCallbacks
             implements SpacingControlLoop.Callbacks {

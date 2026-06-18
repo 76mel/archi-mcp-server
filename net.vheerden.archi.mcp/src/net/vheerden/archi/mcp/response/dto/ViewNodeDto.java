@@ -10,20 +10,20 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * uniquely identifies the diagram object on the view (distinct from the
  * model element ID), enabling connection placement via add-connection-to-view.</p>
  *
- * <p><strong>Story 8-6:</strong> Added parentViewObjectId to track elements
+ * <p>Added parentViewObjectId to track elements
  * nested inside visual groups.</p>
  *
- * <p><strong>Story 11-2:</strong> Added optional styling fields (fillColor,
+ * <p>Added optional styling fields (fillColor,
  * lineColor, fontColor, opacity, lineWidth). Omitted from JSON when null.</p>
  *
- * <p><strong>Story C4:</strong> Added optional image fields (imagePath,
+ * <p>Added optional image fields (imagePath,
  * imagePosition, showIcon). Omitted from JSON when null.</p>
  *
- * <p><strong>Story C3 (v1.6):</strong> Closes the read-back symmetry gap surfaced by the
+ * <p><strong>v1.6:</strong> Closes the read-back symmetry gap surfaced by the
  * 2026-05-28 1708 labelExpression probe. Adds {@code figureType}, {@code textAlignment},
- * {@code verticalTextAlignment} (predecessor styling row), {@code labelExpression}
- * (14-1 G4), and {@code fontName}/{@code fontSize}/{@code fontStyle}/{@code gradient}/
- * {@code deriveLineColor}/{@code outlineOpacity}/{@code lineStyle} (14-2 G5) so that
+ * {@code verticalTextAlignment} (predecessor styling row), {@code labelExpression},
+ * and {@code fontName}/{@code fontSize}/{@code fontStyle}/{@code gradient}/
+ * {@code deriveLineColor}/{@code outlineOpacity}/{@code lineStyle} so that
  * {@code get-view-contents} surfaces every v1.5 styling field that the corresponding
  * write tools accept. Field order mirrors {@link ViewObjectDto} so JSON property order
  * is identical across add-/update-/read paths. {@code borderType} is intentionally
@@ -61,7 +61,7 @@ public record ViewNodeDto(
     /**
      * Convenience constructor without image fields or v1.5 styling (backward compat).
      * Delegates to the canonical 26-field constructor with 14 trailing nulls
-     * (3 image + 11 Story C3 v1.5 styling fields).
+     * (3 image + 11 v1.5 styling fields).
      */
     public ViewNodeDto(String viewObjectId, String elementId,
             int x, int y, int width, int height,

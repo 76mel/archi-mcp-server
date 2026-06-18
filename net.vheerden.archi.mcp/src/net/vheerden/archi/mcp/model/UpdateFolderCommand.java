@@ -13,7 +13,7 @@ import com.archimatetool.model.IFolder;
 import com.archimatetool.model.IProperty;
 
 /**
- * GEF Command that updates an existing folder's metadata (Story 8-5).
+ * GEF Command that updates an existing folder's metadata.
  *
  * <p>Supports updating name, documentation, and properties. Only non-null
  * fields are modified; null fields are left unchanged. For properties,

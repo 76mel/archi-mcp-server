@@ -21,7 +21,7 @@ import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.UndoRedoResultDto;
 
 /**
- * Handler for command stack undo/redo MCP tools (Story 11-1).
+ * Handler for command stack undo/redo MCP tools.
  *
  * <p>Exposes Archi's native GEF CommandStack undo/redo as MCP tools,
  * enabling LLM agents to experiment with layouts and roll back
@@ -135,6 +135,20 @@ public class CommandStackHandler {
 
 			UndoRedoResultDto result = accessor.undo(steps);
 
+			if (result.operationsPerformed() == 0 && result.blockedReason() != null) {
+				// Betrayal guard: the top of the stack is the human's change.
+				// Distinct from an empty stack — the agent must not silently revert hand-work.
+				ErrorResponse error = new ErrorResponse(
+						ErrorCode.MUTATION_FAILED,
+						"Cannot undo — the most recent change is the human's.",
+						"Agent undo is limited to its own changes and stops at the human's work; "
+								+ "it will never silently evaporate a hand-drawn change.",
+						"To revert the human's change, submit a new proposed change for them to "
+								+ "approve. The human's native Ctrl+Z can still undo it.", null);
+				return HandlerUtils.buildResult(
+						formatter.toJsonString(formatter.formatError(error)), true);
+			}
+
 			if (result.operationsPerformed() == 0) {
 				ErrorResponse error = new ErrorResponse(
 						ErrorCode.MUTATION_FAILED, "Nothing to undo",
@@ -180,6 +194,19 @@ public class CommandStackHandler {
 			}
 
 			UndoRedoResultDto result = accessor.redo(steps);
+
+			if (result.operationsPerformed() == 0 && result.blockedReason() != null) {
+				// Betrayal guard: the top redo entry is the human's change.
+				// A human change must never be re-applied (or evaporated) by the agent.
+				ErrorResponse error = new ErrorResponse(
+						ErrorCode.MUTATION_FAILED,
+						"Cannot redo — the most recent undone change is the human's.",
+						"Agent redo is limited to its own changes and stops at the human's work.",
+						"To re-apply the human's change, submit a new proposed change for them to "
+								+ "approve. The human's native Ctrl+Y can still redo it.", null);
+				return HandlerUtils.buildResult(
+						formatter.toJsonString(formatter.formatError(error)), true);
+			}
 
 			if (result.operationsPerformed() == 0) {
 				ErrorResponse error = new ErrorResponse(

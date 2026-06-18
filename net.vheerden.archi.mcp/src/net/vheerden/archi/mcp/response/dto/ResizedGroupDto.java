@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.response.dto;
 
 /**
- * Response DTO for a group that was automatically resized during autoNudge (backlog-b15).
+ * Response DTO for a group that was automatically resized during autoNudge.
  *
  * @param viewObjectId  view object ID of the resized group
  * @param groupName     human-readable name of the group

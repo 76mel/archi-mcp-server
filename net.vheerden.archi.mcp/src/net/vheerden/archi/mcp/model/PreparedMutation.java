@@ -3,7 +3,7 @@ package net.vheerden.archi.mcp.model;
 import org.eclipse.gef.commands.Command;
 
 /**
- * Encapsulates the result of preparing a mutation before dispatch (Story 7-5).
+ * Encapsulates the result of preparing a mutation before dispatch.
  *
  * <p>Package-visible — only used within the {@code model/} package by
  * {@link ArchiModelAccessorImpl}. Separates mutation object creation and

@@ -38,7 +38,7 @@ import net.vheerden.archi.mcp.response.dto.RelationshipDto;
 import net.vheerden.archi.mcp.response.dto.RelationshipSemanticAttributes;
 
 /**
- * Integration tests for Story 14-7 (G1) — relationship semantic attributes
+ * Integration tests for relationship semantic attributes
  * ({@code accessType} / {@code associationDirected} / {@code influenceStrength})
  * on {@code create-relationship} / {@code update-relationship}.
  *
@@ -66,7 +66,7 @@ public class RelationshipSemanticAttributesIntegrationTest {
         }
     }
 
-    // ==================== create-relationship (AC2) ====================
+    // ==================== create-relationship ====================
 
     @Test
     public void shouldCreateAccessRelationshipWithAccessType_AC2() {
@@ -133,7 +133,7 @@ public class RelationshipSemanticAttributesIntegrationTest {
         }
     }
 
-    // ==================== update-relationship (AC3) ====================
+    // ==================== update-relationship ====================
 
     @Test
     public void shouldUpdateAccessType_onExistingAccessRelationship_AC3() {
@@ -215,7 +215,7 @@ public class RelationshipSemanticAttributesIntegrationTest {
         }
     }
 
-    // ==================== Undo / redo (AC6) ====================
+    // ==================== Undo / redo ====================
 
     @Test
     public void shouldUndoAccessTypeChange_AC6() {
@@ -257,7 +257,7 @@ public class RelationshipSemanticAttributesIntegrationTest {
         assertEquals("+", existing.getStrength());
     }
 
-    // ==================== Type-conditional rejection (AC7) ====================
+    // ==================== Type-conditional rejection ====================
 
     @Test
     public void shouldRejectAccessTypeOnNonAccessRelationship_AC7() {
@@ -372,7 +372,7 @@ public class RelationshipSemanticAttributesIntegrationTest {
         }
     }
 
-    // ==================== Round-trip via convertToRelationshipDto (AC4) ====================
+    // ==================== Round-trip via convertToRelationshipDto ====================
 
     @Test
     public void shouldRoundTripRelationshipDtoG1Fields_viaConvertToRelationshipDto_AC4() {
@@ -390,7 +390,7 @@ public class RelationshipSemanticAttributesIntegrationTest {
                 dto.influenceStrength());
     }
 
-    // ==================== Idempotence guard (AC6) ====================
+    // ==================== Idempotence guard ====================
 
     @Test
     public void shouldGuardIdempotentAccessTypeSet_AC6() {
@@ -509,6 +509,9 @@ public class RelationshipSemanticAttributesIntegrationTest {
                 }
             }
         };
+        // The dispatcher now defaults to GATED (fail-safe). These tests exercise the
+        // immediate-apply path, so opt approval OFF explicitly (production wires the human bit).
+        testDispatcher.setApprovalModeProvider(() -> false);
         return new ArchiModelAccessorImpl(stubModelManager, testDispatcher);
     }
 

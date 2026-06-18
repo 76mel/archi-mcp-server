@@ -20,7 +20,7 @@ import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.UndoRedoResultDto;
 
 /**
- * Tests for {@link CommandStackHandler} undo/redo tools (Story 11-1).
+ * Tests for {@link CommandStackHandler} undo/redo tools.
  */
 public class CommandStackHandlerTest {
 
@@ -123,6 +123,48 @@ public class CommandStackHandlerTest {
 		Map<String, Object> error = (Map<String, Object>) parsed.get("error");
 		assertEquals("MUTATION_FAILED", error.get("code"));
 		assertTrue(((String) error.get("message")).contains("Nothing to undo"));
+	}
+
+	@Test
+	public void shouldReturnBetrayalError_whenUndoBlockedByHumanEdit() throws Exception {
+		// operationsPerformed == 0 AND a block reason present → the betrayal guard, NOT empty stack.
+		accessor.setUndoResult(new UndoRedoResultDto(1, 0,
+				Collections.emptyList(), true, false,
+				net.vheerden.archi.mcp.model.MutationDispatcher.BLOCK_REASON_HUMAN_EDIT));
+
+		McpSchema.CallToolResult result = callTool("undo", Map.of());
+		assertTrue("Should be an error", result.isError());
+
+		Map<String, Object> parsed = parseResult(result);
+		@SuppressWarnings("unchecked")
+		Map<String, Object> error = (Map<String, Object>) parsed.get("error");
+		assertEquals("MUTATION_FAILED", error.get("code"));
+		String message = (String) error.get("message");
+		assertTrue("betrayal message, not the empty-stack message",
+				message.contains("the human's"));
+		assertFalse("must NOT collapse into the generic empty-stack message",
+				message.contains("Nothing to undo"));
+		assertTrue("actionable correction points at the proposal path",
+				((String) error.get("suggestedCorrection")).contains("proposed change"));
+	}
+
+	@Test
+	public void shouldReturnBetrayalError_whenRedoBlockedByHumanEdit() throws Exception {
+		accessor.setRedoResult(new UndoRedoResultDto(1, 0,
+				Collections.emptyList(), false, true,
+				net.vheerden.archi.mcp.model.MutationDispatcher.BLOCK_REASON_HUMAN_EDIT));
+
+		McpSchema.CallToolResult result = callTool("redo", Map.of());
+		assertTrue("Should be an error", result.isError());
+
+		Map<String, Object> parsed = parseResult(result);
+		@SuppressWarnings("unchecked")
+		Map<String, Object> error = (Map<String, Object>) parsed.get("error");
+		assertEquals("MUTATION_FAILED", error.get("code"));
+		String message = (String) error.get("message");
+		assertTrue("betrayal message", message.contains("the human's"));
+		assertFalse("must NOT collapse into the generic empty-stack message",
+				message.contains("Nothing to redo"));
 	}
 
 	@Test

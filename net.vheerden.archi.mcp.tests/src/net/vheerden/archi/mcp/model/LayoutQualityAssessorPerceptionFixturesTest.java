@@ -8,22 +8,20 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * R5 C1 rejection-finding fixtures (Assessor.Redesign AC-7, 2026-04-26).
+ * Rejection-finding fixtures (2026-04-26).
  *
- * <p>Four named connections from the R5 C1 rejection finding (party-mode review
- * 2026-04-25 PM) — pure-geometry fixtures constructed inline with the exact
- * bendpoint sets recorded in {@code r5-c1-rejection-finding-2026-04-25.md} and
- * {@code r5-c1-task9-e2e-discussion-2026-04-25.md}. These are the canonical
- * regression test cases for the perception-aligned metric redesign.</p>
+ * <p>Four named connections from the rejection finding (2026-04-25 PM) —
+ * pure-geometry fixtures constructed inline with the exact bendpoint sets
+ * recorded in the rejection finding. These are the canonical regression test
+ * cases for the perception-aligned metric redesign.</p>
  *
- * <p>Each fixture tests the per-fixture metric profile defined in Dev Notes
- * § Validation Fixtures of {@code backlog-assessor-redesign-perception-aligned.md}.
- * The four fixtures are:
+ * <p>Each fixture tests the per-fixture metric profile defined in the
+ * validation fixtures. The four fixtures are:
  * <ol>
- *   <li>API Mgmt → Internet Banking Portal (Oracle, identical v1.3+C1) — M4 case</li>
- *   <li>API Mgmt → Corporate Banking Portal (Oracle, C1) — M3 zigzag + M1 confirms AC-1</li>
+ *   <li>API Mgmt → Internet Banking Portal (Oracle, identical v1.3) — M4 case</li>
+ *   <li>API Mgmt → Corporate Banking Portal (Oracle) — M3 zigzag + M1</li>
  *   <li>Core Banking System → API Mgmt (Oracle) — M5 hub-port quality improvement</li>
- *   <li>API Mgmt BOTTOM-face B9 distribution (both pipelines) — M5 quality 0.25</li>
+ *   <li>API Mgmt BOTTOM-face distribution (both pipelines) — M5 quality 0.25</li>
  * </ol>
  *
  * <p>No live model dependency — Eclipse-MCP-safe. Pure {@code AssessmentNode} +
@@ -39,7 +37,7 @@ public class LayoutQualityAssessorPerceptionFixturesTest {
     }
 
     // ---- Fixture 1: API Mgmt → Internet Banking Portal (Oracle) ----
-    // Identical on v1.3 + C1. Pre-existing pipeline issue, surfaced by M4 metric gap.
+    // Identical on v1.3. Pre-existing pipeline issue, surfaced by M4 metric gap.
     // Source: API Mgmt (rect: 641, 219, 303, 126; centerX=792, centerY=282)
     // Target: Internet Banking (rect: 80, 80, 180, 68; centerX=170, centerY=114)
     // Bendpoints: [(350, 219), (350, 150), (177, 150)]
@@ -63,7 +61,7 @@ public class LayoutQualityAssessorPerceptionFixturesTest {
         LayoutAssessmentResult result = assessor.assess(
                 List.of(apiMgmt, internetBanking), List.of(conn), false);
 
-        // AC-4 self-exclusion removed (story M4.RemoveSelfExclusion 2026-04-27): horizontal at y=150 hugs Internet Banking BOTTOM at y=148, target is now in scope, M4 flags.
+        // Self-exclusion removed (2026-04-27): horizontal at y=150 hugs Internet Banking BOTTOM at y=148, target is now in scope, M4 flags.
         assertEquals("M4 flags edge-coincidence with target's own BOTTOM face (post-removal)",
                 1, result.connectionEdgeCoincidenceCount());
 
@@ -78,14 +76,14 @@ public class LayoutQualityAssessorPerceptionFixturesTest {
                 0, result.zigzagCount());
     }
 
-    // ---- Fixture 2: API Mgmt → Corporate Banking Portal (Oracle, C1 only) ----
-    // C1 trades v1.3's edge-coincident segment for a zigzag pattern.
+    // ---- Fixture 2: API Mgmt → Corporate Banking Portal (Oracle) ----
+    // Trades v1.3's edge-coincident segment for a zigzag pattern.
     // Source: API Mgmt (LEFT face at x=641, rect: 641, 219, 303, 126)
     // Target: Corporate Banking (rect: 400, 1100, 120, 60; centerX=460, centerY=1130)
-    // C1 Bendpoints: [(641, 259), (403, 259), (403, 219), (403, 261), (437, 261), (437, 1159)]
+    // Bendpoints: [(641, 259), (403, 259), (403, 219), (403, 261), (437, 261), (437, 1159)]
     //   pathPoints = [(792,282), (641,259), (403,259), (403,219), (403,261), (437,261), (437,1159), (460,1130)]
     // Expected:
-    //   - M1 nonOrth = 0 (BP1 (641,259) on LEFT perimeter — confirms AC-1)
+    //   - M1 nonOrth = 0 (BP1 (641,259) on LEFT perimeter)
     //   - M3 zigzag = 1 (triple (403,259) → (403,219) → (403,261), x=403 shared,
     //     Δy = -40, +42 opposite signs > 1px)
     @Test
@@ -108,7 +106,7 @@ public class LayoutQualityAssessorPerceptionFixturesTest {
         LayoutAssessmentResult result = assessor.assess(
                 List.of(apiMgmt, corpBanking), List.of(conn), false);
 
-        // AC-1: M1 corrected nonOrth must report 0 — BP1 (641,259) on source LEFT
+        // M1 corrected nonOrth must report 0 — BP1 (641,259) on source LEFT
         // perimeter (x=641), visible post-clip segment is zero-length and trivially orthogonal.
         assertEquals("AC-1: M1 nonOrth must be 0 — BP1 on LEFT perimeter, visible segment zero",
                 0, result.nonOrthogonalTerminalCount());
@@ -161,8 +159,8 @@ public class LayoutQualityAssessorPerceptionFixturesTest {
                 1.0, result.hubPortQualityScore(), 1e-9);
     }
 
-    // ---- Fixture 4: API Mgmt BOTTOM-face B9 distribution (both pipelines) ----
-    // Both v1.3 and C1 fail to distribute B9 ports on BOTTOM face.
+    // ---- Fixture 4: API Mgmt BOTTOM-face distribution (both pipelines) ----
+    // Both pipelines fail to distribute ports on BOTTOM face.
     // Hub element: API Mgmt (BOTTOM face at y=345, x range 641-944)
     // Connections: 4 connections, all final-BP at (792, 345)
     @Test
@@ -204,8 +202,8 @@ public class LayoutQualityAssessorPerceptionFixturesTest {
     }
 
     // ---- Fixture 5: Core Banking → API Mgmt (LIVE v1.3 oracle geometry) ----
-    // Reproduces the actual v1.3 oracle visual defect that motivated story
-    // M4.RemoveSelfExclusion (2026-04-27). Live viewConnection id-9eb889f55b3349c0a185ed4200217de1.
+    // Reproduces the actual v1.3 oracle visual defect that motivated removing
+    // M4 self-exclusion (2026-04-27). Live viewConnection id-9eb889f55b3349c0a185ed4200217de1.
     // Source: Core Banking System (rect: x=1292, y=94, w=182, h=55) — Consumers group, top-left.
     // Target: API Mgmt Platform (rect: x=642, y=94, w=300, h=250) — Integration group, top-left.
     //   RIGHT face at x=942, y-range [94, 344].
@@ -215,7 +213,7 @@ public class LayoutQualityAssessorPerceptionFixturesTest {
     // Expected: M4 = 1 — vertical segment at x=943 (gap 1px from RIGHT at x=942)
     // overlaps target y-range [94,344] by 98px (segment y-range [121,219]).
     // Pre-change (with self-exclusion): suppressed because API Mgmt is target.
-    // Post-change (story M4.RemoveSelfExclusion): flagged.
+    // Post-change (self-exclusion removed): flagged.
     @Test
     public void fixture5_liveOracleGeometry_shouldFlagEdgeCoincidence_coreBankingToApiMgmtRight() {
         AssessmentNode coreBanking = node("coreBanking", 1292, 94, 182, 55);
@@ -236,11 +234,10 @@ public class LayoutQualityAssessorPerceptionFixturesTest {
                 1, result.connectionEdgeCoincidenceCount());
     }
 
-    // ---- Fixture 6: Manual-oracle M1 calibration (Calibration.M1ManualOracle21, 2026-04-27) ----
+    // ---- Fixture 6: Manual-oracle M1 calibration (2026-04-27) ----
     // Real geometry from V4 manual oracle violator id-3eb9f44e263440d3a303df2871b77606
-    // (API Mgmt → Mobile Banking App). Investigation table at
-    // _bmad-output/implementation-artifacts/m1-manual-oracle-21-investigation-2026-04-27.md
-    // row #4 — source-side flag, BP1 1px LEFT of source LEFT face → visible 1.02px diagonal.
+    // (API Mgmt → Mobile Banking App).
+    // Source-side flag, BP1 1px LEFT of source LEFT face → visible 1.02px diagonal.
     // This is the canonical regression-test case pinning the new VISIBLE_DIAGONAL_MIN_PX
     // guard against a real hand-routed connection in production.
     //
@@ -254,7 +251,7 @@ public class LayoutQualityAssessorPerceptionFixturesTest {
     // Pre-guard: M1 = 1 — BP1 (641,249) is 1px outside APIM LEFT face (x=642), and the
     //   geometric segment (792,219)→(641,249) has 11.2° deviation → predicate 2 fires.
     //   The visible post-clip segment (642, 248.80)→(641, 249) is 1.02px long.
-    // Post-guard (Calibration.M1ManualOracle21): visible 1.02 < 3.0 → suppressed → M1 = 0.
+    // Post-guard: visible 1.02 < 3.0 → suppressed → M1 = 0.
     @Test
     public void fixture6_manualOracleNonOrth_pixelImperceptible_subThresholdShouldNotFlag() {
         AssessmentNode apiMgmt = node("apiMgmt", 642, 94, 300, 250);    // Center (792, 219)
@@ -285,13 +282,12 @@ public class LayoutQualityAssessorPerceptionFixturesTest {
                 0, result.zigzagCount());
     }
 
-    // ---- Fixture 7: H2 axis-A claim 1 calibration substrate (RoutingPreconditions.OverlapsCutPointBinary) ----
-    // Reproduces the sibling-overlap pair from clone view "2026-05-06 PartyTest Hub-Heavy Run 2"
-    // (id-ddb84fbd57d24caaa15b0da62b75f531). Owner-perception "poor" vs pre-change assessor "fair"
+    // ---- Fixture 7: overlap-binary calibration substrate ----
+    // Reproduces the sibling-overlap pair from a clone view
+    // (id-ddb84fbd57d24caaa15b0da62b75f531). Perceived "poor" vs pre-change assessor "fair"
     // — the canonical calibration mismatch that motivated the binary >0 → poor re-anchor.
     //
-    // Empirical pair (routing-preconditions-rating-attribution-2026-05-06.md § "H2" + party-test-
-    // 2026-05-06.md § "Run reports"): API Management Platform overlaps Enterprise Service Bus
+    // Empirical pair: API Management Platform overlaps Enterprise Service Bus
     // inside the "Integration & Middleware Layer" parent group — 15px vertical overlap.
     //
     // Geometry from live get-view-contents: parent group at (592, 20, 400, 1589), API Mgmt child
@@ -318,15 +314,14 @@ public class LayoutQualityAssessorPerceptionFixturesTest {
                 "poor", result.overallRating());
     }
 
-    // ---- Fixture 8: S3 axis-A claim 1 calibration substrate (RoutingPreconditions.OverlapsCutPointBinary) ----
-    // Reproduces the sibling-overlap pair from clone view "2026-05-06 PartyTest Spacing-Tight Run 3"
-    // (id-04019469961e4ab9b8bc9bf88a5c605b). Owner-perception "poor (fail)" vs pre-change assessor
-    // "fair" — the second clean axis-A claim 1 data point.
+    // ---- Fixture 8: overlap-binary calibration substrate ----
+    // Reproduces the sibling-overlap pair from a clone view
+    // (id-04019469961e4ab9b8bc9bf88a5c605b). Perceived "poor (fail)" vs pre-change assessor
+    // "fair" — the second clean data point.
     //
-    // Empirical pair (routing-preconditions-rating-attribution-2026-05-06.md § "S3" + party-test-
-    // 2026-05-06.md § "Run reports"): "Integration & Middleware Layer" group overlaps "Consumers
+    // Empirical pair: "Integration & Middleware Layer" group overlaps "Consumers
     // (Backend Systems)" group at their boundary — 5px horizontal overlap (Integration right=781,
-    // Consumers left=776). Group-group sibling-overlap (distinct topology shape from H2's element-
+    // Consumers left=776). Group-group sibling-overlap (distinct topology shape from the element-
     // element overlap; the binary cut-point fires identically).
     //
     // Geometry from live get-view-contents: Integration group at (382, 20, 399, 991), Consumers

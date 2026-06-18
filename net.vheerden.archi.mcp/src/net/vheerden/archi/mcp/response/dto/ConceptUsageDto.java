@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * Data Transfer Object for the cross-view "where used" footprint of an ArchiMate
  * concept (element or relationship).
  *
- * <p>Returned by the find-concept-usage tool (Story 14-5 / G10). Given a concept
+ * <p>Returned by the find-concept-usage tool. Given a concept
  * ID, lists every view + visual object/connection that references the concept.
  * Inverse of get-view-contents (which is view-&gt;contents); find-concept-usage
  * is concept-&gt;views.</p>
@@ -21,11 +21,11 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *   <li>{@code visualReferenceCount} — total number of visual objects/connections
  *       across all views (a concept placed multiple times on one view counts each
  *       placement separately).</li>
- *   <li>{@code embeddingViewReferences} — reserved for Story 14-6 (G8)
- *       view-reference embedding; always {@code null} today. When 14-6 ships,
+ *   <li>{@code embeddingViewReferences} — reserved for future
+ *       view-reference embedding; always {@code null} today. When that ships,
  *       this field will list views that embed this concept's view as a thumbnail
  *       via {@code view.createViewReference()}. The field is typed
- *       {@code List<?>} (wildcard) so 14-6 can populate it with a concrete
+ *       {@code List<?>} (wildcard) so it can later populate with a concrete
  *       {@code List<EmbeddingViewReferenceDto>} without changing the record's
  *       declared type — additive, non-breaking.</li>
  * </ul>

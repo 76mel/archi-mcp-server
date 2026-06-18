@@ -3,8 +3,8 @@ package net.vheerden.archi.mcp.response.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * DTO for a routing constraint violation reported in force mode (Story 10-32).
- * Enriched with crossed obstacle identity (Story 10-34).
+ * DTO for a routing constraint violation reported in force mode.
+ * Enriched with crossed obstacle identity.
  * Indicates a connection whose route was applied despite violating constraints.
  *
  * @param connectionId       the connection ID

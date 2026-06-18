@@ -27,5 +27,7 @@ public class McpPreferenceInitializer extends AbstractPreferenceInitializer {
         defaults.putBoolean(McpPlugin.PREF_TLS_ENABLED, McpPlugin.DEFAULT_TLS_ENABLED);
         defaults.put(McpPlugin.PREF_KEYSTORE_PATH, McpPlugin.DEFAULT_KEYSTORE_PATH);
         defaults.put(McpPlugin.PREF_KEYSTORE_PASSWORD, McpPlugin.DEFAULT_KEYSTORE_PASSWORD);
+        defaults.putBoolean(McpPlugin.PREF_AUTH_TOKEN_ENABLED, McpPlugin.DEFAULT_AUTH_TOKEN_ENABLED);
+        defaults.putBoolean(McpPlugin.PREF_APPROVAL_MODE, McpPlugin.DEFAULT_APPROVAL_MODE);
     }
 }

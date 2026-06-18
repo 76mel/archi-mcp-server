@@ -6,11 +6,10 @@ import java.util.Objects;
  * Immutable per-iteration forensic record produced by
  * {@link SpacingControlLoop#iterate} for every iteration step executed (whether
  * accepted or backed-off). The ordered list of these records IS the loop's
- * forensic record of one tool invocation per AC-2.
+ * forensic record of one tool invocation.
  *
- * <p><strong>Forensic-only — NOT surfaced in the MCP tool result envelope</strong>
- * per Story `backlog-convenience-tool-control-loop-architectural-redesign`
- * Goal § "What this story is NOT" item 8. The response DTO surfaces only the
+ * <p><strong>Forensic-only — NOT surfaced in the MCP tool result envelope.</strong>
+ * The response DTO surfaces only the
  * aggregate {@code terminationReason} + {@code iterationCount} +
  * {@code appliedDeltas} (the per-step deltas of ACCEPTED iterations).</p>
  *
@@ -38,7 +37,7 @@ import java.util.Objects;
  *       human-readable explanation. Null when {@code backedOff==false}.</li>
  * </ul></p>
  *
- * <p>Pinned by {@code SpacingIterationStepTest} (AC-7.2; ≥4 @Test methods
+ * <p>Pinned by {@code SpacingIterationStepTest} (≥4 @Test methods
  * covering record equality + null-safety + ordering).</p>
  */
 public record SpacingIterationStep(

@@ -5,15 +5,13 @@ import java.util.List;
 import org.eclipse.gef.commands.Command;
 
 /**
- * Story {@code backlog-control-loop-density-aware-fixes} Fix-1 — SWT-marshalled
+ * Fix-1 — SWT-marshalled
  * speculative replay / reverse-undo of the composer's element-arm accepted
  * commands across the two-arm (element&rarr;group) transition in
  * {@code ArchiModelAccessorImpl.applySpacingRecommendations}.
  *
  * <p><strong>Root cause (captured 2026-05-17 — actual runtime stack trace,
- * NOT a static guess; see
- * {@code density-aware-termination-fixes-empirical-2026-05-17/} and the
- * row-774 story Debug Log):</strong> the composer speculatively re-executes
+ * NOT a static guess):</strong> the composer speculatively re-executes
  * the element arm's accepted commands so the group arm can observe the
  * post-element state, then undoes them in the {@code finally}. Those accepted
  * commands are raw GEF {@code NonNotifyingCompoundCommand}s (downcast out of
@@ -26,7 +24,7 @@ import org.eclipse.gef.commands.Command;
  * {@code Display.getCurrent()} is {@code null} off the SWT UI thread, so it
  * throws {@link NullPointerException}, which the composer envelope wraps to
  * {@code INTERNAL_ERROR} after the speculative re-execute already advanced
- * state (the row-773 AC-8 ST partial-commit symptom).
+ * state (the partial-commit symptom).
  *
  * <p>This is the SAME threading-contract breach {@link SwtUiThreadDispatcher}
  * was created for in Session-9 (Decision-A.1.2): that fix marshalled the loop
@@ -37,7 +35,7 @@ import org.eclipse.gef.commands.Command;
  * boundary — an <em>extension</em> of the Session-9 marshalling, NOT a
  * re-architecture: the density-aware 2&times;2 discriminator, the 3-state
  * enum, the aggregate-only objective and the loop accept/back-off semantics
- * are all untouched (row-774 AC-4).
+ * are all untouched.
  *
  * <p>Pure / static — no EMF model state; pinned by
  * {@code SpacingControlLoopPartialCommitRegressionTest}.
@@ -74,7 +72,7 @@ final class ComposerSpeculativeReplay {
     /**
      * Undo {@code commands} in REVERSE order on the SWT UI thread (the
      * composer two-arm {@code finally} reset, so the combined compound can be
-     * dispatched as ONE undo entry per row-703 AC-6). No-op on a
+     * dispatched as ONE undo entry). No-op on a
      * {@code null}/empty list. Same {@link SwtUiThreadDispatcher} re-throw
      * contract as {@link #replayForward(List)}.
      *

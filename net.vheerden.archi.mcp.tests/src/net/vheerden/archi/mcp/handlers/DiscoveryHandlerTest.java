@@ -32,7 +32,7 @@ import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.ElementDto;
 
 /**
- * Tests for {@link DiscoveryHandler} (Story 7-4, Task 6).
+ * Tests for {@link DiscoveryHandler}.
  *
  * <p>Uses a StubDiscoveryAccessor that provides configurable behavior
  * for findExactMatch, searchElements, and createElement.</p>
@@ -361,7 +361,7 @@ public class DiscoveryHandlerTest {
         assertEquals("INVALID_PARAMETER", error.get("code"));
     }
 
-    // ---- Source traceability tests (Story 7-6) ----
+    // ---- Source traceability tests ----
 
     @Test
     public void shouldPassSourceWhenCreating_inGetOrCreate() throws Exception {
@@ -408,7 +408,7 @@ public class DiscoveryHandlerTest {
         assertEquals("csv-import", accessor.capturedSource.get("origin"));
     }
 
-    // ---- Approval mode tests (Story 7-6) ----
+    // ---- Approval mode tests ----
 
     @Test
     public void shouldReturnProposalResponse_whenGetOrCreateInApprovalMode() throws Exception {
@@ -435,7 +435,7 @@ public class DiscoveryHandlerTest {
 
         @SuppressWarnings("unchecked")
         List<String> nextSteps = (List<String>) result.get("nextSteps");
-        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("decide-mutation")));
+        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
     }
 
     @Test
@@ -462,7 +462,7 @@ public class DiscoveryHandlerTest {
 
         @SuppressWarnings("unchecked")
         List<String> nextSteps = (List<String>) result.get("nextSteps");
-        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("decide-mutation")));
+        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
     }
 
     // ---- MutationException tests ----

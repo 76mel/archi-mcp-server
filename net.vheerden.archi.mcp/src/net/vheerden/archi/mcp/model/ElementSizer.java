@@ -53,8 +53,7 @@ public final class ElementSizer {
     static final int HORIZONTAL_TEXT_INSET = 12;
     /**
      * Clamp ceiling for autosized note bodies. Pathological wall-of-text degrades to this
-     * height; content beyond the clamp keeps today's "clipped" behaviour (per AC-4 of the
-     * view-title-note-autosize story).
+     * height; content beyond the clamp keeps today's "clipped" behaviour.
      */
     static final int MAX_NOTE_HEIGHT = 600;
     /**
@@ -114,7 +113,7 @@ public final class ElementSizer {
      * <p>Formula: {@code lineCount = simulateWordWrap(text, ..., width)},
      * {@code height = lineCount × lineHeight + padding}, then clamped to
      * {@code [minHeight, maxHeight]}. Pathological wall-of-text degrades to
-     * {@code maxHeight} (content beyond clamp keeps today's clipped behaviour — AC-4).</p>
+     * {@code maxHeight} (content beyond clamp keeps today's clipped behaviour).</p>
      *
      * @param text the content (note body or group label); null/empty returns {@code minHeight}
      * @param width box content width in pixels (used as wrap width directly)
@@ -194,6 +193,64 @@ public final class ElementSizer {
 
         int lineCount = simulateWordWrap(labelText, metrics.wordWidths, metrics.spaceWidth, contentWidth);
         return lineCount * metrics.lineHeight + LABEL_VERTICAL_PADDING + LABEL_CHILD_CLEARANCE;
+    }
+
+    /**
+     * Computes <strong>compact wrap-fit</strong> dimensions for a leaf element: keep the box at a
+     * fixed width and grow its height so the label wraps and fits, instead of widening to a
+     * single line (which {@link #computeDimensions} does). This is the lever for embedded
+     * ApplicationFunctions in a dense grid — preserving the grid pitch (width) while letting the
+     * label wrap to a second line keeps neighbours from shifting.
+     *
+     * <p>Story {@code g-view-embedded-function-box-sizing-for-wrap}: the canonical View-G functions
+     * sit in 150×26 boxes too short to wrap their 141–193px labels, so Archi clips them. Keeping the
+     * 150 width and growing the height to the wrapped-label height clears the truncation with zero
+     * horizontal shift. Unlike {@link #computeDimensions}, there is no aspect-ratio search and no
+     * single-line widening — the width the caller passes is returned unchanged.</p>
+     *
+     * <p><strong>No {@code DEFAULT_HEIGHT} floor.</strong> Unlike {@link #computeAutoSize}, this
+     * method does NOT clamp the returned height up to {@code DEFAULT_HEIGHT} (55) — a single-line
+     * label yields {@code lineHeight + VERTICAL_PADDING} (~36px), which can be below 55. This is by
+     * design: wrap-fit is a grow-only lever, and the intended caller
+     * ({@code resizeElementsToFit} with {@code wrapFit=true}) applies the floor itself via
+     * {@code Math.max(currentHeight, wrapFitHeight)} so an existing box is never shrunk. Direct
+     * callers that need a 55px floor must apply it themselves.</p>
+     *
+     * @param labelText  the element's display name (may be null or empty)
+     * @param fixedWidth the box width to preserve (typically the element's current width)
+     * @return int array {fixedWidth, height} in pixels — width is returned verbatim
+     * @throws ModelAccessException if SWT font metrics fail
+     */
+    public static int[] computeWrapFitDimensions(String labelText, int fixedWidth) {
+        if (labelText == null || labelText.isEmpty()) {
+            return new int[] { fixedWidth, DEFAULT_HEIGHT };
+        }
+        FontMetrics metrics = measureText(labelText);
+        return computeWrapFitDimensionsFromMetrics(labelText, metrics, fixedWidth);
+    }
+
+    /**
+     * Pure-geometry wrap-fit computation — testable without SWT. Mirrors the
+     * {@link #computeWrapFitDimensions(String, int)} → {@code FromMetrics} split used by the other
+     * sizers (SWT measurement in the public method, pure math here).
+     *
+     * <p>Formula: {@code contentWidth = fixedWidth − HORIZONTAL_PADDING};
+     * {@code lineCount = simulateWordWrap(label, …, contentWidth)};
+     * {@code height = lineCount × lineHeight + VERTICAL_PADDING}. Width is returned verbatim.
+     * For a degenerate {@code contentWidth <= 0} (fixedWidth not wider than the horizontal padding),
+     * returns {@code {fixedWidth, DEFAULT_HEIGHT}} — no useful wrap possible.</p>
+     */
+    static int[] computeWrapFitDimensionsFromMetrics(String labelText, FontMetrics metrics, int fixedWidth) {
+        if (labelText == null || labelText.isEmpty() || metrics == null) {
+            return new int[] { fixedWidth, DEFAULT_HEIGHT };
+        }
+        int contentWidth = fixedWidth - HORIZONTAL_PADDING;
+        if (contentWidth <= 0) {
+            return new int[] { fixedWidth, DEFAULT_HEIGHT };
+        }
+        int lineCount = simulateWordWrap(labelText, metrics.wordWidths, metrics.spaceWidth, contentWidth);
+        int height = lineCount * metrics.lineHeight + VERTICAL_PADDING;
+        return new int[] { fixedWidth, height };
     }
 
     /**

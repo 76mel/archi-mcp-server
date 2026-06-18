@@ -9,7 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Per-session LRU cache for query results (Story 5.4 FR38).
+ * Per-session LRU cache for query results.
  *
  * <p>Stores JSON result strings keyed by a cache key that encodes the
  * command name and effective parameters. Bounded by {@link #maxEntries}

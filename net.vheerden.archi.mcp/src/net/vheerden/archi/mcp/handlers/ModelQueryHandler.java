@@ -35,9 +35,9 @@ import net.vheerden.archi.mcp.response.dto.ModelInfoDto;
 import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
- * Handler for model-level query tools: get-model-info (Story 2.2),
- * get-element (Story 2.3), update-model (Story 14-3 / G6),
- * find-concept-usage (Story 14-5 / G10), list-specializations (Story C3a).
+ * Handler for model-level query tools: get-model-info,
+ * get-element, update-model,
+ * find-concept-usage, list-specializations.
  *
  * <p>This is the first handler in the codebase and establishes the pattern
  * for all subsequent handlers (ViewHandler, SearchHandler, TraversalHandler).</p>
@@ -121,7 +121,18 @@ public class ModelQueryHandler {
             String sessionId = (sessionManager != null)
                     ? SessionManager.extractSessionId(exchange) : null;
 
-            // Model version change detection — call ONCE (Story 5.3 + 5.4)
+            // Read-only, human-owned approval bit. Global, so sessionId is
+            // ignored; computed fresh and stamped on every return path (incl. cache hits) so the
+            // agent never sees a stale gate state. Read via the dispatcher facade — handlers do
+            // not import server/ (HandlerRegistrar boundary) and the bit is not a model concern.
+            Boolean approvalMode = null;
+            net.vheerden.archi.mcp.model.MutationDispatcher dispatcher = accessor.getMutationDispatcher();
+            if (dispatcher != null) {
+                approvalMode = dispatcher.isApprovalRequired(
+                        sessionId != null ? sessionId : SessionManager.DEFAULT_SESSION_ID);
+            }
+
+            // Model version change detection — call ONCE
             boolean modelChanged = false;
             if (sessionManager != null && sessionId != null) {
                 modelChanged = sessionManager.checkModelVersionChanged(sessionId, modelVersion);
@@ -131,7 +142,7 @@ public class ModelQueryHandler {
                 }
             }
 
-            // Cache check (Story 5.4) — skip if version just changed (cache was invalidated)
+            // Cache check — skip if version just changed (cache was invalidated)
             String cacheKey = CacheKeyBuilder.buildCacheKey("model-info");
             if (sessionManager != null && sessionId != null && !modelChanged) {
                 try {
@@ -140,6 +151,9 @@ public class ModelQueryHandler {
                         logger.debug("Cache hit for key: {}", cacheKey);
                         Map<String, Object> cachedEnvelope = objectMapper.readValue(cachedJson, MAP_TYPE_REF);
                         ResponseFormatter.addCacheHitFlag(cachedEnvelope);
+                        // Stamp the LIVE approval bit over any cached value: the gate is
+                        // dynamic but the rest of model-info is cacheable, so never serve it stale.
+                        stampApprovalMode(cachedEnvelope, approvalMode);
                         return buildResult(objectMapper.writeValueAsString(cachedEnvelope), false);
                     }
                 } catch (Exception e) {
@@ -148,21 +162,21 @@ public class ModelQueryHandler {
             }
 
             // Fresh query
-            ModelInfoDto info = accessor.getModelInfo();
+            ModelInfoDto info = accessor.getModelInfo().withApprovalMode(approvalMode);
 
             List<String> nextSteps = buildModelInfoNextSteps(info);
 
             Map<String, Object> envelope = formatter.formatSuccess(
                     info, nextSteps, modelVersion, 1, 1, false);
 
-            // Store in cache (Story 5.4)
+            // Store in cache
             String jsonResult = formatter.toJsonString(envelope);
             if (sessionManager != null && sessionId != null) {
                 sessionManager.putCacheEntry(sessionId, cacheKey, jsonResult);
                 logger.debug("Cache miss, storing result for key: {}", cacheKey);
             }
 
-            // Add modelChanged flag if version changed (Story 5.3)
+            // Add modelChanged flag if version changed
             if (modelChanged) {
                 ResponseFormatter.addModelChangedFlag(envelope);
                 return buildResult(formatter.toJsonString(envelope), false);
@@ -185,6 +199,23 @@ public class ModelQueryHandler {
                     ErrorCode.INTERNAL_ERROR,
                     "An unexpected error occurred while retrieving model information");
             return buildResult(formatter.toJsonString(formatter.formatError(error)), true);
+        }
+    }
+
+    /**
+     * Stamps the live, human-owned approval bit into a deserialised
+     * get-model-info envelope's {@code result} map, overwriting any cached value so the gate
+     * state is never served stale. No-op when {@code approvalMode} is null (no dispatcher).
+     */
+    private static void stampApprovalMode(Map<String, Object> envelope, Boolean approvalMode) {
+        if (approvalMode == null) {
+            return;
+        }
+        Object result = envelope.get("result");
+        if (result instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resultMap = (Map<String, Object>) result;
+            resultMap.put("approvalMode", approvalMode);
         }
     }
 
@@ -368,7 +399,7 @@ public class ModelQueryHandler {
 
         String modelVersion = accessor.getModelVersion();
 
-        // Model version change detection — call ONCE (Story 5.3 + 5.4)
+        // Model version change detection — call ONCE
         boolean modelChanged = false;
         if (sessionManager != null && sessionId != null) {
             modelChanged = sessionManager.checkModelVersionChanged(sessionId, modelVersion);
@@ -378,7 +409,7 @@ public class ModelQueryHandler {
             }
         }
 
-        // Cache check (Story 5.4) — skip if version just changed
+        // Cache check — skip if version just changed
         String cacheKey = CacheKeyBuilder.buildCacheKey("element", id, "fields", preset, "exclude", CacheKeyBuilder.sortedSetKey(excludeFields));
         if (sessionManager != null && sessionId != null && !modelChanged) {
             try {
@@ -412,14 +443,14 @@ public class ModelQueryHandler {
                 meta.put("warning", warningMessage);
             }
 
-            // Store in cache (Story 5.4)
+            // Store in cache
             String jsonResult = formatter.toJsonString(envelope);
             if (sessionManager != null && sessionId != null) {
                 sessionManager.putCacheEntry(sessionId, cacheKey, jsonResult);
                 logger.debug("Cache miss, storing result for key: {}", cacheKey);
             }
 
-            // Add modelChanged flag if version changed (Story 5.3)
+            // Add modelChanged flag if version changed
             if (modelChanged) {
                 ResponseFormatter.addModelChangedFlag(envelope);
                 return buildResult(formatter.toJsonString(envelope), false);
@@ -540,7 +571,7 @@ public class ModelQueryHandler {
             meta.put("warning", warningMessage);
         }
 
-        // Model version change detection (Story 5.3 + 5.4)
+        // Model version change detection
         if (sessionManager != null && sessionId != null
                 && sessionManager.checkModelVersionChanged(sessionId, modelVersion)) {
             sessionManager.invalidateSessionCache(sessionId);
@@ -573,7 +604,7 @@ public class ModelQueryHandler {
         return nextSteps;
     }
 
-    // ---- update-model tool (Story 14-3, G6) ----
+    // ---- update-model tool ----
 
     private McpServerFeatures.SyncToolSpecification buildUpdateModelSpec() {
         Map<String, Object> nameProp = new LinkedHashMap<>();
@@ -649,16 +680,15 @@ public class ModelQueryHandler {
             // optionalStringParam (HandlerUtils:70) returns null for absent/JSON-null AND for
             // blank/empty strings (`!str.isBlank()` filter). For BOTH `name` and `purpose` we
             // need to preserve "" so the accessor can:
-            //   - name="" → reject with AC8's "Model name must not be empty." (not the wrong
+            //   - name="" → reject with the "Model name must not be empty." error (not the wrong
             //     "No fields to update" cascade from a null name);
-            //   - purpose="" → trigger the AC4 clearPurpose flag (mirrors `clearViewpoint`).
+            //   - purpose="" → trigger the clearPurpose flag (mirrors `clearViewpoint`).
             // The explicit empty-string guards below restore "" after the helper strips it.
-            // Empirically verified in the 14-3 empirical run (2026-05-26).
             String name = HandlerUtils.optionalStringParam(args, "name");
             String purpose = HandlerUtils.optionalStringParam(args, "purpose");
             Map<String, String> props = HandlerUtils.optionalMapParamWithNulls(args, "properties");
 
-            // Name empty-string preservation: pass "" through so the accessor's AC8 guard
+            // Name empty-string preservation: pass "" through so the accessor's empty-name guard
             // rejects it with the right error message.
             if (args != null && args.containsKey("name") && "".equals(args.get("name"))) {
                 name = "";
@@ -701,7 +731,7 @@ public class ModelQueryHandler {
                 "Use get-views or search-elements to continue authoring the model");
     }
 
-    // ---- find-concept-usage tool (Story 14-5 / G10) ----
+    // ---- find-concept-usage tool ----
 
     private McpServerFeatures.SyncToolSpecification buildFindConceptUsageSpec() {
         Map<String, Object> conceptIdProp = new LinkedHashMap<>();
@@ -768,7 +798,7 @@ public class ModelQueryHandler {
             Optional<ConceptUsageDto> usage = accessor.findConceptUsage(conceptId);
 
             if (usage.isEmpty()) {
-                // Disambiguate not-found vs not-a-concept (folder/view ID) per AC3.
+                // Disambiguate not-found vs not-a-concept (folder/view ID).
                 // The accessor returns Optional.empty() for both cases; a second
                 // ID lookup tells us which one it was so we can return the right
                 // error envelope to the LLM.
@@ -816,7 +846,7 @@ public class ModelQueryHandler {
     }
 
     /**
-     * Resolves a non-concept ID to a human-readable type label for the AC3
+     * Resolves a non-concept ID to a human-readable type label for the
      * "wrong type" error envelope. Returns null if the ID does not match any
      * known model object (true not-found case).
      */
@@ -872,7 +902,7 @@ public class ModelQueryHandler {
                 "Use get-relationships to check for relationship-chain dependencies before deleting");
     }
 
-    // ---- list-specializations tool (Story C3a) ----
+    // ---- list-specializations tool ----
 
     private McpServerFeatures.SyncToolSpecification buildListSpecializationsSpec() {
         Map<String, Object> properties = new LinkedHashMap<>();

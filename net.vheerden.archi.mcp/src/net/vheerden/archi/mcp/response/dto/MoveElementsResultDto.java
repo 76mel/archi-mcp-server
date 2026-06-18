@@ -5,7 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Result DTO for the move-elements operation (Story 13-1).
+ * Result DTO for the move-elements operation.
  *
  * <p>Reports how many elements were moved, the delta applied, and the
  * new positions of all moved elements.</p>

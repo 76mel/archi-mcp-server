@@ -8,25 +8,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.modelcontextprotocol.server.McpSyncServer;
-import net.vheerden.archi.mcp.handlers.ApprovalHandler;
-import net.vheerden.archi.mcp.handlers.CommandStackHandler;
-import net.vheerden.archi.mcp.handlers.DeletionHandler;
-import net.vheerden.archi.mcp.handlers.FolderMutationHandler;
-import net.vheerden.archi.mcp.handlers.DiscoveryHandler;
-import net.vheerden.archi.mcp.handlers.FolderHandler;
-import net.vheerden.archi.mcp.handlers.ModelQueryHandler;
-import net.vheerden.archi.mcp.handlers.ElementCreationHandler;
-import net.vheerden.archi.mcp.handlers.ElementUpdateHandler;
-import net.vheerden.archi.mcp.handlers.MutationHandler;
-import net.vheerden.archi.mcp.handlers.ImageHandler;
-import net.vheerden.archi.mcp.handlers.RenderHandler;
+import net.vheerden.archi.mcp.handlers.HandlerRegistrar;
 import net.vheerden.archi.mcp.handlers.ResourceHandler;
 import net.vheerden.archi.mcp.handlers.SearchHandler;
-import net.vheerden.archi.mcp.handlers.SessionHandler;
-import net.vheerden.archi.mcp.handlers.SpecializationHandler;
-import net.vheerden.archi.mcp.handlers.TraversalHandler;
-import net.vheerden.archi.mcp.handlers.ViewHandler;
-import net.vheerden.archi.mcp.handlers.ViewPlacementHandler;
 import net.vheerden.archi.mcp.model.ArchiModelAccessor;
 import net.vheerden.archi.mcp.model.ArchiModelAccessorImpl;
 import net.vheerden.archi.mcp.model.ModelChangeListener;
@@ -59,6 +43,13 @@ public class McpServerManager implements ModelChangeListener {
     private volatile String lastErrorMessage;
     private volatile ArchiModelAccessor modelAccessor;
     private volatile SessionManager sessionManager;
+    /**
+     * The human-facing approve/reject seam. Held alongside the model accessor and
+     * exposed to {@code ui/} so the Pending Approvals dock view can list/approve/reject without
+     * reaching into {@code model/}. Null while the server is stopped (no accessor) — callers must
+     * tolerate that (the view shows its empty/gate-off state).
+     */
+    private volatile ApprovalService approvalService;
     private final CommandRegistry commandRegistry;
     private final ResourceRegistry resourceRegistry;
 
@@ -128,14 +119,32 @@ public class McpServerManager implements ModelChangeListener {
             wireResourceRegistryServers();
             initializeModelAccessor();
             initializeHandlers();
+            // Startup invariant: the server must never advertise itself as RUNNING with zero
+            // tools. If handler registration was skipped (e.g. a LinkageError earlier in this
+            // try block), this turns an invisible "server up, tools/list empty" state into a
+            // loud, logged ERROR rather than a silent failure.
+            int toolCount = commandRegistry.getToolCount();
+            if (toolCount == 0) {
+                throw new IllegalStateException(
+                        "Startup invariant violated: 0 tools registered after handler "
+                        + "initialization");
+            }
             setState(ServerState.RUNNING);
-            logger.info("MCP Server started successfully on port {}", transportConfig.getPort());
+            logger.info("MCP Server started successfully on port {} with {} tools",
+                    transportConfig.getPort(), toolCount);
         } catch (ServerStartException e) {
             lastErrorMessage = buildErrorMessage(e);
             setState(ServerState.ERROR);
             logger.error("Failed to start MCP Server: {}", lastErrorMessage);
-        } catch (Exception e) {
-            lastErrorMessage = "Server initialization failed: " + e.getMessage();
+        } catch (Exception | LinkageError e) {
+            // LinkageError (VerifyError, NoClassDefFoundError, NoSuchMethodError) is how a host
+            // binary incompatibility surfaces — e.g. Archi shipping a new major version of a
+            // Require-Bundle dependency. It is an Error, not an Exception, so the previous
+            // catch(Exception) let it escape to the SWT event loop, leaving the HTTP server up
+            // with zero tools and no ERROR state set. Catch it here so every startup failure is
+            // captured, logged, and surfaced as ERROR state.
+            lastErrorMessage = "Server initialization failed: "
+                    + e.getClass().getSimpleName() + ": " + e.getMessage();
             setState(ServerState.ERROR);
             logger.error("Failed to initialize MCP Server", e);
             cleanupAfterFailedStart();
@@ -167,14 +176,32 @@ public class McpServerManager implements ModelChangeListener {
             wireResourceRegistryServers();
             initializeModelAccessor();
             initializeHandlers();
+            // Startup invariant: the server must never advertise itself as RUNNING with zero
+            // tools. If handler registration was skipped (e.g. a LinkageError earlier in this
+            // try block), this turns an invisible "server up, tools/list empty" state into a
+            // loud, logged ERROR rather than a silent failure.
+            int toolCount = commandRegistry.getToolCount();
+            if (toolCount == 0) {
+                throw new IllegalStateException(
+                        "Startup invariant violated: 0 tools registered after handler "
+                        + "initialization");
+            }
             setState(ServerState.RUNNING);
-            logger.info("MCP Server started successfully on port {}", transportConfig.getPort());
+            logger.info("MCP Server started successfully on port {} with {} tools",
+                    transportConfig.getPort(), toolCount);
         } catch (ServerStartException e) {
             lastErrorMessage = buildErrorMessage(e);
             setState(ServerState.ERROR);
             logger.error("Failed to start MCP Server: {}", lastErrorMessage);
-        } catch (Exception e) {
-            lastErrorMessage = "Server initialization failed: " + e.getMessage();
+        } catch (Exception | LinkageError e) {
+            // LinkageError (VerifyError, NoClassDefFoundError, NoSuchMethodError) is how a host
+            // binary incompatibility surfaces — e.g. Archi shipping a new major version of a
+            // Require-Bundle dependency. It is an Error, not an Exception, so the previous
+            // catch(Exception) let it escape to the SWT event loop, leaving the HTTP server up
+            // with zero tools and no ERROR state set. Catch it here so every startup failure is
+            // captured, logged, and surfaced as ERROR state.
+            lastErrorMessage = "Server initialization failed: "
+                    + e.getClass().getSimpleName() + ": " + e.getMessage();
             setState(ServerState.ERROR);
             logger.error("Failed to initialize MCP Server", e);
             cleanupAfterFailedStart();
@@ -339,6 +366,17 @@ public class McpServerManager implements ModelChangeListener {
     }
 
     /**
+     * Returns the human-facing approve/reject seam for the Pending Approvals dock view,
+     * or {@code null} when the server is stopped (no model accessor wired). The {@code ui/} view
+     * reaches the seam through this singleton, the same pattern the toggle handlers already use.
+     *
+     * @return the approval service, or null if the server is not started
+     */
+    public ApprovalService getApprovalService() {
+        return approvalService;
+    }
+
+    /**
      * Returns the command registry for tool registration.
      *
      * @return the command registry
@@ -395,6 +433,15 @@ public class McpServerManager implements ModelChangeListener {
         accessor.addModelChangeListener(this);
         this.modelAccessor = accessor;
 
+        // Wire the dispatcher's gate read to the global, human-owned approval bit.
+        // The agent has no path to flip this — only the SWT toggle writes ApprovalMode.
+        var dispatcher = accessor.getMutationDispatcher();
+        if (dispatcher != null) {
+            dispatcher.setApprovalModeProvider(() -> ApprovalMode.getInstance().isOn());
+            // The human-facing approve/reject seam for the Pending Approvals dock view.
+            this.approvalService = new ApprovalService(dispatcher);
+        }
+
         if (accessor.isModelLoaded()) {
             String name = accessor.getCurrentModelName().orElse("(unnamed)");
             String id = accessor.getCurrentModelId().orElse("(no id)");
@@ -418,77 +465,9 @@ public class McpServerManager implements ModelChangeListener {
 
         ResponseFormatter formatter = new ResponseFormatter();
 
-        ModelQueryHandler modelQueryHandler = new ModelQueryHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        modelQueryHandler.registerTools();
-
-        ViewHandler viewHandler = new ViewHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        viewHandler.registerTools();
-
-        SearchHandler searchHandler = new SearchHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        searchHandler.registerTools();
-
-        TraversalHandler traversalHandler = new TraversalHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        traversalHandler.registerTools();
-
-        FolderHandler folderHandler = new FolderHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        folderHandler.registerTools();
-
-        MutationHandler mutationHandler = new MutationHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        mutationHandler.registerTools();
-
-        ElementCreationHandler elementCreationHandler = new ElementCreationHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        elementCreationHandler.registerTools();
-
-        SpecializationHandler specializationHandler = new SpecializationHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        specializationHandler.registerTools();
-
-        ElementUpdateHandler elementUpdateHandler = new ElementUpdateHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        elementUpdateHandler.registerTools();
-
-        DiscoveryHandler discoveryHandler = new DiscoveryHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        discoveryHandler.registerTools();
-
-        ApprovalHandler approvalHandler = new ApprovalHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        approvalHandler.registerTools();
-
-        ViewPlacementHandler viewPlacementHandler = new ViewPlacementHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        viewPlacementHandler.registerTools();
-
-        RenderHandler renderHandler = new RenderHandler(
-                modelAccessor, formatter, commandRegistry);
-        renderHandler.registerTools();
-
-        ImageHandler imageHandler = new ImageHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        imageHandler.registerTools();
-
-        DeletionHandler deletionHandler = new DeletionHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        deletionHandler.registerTools();
-
-        FolderMutationHandler folderMutationHandler = new FolderMutationHandler(
-                modelAccessor, formatter, commandRegistry, sm);
-        folderMutationHandler.registerTools();
-
-        SessionHandler sessionHandler = new SessionHandler(
-                sm, formatter, commandRegistry);
-        sessionHandler.registerTools();
-
-        CommandStackHandler commandStackHandler = new CommandStackHandler(
-                modelAccessor, formatter, commandRegistry);
-        commandStackHandler.registerTools();
+        // Single source of truth — the same wiring the tool-discovery integration
+        // test consumes, so the test can never silently drift from production.
+        HandlerRegistrar.registerAll(modelAccessor, formatter, commandRegistry, sm);
 
         logger.info("MCP tool handlers initialized (session management enabled)");
     }
@@ -514,6 +493,7 @@ public class McpServerManager implements ModelChangeListener {
             }
             accessor.dispose();
             this.modelAccessor = null;
+            this.approvalService = null;
         }
     }
 

@@ -7,7 +7,7 @@ import java.time.Instant;
 import org.junit.Test;
 
 /**
- * Tests for {@link ProposalContext} and {@link MutationResult#isProposal()} (Story 7-6).
+ * Tests for {@link ProposalContext} and {@link MutationResult#isProposal()}.
  */
 public class ProposalContextTest {
 

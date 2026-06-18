@@ -9,7 +9,7 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- * Tests for {@link RemoveFromViewResultDto} (Story 7-8).
+ * Tests for {@link RemoveFromViewResultDto}.
  */
 public class RemoveFromViewResultDtoTest {
 

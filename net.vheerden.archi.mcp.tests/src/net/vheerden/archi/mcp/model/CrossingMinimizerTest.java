@@ -11,7 +11,7 @@ import org.junit.Test;
 
 /**
  * Tests for {@link CrossingMinimizer} — pure geometry barycentric crossing
- * minimization (Story 11-25). No EMF or SWT runtime required.
+ * minimization. No EMF or SWT runtime required.
  */
 public class CrossingMinimizerTest {
 
@@ -451,7 +451,7 @@ public class CrossingMinimizerTest {
                 result.crossingsAfter() <= result.crossingsBefore());
     }
 
-    // ---- B62-3: Reverse-sweep tests ----
+    // ---- Reverse-sweep tests ----
 
     @Test
     public void shouldProduceDifferentOrdering_whenReverseSweepOnAsymmetricTopology() {

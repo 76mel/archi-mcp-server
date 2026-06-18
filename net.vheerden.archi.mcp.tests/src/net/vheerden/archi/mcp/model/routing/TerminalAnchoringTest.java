@@ -12,16 +12,15 @@ import net.vheerden.archi.mcp.model.routing.EdgeAttachmentCalculator.Face;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Unit tests for {@link TerminalAnchoring} — the B71 perimeter-terminal
+ * Unit tests for {@link TerminalAnchoring} — the perimeter-terminal
  * immutability carrier and its axis-agnostic predicate
  * ({@link TerminalAnchoring#preservesTerminalAnchoring}).
  *
- * <p>Covers the four worked examples from {@code b71-q1-carrier-analysis.md
- * §9.4} / {@code b71-day3-falsifiability-compose.md §9.4}:
+ * <p>Covers four worked examples:
  * <ol>
  *   <li>V4 API Gateway → Relationship Manager Portal slot 3/7 — REJECT
  *       (collinear-on-parallel ∧ off-face-line)</li>
- *   <li>B9-distributed slot, off-center on face line — PRESERVE</li>
+ *   <li>Perimeter-distributed slot, off-center on face line — PRESERVE</li>
  *   <li>Centre-face exit — PRESERVE</li>
  *   <li>Interior pass-through (the absolute-degenerate case) — REJECT</li>
  * </ol>
@@ -65,11 +64,11 @@ public class TerminalAnchoringTest {
 
     // -----------------------------------------------------------------
     // Worked example 1 — V4 API Gateway → Rel Mgr slot 3/7
-    // (compose §9.4 row 1, headline rejection case)
+    // (headline rejection case)
     // -----------------------------------------------------------------
 
     /**
-     * V4 fixture from {@code b71-day0-v4-capture.md §3}: Relationship Manager
+     * V4 fixture: Relationship Manager
      * Portal source rect at {@code (472, 67, 107, 200)}, source center
      * {@code (525, 167)}. Pre-collapse path[0] = {@code (471, 144)} (LEFT
      * face slot 3/7). Post-collapse path[0] = {@code (525, 167)} — collinear
@@ -94,7 +93,7 @@ public class TerminalAnchoringTest {
 
     /**
      * Pre-collapse legitimate shape from the same fixture: bp[0] is on the
-     * LEFT face line (x=471) at the B9 distributed slot y=144 (off-center).
+     * LEFT face line (x=471) at the perimeter-distributed slot y=144 (off-center).
      * The predicate must preserve.
      */
     @Test
@@ -115,12 +114,11 @@ public class TerminalAnchoringTest {
     }
 
     // -----------------------------------------------------------------
-    // Worked example 2 — B9-distributed slot, off-center on face line
-    // (compose §9.4 row 2)
+    // Worked example 2 — perimeter-distributed slot, off-center on face line
     // -----------------------------------------------------------------
 
     /**
-     * Generic B9 distributed slot on a TOP face: rect (200, 300, 100, 60),
+     * Generic perimeter-distributed slot on a TOP face: rect (200, 300, 100, 60),
      * center (250, 330). Slot at x=220, on top face line y=299. Predicate
      * must preserve (off parallel-axis center but on face line).
      */
@@ -139,7 +137,6 @@ public class TerminalAnchoringTest {
 
     // -----------------------------------------------------------------
     // Worked example 3 — Centre-face exit
-    // (compose §9.4 row 3)
     // -----------------------------------------------------------------
 
     /**
@@ -162,7 +159,6 @@ public class TerminalAnchoringTest {
 
     // -----------------------------------------------------------------
     // Worked example 4 — Interior pass-through (absolute-degenerate)
-    // (compose §9.4 row 4)
     // -----------------------------------------------------------------
 
     /**

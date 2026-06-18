@@ -11,27 +11,24 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * Pin tests for the Successor D {@code parallelConnectionGap} metric
- * (Story backlog-assessor-add-parallelconnectiongap-metric, 2026-05-12).
+ * Pin tests for the {@code parallelConnectionGap} metric (2026-05-12).
  *
- * <p>Three calibration-anchor regression tests (AC-22/23/24) lock the
+ * <p>Three calibration-anchor regression tests lock the
  * perception-aligned ordering of V_p10 across the reference views:</p>
  * <ul>
  *   <li>V4 manual gold (id-3b2665e3ff6840708dbed2b3d1415613) — V_p10 = 13.30 &plusmn; 0.5
  *       (perception-anchor primary signal).</li>
  *   <li>HH source baseline (id-20f7f4e77d324b698bb3fe3f939d5f40) — V_p10 = 6.00 &plusmn; 0.5
  *       (ordering anchor; must be &lt; V4 gold).</li>
- *   <li>PartyTest H2 (id-ddb84fbd57d24caaa15b0da62b75f531) — V_p10 = 0.00 &plusmn; 0.5
+ *   <li>H2 (id-ddb84fbd57d24caaa15b0da62b75f531) — V_p10 = 0.00 &plusmn; 0.5
  *       (poor anchor; must be &lt; HH source).</li>
  * </ul>
  *
- * <p>Seven algorithm-correctness pins (AC-25-31) cover the edge cases of the
+ * <p>Seven algorithm-correctness pins cover the edge cases of the
  * segment-extraction + nearest-parallel-overlapping-neighbour computation +
  * violator-ID surfacing.</p>
  *
- * <p>Bendpoint geometry inlined verbatim from
- * {@code _bmad-output/implementation-artifacts/4arm-rerun-2026-05-11/parallelgap-metric/view_data/}
- * — matches the calibration workspace
+ * <p>Bendpoint geometry inlined verbatim from the calibration workspace
  * ({@code compute_parallel_gap.py:70} runs at {@code AXIS_TOL = 2}, identical to
  * {@link LayoutQualityAssessor#PARALLEL_GAP_AXIS_TOLERANCE_PX}).</p>
  *
@@ -46,7 +43,7 @@ public class ParallelConnectionGapMetricTest {
         assessor = new LayoutQualityAssessor();
     }
 
-    // ---- Calibration-anchor pins (AC-22, 23, 24) ----
+    // ---- Calibration-anchor pins ----
 
     @Test
     public void v4ManualGold_perceptionAnchorPin_vP10() {
@@ -214,7 +211,7 @@ public class ParallelConnectionGapMetricTest {
                         new double[]{350, 219},
                         new double[]{350, 150},
                         new double[]{177, 150}));
-        // hh_c1 has a single bendpoint — no segments; included for fixture completeness (AC-23).
+        // hh_c1 has a single bendpoint — no segments; included for fixture completeness.
         connections.add(conn("hh_c1",
                         new double[]{157, 219}));
         connections.add(conn("hh_c2",
@@ -483,7 +480,7 @@ public class ParallelConnectionGapMetricTest {
                 result.vAxisParallelGapP10() < 6.00);
     }
 
-    // ---- Algorithm-correctness pins (AC-25-31) ----
+    // ---- Algorithm-correctness pins ----
 
     @Test
     public void emptyConnections_returnsNullPrimarySignals() {
@@ -622,7 +619,7 @@ public class ParallelConnectionGapMetricTest {
                 twoPlaceholderNodes(), List.of(a, b), false);
 
         Map<String, Set<String>> violators = result.violatorIds();
-        // B55 invariant: violatorIds map is null when includeViolatorIds=false.
+        // Invariant: violatorIds map is null when includeViolatorIds=false.
         assertTrue("violatorIds must be null OR not contain parallelConnectionGapV when includeViolatorIds=false",
                 violators == null || !violators.containsKey("parallelConnectionGapV"));
     }

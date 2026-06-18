@@ -8,7 +8,7 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- * Tests for {@link MoveElementsResultDto} (Story 13-1).
+ * Tests for {@link MoveElementsResultDto}.
  */
 public class MoveElementsResultDtoTest {
 

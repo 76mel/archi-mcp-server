@@ -10,11 +10,11 @@ import org.slf4j.LoggerFactory;
  * Diagnostic helper: categorises each coincident segment by its location in the
  * view (terminal approach, inter-group gap crossing, within-group, or uncategorised).
  *
- * <p>Purpose: support B76-successor scoping. After B76 spike falsification showed
- * that inter-group gap Y-levels are already fully diversified by B47, we need to
+ * <p>Purpose: support successor scoping. After a spike showed that inter-group gap
+ * Y-levels are already fully diversified by the corridor occupancy tracker, we need to
  * know where the remaining coincident segments actually live. This classifier
  * tags each segment so we can tally categories and scope the right successor
- * story (hub-resize / terminal-cluster guard / bounded intra-group re-grouping).</p>
+ * work (hub-resize / terminal-cluster guard / bounded intra-group re-grouping).</p>
  *
  * <p>Pure-geometry, no EMF/SWT dependencies. Caller builds rectangles from its
  * own source of truth (e.g. LayoutQualityAssessor builds them from

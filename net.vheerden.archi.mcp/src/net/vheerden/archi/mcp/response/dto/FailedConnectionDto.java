@@ -3,8 +3,8 @@ package net.vheerden.archi.mcp.response.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Response DTO for a connection that failed routing constraint validation (Story 10-30).
- * Enriched with crossed obstacle identity (Story 10-34).
+ * Response DTO for a connection that failed routing constraint validation.
+ * Enriched with crossed obstacle identity.
  *
  * @param connectionId       unique identifier for the connection
  * @param sourceElementName  human-readable name of the source element

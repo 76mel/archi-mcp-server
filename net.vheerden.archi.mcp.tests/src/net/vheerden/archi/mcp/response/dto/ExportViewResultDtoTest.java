@@ -13,7 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *
  * <p>No OSGi/EMF runtime required — exercises Jackson record serialization
  * with the {@code @JsonInclude(NON_NULL)} contract for vector-format outputs
- * (Story 14-4 ACs 2, 3, 7).</p>
+ * for vector-format outputs.</p>
  */
 public class ExportViewResultDtoTest {
 

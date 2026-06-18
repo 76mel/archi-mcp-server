@@ -11,30 +11,30 @@ import org.junit.Test;
  *
  * <h2>What this test pins</h2>
  *
- * <p>This test pins the <strong>static contract</strong> of the row-703
- * Decision-A.1.3 = α''' Fix-1 RC-1 "guard, don't veto" safety net:</p>
+ * <p>This test pins the <strong>static contract</strong> of the
+ * "guard, don't veto" safety net:</p>
  *
  * <ol>
  * <li>The reason constant value
  *     ({@link SpacingControlLoop#REASON_REROUTE_DEGRADED_INPUT_BASELINE} =
  *     {@code "reroute_degraded_input_baseline"}) — pinned so a rename forces a
- *     coordinated edit across the markdown + tool descriptions + the AC-5
+ *     coordinated edit across the markdown + tool descriptions + the
  *     sync-guard test {@link SpacingTerminationReasonDocSyncTest}.</li>
  * <li>Sibling-symmetric pin for the 10th termination reason
  *     {@link SpacingPreconditionInfeasibilityCertificate#REASON_DENSITY_PRECONDITION_REFLOW_REQUIRED}
  *     = {@code "density_precondition_infeasible_reflow_required"} — discovered
- *     during this story's empirical-probe phase (Task 4, 2026-05-20).</li>
- * <li>The two reasons are honestly DISTINCT (the row-703 in-loop
+ *     during the empirical-probe phase (2026-05-20).</li>
+ * <li>The two reasons are honestly DISTINCT (the in-loop
  *     {@code density_floor_reflow_required} is also distinct from both pre-loop
  *     reasons).</li>
  * </ol>
  *
  * <h2>What this test does NOT pin (deliberately)</h2>
  *
- * <p>The AC-9 original spec envisioned a JUnit-headless probe that drives
+ * <p>The original spec envisioned a JUnit-headless probe that drives
  * {@code ArchiModelAccessorImpl.routeNormalizedBaseline()} end-to-end against
  * synthetic fixtures to bucket-classify firings (genuinely-protective vs
- * vacuous-on-unrouted-draft). That end-to-end probe is infeasible in dev-lane
+ * vacuous-on-unrouted-draft). That end-to-end probe is infeasible headless
  * because:</p>
  *
  * <ul>
@@ -45,36 +45,35 @@ import org.junit.Test;
  *     {@code routeNormalizedBaseline} calls internally.</li>
  * <li>The {@code routeNormalizedBaseline()} method is {@code private} —
  *     refactoring it to package-private for test access would touch
- *     {@code ArchiModelAccessorImpl.java:16241-16287}, which this story
- *     forbids per AC-11.</li>
- * <li>Sibling-symmetric W1 / W2 stories deferred owner-side live smoke for
- *     identical infrastructure reasons (W1 Task-3.4; W2 Task-3.5).</li>
+ *     {@code ArchiModelAccessorImpl.java:16241-16287}, which is
+ *     out of scope here.</li>
+ * <li>Sibling-symmetric work deferred live smoke for
+ *     identical infrastructure reasons.</li>
  * </ul>
  *
- * <p>The live empirical probe was instead executed via the MCP server in the
- * same dev-story session (2026-05-20). Full results +
- * bucket(1)-vs-bucket(2)-vs-bucket(3) classification are in
- * {@code _bmad-output/implementation-artifacts/reroute-degraded-baseline-false-positive-spike-2026-05-20.md}.</p>
+ * <p>The live empirical probe was instead executed via the MCP server
+ * (2026-05-20). Full results +
+ * bucket(1)-vs-bucket(2)-vs-bucket(3) classification were captured separately.</p>
  *
- * <h2>Bucket classification (from the live probe, see spike doc § 2)</h2>
+ * <h2>Bucket classification (from the live probe)</h2>
  *
  * <p>5 firings observed across 3 synthetic fixtures × 3 spacing-tool surfaces.
  * 0 of 5 firings produced {@code reroute_degraded_input_baseline}. Dominant
- * pre-loop intercept observed instead was the row-777 SOUND certificate
+ * pre-loop intercept observed instead was the SOUND certificate
  * {@code density_precondition_infeasible_reflow_required} — a NEW bucket-(3)
  * "precert intercepts before reroute-degraded" finding. The bucket-(2)
  * vacuous-on-unrouted-draft hypothesis remains plausible for the high-fan-out
  * hub topology that produced the Retail Bank View A reference firing; the
- * synthetic fixture could not reproduce that topology in dev-lane.</p>
+ * synthetic fixture could not reproduce that topology headless.</p>
  *
- * <h2>Successor recommendation (gated, see spike doc § 4)</h2>
+ * <h2>Successor recommendation</h2>
  *
- * <p>If bucket(2) is observed empirically in a future owner-side smoke run,
+ * <p>If bucket(2) is observed empirically in a future smoke run,
  * the surgical narrowing path is at {@code ArchiModelAccessorImpl.routeNormalizedBaseline:16281}
  * (the {@code routeNorm.thresholdsMet() < bare.thresholdsMet()} predicate),
- * NOT inside {@link SpacingControlLoop}. The spike doc proposes Refinement A
+ * NOT inside {@link SpacingControlLoop}. Refinement A
  * (skip the comparison when the bare input is fully unrouted — all connections
- * have zero bendpoints), gated as a separate owner-approved successor row.</p>
+ * have zero bendpoints) is a candidate, as a separate successor.</p>
  */
 public class RouteNormalizedBaselineProbeTest {
 
@@ -174,9 +173,9 @@ public class RouteNormalizedBaselineProbeTest {
         //   appliedDeltas  = [] (empty)
         //   no mutation
         // Pinned here as a documentation invariant. The actual zero-iteration
-        // / empty-deltas DTO shape is verified by the existing row-703
+        // / empty-deltas DTO shape is verified by the existing
         // pin SpacingControlLoopPartialCommitRegressionTest:917 (which holds
-        // for (i)), the row-777 pin
+        // for (i)), the
         // SpacingPreconditionInfeasibilityCertificateTest (which holds for
         // (j)), and the existing dryRun-guard pins.
         //
@@ -195,7 +194,7 @@ public class RouteNormalizedBaselineProbeTest {
         //
         // The two complete-name pre-loop constants this test pins above
         // ((i) reroute-degraded + (j) density-precondition) are the
-        // architectural surface this story (2026-05-20) added documentation
+        // architectural surface this work (2026-05-20) added documentation
         // for. (f) dryRun's contract is verified by the existing
         // SpacingControlLoopTest dry-run pins.
         assertEquals("Sanity: (i) reroute_degraded_input_baseline value is "

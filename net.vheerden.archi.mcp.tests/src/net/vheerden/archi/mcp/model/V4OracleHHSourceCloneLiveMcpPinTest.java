@@ -21,8 +21,8 @@ import net.vheerden.archi.mcp.model.routing.ViewFixture;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * HH ("Hub Heavy") source-clone pin test — H5 story Task 14.2 (closes AC-10
- * verification gap per [[feedback_pin_calibration_substrate_parity]]).
+ * HH ("Hub Heavy") source-clone pin test — H5 Task 14.2 (closes the
+ * verification gap on pin-calibration substrate parity).
  *
  * <p><b>Substrate.</b> {@code testdata/hh-source-clone-fixture.json} —
  * captured from Archi view {@code id-a53740b929ac47b0ac16b360647f2838}
@@ -42,17 +42,17 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * cross-checking IDs vs the wrong table, or label-exclude set computation
  * hashing on a stale ID prefix) would fire HH but not V4 (or vice versa).
  * In Task-8 live-MCP measurement (2026-05-13) the HH source clone was the
- * substrate that surfaced the AC-6.3 monotonicity violation H5 had to fix
+ * substrate that surfaced the monotonicity violation H5 had to fix
  * (V_p10 6.4 → 5.8 regression under the placeholder verifier) — the pin name
  * preserves the substrate identity for traceability even though the test
  * itself runs pure-JUnit per Option α (see substrate-parity-strategy.md).
  *
- * <p><b>Calibration provenance.</b> Per
- * [[feedback_pin_calibration_substrate_parity]] the floor/ceiling values are
+ * <p><b>Calibration provenance.</b> Per the pin-calibration
+ * substrate-parity discipline the floor/ceiling values are
  * anchored at the PURE-JUNIT (Option α) substrate's pre-H5 empirical actuals,
  * NOT the live-MCP Task 8 measurements. The live-MCP HH actuals (HPQ=0.82,
  * M4=5, V_p10=6.4, M5=1) are a DIFFERENT substrate and DO NOT transfer to
- * pure-JUnit anchoring — Task 7 AC-12.3 precedent surfaced exactly this
+ * pure-JUnit anchoring — the Task 7 precedent surfaced exactly this
  * substrate-parity failure mode for the V4 oracle pin. Initial first-run
  * actuals captured 2026-05-14 by Task 14.3; thresholds anchored at actuals.
  *
@@ -60,15 +60,13 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * (including H5 Tier-1 monotonicity guard failure) that push HH metrics
  * below the pre-H5 floor. Tier-1 zero-defect contract is asserted directly.
  *
- * <p><b>Memory anchors:</b>
+ * <p><b>Rationale anchors:</b>
  * <ul>
- *   <li>{@code feedback_pin_calibration_substrate_parity.md} — the failure
- *       mode this pin's calibration guards against.</li>
- *   <li>{@code feedback_metric_and_regression_test_together.md} — every
- *       routing improvement ships with a JUnit pin protecting the new
- *       threshold; HH+ST pins are the H5 story's substrate-diverse pair.</li>
- *   <li>{@code h5-implementation-2026-05-13/structural-results.md} — Task 8
- *       live-MCP measurement origin and the AC-6.3 monotonicity violation
+ *   <li>The pin-calibration substrate-parity failure mode this pin's
+ *       calibration guards against.</li>
+ *   <li>Every routing improvement ships with a JUnit pin protecting the new
+ *       threshold; HH+ST pins are the substrate-diverse pair.</li>
+ *   <li>The Task 8 live-MCP measurement origin and the monotonicity violation
  *       these pins exist to permanently guard against.</li>
  * </ul>
  */
@@ -79,7 +77,7 @@ public class V4OracleHHSourceCloneLiveMcpPinTest {
      * actual = 0.819 (identical to {@link V4OracleQualityRegressionTest} V4
      * oracle pure-JUnit actual — same effective geometry). Floor 0.70 matches
      * V4OracleQualityRegressionTest{@code .HPQ_FLOOR} precedent: ~12 percentage
-     * points of headroom for legitimate B62-2 corridor-diversity variance.
+     * points of headroom for legitimate corridor-diversity variance.
      * The HH+V4 pair is intentionally symmetric — HH catches element-ID-
      * coupling regressions that V4's stale-ID fixture would miss.
      */
@@ -88,7 +86,7 @@ public class V4OracleHHSourceCloneLiveMcpPinTest {
     /**
      * HH source clone pure-JUnit M4 ceiling. Captured 2026-05-14 first-run
      * actual = 5 (identical to V4 oracle pure-JUnit). H5 is a structural no-op
-     * on this fixture per the AC-12.3 diagnostic finding (25 of 30 routed
+     * on this fixture per the diagnostic finding (25 of 30 routed
      * paths are size-3 L-shapes with terminal-incident segments outside H5
      * scope) — same root cause as V4 oracle. Pin functions as a regression
      * sentinel for any upstream stage changing terminal-segment routing.
@@ -101,8 +99,17 @@ public class V4OracleHHSourceCloneLiveMcpPinTest {
      * actual — no buffer. Future regression of any upstream stage that
      * collapses intra-corridor parallel-V spread on the HH substrate fires
      * this pin.
+     *
+     * <p><b>Re-anchor 4.0&rarr;2.0 (2026-06-14).</b> Symmetric with
+     * {@link V4OracleQualityRegressionTest#VP10_FLOOR} (see its Javadoc for the
+     * full bisect narrative). Root cause: {@code c10bb8e} (v1.6 terminal
+     * exit-then-return zigzag self-heal) — an accepted, agent-in-loop-gated trade
+     * that halves parallel-V spread on the hub-and-spoke substrate while keeping
+     * zigzag 0 and all other metrics healthy. The HH and V4 pins are an intentional
+     * symmetric pair (HH catches element-ID-coupling V4's stale-ID fixture misses),
+     * so both re-anchor together.
      */
-    private static final double HH_VP10_FLOOR = 4.0;
+    private static final double HH_VP10_FLOOR = 2.0;
 
     /**
      * HH source clone pure-JUnit M5 ceiling. Captured 2026-05-14 first-run

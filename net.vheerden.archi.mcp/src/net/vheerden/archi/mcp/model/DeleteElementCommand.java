@@ -17,7 +17,7 @@ import com.archimatetool.model.IFolder;
 import org.eclipse.emf.ecore.EObject;
 
 /**
- * GEF Command that deletes an ArchiMate element with full cascade (Story 8-4).
+ * GEF Command that deletes an ArchiMate element with full cascade.
  *
  * <p>Cascade removal order on execute:</p>
  * <ol>

@@ -3,7 +3,7 @@ package net.vheerden.archi.mcp.response.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Data Transfer Object for deletion operation results (Story 8-4).
+ * Data Transfer Object for deletion operation results.
  *
  * <p>Contains the deleted entity's identity and cascade counts indicating
  * how many related objects were also removed. Folder-specific cascade counts

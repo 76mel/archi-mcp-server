@@ -290,7 +290,7 @@ public class ResourceHandlerTest {
 		McpSchema.TextResourceContents viewPatternsContent =
 				(McpSchema.TextResourceContents) viewPatternsResult.contents().get(0);
 		assertTrue("Should contain layout algorithm reference",
-				viewPatternsContent.text().contains("compute-layout"));
+				viewPatternsContent.text().contains("auto-layout-and-route"));
 		assertTrue("Should contain viewpoint patterns section",
 				viewPatternsContent.text().contains("Common Viewpoint Patterns"));
 		assertTrue("Should contain view composition workflow section",

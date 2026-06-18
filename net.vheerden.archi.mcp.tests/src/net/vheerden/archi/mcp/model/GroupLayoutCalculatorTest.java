@@ -9,7 +9,7 @@ import org.junit.Test;
 
 /**
  * Tests for {@link GroupLayoutCalculator} — pure geometry group layout
- * position computation (Story B30). No EMF or SWT runtime required.
+ * position computation. No EMF or SWT runtime required.
  */
 public class GroupLayoutCalculatorTest {
 
@@ -45,7 +45,7 @@ public class GroupLayoutCalculatorTest {
 
     @Test
     public void rowLayout_shouldHonorSpacing100() {
-        // AC-1, AC-6: spacing=100 produces 100px gaps
+        // spacing=100 produces 100px gaps
         List<int[]> sizes = List.of(
                 new int[]{120, 55},
                 new int[]{150, 55},
@@ -129,7 +129,7 @@ public class GroupLayoutCalculatorTest {
 
     @Test
     public void gridLayout_shouldHonorSpacing80InBothAxes() {
-        // AC-2, AC-6: grid with spacing=80 produces 80px gaps in both axes
+        // grid with spacing=80 produces 80px gaps in both axes
         // 4 elements in 2 columns
         List<int[]> sizes = List.of(
                 new int[]{100, 50},
@@ -208,7 +208,7 @@ public class GroupLayoutCalculatorTest {
 
     @Test
     public void rowLayout_defaultSpacing40_shouldProduceCorrectGaps() {
-        // AC-4, AC-6: default spacing (40) produces 40px gaps
+        // default spacing (40) produces 40px gaps
         List<int[]> sizes = List.of(
                 new int[]{120, 55},
                 new int[]{120, 55});
@@ -233,7 +233,7 @@ public class GroupLayoutCalculatorTest {
 
     @Test
     public void gridLayout_defaultSpacing40_shouldProduceCorrectGaps() {
-        // AC-4, AC-6: grid with default spacing (40) produces 40px gaps
+        // grid with default spacing (40) produces 40px gaps
         List<int[]> sizes = List.of(
                 new int[]{100, 50},
                 new int[]{100, 50},
@@ -256,7 +256,7 @@ public class GroupLayoutCalculatorTest {
 
     @Test
     public void autoResize_shouldExpandToFitSpacing() {
-        // AC-3, AC-6: group expands to accommodate spacing
+        // group expands to accommodate spacing
         // 3 elements of width 120, spacing 100, padding 10
         // Row: x=10, x=10+120+100=230, x=230+120+100=450
         // Last element right edge: 450+120=570, plus padding=10 → width=580
@@ -382,7 +382,7 @@ public class GroupLayoutCalculatorTest {
         assertEquals(274, dims[1]);
     }
 
-    // ---- chooseIntraGroupArrangement (B51) ----
+    // ---- chooseIntraGroupArrangement ----
 
     @Test
     public void chooseIntraGroupArrangement_directionDown_1element_shouldReturnRow() {
@@ -445,7 +445,7 @@ public class GroupLayoutCalculatorTest {
         assertEquals("column", GroupLayoutCalculator.chooseIntraGroupArrangement(6, "Right"));
     }
 
-    // ---- computeGridColumns (B51) ----
+    // ---- computeGridColumns ----
 
     @Test
     public void computeGridColumns_0elements_shouldReturn1() {
@@ -501,7 +501,7 @@ public class GroupLayoutCalculatorTest {
 
     // ---- validateGroupGaps ----
 
-    // ---- detectSpacingFromPositions (B68) ----
+    // ---- detectSpacingFromPositions ----
 
     @Test
     public void detectSpacing_row_shouldDetectMinHorizontalGap() {
@@ -564,7 +564,7 @@ public class GroupLayoutCalculatorTest {
                 GroupLayoutCalculator.detectSpacingFromPositions(List.of(), "row"));
     }
 
-    // ---- detectPaddingFromPositions (B68) ----
+    // ---- detectPaddingFromPositions ----
 
     @Test
     public void detectPadding_standardPadding10_shouldDetect10() {
@@ -594,7 +594,7 @@ public class GroupLayoutCalculatorTest {
                 GroupLayoutCalculator.detectPaddingFromPositions(List.of(), 300, 200));
     }
 
-    // ---- computeInterGroupShifts (B68) ----
+    // ---- computeInterGroupShifts ----
 
     @Test
     public void interGroupShifts_horizontalGroups_shouldShiftInX() {

@@ -12,7 +12,7 @@ import com.archimatetool.model.IDiagramModelContainer;
 import com.archimatetool.model.IDiagramModelObject;
 
 /**
- * GEF Command that removes a generic diagram object (group or note) from a view (Story 8-6).
+ * GEF Command that removes a generic diagram object (group or note) from a view.
  *
  * <p>Unlike {@link RemoveFromViewCommand} which is specific to ArchiMate element objects,
  * this command handles non-ArchiMate view objects (groups and notes). When a group contains

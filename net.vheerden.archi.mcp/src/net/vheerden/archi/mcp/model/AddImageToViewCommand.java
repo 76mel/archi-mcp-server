@@ -6,7 +6,7 @@ import com.archimatetool.model.IDiagramModelContainer;
 import com.archimatetool.model.IDiagramModelImage;
 
 /**
- * GEF Command that adds a standalone image visual to a view (Story 14-8 / G16).
+ * GEF Command that adds a standalone image visual to a view.
  *
  * <p>The image visual must be fully configured (imagePath, bounds, styling)
  * before this command is created. The command only handles view placement

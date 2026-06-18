@@ -16,7 +16,7 @@ import net.vheerden.archi.mcp.model.routing.RoutingPipeline;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Tests for {@link LayoutQualityAssessor} — pure geometry computation (Story 9-2).
+ * Tests for {@link LayoutQualityAssessor} — pure geometry computation.
  * No EMF or SWT runtime required.
  */
 public class LayoutQualityAssessorTest {
@@ -82,7 +82,7 @@ public class LayoutQualityAssessorTest {
 
         // The group overlaps both children geometrically, but should be excluded
         assertEquals(0, result.overlapCount());
-        // Story 9-0d: containment overlaps tracked separately
+        // containment overlaps tracked separately
         assertEquals(2, result.containmentOverlapCount());
     }
 
@@ -96,7 +96,7 @@ public class LayoutQualityAssessorTest {
 
         LayoutAssessmentResult result = assessor.assess(nodes, List.of(), false);
 
-        // Story 9-0d: verify sibling overlap counted, containment tracked separately
+        // verify sibling overlap counted, containment tracked separately
         assertEquals(1, result.overlapCount());
         assertTrue(result.overlaps().get(0).contains("'child1'"));
         assertTrue(result.overlaps().get(0).contains("'child2'"));
@@ -696,13 +696,13 @@ public class LayoutQualityAssessorTest {
                 < LayoutQualityAssessor.FAIR_MAX_CROSSINGS);
         assertTrue(LayoutQualityAssessor.EXCELLENT_MIN_SPACING
                 > LayoutQualityAssessor.GOOD_MIN_SPACING);
-        // Story 10-19a: GOOD_MAX_CROSSINGS raised to 20
+        // GOOD_MAX_CROSSINGS raised to 20
         assertEquals(20, LayoutQualityAssessor.GOOD_MAX_CROSSINGS);
-        // Story 10-19a: FAIR_MAX_PASS_THROUGHS = 3
+        // FAIR_MAX_PASS_THROUGHS = 3
         assertEquals(3, LayoutQualityAssessor.FAIR_MAX_PASS_THROUGHS);
     }
 
-    // ---- Story 10-19a: Pass-through threshold tests ----
+    // ---- Pass-through threshold tests ----
 
     @Test
     public void overallRating_withPassThroughs_shouldBlockExcellentAndGood() {
@@ -732,11 +732,11 @@ public class LayoutQualityAssessorTest {
         assertEquals("Zero pass-throughs should allow excellent", "excellent", rating);
     }
 
-    // ---- Story 9-0d: Transitive containment exclusion tests ----
+    // ---- Transitive containment exclusion tests ----
 
     @Test
     public void assess_nestedGroups_grandparentGrandchild_shouldNotCountAsSiblingOverlap() {
-        // Story 9-0d: TopGroup → SubGroup → Element
+        // TopGroup → SubGroup → Element
         // Grandparent-grandchild should NOT count as sibling overlap
         List<AssessmentNode> nodes = List.of(
                 group("topGrp", 0, 0, 500, 400),
@@ -752,7 +752,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_deeplyNested_allAncestorDescendantExcluded() {
-        // Story 9-0d: 3+ levels — all ancestor-descendant pairs excluded
+        // 3+ levels — all ancestor-descendant pairs excluded
         // L1 → L2 → L3 → Element
         List<AssessmentNode> nodes = List.of(
                 group("l1", 0, 0, 600, 500),
@@ -769,7 +769,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_siblingOverlapsInsideNestedGroup_shouldCount() {
-        // Story 9-0d: Two siblings overlapping inside a nested group
+        // Two siblings overlapping inside a nested group
         List<AssessmentNode> nodes = List.of(
                 group("topGrp", 0, 0, 500, 400),
                 childGroup("subGrp", 20, 20, 460, 360, "topGrp"),
@@ -787,7 +787,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_containmentOverlaps_countedSeparately() {
-        // Story 9-0d: Verify containment overlaps are reported as separate count
+        // Verify containment overlaps are reported as separate count
         List<AssessmentNode> nodes = List.of(
                 group("grp", 0, 0, 400, 300),
                 childNode("c1", 50, 50, 100, 50, "grp"),
@@ -802,7 +802,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_manyContainmentOverlaps_zeroSiblingOverlaps_shouldRateExcellent() {
-        // Story 9-0d: Rating should use sibling overlaps only
+        // Rating should use sibling overlaps only
         // Well-spaced children inside a group — excellent layout
         List<AssessmentNode> nodes = List.of(
                 group("grp", 0, 0, 500, 300),
@@ -819,7 +819,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_containmentOnlyOverlaps_shouldNotSuggestSpacious() {
-        // Story 9-0d: Suggestions should reference sibling overlaps only
+        // Suggestions should reference sibling overlaps only
         List<AssessmentNode> nodes = List.of(
                 group("grp", 0, 0, 500, 300),
                 childNode("c1", 50, 50, 100, 50, "grp"),
@@ -850,7 +850,7 @@ public class LayoutQualityAssessorTest {
                                 && s.contains("No action needed")));
     }
 
-    // ---- Label overlap detection tests (Story 10-8) ----
+    // ---- Label overlap detection tests ----
 
     @Test
     public void countLabelOverlaps_noLabels_shouldReturnZero() {
@@ -1020,7 +1020,7 @@ public class LayoutQualityAssessorTest {
         assertEquals("Descendant overlaps should be excluded", 0, result.count());
     }
 
-    // ---- Story 11-24: Label proximity detection tests ----
+    // ---- Label proximity detection tests ----
 
     @Test
     public void countLabelOverlaps_labelWithinProximityOfUnrelatedElement_shouldCount() {
@@ -1102,7 +1102,7 @@ public class LayoutQualityAssessorTest {
                 result.count() > 0);
     }
 
-    // ---- Story 11-12: Group-aware suggestions tests ----
+    // ---- Group-aware suggestions tests ----
 
     @Test
     public void suggestions_groupedView_shouldRecommendLayoutWithinGroup() {
@@ -1130,7 +1130,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void suggestions_flatView_shouldNotRecommendComputeLayout() {
-        // Story 11-22 AC4: flat view should NOT suggest compute-layout
+        // flat view should NOT suggest compute-layout
         List<AssessmentNode> nodes = List.of(
                 node("a", 0, 0, 100, 50),
                 node("b", 200, 0, 100, 50),
@@ -1174,7 +1174,7 @@ public class LayoutQualityAssessorTest {
         assertFalse("Grouped view should NOT suggest compute-layout", hasComputeLayout);
     }
 
-    // ---- Story 11-12: Density-aware rating calibration tests ----
+    // ---- Density-aware rating calibration tests ----
 
     @Test
     public void rating_cleanViewWithOnePassThrough_shouldBeAtLeastFair() {
@@ -1201,7 +1201,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void rating_densityRatio_shouldScaleWithConnectionCount() {
-        // PRE-REDESIGN B38: crossings Tier 2 cap fair. POST-REDESIGN M6: crossings Tier 3R cap good.
+        // PRE-REDESIGN: crossings Tier 2 cap fair. POST-REDESIGN: crossings Tier 3R cap good.
         // 2.0 ratio → breakdown "fair", but routing-tier caps at "good" under M6.
         String ratingDense = assessor.computeOverallRating(
                 0, 60, 50.0, 50, 0, 0, 30);
@@ -1218,14 +1218,14 @@ public class LayoutQualityAssessorTest {
     @Test
     public void rating_zeroConnectionsWithManyCrossings_shouldUseLegacyThreshold() {
         // No connections → use absolute threshold (backward compatibility).
-        // PRE-REDESIGN B38: crossings Tier 2 cap fair. POST-REDESIGN M6: Tier 3R cap good.
+        // PRE-REDESIGN: crossings Tier 2 cap fair. POST-REDESIGN: Tier 3R cap good.
         String rating = assessor.computeOverallRating(
                 0, 50, 50.0, 50, 0, 0, 0);
         assertEquals("M6: 50 crossings with 0 connections → good (Tier 3R cap, was fair)",
                 "good", rating);
     }
 
-    // ---- Story 11-12: Deep nesting overlap false positive tests ----
+    // ---- Deep nesting overlap false positive tests ----
 
     @Test
     public void assess_deeplyNestedElements_withGaps_shouldNotReportOverlap() {
@@ -1257,7 +1257,7 @@ public class LayoutQualityAssessorTest {
                 1, result.overlapCount());
     }
 
-    // ---- Story 11-12: Result includes connectionCount and crossingsPerConnection ----
+    // ---- Result includes connectionCount and crossingsPerConnection ----
 
     @Test
     public void assess_shouldIncludeConnectionCountAndCrossingRatio() {
@@ -1310,7 +1310,7 @@ public class LayoutQualityAssessorTest {
     @Test
     public void rating_densityRatio_atExactModerateThreshold_shouldBeFair() {
         // Boundary: exactly 4.0 crossings/connection (CROSSING_RATIO_MODERATE).
-        // PRE-REDESIGN B38: crossings Tier 2 cap fair → overall "fair".
+        // PRE-REDESIGN: crossings Tier 2 cap fair → overall "fair".
         // POST-REDESIGN M6: crossings demoted Tier 3R cap good → overall "good".
         String rating = assessor.computeOverallRating(
                 0, 120, 50.0, 50, 0, 0, 30); // 120/30 = 4.0
@@ -1318,7 +1318,7 @@ public class LayoutQualityAssessorTest {
                 "good", rating);
     }
 
-    // ---- Story 11-15: Note-aware layout tests ----
+    // ---- Note-aware layout tests ----
 
     @Test
     public void assess_notesExcludedFromSiblingOverlapCount() {
@@ -1395,7 +1395,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_noteOverlapsGroup_shouldCount() {
-        // Story 11-28: Top-level note overlapping a group — NOW detected
+        // Top-level note overlapping a group — NOW detected
         List<AssessmentNode> nodes = List.of(
                 group("grp", 0, 0, 400, 300),
                 childNode("elem", 50, 50, 100, 50, "grp"),
@@ -1425,7 +1425,7 @@ public class LayoutQualityAssessorTest {
         assertEquals(0, result.noteOverlapCount());
     }
 
-    // ---- Story 11-28: Note-to-group overlap detection ----
+    // ---- Note-to-group overlap detection ----
 
     @Test
     public void assess_noteOverlapsGroupSmallOverlapAtTop_shouldCount() {
@@ -1513,7 +1513,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_noteOverlapsGroup_ratingUnchanged() {
-        // Story 11-28 AC6: note overlaps should NOT affect the quality rating
+        // note overlaps should NOT affect the quality rating
         List<AssessmentNode> nodes = List.of(
                 group("grp", 0, 0, 400, 300),
                 childNode("a", 20, 50, 100, 50, "grp"),
@@ -1534,7 +1534,7 @@ public class LayoutQualityAssessorTest {
         assertTrue(withNote.noteOverlapCount() > 0); // overlap IS detected
     }
 
-    // ---- Story 11-17: hasGroups in LayoutAssessmentResult ----
+    // ---- hasGroups in LayoutAssessmentResult ----
 
     @Test
     public void assess_withGroups_shouldSetHasGroupsTrue() {
@@ -1570,7 +1570,7 @@ public class LayoutQualityAssessorTest {
         assertFalse("hasGroups should be false for notes-only views", result.hasGroups());
     }
 
-    // ---- Story 11-19: Rating breakdown and grouped-view leniency tests ----
+    // ---- Rating breakdown and grouped-view leniency tests ----
 
     @Test
     public void ratingBreakdown_shouldBeIncludedInAssessResult() {
@@ -1629,7 +1629,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void ratingBreakdown_groupedView_crossingsOnly_shouldShowGood() {
-        // AC2: Grouped view where crossings are the ONLY issue → "good" not "fair"
+        // Grouped view where crossings are the ONLY issue → "good" not "fair"
         // 25 crossings, 10 connections — would be "fair" on flat view
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 25, 50.0, 80, 0, 0, 0, 0, 10, true);
@@ -1643,8 +1643,8 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void ratingBreakdown_flatView_crossingsOnly_shouldStayFair() {
-        // PRE-REDESIGN AC2: Same crossings on flat view stayed "fair".
-        // POST-REDESIGN M6: crossings demoted Tier 3R cap good → overall good.
+        // PRE-REDESIGN: Same crossings on flat view stayed "fair".
+        // POST-REDESIGN: crossings demoted Tier 3R cap good → overall good.
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 25, 50.0, 80, 0, 0, 0, 0, 10, false);
 
@@ -1666,7 +1666,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void ratingBreakdown_groupedView_withFewPassThroughs_shouldStillGetBonus() {
-        // B38: Grouped view with PT<=3 — crossing leniency STILL applies (relaxed gate)
+        // Grouped view with PT<=3 — crossing leniency STILL applies (relaxed gate)
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 25, 50.0, 80, 0, 2, 0, 0, 10, true);
 
@@ -1677,7 +1677,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void ratingBreakdown_groupedView_manyCrossingsNoOtherIssues_shouldBeGood() {
-        // AC2: 100 crossings, 28 connections (3.57 per conn) — grouped view, no other issues
+        // 100 crossings, 28 connections (3.57 per conn) — grouped view, no other issues
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 100, 50.0, 80, 0, 0, 0, 0, 28, true);
 
@@ -1698,7 +1698,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void ratingBreakdown_overlapBinary_one_shouldRatePoor() {
-        // Upper-edge boundary (the cut-point this story redefines): overlap=1 + zero other defects →
+        // Upper-edge boundary (the cut-point redefined here): overlap=1 + zero other defects →
         // breakdown.overlaps="poor" + overall "poor" (Tier-1L no-cap drives layoutLevel=3 → layoutRating=poor).
         // hubPortQualityScore=0 is neutral here — HPQ only enters the routing tier for grouped views (hasGroups=false).
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
@@ -1734,7 +1734,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void ratingBreakdown_noRegression_overlapsStillProducePoor() {
-        // AC4: Overlaps should still produce poor (Tier 1)
+        // Overlaps should still produce poor (Tier 1)
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 10, 0, 50.0, 80, 0, 0, 0, 0, 0, false);
 
@@ -1744,7 +1744,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void ratingBreakdown_noRegression_passThroughsStillDowngrade() {
-        // AC4: Pass-throughs should still downgrade appropriately (Tier 1)
+        // Pass-throughs should still downgrade appropriately (Tier 1)
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 0, 50.0, 80, 0, 4, 0, 0, 0, false);
 
@@ -1752,11 +1752,11 @@ public class LayoutQualityAssessorTest {
         assertEquals("poor", result.breakdown().get("passThroughs"));
     }
 
-    // ---- Story 11-22: Rating recalibration and suggestion fixes ----
+    // ---- Rating recalibration and suggestion fixes ----
 
     @Test
     public void rating_flatView_lowCrossingDensity_shouldRateGood() {
-        // AC1: flat view with ~0.72 crossings/conn should rate "good"
+        // flat view with ~0.72 crossings/conn should rate "good"
         // 20 crossings / 28 connections = 0.71 ratio — below CROSSING_RATIO_GOOD (1.5)
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 20, 50.0, 80, 0, 0, 0, 0, 28, false);
@@ -1768,7 +1768,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void rating_flatView_highCrossingDensity_shouldRateFairOrBelow() {
-        // AC1: flat view with 3.5+ crossings/conn should rate "fair" or below
+        // flat view with 3.5+ crossings/conn should rate "fair" or below
         // 105 crossings / 30 connections = 3.5 ratio
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 105, 50.0, 80, 0, 0, 0, 0, 30, false);
@@ -1803,7 +1803,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void rating_groupedView_oneTierBoost_notUnconditionalGood() {
-        // AC2: grouped view with very high crossing density — one-tier boost, not floor at "good"
+        // grouped view with very high crossing density — one-tier boost, not floor at "good"
         // 150 crossings / 28 connections = 5.36 ratio → base "poor", boost → "fair" (not "good")
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 150, 50.0, 80, 0, 0, 0, 0, 28, true);
@@ -1814,7 +1814,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void rating_groupedView_moderateCrossings_shouldStillBoost() {
-        // AC2: grouped view with moderate crossings benefits from one-tier boost
+        // grouped view with moderate crossings benefits from one-tier boost
         // 25 crossings / 10 connections = 2.5 ratio → base "fair", boost → "good"
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 25, 50.0, 80, 0, 0, 0, 0, 10, true);
@@ -1825,7 +1825,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void suggestions_viewWithContainment_noGroups_shouldNotSuggestComputeLayout() {
-        // AC3: view with nested elements (containment) but no groups
+        // view with nested elements (containment) but no groups
         // Should suggest auto-route / auto-layout-and-route, NOT compute-layout
         // Use overlapping siblings to trigger overlap suggestion
         List<AssessmentNode> nodes = List.of(
@@ -1848,7 +1848,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void suggestions_allScenarios_shouldNeverReferenceComputeLayout() {
-        // AC4: no suggestion text across any scenario references compute-layout
+        // no suggestion text across any scenario references compute-layout
         // Test flat view with overlaps
         List<AssessmentNode> flatOverlap = List.of(
                 node("a", 0, 0, 100, 50),
@@ -1889,7 +1889,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void suggestions_groupedView_shouldPreserveGroupedWorkflow() {
-        // AC5: grouped view with overlapping children → suggests layout-within-group, not compute-layout
+        // grouped view with overlapping children → suggests layout-within-group, not compute-layout
         List<AssessmentNode> nodes = List.of(
                 group("grp", 0, 0, 400, 300),
                 childNode("a", 20, 20, 150, 50, "grp"),
@@ -1905,11 +1905,11 @@ public class LayoutQualityAssessorTest {
         assertFalse("Grouped view should NOT suggest compute-layout", hasComputeLayout);
     }
 
-    // ---- Cross-group boundary overlap filtering (Story 11-26) ----
+    // ---- Cross-group boundary overlap filtering ----
 
     @Test
     public void assess_adjacentGroups_elementsNearBoundary_zeroSiblingOverlaps() {
-        // Story 11-26 AC1: Adjacent groups with elements near shared boundary
+        // Adjacent groups with elements near shared boundary
         // Group A at x=0..200, Group B at x=200..400 (touching boundary)
         // Elements near the boundary have overlapping bounding boxes across groups
         List<AssessmentNode> nodes = List.of(
@@ -1926,7 +1926,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_sameGroupElementsOverlapping_countedAsSiblingOverlap() {
-        // Story 11-26 AC3: Two elements in the SAME group that genuinely overlap
+        // Two elements in the SAME group that genuinely overlap
         List<AssessmentNode> nodes = List.of(
                 group("grp", 0, 0, 400, 200),
                 childNode("a", 50, 50, 100, 50, "grp"),
@@ -1939,7 +1939,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_topLevelElementsOverlapping_countedAsSiblingOverlap() {
-        // Story 11-26 AC4: Two top-level elements (parentId=null) overlapping
+        // Two top-level elements (parentId=null) overlapping
         List<AssessmentNode> nodes = List.of(
                 node("a", 0, 0, 100, 50),
                 node("b", 50, 25, 100, 50));  // overlaps a
@@ -1952,7 +1952,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_topLevelGroupsOverlapping_countedAsSiblingOverlap() {
-        // Story 11-26 AC5: Two top-level groups that overlap each other
+        // Two top-level groups that overlap each other
         List<AssessmentNode> nodes = List.of(
                 group("grpA", 0, 0, 300, 200),
                 group("grpB", 200, 0, 300, 200));  // overlaps grpA
@@ -1965,7 +1965,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_layeredView_multipleAdjacentGroups_zeroFalsePositiveOverlaps() {
-        // Story 11-26 AC2: Layered view with 3 adjacent groups, many elements near boundaries
+        // Layered view with 3 adjacent groups, many elements near boundaries
         // Simulates the View 2 false positive scenario from E2E tests
         List<AssessmentNode> nodes = List.of(
                 // Three horizontally adjacent groups (layers)
@@ -1993,7 +1993,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_mixedScenario_onlySameParentOverlapsCounted() {
-        // Story 11-26: Mixed scenario — some same-parent overlaps + cross-parent proximity
+        // Mixed scenario — some same-parent overlaps + cross-parent proximity
         List<AssessmentNode> nodes = List.of(
                 group("grpA", 0, 0, 300, 200),
                 group("grpB", 300, 0, 300, 200),
@@ -2011,7 +2011,7 @@ public class LayoutQualityAssessorTest {
                 1, result.overlapCount());
     }
 
-    // ---- B53: Label truncation detection tests ----
+    // ---- Label truncation detection tests ----
 
     @Test
     public void detectLabelTruncation_shouldNotDetect_whenLabelFits() {
@@ -2082,7 +2082,7 @@ public class LayoutQualityAssessorTest {
         assertEquals(10, result.descriptions().size()); // capped at MAX_DESCRIPTIONS
     }
 
-    // ---- B53: Parent label obscured tests ----
+    // ---- Parent label obscured tests ----
 
     @Test
     public void detectParentLabelObscured_shouldNotDetect_whenChildBelowLabel() {
@@ -2129,7 +2129,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void detectParentLabelObscured_regressionGuard_backlogViewTitleNoteAutosize_AC13() {
-        // backlog-view-title-note-autosize AC-13 regression-guard pin.
+        // Regression-guard pin.
         //
         // SCOPE (acknowledged per review L1): this is an ASSESSOR-UNIT pin — it verifies
         // that detectParentLabelObscuredByChild does not regress on the canonical "default-
@@ -2137,10 +2137,10 @@ public class LayoutQualityAssessorTest {
         // It is NOT an end-to-end test (no accessor.addGroupToView call). The end-to-end
         // height pin lives in ArchiModelAccessorImplTest.addGroupToView_shouldKeepDefault
         // Height_whenShortLabel_AC15, which guarantees the resolved-height stays at 200 for
-        // short labels — combined with this assessor-unit pin, the AC-13 regression-guard
+        // short labels — combined with this assessor-unit pin, the regression-guard
         // intent is covered transitively.
         //
-        // The 200-px default height continues to fit the short label (AC-15 short-circuit),
+        // The 200-px default height continues to fit the short label (short-circuit),
         // and the child positioned at y=30 (relative-to-parent, > label-band height) does
         // not overlap the label area.
         List<AssessmentNode> nodes = List.of(
@@ -2155,7 +2155,7 @@ public class LayoutQualityAssessorTest {
                 0, result.count());
     }
 
-    // ---- B53: Image sibling overlap tests ----
+    // ---- Image sibling overlap tests ----
 
     @Test
     public void detectImageSiblingOverlap_shouldNotDetect_whenNoSiblingOverlap() {
@@ -2198,7 +2198,7 @@ public class LayoutQualityAssessorTest {
         assertEquals(0, result.count());
     }
 
-    // ---- B53: Rating regression test (REPLACED under Assessor.Redesign M6, 2026-04-26) ----
+    // ---- Rating regression test (REPLACED under Assessor.Redesign M6, 2026-04-26) ----
 
     @Test
     @Ignore("Assessor.Redesign M6 (2026-04-26) — REPLACED by assess_withB53Fields_shouldChangeRating_underM6Promotions. "
@@ -2206,14 +2206,14 @@ public class LayoutQualityAssessorTest {
             + "promoted Tier 1L and labelTruncationCount is promoted Tier 2R, so the OPPOSITE "
             + "assertion is now correct.")
     public void assess_withB53Fields_shouldNotChangeRating() {
-        // Same layout as existing tests, but with B53 fields populated — rating must be identical
+        // Same layout as existing tests, but with the styling/label fields populated — rating must be identical
         List<AssessmentNode> nodes = List.of(
                 new AssessmentNode("a", 0, 0, 120, 55, null, false, false, "Very Long Name That Gets Truncated", 200.0, "img/bg.png", "fill"),
                 new AssessmentNode("b", 200, 0, 120, 55, null, false, false, "B", 10.0, null, null),
                 new AssessmentNode("c", 0, 100, 120, 55, null, false, false, "C", 10.0, null, null),
                 new AssessmentNode("d", 200, 100, 120, 55, null, false, false, "D", 10.0, null, null));
 
-        // Same layout without B53 fields
+        // Same layout without the styling/label fields
         List<AssessmentNode> nodesWithout = List.of(
                 node("a", 0, 0, 120, 55),
                 node("b", 200, 0, 120, 55),
@@ -2233,7 +2233,7 @@ public class LayoutQualityAssessorTest {
 
     /** Creates a top-level leaf element (non-group, no parent). */
     /**
-     * Parity guard (backlog-auto-route-terminals-only-interior-termination-veto): the
+     * Parity guard: the
      * terminals-only interior veto ({@link RoutingPipeline#terminalsOnlyTerminatesInside})
      * MUST flag exactly what assess-layout's M2 detector ({@link LayoutQualityAssessor#isStrictlyInside})
      * flags, so the router can never introduce an interior termination the assessor would
@@ -2317,7 +2317,7 @@ public class LayoutQualityAssessorTest {
         return new AssessmentNode(id, x, y, w, h, parentId, true, false, null, 0.0, null, null);
     }
 
-    /** Creates a top-level note (Story 11-15). */
+    /** Creates a top-level note. */
     private static AssessmentNode note(String id, double x, double y,
                                         double w, double h) {
         return new AssessmentNode(id, x, y, w, h, null, false, true, null, 0.0, null, null);
@@ -2331,7 +2331,7 @@ public class LayoutQualityAssessorTest {
                 node("d", 200, 100, 100, 50));
     }
 
-    // ---- Rating comparison utility tests (Story 11-16) ----
+    // ---- Rating comparison utility tests ----
 
     @Test
     public void ratingOrdinal_shouldReturnCorrectOrderForAllValues() {
@@ -2383,7 +2383,7 @@ public class LayoutQualityAssessorTest {
                 > LayoutQualityAssessor.ratingOrdinal("not-applicable"));
     }
 
-    // ---- Coincident segment detection (Story 11-23) ----
+    // ---- Coincident segment detection ----
 
     @Test
     public void assess_shouldReportCoincidentSegments_whenConnectionsOverlap() {
@@ -2455,7 +2455,7 @@ public class LayoutQualityAssessorTest {
         assertTrue("Should generate coincident segment suggestion", hasSuggestion);
     }
 
-    // ---- Content bounding box tests (Story 11-29) ----
+    // ---- Content bounding box tests ----
 
     @Test
     public void assess_shouldReturnContentBounds_whenViewHasElements() {
@@ -2484,7 +2484,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_shouldReturnContentBounds_whenViewHasSingleElement() {
-        // AC2 null-for-1-element is the accessor's responsibility (early-return path).
+        // null-for-1-element is the accessor's responsibility (early-return path).
         // The assessor correctly computes bounds for any non-empty list.
         List<AssessmentNode> nodes = List.of(
                 node("only", 50, 100, 200, 80));
@@ -2537,11 +2537,11 @@ public class LayoutQualityAssessorTest {
         assertEquals(300.0, result.contentBounds().height(), 0.001);
     }
 
-    // ---- Story 13-4: Self-element pass-through detection tests ----
+    // ---- Self-element pass-through detection tests ----
 
     @Test
     public void assess_connectionThroughOwnTarget_shouldDetect() {
-        // backlog-assessor-redesign-pre-existing-failures Option α: stored final point
+        // Option α: stored final point
         // STRICTLY past target center along the dominant entry axis is treated as
         // terminal-segment over-penetration (caught by terminalSegmentOverPenetrates).
         // A at left, B at right, path approaches B from west and stores its final
@@ -2565,7 +2565,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_connectionThroughOwnSource_shouldDetect() {
-        // AC-B3: Connection path re-enters its own source element
+        // Connection path re-enters its own source element
         // Source is large (200px wide), path leaves source, wraps around, and re-enters
         List<AssessmentNode> nodes = List.of(
                 node("a", 0, 90, 200, 50),     // source: x range 0-200, y range 90-140
@@ -2591,7 +2591,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_connectionThroughOwnSource_deepPenetration_shouldDetect() {
-        // backlog-assessor-redesign-pre-existing-failures AC-4: symmetric source-side
+        // Symmetric source-side
         // counterpart of assess_connectionThroughOwnTarget_shouldDetect. Path's stored
         // first bendpoint sits past source center along the exit axis — caught by
         // terminalSegmentOverPenetrates.
@@ -2690,7 +2690,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void assess_connectionCleanlyConnected_shouldNotDetectSelfPassThrough() {
-        // AC-B2: Clean connection should NOT be reported
+        // Clean connection should NOT be reported
         List<AssessmentNode> nodes = List.of(
                 node("a", 0, 90, 50, 50),
                 node("b", 300, 90, 50, 50));
@@ -2710,7 +2710,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void nonTerminalPassesThroughNode_smallElement_shouldNotDetect() {
-        // AC-B4: Element too small after inset → no detection (avoids false positives)
+        // Element too small after inset → no detection (avoids false positives)
         // Element 8x8 with SELF_ELEMENT_INSET=5 → (8-10)=-2 after inset → skip
         AssessmentNode smallNode = node("small", 100, 100, 8, 8);
         List<double[]> path = List.of(
@@ -2722,7 +2722,7 @@ public class LayoutQualityAssessorTest {
         assertFalse("Small element after inset should not be flagged", detected);
     }
 
-    // ---- Short-segment detection tests (Story 11-31) ----
+    // ---- Short-segment detection tests ----
 
     @Test
     public void countLabelOverlaps_horizontalSegmentShorterThanLabel_shouldFlagShortSegment() {
@@ -2801,7 +2801,7 @@ public class LayoutQualityAssessorTest {
         assertTrue("Should include short-segment suggestion", hasShortSegmentSuggestion);
     }
 
-    // ---- countPathCrossings tests (backlog-b14) ----
+    // ---- countPathCrossings tests ----
 
     @Test
     public void countPathCrossings_crossingPaths_shouldReturnCorrectCount() {
@@ -2859,7 +2859,7 @@ public class LayoutQualityAssessorTest {
         assertEquals(3, crossings);
     }
 
-    // ---- B38: Coincident segment rating tests ----
+    // ---- Coincident segment rating tests ----
 
     @Test
     public void b38_coincidentSegments_zeroShouldRatePass() {
@@ -2891,7 +2891,7 @@ public class LayoutQualityAssessorTest {
                 "poor", result.rating());
     }
 
-    // ---- B38: Relaxed leniency gate tests ----
+    // ---- Relaxed leniency gate tests ----
 
     @Test
     public void b38_groupedViewLeniency_withOnePassThrough_shouldStillApply() {
@@ -2918,7 +2918,7 @@ public class LayoutQualityAssessorTest {
         assertEquals("fair", result.breakdown().get("edgeCrossings"));
     }
 
-    // ---- B38: Non-orthogonal terminal tests ----
+    // ---- Non-orthogonal terminal tests ----
 
     @Test
     public void b38_nonOrthogonalTerminals_zeroShouldRatePass() {
@@ -2929,7 +2929,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void b58_nonOrthogonalTerminals_thirtyPercentShouldRateFair() {
-        // B58: 3 non-orth / 10 connections = 30% → exactly at NON_ORTH_RATIO_FAIR boundary → "fair"
+        // 3 non-orth / 10 connections = 30% → exactly at NON_ORTH_RATIO_FAIR boundary → "fair"
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 0, 50.0, 80, 0, 0, 0, 3, 10, false);
         assertEquals("fair", result.breakdown().get("nonOrthogonalTerminals"));
@@ -2937,13 +2937,13 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void b58_nonOrthogonalTerminals_fortyPercentShouldRatePoor() {
-        // B58: 4 non-orth / 10 connections = 40% → above NON_ORTH_RATIO_FAIR → "poor"
+        // 4 non-orth / 10 connections = 40% → above NON_ORTH_RATIO_FAIR → "poor"
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 0, 50.0, 80, 0, 0, 0, 4, 10, false);
         assertEquals("poor", result.breakdown().get("nonOrthogonalTerminals"));
     }
 
-    // ---- B58: Density-aware non-orthogonal terminal threshold tests ----
+    // ---- Density-aware non-orthogonal terminal threshold tests ----
 
     @Test
     public void b58_nonOrthogonalTerminals_lowDensityShouldRateGood() {
@@ -2987,7 +2987,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void b58_nonOrthogonalTerminals_veryHighDensityShouldRatePoor() {
-        // 15 non-orth / 20 connections = 75% → well above NON_ORTH_RATIO_FAIR → "poor" (AC-6)
+        // 15 non-orth / 20 connections = 75% → well above NON_ORTH_RATIO_FAIR → "poor"
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 0, 50.0, 80, 0, 0, 0, 15, 20, false);
         assertEquals("poor", result.breakdown().get("nonOrthogonalTerminals"));
@@ -3001,7 +3001,7 @@ public class LayoutQualityAssessorTest {
         assertEquals("fair", result.breakdown().get("nonOrthogonalTerminals"));
     }
 
-    // ---- B38: Severity-tiered rating tests ----
+    // ---- Severity-tiered rating tests ----
 
     @Test
     public void b38_tieredRating_tier1Poor_shouldProduceOverallPoor() {
@@ -3025,7 +3025,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void b38_tieredRating_tier3PoorAlone_shouldCapOverallAtGood() {
-        // PRE-REDESIGN B38: spacing + alignment both Tier 3 cap good → overall "good".
+        // PRE-REDESIGN: spacing + alignment both Tier 3 cap good → overall "good".
         // POST-REDESIGN M6: spacing promoted Tier 2L cap fair; alignment stays Tier 3L cap good.
         // Spacing "fair" → layout-tier 2 (capped at 2 by Tier 2L) → layoutLevel = 2 → layoutRating "fair".
         // Overall = worse(fair, excellent) = "fair".
@@ -3056,13 +3056,13 @@ public class LayoutQualityAssessorTest {
         assertEquals("excellent", result.rating());
     }
 
-    // ---- B59 / Assessor.Redesign M6: Non-orthogonal terminals — Tier 2R cap fair (promoted) ----
+    // ---- Assessor.Redesign M6: Non-orthogonal terminals — Tier 2R cap fair (promoted) ----
 
     @Test
     public void b59_tieredRating_nonOrthPoorAlone_shouldCapOverallAtGood() {
-        // PRE-REDESIGN B59: nonOrth was Tier 3 cap "good".
+        // PRE-REDESIGN: nonOrth was Tier 3 cap "good".
         // POST-REDESIGN M6: nonOrth promoted to Tier 2R cap "fair" — overall now caps at "fair".
-        // 15 non-orth / 20 connections = 75% ratio → "poor" per-metric (B58: >30%)
+        // 15 non-orth / 20 connections = 75% ratio → "poor" per-metric (>30%)
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 0, 50.0, 80, 0, 0, 0, 15, 20, false);
         assertEquals("poor", result.breakdown().get("nonOrthogonalTerminals"));
@@ -3093,7 +3093,7 @@ public class LayoutQualityAssessorTest {
         assertEquals("fair", result.rating());
     }
 
-    // ---- B38: Non-orthogonal terminal detection tests ----
+    // ---- Non-orthogonal terminal detection tests ----
 
     @Test
     public void b38_countNonOrthogonalTerminals_orthogonalPath_shouldReturnZero() {
@@ -3133,7 +3133,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void b38_countNonOrthogonalTerminals_withinTolerance_shouldNotCount() {
-        // dx=3, dy=40 — angular deviation = atan2(40,3) ≈ 85.7° → 4.3° from vertical → below 5° threshold (B57)
+        // dx=3, dy=40 — angular deviation = atan2(40,3) ≈ 85.7° → 4.3° from vertical → below 5° threshold
         List<AssessmentConnection> conns = List.of(
                 new AssessmentConnection("c1", "a", "b", List.of(
                         new double[]{0, 0}, new double[]{3, 40}, new double[]{3, 100}), "", 0));
@@ -3148,7 +3148,7 @@ public class LayoutQualityAssessorTest {
         assertEquals(0, assessor.countNonOrthogonalTerminals(conns, false).count());
     }
 
-    // ---- B57: Angular non-orthogonal terminal detection tests ----
+    // ---- Angular non-orthogonal terminal detection tests ----
 
     @Test
     public void b57_angularDetection_nearVertical_shouldNotFlag() {
@@ -3213,7 +3213,7 @@ public class LayoutQualityAssessorTest {
         assertEquals(0, assessor.countNonOrthogonalTerminals(conns, false).count());
     }
 
-    // ---- B54: Self-element PT rating tolerance tests ----
+    // ---- Self-element PT rating tolerance tests ----
 
     @Test
     public void detectPassThroughs_selfElementOnly_shouldReturnZeroCrossCount() {
@@ -3302,7 +3302,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void rating_groupedView_selfElementPTOnly_shouldStillGetLeniency() {
-        // AC3: Grouped-view leniency gate uses cross-element count only.
+        // Grouped-view leniency gate uses cross-element count only.
         // With crossElementCount=0 (even if self-element PTs exist), leniency applies.
         // crossings=25 → "fair" normally (ratio 2.5 > CROSSING_RATIO_GOOD but ≤ MODERATE).
         // Leniency boosts "fair" → "good".
@@ -3344,7 +3344,7 @@ public class LayoutQualityAssessorTest {
                 "pass", result.ratingBreakdown().get("passThroughs"));
     }
 
-    // ---- B55: Violator ID collection tests ----
+    // ---- Violator ID collection tests ----
 
     @Test
     public void b55_assess_withViolatorIdsFalse_shouldReturnNullViolatorIds() {
@@ -3389,7 +3389,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void b55_assess_withViolatorIdsTrue_passThroughs_shouldExcludeSelfElement() {
-        // Self-element pass-through should NOT be in violatorIds (AC5: cross-element only)
+        // Self-element pass-through should NOT be in violatorIds (cross-element only)
         List<AssessmentNode> nodes = List.of(
                 node("a", 0, 100, 50, 50),
                 node("b", 100, 100, 100, 50));
@@ -3445,7 +3445,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void b55_assess_withViolatorIdsTrue_crossingsExcluded() {
-        // Edge crossings exist but should NOT appear in violatorIds (AC9)
+        // Edge crossings exist but should NOT appear in violatorIds
         List<AssessmentNode> nodes = List.of(
                 node("a", 0, 0, 50, 50),
                 node("b", 200, 0, 50, 50),
@@ -3468,7 +3468,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void b55_assess_withViolatorIdsTrue_emptyMetricsOmitted() {
-        // Well-laid-out view with no violations — violatorIds map should be null (AC10)
+        // Well-laid-out view with no violations — violatorIds map should be null
         List<AssessmentNode> nodes = List.of(
                 node("a", 0, 0, 100, 50),
                 node("b", 200, 0, 100, 50));
@@ -3535,7 +3535,7 @@ public class LayoutQualityAssessorTest {
         assertTrue("Should contain pt-conn", result.violatorIds().contains("pt-conn"));
     }
 
-    // ---- B60: Zero-bendpoint non-orthogonal terminal detection tests ----
+    // ---- Zero-bendpoint non-orthogonal terminal detection tests ----
 
     @Test
     public void b60_countNonOrthogonalTerminals_orthogonalZeroBendpoint_shouldNotCount() {
@@ -3592,7 +3592,7 @@ public class LayoutQualityAssessorTest {
         assertEquals(1, result.zeroBendpointCount());
     }
 
-    // ---- B60: Suggestion text differentiation tests ----
+    // ---- Suggestion text differentiation tests ----
 
     @Test
     public void b60_suggestions_allZeroBP_shouldNotSuggestReRouting() {
@@ -3756,12 +3756,11 @@ public class LayoutQualityAssessorTest {
     }
 
     // ---- M1: Minimum-visible-length guard (Calibration.M1ManualOracle21, 2026-04-27) ----
-    // Tests AC-3A.4: when the visible (post-clip) terminal-segment length is below
+    // When the visible (post-clip) terminal-segment length is below
     // VISIBLE_DIAGONAL_MIN_PX = 3.0, M1 must not flag the connection (sub-perceptible).
     // Calibrated against the V4 manual oracle (id-3b2665e3ff6840708dbed2b3d1415613)
     // where 20 of 21 violators had visible length 1.0–1.3px from BPs Archi stored
-    // 1px off the perimeter face line. See investigation table at
-    // _bmad-output/implementation-artifacts/m1-manual-oracle-21-investigation-2026-04-27.md.
+    // 1px off the perimeter face line.
 
     @Test
     public void m1_shouldNotFlag_whenBpExteriorButVisibleSegmentSubperceptible_lengthBelowThreshold() {
@@ -4122,7 +4121,7 @@ public class LayoutQualityAssessorTest {
     @Test
     public void m4_shouldFlagWhenSegmentHugsOwnSourceFace() {
         // A segment running along its own source's RIGHT face FLAGS
-        // (story M4.RemoveSelfExclusion 2026-04-27 — self-exclusion removed; any element face is in scope).
+        // (M4.RemoveSelfExclusion 2026-04-27 — self-exclusion removed; any element face is in scope).
         AssessmentNode source = node("src", 100, 100, 100, 100); // RIGHT at x=200, y-range [100,200]
         AssessmentNode target = node("tgt", 500, 0, 50, 30);
         // Vertical at x=200 hugs source's own RIGHT face — post-removal, this is in scope and flags.
@@ -4140,7 +4139,7 @@ public class LayoutQualityAssessorTest {
     @Test
     public void m4_shouldFlagWhenSegmentHugsOwnTargetFace() {
         // A segment running along its own target's LEFT face FLAGS
-        // (story M4.RemoveSelfExclusion 2026-04-27).
+        // (M4.RemoveSelfExclusion 2026-04-27).
         AssessmentNode source = node("src", 0, 0, 50, 30);
         AssessmentNode target = node("tgt", 200, 100, 100, 200); // LEFT at x=200, y-range [100,300]
         // Vertical at x=200 hugs target's own LEFT face — post-removal, this is in scope and flags.
@@ -4218,6 +4217,33 @@ public class LayoutQualityAssessorTest {
 
         assertEquals("M5: 3 connections (below threshold) — quality remains 1.0",
                 1.0, result.hubPortQualityScore(), 1e-9);
+    }
+
+    @Test
+    public void m5_shouldReportWorstFace_whenHubHasHealthyAndDegradedFace() {
+        // IMPROVEMENT ASSERTION.
+        // M5 view-aggregate is now min(faceQuality) — the WORST hub face — NOT the mean across
+        // faces. A hub with one healthy face (LEFT 4/4 q1.0) and one degraded face (RIGHT 7/5
+        // q0.714) must report the DEGRADED face (0.714 → "fair"), not the buoyed mean
+        // (0.857 → "good"). Reproduces the live View-G IAM probe shape that the mean masked
+        // (RIGHT 7 conns / 5 slots q0.71 averaged with LEFT 4/4 q1.0 → 0.86 "good").
+        // Pre-fix (mean) this asserts 0.857 and FAILS; post-fix (min) it reports 0.714.
+        AssessmentNode hub = node("hub", 200, 100, 100, 200); // x ∈ [200,300], y ∈ [100,300]
+        List<AssessmentConnection> conns = new ArrayList<>();
+        // RIGHT face (x=300): 7 conns, slots {120,120,160,200,240,280,280} → 5 distinct → 5/7 = 0.714.
+        double[] rightYs = {120, 120, 160, 200, 240, 280, 280};
+        for (int i = 0; i < rightYs.length; i++) conns.add(hubFaceSpoke("r" + i, hub, 300, rightYs[i]));
+        // LEFT face (x=200): 4 conns, slots {120,180,240,290} → 4 distinct → 1.0.
+        double[] leftYs = {120, 180, 240, 290};
+        for (int i = 0; i < leftYs.length; i++) conns.add(hubFaceSpoke("l" + i, hub, 200, leftYs[i]));
+
+        LayoutAssessmentResult result = assessor.assess(List.of(hub), conns, true);
+
+        assertEquals("M5 min-aggregate: worst hub face (RIGHT 7/5 = 0.714) drives the score, "
+                + "NOT the buoyed mean 0.857",
+                5.0 / 7.0, result.hubPortQualityScore(), 1e-9);
+        assertEquals("M5: two hub faces reported", 2,
+                result.hubPortQualityFaces().stream().filter(d -> "hub".equals(d.elementId())).count());
     }
 
     // Assessor.Redesign code-review H3+M2 (2026-04-27): when terminal BPs are exterior to the
@@ -4336,6 +4362,25 @@ public class LayoutQualityAssessorTest {
                 "", 1);
     }
 
+    /**
+     * Builds a hub→(phantom peer) spoke whose source-side terminal bendpoint sits exactly ON the
+     * hub face perimeter line (faceX, slotY) → that face, slot = slotY. On this 3-point path the
+     * face BP is {@code path.get(1)}, which serves as BOTH the source terminal and (as
+     * {@code path.get(size-2)}) the target terminal; the asymmetry is harmless because the phantom
+     * target id is not in the node list, so its terminal resolves to a null node and is skipped.
+     * Only the hub-side terminal contributes to M5. Used to construct multi-face hub fixtures.
+     */
+    private static AssessmentConnection hubFaceSpoke(String id, AssessmentNode hub,
+                                                      double faceX, double slotY) {
+        double hcx = hub.x() + hub.width() / 2.0;
+        double hcy = hub.y() + hub.height() / 2.0;
+        double farX = faceX < hcx ? faceX - 200 : faceX + 200;
+        return new AssessmentConnection(id, hub.id(), id + "_peer",
+                List.of(new double[]{hcx, hcy}, new double[]{faceX, slotY},
+                        new double[]{farX, slotY}),
+                "", 1);
+    }
+
     /** Builds a connection hub→peer BOTTOM face at the given slot X. Path: hub center → BP on BOTTOM face → peer center. */
     private static AssessmentConnection connFromHubBottom(String id, AssessmentNode hub,
                                                            AssessmentNode peer, double slotX) {
@@ -4350,7 +4395,7 @@ public class LayoutQualityAssessorTest {
                 "", 1);
     }
 
-    // ---- R8: Corridor Utilisation (Story WCU.RegressionTest, 2026-05-03) ----
+    // ---- R8: Corridor Utilisation ----
 
     @Test
     public void r8_emptyConnections_returnsVacuous1() {
@@ -4560,7 +4605,7 @@ public class LayoutQualityAssessorTest {
 
     @Test
     public void m6_demotion_crossingsShouldNoLongerCapAtFair() {
-        // Pre-redesign B38: many crossings → Tier 2 cap fair. Under M6: Tier 3R cap good.
+        // Pre-redesign: many crossings → Tier 2 cap fair. Under M6: Tier 3R cap good.
         // 25 crossings, low PT, no other defects. Pre-redesign: fair. Under M6: good.
         LayoutQualityAssessor.RatingResult result = assessor.computeRatingWithBreakdown(
                 0, 25, 50.0, 80, 0, 0, 0, 0, 10, false,
@@ -4573,10 +4618,10 @@ public class LayoutQualityAssessorTest {
                 "good", result.routingRating());
     }
 
-    // ---- M2: AC-9-related — assess_withB53Fields_shouldChangeRating_underM6Promotions (REPLACES old test) ----
+    // ---- M2: assess_withB53Fields_shouldChangeRating_underM6Promotions (REPLACES old test) ----
     //
     // The previous `assess_withB53Fields_shouldNotChangeRating` (REPLACED 2026-04-26) asserted
-    // that B53 informational fields had NO rating impact. Under M6 the OPPOSITE is required:
+    // that those informational fields had NO rating impact. Under M6 the OPPOSITE is required:
     // parentLabelObscuredCount and labelTruncationCount are explicitly promoted (Tier 1L and
     // Tier 2R respectively) — when they're nonzero the rating MUST move.
     @Test
@@ -4599,11 +4644,11 @@ public class LayoutQualityAssessorTest {
                 cleanResult.rating(), promotedResult.rating());
     }
 
-    // ---- A-gated M4 escalation (story W3 backlog-terminal-egress-edge-hug-quality, 2026-05-21) ----
+    // ---- A-gated M4 escalation ----
     //
     // M4 connectionEdgeCoincidence is Tier-2R cap-fair UNTIL the count reaches
     // EDGE_COINCIDENCE_EGREGIOUS_MAX (7 = Retail Bank View G), at which point it escalates to
-    // Tier-1R so overall reads "poor" (owner-ratified guardrail beside the Lever-B router fix).
+    // Tier-1R so overall reads "poor" (ratified guardrail beside the Lever-B router fix).
     // Synthetic counts isolate the escalation logic in computeRoutingTierLevel; detection is
     // covered by the m4_* tests above. No existing fixture has M4 >= 7, so no prior overall pin
     // moves (Task-1.3 re-pin reduces to "verify none break").
@@ -4628,7 +4673,7 @@ public class LayoutQualityAssessorTest {
                 "good", m4Good.rating());
         assertEquals("M4=5 cap-fair -> overall fair (baseline behaviour preserved)",
                 "fair", m4FairMax.rating());
-        // The crux the owner objected to: M4=6 is already 'poor' in the breakdown but stays
+        // The crux of the objection: M4=6 is already 'poor' in the breakdown but stays
         // masked at overall=fair (cap-fair) because 6 < EGREGIOUS. Intentionally preserved for
         // the common forced-hug case.
         assertEquals("M4=6 poor sub-rating but below egregious -> overall still fair (cap-fair)",

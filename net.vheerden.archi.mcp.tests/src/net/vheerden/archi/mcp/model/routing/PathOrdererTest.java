@@ -11,7 +11,7 @@ import org.junit.Test;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Tests for {@link PathOrderer} (Story 10-7a).
+ * Tests for {@link PathOrderer}.
  * Pure-geometry tests — no OSGi runtime required.
  */
 public class PathOrdererTest {
@@ -23,7 +23,7 @@ public class PathOrdererTest {
         orderer = new PathOrderer();
     }
 
-    // --- Test 4.1: Shared horizontal corridor — crossing detected (AC #1) ---
+    // --- Test 4.1: Shared horizontal corridor — crossing detected ---
 
     @Test
     public void shouldDetectCrossing_whenHorizontalCorridorConnectionsCrossUnnecessarily() {
@@ -65,7 +65,7 @@ public class PathOrdererTest {
         assertBendpointsEqual(bendpointLists.get(1), result.get(1));
     }
 
-    // --- Test 4.2: Shared vertical corridor — crossing detected (AC #1) ---
+    // --- Test 4.2: Shared vertical corridor — crossing detected ---
 
     @Test
     public void shouldDetectCrossing_whenVerticalCorridorConnectionsCrossUnnecessarily() {
@@ -99,7 +99,7 @@ public class PathOrdererTest {
         assertEquals(1, crossing.connectionIndexB());
     }
 
-    // --- Test 4.3: Topological crossing preserved — different corridors (AC #2) ---
+    // --- Test 4.3: Topological crossing preserved — different corridors ---
 
     @Test
     public void shouldNotDetectCrossing_whenDifferentCorridors() {
@@ -135,7 +135,7 @@ public class PathOrdererTest {
         assertBendpointsEqual(originalB, result.get(1));
     }
 
-    // --- Test 4.4: No shared segments — all paths unchanged (AC #3) ---
+    // --- Test 4.4: No shared segments — all paths unchanged ---
 
     @Test
     public void shouldNotChangePaths_whenNoSharedSegments() {
@@ -163,7 +163,7 @@ public class PathOrdererTest {
         assertEquals(300, result.get(1).get(0).y());
     }
 
-    // --- Test 4.5: Single connection — no-op (AC #3) ---
+    // --- Test 4.5: Single connection — no-op ---
 
     @Test
     public void shouldReturnUnchanged_whenSingleConnection() {
@@ -184,7 +184,7 @@ public class PathOrdererTest {
         assertBendpointsEqual(original, result.get(0));
     }
 
-    // --- Test 4.6: Mixed groups — horizontal and vertical groups processed independently (AC #4) ---
+    // --- Test 4.6: Mixed groups — horizontal and vertical groups processed independently ---
 
     @Test
     public void shouldProcessHorizontalAndVerticalGroupsIndependently() {
@@ -233,7 +233,7 @@ public class PathOrdererTest {
         assertTrue("Should have vertical group", groups.containsKey("V:300"));
     }
 
-    // --- Test: no crossing when endpoint ordering matches segment ordering (AC #2) ---
+    // --- Test: no crossing when endpoint ordering matches segment ordering ---
 
     @Test
     public void shouldNotDetectCrossing_whenOrderingsAgree() {

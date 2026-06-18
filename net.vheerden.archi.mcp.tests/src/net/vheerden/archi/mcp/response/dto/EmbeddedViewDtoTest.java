@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
 
 /**
- * Tests for {@link EmbeddedViewDto} record (Story 14-6 / G8).
+ * Tests for {@link EmbeddedViewDto} record (G8).
  */
 public class EmbeddedViewDtoTest {
 

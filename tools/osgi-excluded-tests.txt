@@ -1,0 +1,39 @@
+# M0-1 headless test harness — EXCLUDED-CLASS MANIFEST (the single source of truth for exclusions)
+#
+# Classes listed here are NOT run by the default `tools/run-tests.sh` headless pass because they
+# cannot run (or cannot pass) in a plain headless JVM. Each line is a fully-qualified class name
+# followed by ` # <reason>`. The harness reads THIS file — exclusions live in data, not code (AC-4).
+# `tools/run-tests.sh` scans net.vheerden.archi.mcp.tests/src for *Test.java and subtracts this set.
+#
+# Produced by classifying ALL 190 *Test.java classes ONCE (TASK-ZERO, 2026-06-13): compile from
+# source, run each headlessly, observe. A class is excluded only if it (a) cannot class-init
+# headlessly (OSGi/Eclipse singleton), (b) is ENTIRELY assumption-skipped headlessly so it
+# contributes zero executed tests (fails the AC-5 testsRun>0 guard), or (c) requires a live SWT
+# display. Everything else stays in the headless "junit" bucket. 184 of 190 run headlessly.
+#
+# To run the excluded set, use Eclipse PDE (the owner's `AllPluginTestsRunner` gate) for the
+# OSGi/Assume classes, and `tools/run-tests.sh --swt <Class>` for the display-required ones.
+#
+# CI status (m0-2b, 2026-06-14): these 9 classes STAY excluded from the headless `ci-junit` lane
+# (scan ∖ this manifest) — removing any line would make ci-junit's scan try to run it in the plain
+# headless JVM and fail. They are run by the SEPARATE `ci-pde` lane in explicit-FQCN mode, which
+# does NOT read this manifest, so lane-1's 181-class count is unchanged. See per-group notes below.
+
+# --- Group A: entirely assumption-skipped or cannot class-init headlessly (need OSGi/Archi runtime) ---
+# CI: DEFERRED from ci-pde (m0-2b SPIKE). The provisioned Archi RCP ships no PDE JUnit runtime
+# bundles, so a headless coretestapplication needs extra bundle provisioning (audit: "diminishing
+# returns"). These 6 stay owner-gated via the Eclipse AllPluginTestsRunner. Backlog row:
+# ci-pde-osgi-pde-testapp-spike.
+net.vheerden.archi.mcp.server.McpServerManagerTest                          # all tests Assume IEditorModelManager/OSGi — 0 run headlessly
+net.vheerden.archi.mcp.ui.McpPreferenceInitializerTest                      # all tests Assume ConfigurationPreferences/OSGi — 0 run headlessly
+net.vheerden.archi.mcp.model.ViewExportServiceTest                          # all tests Assume PDF/JPG export runtime — 0 run headlessly
+net.vheerden.archi.mcp.model.ImagePathArchiveValidationTest                 # all tests Assume IArchiveManager — 0 run headlessly
+net.vheerden.archi.mcp.integration.DeleteViewCascadeIntegrationTest         # Assume IEditorModelManager/save-reload — 0 run headlessly
+net.vheerden.archi.mcp.integration.RemoveFromViewCascadeIntegrationTest     # Assume IEditorModelManager/save-reload — 0 run headlessly
+
+# --- Group B: require a live SWT display (pass with `--swt` / xvfb; AC-9 escape hatch) ---
+# CI: RUN in the `ci-pde` lane via `xvfb-run bash tools/run-tests.sh <these 3 FQCNs>` (explicit-FQCN
+# mode; `--swt` is a Linux no-op so xvfb provides the display). m0-2b verified 405/405 GREEN.
+net.vheerden.archi.mcp.model.SwtUiThreadDispatcherTest                      # SWT "Invalid thread access" headless; 10/10 GREEN with --swt
+net.vheerden.archi.mcp.model.SpacingControlLoopPartialCommitRegressionTest  # SWT display required; 19/19 GREEN with --swt
+net.vheerden.archi.mcp.model.ArchiModelAccessorImplTest                     # add-to-view GEF/SWT path needs a display (16 err headless); 376/376 GREEN with --swt

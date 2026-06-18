@@ -16,15 +16,14 @@ import net.vheerden.archi.mcp.model.routing.TerminalEgressClearancePass.Snapshot
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Unit tests for {@link TerminalEgressClearancePass} (story
- * {@code backlog-terminal-egress-corridor-aware-clearance}, W3 Lever-B successor).
+ * Unit tests for {@link TerminalEgressClearancePass} (W3 Lever-B successor).
  *
  * <p>Pure-geometry tests, mirroring {@code TerminalSegmentCorridorMigratorTest}. The first
  * three are the validated v1 core transform (push-off-face, no-room-no-op,
  * already-perpendicular). The remaining tests pin the two successor fixes: Fix-2a
  * (connection-gap-aware room search), Fix-2b (cheap view-level pre-gate), and Fix-1
- * (final-state net-improve rollback). The end-to-end M4 drop on D/G is the job of the
- * Gate-2 agent-in-loop paired-arc on the scratch model; these pins lock the geometry.
+ * (final-state net-improve rollback). The end-to-end M4 drop on D/G is verified by
+ * live integration testing; these pins lock the geometry.
  */
 public class TerminalEgressClearancePassTest {
 
@@ -66,7 +65,7 @@ public class TerminalEgressClearancePassTest {
         return list;
     }
 
-    // Source S: bottom edge y=160, B71 BOTTOM line y=161, center x=140.
+    // Source S: bottom edge y=160, BOTTOM face line y=161, center x=140.
     private static final RoutingRect S = new RoutingRect(100, 100, 80, 60, "S");
     private static final RoutingRect T = new RoutingRect(340, 300, 80, 50, "T");
 
@@ -78,7 +77,7 @@ public class TerminalEgressClearancePassTest {
      * The View-D shape: terminal on S's BOTTOM face (y=161), an immediate horizontal parallel
      * run at y=161 (1px under the edge — the M4 hug), then down to the target. Expect: one
      * proposal lengthening the perpendicular egress to clearance (y=168), the terminal
-     * bendpoint UNCHANGED (B71), and an inserted A' producing a clean L.
+     * bendpoint UNCHANGED (terminal anchoring preserved), and an inserted A' producing a clean L.
      */
     @Test
     public void egressClearance_pushesParallelHugOffOwnFace() {
@@ -255,14 +254,14 @@ public class TerminalEgressClearancePassTest {
     // Target-side egress (sourceSide=false) — the reversal + index branch
     // ===================================================================
 
-    // Target TT: top edge y=300, B71 TOP line y=299, center x=340.
+    // Target TT: top edge y=300, TOP face line y=299, center x=340.
     private static final RoutingRect TT = new RoutingRect(300, 300, 80, 60, "TT");
 
     /**
      * The hug is on the TARGET face (TT's TOP, y=299), and the source side has a clean
      * perpendicular egress (no source hug) — so the proposal must come from the target-side
      * branch (`sourceSide=false`): A' inserted at lastIdx-1, the target terminal unchanged at
-     * lastIdx (B71 via the reversed-path predicate), pushed up to y=292 (8px above the edge).
+     * lastIdx (terminal anchoring via the reversed-path predicate), pushed up to y=292 (8px above the edge).
      */
     @Test
     public void egressClearance_targetSide_pushesHugOffTargetFace() {
@@ -281,7 +280,7 @@ public class TerminalEgressClearancePassTest {
         assertEquals("target-side egress pushed to y=292 (8px above the top edge)",
                 List.of(bp(140, 161), bp(140, 292), bp(340, 292), bp(340, 299)),
                 pr.newPath());
-        // B71: the target terminal (last bendpoint) is unchanged.
+        // Terminal anchoring: the target terminal (last bendpoint) is unchanged.
         assertEquals("target terminal anchor unchanged", bp(340, 299),
                 pr.newPath().get(pr.newPath().size() - 1));
     }
@@ -350,7 +349,6 @@ public class TerminalEgressClearancePassTest {
 
     // ===================================================================
     // G successor — Fix-1 (ancestor-aware Tier-1) + Fix-2 (retry past tier1-rejected)
-    // (story backlog-terminal-egress-corridor-aware-g-container-nested-hub, AC-8)
     //
     // Geometry mirrors pin #1 (S BOTTOM face, source-side, push DOWN y=160+k). The container /
     // foreign elements live in `allObstacles`; `conn.obstacles()` is supplied DISTINCTLY (the
@@ -367,7 +365,7 @@ public class TerminalEgressClearancePassTest {
     private static final RoutingRect FAR = new RoutingRect(600, 400, 40, 40, "FAR");
 
     /**
-     * AC-8(a) — container-nested hub. The only clean approach (y=168) lies inside the target's
+     * Container-nested hub. The only clean approach (y=168) lies inside the target's
      * ancestor container CONTAINER. With the ancestor EXCLUDED from conn.obstacles() the pass now
      * clears it; with the ancestor present in the passthrough set (the predecessor's behaviour) every
      * candidate in [8,64] pierces the container interior → sound no-op.
@@ -398,7 +396,7 @@ public class TerminalEgressClearancePassTest {
     }
 
     /**
-     * AC-8(b) — G-Fix-2 retry. A GENUINE foreign element F (y 162..186) sits between the face and the
+     * G-Fix-2 retry. A GENUINE foreign element F (y 162..186) sits between the face and the
      * corridor: the naive candidate y=168 (8px off the S BOTTOM face at y=160) clears element edges +
      * connection gaps but is Tier-1-rejected (pierces F's interior). The search advances past F to the
      * smallest clean coordinate within the 64px cap: y=191, which clears F's bottom edge (y=186) by
@@ -431,7 +429,7 @@ public class TerminalEgressClearancePassTest {
     }
 
     /**
-     * AC-8(c) — over-exclusion negative guard. A GENUINE foreign element (y 162..230) spans the whole
+     * Over-exclusion negative guard. A GENUINE foreign element (y 162..230) spans the whole
      * [8,64] push range and is present in conn.obstacles() (it is NOT an ancestor). Fix-1 must NOT
      * exclude it: every candidate pierces its interior → sound no-op (a real passthrough is still
      * rejected). Proves the ancestor-exclusion does not leak into genuine foreign elements.
@@ -449,8 +447,8 @@ public class TerminalEgressClearancePassTest {
     }
 
     /**
-     * AC-8(d) — ancestor excluded but a genuine SIBLING blocks → sound no-op (the deferred-relocation
-     * case, AC-7). The ancestor CONTAINER is correctly excluded (control: with no sibling it clears),
+     * Ancestor excluded but a genuine SIBLING blocks → sound no-op (the deferred-relocation
+     * case). The ancestor CONTAINER is correctly excluded (control: with no sibling it clears),
      * but a genuine sibling element packed against the face spans the whole [8,64] range, so no clean
      * coordinate exists within the 64px cap. Relocation beyond the cap is OUT OF SCOPE (a future
      * lever) → the pass soundly no-ops rather than forcing a long detour.
@@ -468,7 +466,7 @@ public class TerminalEgressClearancePassTest {
         assertEquals(168, control.get(0).newPath().get(2).y());
 
         // Ancestor excluded, but a genuine sibling spans the range → no clean coordinate in [8,64]
-        // → sound no-op (deferred relocation, AC-7).
+        // → sound no-op (deferred relocation).
         List<EgressProposal> noop = pass.evaluate(
                 conns(conn("c1", S, T, List.of(sibling))),
                 paths(path(bp(140, 161), bp(360, 161), bp(360, 300))),

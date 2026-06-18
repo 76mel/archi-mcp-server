@@ -3,8 +3,7 @@ package net.vheerden.archi.mcp.response.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Data Transfer Object for an embedded view-reference visual object on a view
- * (Story 14-6 / G8).
+ * Data Transfer Object for an embedded view-reference visual object on a view.
  *
  * <p>A view-reference is a typed {@code IDiagramModelReference} visual object
  * that embeds another ArchiMate view as a clickable thumbnail — the
@@ -16,8 +15,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * <p>Field {@code referencedViewId} may be omitted from JSON (via
  * {@code @JsonInclude(NON_NULL)}) if Archi's EMF model has cleaned the
- * cross-reference after a delete-cascade — see Task 0.9 disposition in the
- * Story 14-6 spec.</p>
+ * cross-reference after a delete-cascade.</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record EmbeddedViewDto(

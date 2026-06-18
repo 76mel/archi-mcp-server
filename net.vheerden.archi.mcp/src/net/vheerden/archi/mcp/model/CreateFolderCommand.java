@@ -7,7 +7,7 @@ import org.eclipse.gef.commands.Command;
 import com.archimatetool.model.IFolder;
 
 /**
- * GEF Command that adds a new folder to a parent folder (Story 8-5).
+ * GEF Command that adds a new folder to a parent folder.
  *
  * <p>The folder must be fully configured (name, documentation, properties)
  * before this command is created. The command only handles placement in the

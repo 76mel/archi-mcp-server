@@ -33,7 +33,7 @@ LLM Client (Claude CLI, Cline, etc.)
 | Streamable-HTTP | `/mcp/*` | v2025-06-18 | Claude CLI, modern MCP clients |
 | SSE | `/sse/*` (event stream), `/sse/message` (client POST) | v2024-11-05 compat | Cline, older MCP clients |
 
-Both transports are registered as async-enabled servlets on the same Jetty server. Each gets its own `McpSyncServer` so they operate independently. Tools registered on one transport must also be registered on the other (handled by `McpServerManager` in Story 1.4+).
+Both transports are registered as async-enabled servlets on the same Jetty server. Each gets its own `McpSyncServer` so they operate independently. Tools registered on one transport must also be registered on the other (handled by `McpServerManager`).
 
 ### Key Technical Decisions
 

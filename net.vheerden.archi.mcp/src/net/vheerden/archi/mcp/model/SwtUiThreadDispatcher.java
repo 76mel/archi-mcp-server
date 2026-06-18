@@ -17,8 +17,7 @@ import org.eclipse.swt.widgets.Display;
  * {@code TreeModelView.doRefreshFromNotifications} listener then attempts
  * {@code Display.getCurrent().asyncExec(Runnable)} — but
  * {@code Display.getCurrent()} returns {@code null} off the UI thread,
- * producing a {@link NullPointerException} documented in
- * {@code _bmad-output/implementation-artifacts/control-loop-redesign-empirical-2026-05-15-session9/runtime-log-stack-traces.md}.
+ * producing a {@link NullPointerException}.
  * The fix routes the execute/undo calls through {@link Display#syncExec}
  * (which blocks the reactor thread until the Runnable completes on the UI
  * thread) so the property-change tail fires from the UI thread, satisfying
@@ -28,9 +27,8 @@ import org.eclipse.swt.widgets.Display;
  * inside the Runnable is captured and re-thrown from the calling thread.
  * The {@link RuntimeException} path is byte-preserved (the SAME instance is
  * re-thrown), keeping the existing Session-8 partial-throw catch semantics
- * in {@link SpacingControlLoop} unchanged. Story
- * {@code backlog-control-loop-st-passhonest-branch-agent-in-loop} (row 775)
- * AC-7(a) widened the capture from {@code RuntimeException} to
+ * in {@link SpacingControlLoop} unchanged. A later change
+ * widened the capture from {@code RuntimeException} to
  * {@code Throwable} so an off-UI-thread {@link Error} (e.g.
  * {@link AssertionError}/{@link LinkageError}) raised inside the marshalled
  * action is NOT silently swallowed by {@code Display.syncExec} — it is
@@ -62,7 +60,7 @@ final class SwtUiThreadDispatcher {
      * {@link Throwable} thrown inside {@code action} is re-thrown from the
      * calling thread (the {@link RuntimeException} path re-throws the SAME
      * instance — byte-preserved; {@link Error} is likewise propagated per
-     * row-775 AC-7(a)).
+     * row-775).
      *
      * @param action work to run; non-null
      */
@@ -75,8 +73,7 @@ final class SwtUiThreadDispatcher {
             action.run();
             return;
         }
-        // Story `backlog-control-loop-st-passhonest-branch-agent-in-loop`
-        // (row 775) AC-7(a): capture Throwable (not just RuntimeException)
+        // (row 775): capture Throwable (not just RuntimeException)
         // across the SWT-thread boundary so an off-UI-thread Error is not
         // silently swallowed by syncExec. RuntimeException re-throw is
         // byte-preserved (same instance); Error is re-thrown; a checked

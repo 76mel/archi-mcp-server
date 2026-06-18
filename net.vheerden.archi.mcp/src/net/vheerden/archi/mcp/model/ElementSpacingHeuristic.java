@@ -8,8 +8,7 @@ package net.vheerden.archi.mcp.model;
  * 182-187, element-spacing column. Boundaries match the table's
  * {@code ≤15 / 16-30 / >30} exactly. Pinned by JUnit
  * {@code ElementSpacingHeuristicTest} (pure-unit, all six branches + boundary
- * tests) and {@code ApplyElementSpacingRecommendationsToolTest} (AC-7.1,
- * AC-7.7).</p>
+ * tests) and {@code ApplyElementSpacingRecommendationsToolTest}.</p>
  *
  * <p>This is an EMF-free utility class so the JUnit pin can run as a pure-unit
  * test (no OSGi context required, no transitive class-loading of

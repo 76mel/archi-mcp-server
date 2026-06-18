@@ -24,7 +24,7 @@ import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
- * Handler for specialization (profile) management tools (Story C3c).
+ * Handler for specialization (profile) management tools.
  *
  * <p>Provides four tools:</p>
  * <ul>
@@ -39,7 +39,7 @@ import net.vheerden.archi.mcp.session.SessionManager;
  * batch / approval modes). The query tool talks to the accessor directly.</p>
  *
  * <p>Relationship to inline specialization on element/relationship mutations
- * (Story C3b): {@code create-element}/{@code create-relationship} accept an
+ * {@code create-element}/{@code create-relationship} accept an
  * inline {@code specialization} parameter that auto-creates the profile if
  * needed. The dedicated tools in this handler exist for explicit lifecycle
  * management — pre-registering vocabulary, renaming for clarity, deleting
@@ -282,7 +282,7 @@ public class SpecializationHandler {
             Map<String, Object> args = request.arguments();
             String name = HandlerUtils.requireStringParam(args, "name");
             String conceptType = HandlerUtils.requireStringParam(args, "conceptType");
-            // Story 14-8: newName is now optional — at-least-one-of guard enforced at accessor.
+            // newName is optional — at-least-one-of guard enforced at accessor.
             String newName = HandlerUtils.optionalStringParam(args, "newName");
             String imagePath = HandlerUtils.optionalStringParam(args, "imagePath");
             boolean clearImagePath = HandlerUtils.optionalBooleanParam(args, "clearImagePath");

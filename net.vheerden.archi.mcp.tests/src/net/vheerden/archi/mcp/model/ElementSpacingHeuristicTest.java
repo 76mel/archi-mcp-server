@@ -8,8 +8,7 @@ import org.junit.Test;
  * JUnit pin for {@link ElementSpacingHeuristic#targetSpacingForConnectionCount(int, boolean)}.
  * Pure-unit tests (no OSGi).
  *
- * <p>Per Story RoutingPreconditions.HubAwareSpacingHeuristics AC-7 primary —
- * pins the entire 2x3 heuristic table (no-large-hubs / has-large-hubs ×
+ * <p>Pins the entire 2x3 heuristic table (no-large-hubs / has-large-hubs ×
  * ≤15 / 16-30 / &gt;30) plus the four 15/16/30/31 boundary transitions.
  * Sibling-symmetric with {@link GroupSpacingHeuristicTest}.</p>
  *
@@ -141,16 +140,14 @@ public class ElementSpacingHeuristicTest {
     }
 
     // ------------------------------------------------------------------
-    // AC-7.3 — Control-loop honours heuristic target as upper bound
+    // Control-loop honours heuristic target as upper bound
     // ------------------------------------------------------------------
     //
-    // Story `backlog-convenience-tool-control-loop-architectural-redesign`
-    // AC-7.3: "EXTEND existing ElementSpacingHeuristicTest + GroupSpacing-
-    // HeuristicTest — the heuristic table values are reused unchanged by
+    // The heuristic table values are reused unchanged by
     // the control loop; assert that the control loop's
     // decideNextStepDelta(...) honours the heuristic target as the upper
     // bound across all six element-spacing branches + all nine group-
-    // spacing branches."
+    // spacing branches.
     //
     // Each branch test asserts: when SpacingIterationDecision.decideNextStep
     // is called with currentSpacingPx == heuristic-target, it returns

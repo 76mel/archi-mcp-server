@@ -3,7 +3,7 @@ package net.vheerden.archi.mcp.response.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Data Transfer Object for move-to-folder operation results (Story 8-5).
+ * Data Transfer Object for move-to-folder operation results.
  *
  * <p>Reports what was moved and where it was moved from/to. The
  * {@code elementType} field is only populated for ArchiMate elements;

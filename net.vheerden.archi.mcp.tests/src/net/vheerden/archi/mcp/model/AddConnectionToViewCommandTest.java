@@ -17,7 +17,7 @@ import com.archimatetool.model.IDiagramModelArchimateConnection;
 import com.archimatetool.model.IDiagramModelArchimateObject;
 
 /**
- * Tests for {@link AddConnectionToViewCommand} (Story 7-7).
+ * Tests for {@link AddConnectionToViewCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * connect (execute), disconnect (undo), and reconnect (redo) behavior.</p>

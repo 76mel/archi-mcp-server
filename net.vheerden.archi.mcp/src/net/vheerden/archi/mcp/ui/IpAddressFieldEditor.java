@@ -4,6 +4,7 @@ import java.util.regex.Pattern;
 
 import org.eclipse.jface.preference.StringFieldEditor;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Text;
 
 /**
  * A field editor for IP address input with validation.
@@ -45,5 +46,17 @@ public class IpAddressFieldEditor extends StringFieldEditor {
     @Override
     protected boolean doCheckState() {
         return IP_PATTERN.matcher(getTextControl().getText()).matches();
+    }
+
+    /**
+     * Exposes the underlying text control so the preference page can attach an exposure-warning
+     * {@link org.eclipse.jface.fieldassist.ControlDecoration} to the bind-address field. The text
+     * control is filled in by the three-arg ({@code parent}) constructor, so this is non-null once
+     * the editor has been constructed with a parent composite (callers should still null-check).
+     *
+     * @return the bind-address text control, or null if no parent composite was supplied
+     */
+    public Text getBindTextControl() {
+        return getTextControl();
     }
 }

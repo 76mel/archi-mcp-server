@@ -5,7 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Result DTO for the resize-elements-to-fit tool (Story B48).
+ * Result DTO for the resize-elements-to-fit tool.
  *
  * @param viewId           the view whose elements were resized
  * @param resizedCount     number of elements that were actually resized

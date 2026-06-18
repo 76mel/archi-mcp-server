@@ -7,7 +7,7 @@ import java.util.Map;
 import org.junit.Test;
 
 /**
- * Tests for {@link BulkOperation} DTO validation (Story 7-5).
+ * Tests for {@link BulkOperation} DTO validation.
  */
 public class BulkOperationTest {
 
@@ -25,7 +25,7 @@ public class BulkOperationTest {
         op.validate();
     }
 
-    // ---- Story 14-7 (G1) ----
+    // ---- G1 ----
 
     @Test
     public void shouldAcceptG1ParamsInCreateRelationshipBulkOp_AC2() {
@@ -160,11 +160,11 @@ public class BulkOperationTest {
 
     @Test
     public void shouldHaveTwentySevenSupportedTools() {
-        // Story 14-8 (G16): added add-image-to-view (26→27).
+        // G16: added add-image-to-view (26→27).
         assertEquals(27, BulkOperation.SUPPORTED_TOOLS.size());
-        // Story 14-8: add-image-to-view (standalone IDiagramModelImage visuals)
+        // add-image-to-view (standalone IDiagramModelImage visuals)
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-image-to-view"));
-        // Story C3c: specialization profile management tools
+        // specialization profile management tools
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("create-specialization"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-specialization"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("delete-specialization"));
@@ -172,11 +172,11 @@ public class BulkOperationTest {
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("create-relationship"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("create-view"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-element"));
-        // Story C10: relationship update tool
+        // relationship update tool
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-relationship"));
-        // Story 8-7: view update tool
+        // view update tool
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-view"));
-        // Story 14-3 (G6): model metadata update tool
+        // G6: model metadata update tool
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-model"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-to-view"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-connection-to-view"));
@@ -184,19 +184,19 @@ public class BulkOperationTest {
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-view-object"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-view-connection"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("clear-view"));
-        // Story 8-4: delete tools
+        // delete tools
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("delete-element"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("delete-relationship"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("delete-view"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("delete-folder"));
-        // Story 8-5: folder mutation tools
+        // folder mutation tools
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("create-folder"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("update-folder"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("move-to-folder"));
-        // Story 8-6: visual grouping tools
+        // visual grouping tools
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-group-to-view"));
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-note-to-view"));
-        // Story 14-6 (G8): view-reference placement tool
+        // G8: view-reference placement tool
         assertTrue(BulkOperation.SUPPORTED_TOOLS.contains("add-view-reference-to-view"));
     }
 

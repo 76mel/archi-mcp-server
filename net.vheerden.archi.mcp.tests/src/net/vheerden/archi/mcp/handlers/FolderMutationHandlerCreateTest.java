@@ -25,7 +25,7 @@ import net.vheerden.archi.mcp.response.dto.FolderDto;
 import net.vheerden.archi.mcp.response.dto.MoveResultDto;
 
 /**
- * Tests for {@link FolderMutationHandler} create-folder tool (Story 8-5).
+ * Tests for {@link FolderMutationHandler} create-folder tool.
  */
 public class FolderMutationHandlerCreateTest {
 

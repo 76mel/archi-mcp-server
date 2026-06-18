@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.response.dto;
 
 /**
- * Response DTO for a move recommendation to unblock failed connection routes (Story 10-31).
+ * Response DTO for a move recommendation to unblock failed connection routes.
  *
  * @param elementId           view object ID of the blocking element
  * @param elementName         human-readable name of the blocking element

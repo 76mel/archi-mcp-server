@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.response.dto;
 
 /**
- * Response DTO for an element that was automatically nudged during auto-route (Story 13-7).
+ * Response DTO for an element that was automatically nudged during auto-route.
  *
  * @param viewObjectId  view object ID of the nudged element
  * @param elementName   human-readable name of the element

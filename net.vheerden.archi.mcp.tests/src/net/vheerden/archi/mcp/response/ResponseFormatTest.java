@@ -10,8 +10,8 @@ import org.junit.Test;
 public class ResponseFormatTest {
 
     @Test
-    public void shouldHaveThreeValues() {
-        assertEquals(3, ResponseFormat.values().length);
+    public void shouldHaveFourValues() {
+        assertEquals(4, ResponseFormat.values().length);
     }
 
     @Test
@@ -19,6 +19,7 @@ public class ResponseFormatTest {
         assertEquals("json", ResponseFormat.JSON.value());
         assertEquals("graph", ResponseFormat.GRAPH.value());
         assertEquals("summary", ResponseFormat.SUMMARY.value());
+        assertEquals("tree", ResponseFormat.TREE.value());
     }
 
     @Test

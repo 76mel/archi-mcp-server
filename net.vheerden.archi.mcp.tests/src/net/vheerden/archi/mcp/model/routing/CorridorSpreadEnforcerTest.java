@@ -18,10 +18,10 @@ import net.vheerden.archi.mcp.model.routing.HubFaceConnectionPartitioner.HubFace
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Unit tests for {@link CorridorSpreadEnforcer} (H5 story Task 3 — Axis 2).
+ * Unit tests for {@link CorridorSpreadEnforcer} (Axis 2).
  *
  * <p>Pure-geometry: no EMF, no SWT, no PDE. Synthetic hub-and-spokes scenarios
- * exercise the zero-spread-detection / spread-allocation / B71 exemption /
+ * exercise the zero-spread-detection / spread-allocation / terminal-incident exemption /
  * apply-restore primitives without engaging the routing pipeline.
  */
 public class CorridorSpreadEnforcerTest {
@@ -184,7 +184,7 @@ public class CorridorSpreadEnforcerTest {
 
     @Test
     public void evaluate_shouldSkipTerminalIncidentMember() {
-        // c-0's segment at indices (0, 1) — touches terminal bp[0]. B71 exemption: skip.
+        // c-0's segment at indices (0, 1) — touches terminal bp[0]. Terminal-incident exemption: skip.
         // c-1 and c-2 are interior segments — proceed.
         List<List<AbsoluteBendpointDto>> paths = new ArrayList<>();
         paths.add(path(bp(210, 190), bp(240, 190))); // 2-bp path: shifting bp[0]/bp[1] = terminals

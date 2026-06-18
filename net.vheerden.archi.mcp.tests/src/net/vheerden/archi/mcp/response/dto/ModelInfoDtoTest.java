@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 /**
  * Tests for {@link ModelInfoDto} record.
  *
- * <p>Story 14-3 (G6): extended with purpose + properties read-side parity tests.</p>
+ * <p>G6: extended with purpose + properties read-side parity tests.</p>
  */
 public class ModelInfoDtoTest {
 
@@ -68,7 +68,7 @@ public class ModelInfoDtoTest {
         assertEquals(dto1.hashCode(), dto2.hashCode());
     }
 
-    // ---- Story 14-3 (G6): purpose + properties + back-compat ctor ----
+    // ---- G6: purpose + properties + back-compat ctor ----
 
     @Test
     public void shouldOmitPurposeFromJson_whenNull_AC11() throws Exception {

@@ -19,7 +19,7 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 import net.vheerden.archi.mcp.response.dto.ViewPositionSpec;
 
 /**
- * Tests for {@link ElkLayoutEngine} (Story 10-29).
+ * Tests for {@link ElkLayoutEngine}.
  * Pure-geometry tests — no OSGi runtime required.
  */
 public class ElkLayoutEngineTest {
@@ -392,7 +392,7 @@ public class ElkLayoutEngineTest {
 		}
 	}
 
-	// --- Story 11-20 Spike: Inter-group connections ---
+	// --- Spike: Inter-group connections ---
 
 	@Test
 	public void shouldRouteInterGroupConnections() {
@@ -532,7 +532,7 @@ public class ElkLayoutEngineTest {
 		assertEquals("child-2 height preserved", 45, child2.height().intValue());
 	}
 
-	// --- Story 11-21: Group padding scales with spacing ---
+	// --- Group padding scales with spacing ---
 
 	@Test
 	public void shouldProduceMoreIntraGroupSpacing_whenLargerSpacing() {
@@ -690,7 +690,7 @@ public class ElkLayoutEngineTest {
 				+ tightDist + " wide=" + wideDist, wideDist > tightDist);
 	}
 
-	// --- Story 11-21: Plateau detection ---
+	// --- Plateau detection ---
 
 	@Test
 	public void shouldNotDetectPlateau_whenSpacingImproves() {
@@ -740,7 +740,7 @@ public class ElkLayoutEngineTest {
 						"poor", "poor", 0, 0, 20.5, 20.0));
 	}
 
-	// --- B62-5: Factor-aware plateau detection ---
+	// --- Factor-aware plateau detection ---
 
 	@Test
 	public void isFactorAwarePlateauReached_shouldReturnFalse_whenFactorShifts() {
@@ -848,7 +848,7 @@ public class ElkLayoutEngineTest {
 		assertEquals("child centerY", 112, childCenter[1]);
 	}
 
-	// --- Story B21: ELK group non-overlap constraint ---
+	// --- ELK group non-overlap constraint ---
 
 	@Test
 	public void shouldSeparateOverlappingGroups_whenTwoGroupsOverlap() {
@@ -1032,13 +1032,13 @@ public class ElkLayoutEngineTest {
 		assertNotNull("gLeft", gLeft);
 		assertNotNull("gRight", gRight);
 
-		// Groups should not overlap and relative ordering should be preserved (AC-3)
+		// Groups should not overlap and relative ordering should be preserved
 		assertNoGroupOverlap(gLeft, gRight, "gLeft-gRight");
 		assertTrue("gLeft should remain left of or equal to gRight after correction",
 				gLeft.x() <= gRight.x());
 	}
 
-	// --- B56: connectionsRouted double-count fix ---
+	// --- connectionsRouted double-count fix ---
 
 	@Test
 	public void shouldNotDoubleCountConnectionsRouted_whenHierarchicalGraph() {
@@ -1075,11 +1075,11 @@ public class ElkLayoutEngineTest {
 
 		ElkLayoutResult result = engine.computeLayout(nodes, edges, "RIGHT", 50);
 
-		// AC-2: connectionsRouted must equal actual unique connections (4), not inflated
+		// connectionsRouted must equal actual unique connections (4), not inflated
 		assertEquals("connectionsRouted should equal unique connection count",
 				4, result.connectionsRouted());
 
-		// AC-3: connectionBendpoints map size must match connectionsRouted
+		// connectionBendpoints map size must match connectionsRouted
 		assertEquals("connectionBendpoints map size should match connectionsRouted",
 				4, result.connectionBendpoints().size());
 
@@ -1099,7 +1099,7 @@ public class ElkLayoutEngineTest {
 		boolean yOverlap = a.y() < b.y() + b.height() && b.y() < a.y() + a.height();
 		assertFalse(label + " groups should not overlap", xOverlap && yOverlap);
 
-		// AC-1: verify minimum separation of effectiveSpacing/2 (25px for spacing=50)
+		// verify minimum separation of effectiveSpacing/2 (25px for spacing=50)
 		// Allow 2px tolerance for int rounding of double positions
 		int xGap = Math.max(a.x() - (b.x() + b.width()), b.x() - (a.x() + a.width()));
 		int yGap = Math.max(a.y() - (b.y() + b.height()), b.y() - (a.y() + a.height()));

@@ -26,7 +26,7 @@ import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
  * Handler for discovery-first creation tools: get-or-create-element,
- * search-and-create (Story 7-4).
+ * search-and-create.
  *
  * <p>These tools combine search/lookup with element creation to reduce
  * duplicate elements in the model. They search first and only create
@@ -193,7 +193,7 @@ public class DiscoveryHandler {
     private McpSchema.CallToolResult buildCreatedNewResponse(MutationResult<ElementDto> result) {
         String modelVersion = accessor.getModelVersion();
 
-        // Approval mode: return proposal response (Story 7-6)
+        // Approval mode: return proposal response
         if (result.isProposal()) {
             Map<String, Object> previewMap = new LinkedHashMap<>();
             previewMap.put("action", "created_new");
@@ -403,7 +403,7 @@ public class DiscoveryHandler {
             MutationResult<ElementDto> result, String query) {
         String modelVersion = accessor.getModelVersion();
 
-        // Approval mode: return proposal response (Story 7-6)
+        // Approval mode: return proposal response
         if (result.isProposal()) {
             Map<String, Object> previewMap = new LinkedHashMap<>();
             previewMap.put("action", "created_new");

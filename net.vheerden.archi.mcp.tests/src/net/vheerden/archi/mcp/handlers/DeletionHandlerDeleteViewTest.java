@@ -21,7 +21,7 @@ import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.DeleteResultDto;
 
 /**
- * Tests for {@link DeletionHandler} delete-view tool (Story 8-4).
+ * Tests for {@link DeletionHandler} delete-view tool.
  */
 public class DeletionHandlerDeleteViewTest {
 

@@ -18,9 +18,10 @@ import net.vheerden.archi.mcp.model.BaseTestAccessor;
 import net.vheerden.archi.mcp.registry.CommandRegistry;
 import net.vheerden.archi.mcp.response.ResponseFormatter;
 import net.vheerden.archi.mcp.response.dto.AddImageResultDto;
+import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
- * Unit tests for {@link ImageHandler} — Story C5: filePath, url, imageData mutual exclusivity
+ * Unit tests for {@link ImageHandler} — filePath, url, imageData mutual exclusivity
  * and dispatch routing.
  *
  * <p>Uses a stub ArchiModelAccessor — no EMF/OSGi runtime required.</p>
@@ -30,12 +31,17 @@ public class ImageHandlerTest {
     private CommandRegistry registry;
     private ResponseFormatter formatter;
     private ObjectMapper objectMapper;
+    private SessionManager sessionManager;
 
     @Before
     public void setUp() {
         registry = new CommandRegistry();
         formatter = new ResponseFormatter();
         objectMapper = new ObjectMapper();
+        // ImageHandler's ctor requires a non-null SessionManager (Objects.requireNonNull) and
+        // its handlers call HandlerUtils.extractSessionId(sessionManager, …) — so a real instance
+        // is required, not null (mirrors ModelQueryHandlerTest / SessionHandlerTest).
+        sessionManager = new SessionManager(SearchHandler.VALID_TYPES, SearchHandler.VALID_LAYERS);
     }
 
     // ---- Tool Registration ----
@@ -43,7 +49,7 @@ public class ImageHandlerTest {
     @Test
     public void shouldRegisterBothTools() {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         assertEquals(2, registry.getToolCount());
@@ -55,7 +61,7 @@ public class ImageHandlerTest {
     @Test
     public void shouldHaveFilePathAndUrlParams() {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         McpSchema.Tool tool = findToolSpec("add-image-to-model").tool();
@@ -73,7 +79,7 @@ public class ImageHandlerTest {
     @Test
     public void shouldMentionFilePathAndUrlInDescription() {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         McpSchema.Tool tool = findToolSpec("add-image-to-model").tool();
@@ -82,12 +88,12 @@ public class ImageHandlerTest {
         assertTrue(tool.description().contains("Preferred"));
     }
 
-    // ---- Mutual Exclusivity (AC-3) ----
+    // ---- Mutual Exclusivity ----
 
     @Test
     public void shouldReturnError_whenNoParamsProvided() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         McpSchema.CallToolResult result = invokeAddImage(Map.of());
@@ -100,7 +106,7 @@ public class ImageHandlerTest {
     @Test
     public void shouldReturnError_whenTwoParamsProvided() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         Map<String, Object> args = new HashMap<>();
@@ -118,7 +124,7 @@ public class ImageHandlerTest {
     @Test
     public void shouldReturnError_whenThreeParamsProvided() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         Map<String, Object> args = new HashMap<>();
@@ -137,7 +143,7 @@ public class ImageHandlerTest {
     @Test
     public void shouldReturnError_whenFilePathAndImageData() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         Map<String, Object> args = new HashMap<>();
@@ -154,7 +160,7 @@ public class ImageHandlerTest {
     @Test
     public void shouldReturnError_whenUrlAndImageData() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         Map<String, Object> args = new HashMap<>();
@@ -168,13 +174,13 @@ public class ImageHandlerTest {
         assertTrue(text.contains("Only one"));
     }
 
-    // ---- FilePath Dispatch (AC-1) ----
+    // ---- FilePath Dispatch ----
 
     @SuppressWarnings("unchecked")
     @Test
     public void shouldRouteToFilePath_whenFilePathProvided() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         McpSchema.CallToolResult result = invokeAddImage(Map.of("filePath", "/tmp/test.png"));
@@ -188,13 +194,13 @@ public class ImageHandlerTest {
         assertEquals("/tmp/test.png", accessor.lastFilePath);
     }
 
-    // ---- URL Dispatch (AC-2) ----
+    // ---- URL Dispatch ----
 
     @SuppressWarnings("unchecked")
     @Test
     public void shouldRouteToUrl_whenUrlProvided() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         McpSchema.CallToolResult result = invokeAddImage(Map.of("url", "https://example.com/icon.png"));
@@ -208,13 +214,13 @@ public class ImageHandlerTest {
         assertEquals("https://example.com/icon.png", accessor.lastUrl);
     }
 
-    // ---- Base64 Dispatch (AC-6) ----
+    // ---- Base64 Dispatch ----
 
     @SuppressWarnings("unchecked")
     @Test
     public void shouldRouteToBase64_whenImageDataProvided() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         // 1x1 red pixel PNG in valid base64
@@ -233,12 +239,12 @@ public class ImageHandlerTest {
         assertEquals("base64", accessor.lastImportMethod);
     }
 
-    // ---- Base64 Size Validation (AC-6 preserved) ----
+    // ---- Base64 Size Validation ----
 
     @Test
     public void shouldReturnError_whenBase64TooLarge() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         // Create a base64 string > 1.4MB
@@ -253,7 +259,7 @@ public class ImageHandlerTest {
     @Test
     public void shouldReturnError_whenBase64Invalid() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         McpSchema.CallToolResult result = invokeAddImage(Map.of("imageData", "not-valid-base64!!!"));
@@ -263,13 +269,13 @@ public class ImageHandlerTest {
         assertTrue(text.contains("base64"));
     }
 
-    // ---- NextSteps (AC-5) ----
+    // ---- NextSteps ----
 
     @SuppressWarnings("unchecked")
     @Test
     public void shouldIncludeFilePathInNextSteps() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         McpSchema.CallToolResult result = invokeAddImage(Map.of("filePath", "/tmp/test.png"));
@@ -286,7 +292,7 @@ public class ImageHandlerTest {
     @Test
     public void shouldReturnError_whenNoModelLoaded() throws Exception {
         StubAccessor accessor = new StubAccessor(false);
-        ImageHandler handler = new ImageHandler(accessor, formatter, registry, null);
+        ImageHandler handler = new ImageHandler(accessor, formatter, registry, sessionManager);
         handler.registerTools();
 
         McpSchema.CallToolResult result = invokeAddImage(Map.of("filePath", "/tmp/test.png"));

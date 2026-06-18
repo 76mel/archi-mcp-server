@@ -223,7 +223,7 @@ public class SessionHandlerTest {
         assertTrue(nextSteps.stream().anyMatch(s -> s.contains("search-elements")));
     }
 
-    // ---- Field Selection Integration Tests (Story 5.2, Task 11.9-11.10) ----
+    // ---- Field Selection Integration Tests ----
 
     @SuppressWarnings("unchecked")
     @Test

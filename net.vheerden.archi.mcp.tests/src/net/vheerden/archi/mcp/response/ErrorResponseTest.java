@@ -75,7 +75,7 @@ public class ErrorResponseTest {
     @Test
     public void shouldHaveAllExpectedErrorCodes() {
         ErrorCode[] codes = ErrorCode.values();
-        assertEquals(35, codes.length);
+        assertEquals(36, codes.length);
         assertNotNull(ErrorCode.valueOf("ELEMENT_NOT_FOUND"));
         assertNotNull(ErrorCode.valueOf("MODEL_NOT_LOADED"));
         assertNotNull(ErrorCode.valueOf("INVALID_PARAMETER"));
@@ -102,7 +102,7 @@ public class ErrorResponseTest {
         assertNotNull(ErrorCode.valueOf("CONNECTION_ALREADY_ON_VIEW"));
         assertNotNull(ErrorCode.valueOf("RELATIONSHIP_MISMATCH"));
         assertNotNull(ErrorCode.valueOf("FORMAT_NOT_AVAILABLE"));
-        // Story 8-5: Folder mutation + move error codes
+        // Folder mutation + move error codes
         assertNotNull(ErrorCode.valueOf("FOLDER_NOT_EMPTY"));
         assertNotNull(ErrorCode.valueOf("CANNOT_DELETE_DEFAULT_FOLDER"));
         assertNotNull(ErrorCode.valueOf("CIRCULAR_FOLDER_REFERENCE"));
@@ -111,7 +111,9 @@ public class ErrorResponseTest {
         assertNotNull(ErrorCode.valueOf("ALREADY_IN_TARGET_FOLDER"));
         assertNotNull(ErrorCode.valueOf("OBJECT_NOT_FOUND"));
         assertNotNull(ErrorCode.valueOf("INVALID_MOVE_TARGET"));
-        // Story 10-13: Folder layer validation
+        // Folder layer validation
         assertNotNull(ErrorCode.valueOf("FOLDER_LAYER_MISMATCH"));
+        // image error code
+        assertNotNull(ErrorCode.valueOf("IMAGE_NOT_FOUND"));
     }
 }

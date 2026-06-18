@@ -16,7 +16,7 @@ import net.vheerden.archi.mcp.model.routing.EdgeAttachmentCalculator.Face;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Tests for {@link EdgeAttachmentCalculator} (Story 10-16).
+ * Tests for {@link EdgeAttachmentCalculator}.
  * Pure-geometry tests — no OSGi runtime required.
  */
 public class EdgeAttachmentCalculatorTest {
@@ -148,7 +148,7 @@ public class EdgeAttachmentCalculatorTest {
         assertTrue("Points should be ordered left-to-right", p0[0] < p1[0]);
         assertTrue("Points should be ordered left-to-right", p1[0] < p2[0]);
 
-        // B72-c: middle slot of odd-N distribution nudged +1 off centerX to
+        // Middle slot of odd-N distribution nudged +1 off centerX to
         // break ChopboxAnchor ray collinearity (160 is element centerX)
         assertEquals("Middle point should be 1px past center (B72-c nudge)", 161, p1[0]);
 
@@ -201,7 +201,7 @@ public class EdgeAttachmentCalculatorTest {
     @Test
     public void shouldReducePorts_whenMinSpacingPathBelowThreshold() {
         // Element width 120, 15 connections on BOTTOM face
-        // usableLength = 110, spacing = 110/16 = 6.875 < threshold 12 → B73 reduce
+        // usableLength = 110, spacing = 110/16 = 6.875 < threshold 12 → reduce
         // maxPorts = max(1, floor(110/12 - 1)) = max(1, floor(8.17-1)) = 8 ports
         RoutingRect element = new RoutingRect(100, 100, 120, 80, "e1");
 
@@ -231,7 +231,7 @@ public class EdgeAttachmentCalculatorTest {
     }
 
     // =============================================
-    // B72-c: slot-at-center nudge tests
+    // slot-at-center nudge tests
     // =============================================
 
     @Test
@@ -300,7 +300,7 @@ public class EdgeAttachmentCalculatorTest {
     }
 
     // =============================================
-    // B73: capacity-aware port distribution tests
+    // capacity-aware port distribution tests
     // =============================================
 
     @Test
@@ -611,7 +611,7 @@ public class EdgeAttachmentCalculatorTest {
     }
 
     // =============================================
-    // Obstacle-aware alignment tests (Story 10-19b, updated 10-24)
+    // Obstacle-aware alignment tests
     // =============================================
 
     @Test
@@ -834,7 +834,7 @@ public class EdgeAttachmentCalculatorTest {
     }
 
     // =============================================
-    // New tests for alternative offset behavior (Story 10-24)
+    // New tests for alternative offset behavior
     // =============================================
 
     @Test
@@ -878,7 +878,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldForceAlignment_whenAllAlternativeOffsetsBlocked() {
-        // B28: Large obstacle blocks all alternative offsets (±8 through ±96)
+        // Large obstacle blocks all alternative offsets (±8 through ±96)
         // Verify forced fallback inserts alignment at offset=0 instead of skipping
         RoutingRect source = new RoutingRect(0, 170, 100, 60, "src");
         RoutingRect target = new RoutingRect(400, 170, 100, 60, "tgt");
@@ -899,7 +899,7 @@ public class EdgeAttachmentCalculatorTest {
         calculator.applyEdgeAttachments(ids, bendpointLists, connections);
 
         List<AbsoluteBendpointDto> result = bendpointLists.get(0);
-        // B28: Source alignment now force-inserted (not skipped)
+        // Source alignment now force-inserted (not skipped)
         // With both alignments: src terminal, src alignment, bp1, bp2, tgt alignment, tgt terminal = 6
         assertEquals("Source alignment should be force-inserted when all offsets blocked", 6, result.size());
 
@@ -945,7 +945,7 @@ public class EdgeAttachmentCalculatorTest {
     }
 
     // =============================================
-    // Unified face groups (Story 10-28, AC #1)
+    // Unified face groups
     // =============================================
 
     @Test
@@ -1042,7 +1042,7 @@ public class EdgeAttachmentCalculatorTest {
     }
 
     // =============================================
-    // Hub port distribution tests (Story backlog-b9)
+    // Hub port distribution tests
     // =============================================
 
     @Test
@@ -1413,12 +1413,12 @@ public class EdgeAttachmentCalculatorTest {
     }
 
     // =============================================
-    // B28: Extended offset and forced fallback tests
+    // Extended offset and forced fallback tests
     // =============================================
 
     @Test
     public void shouldUseExtendedOffset_whenStandardOffsetsBlocked() {
-        // B28: Obstacle blocks ±32 offsets but ±48 clears it (extended range)
+        // Obstacle blocks ±32 offsets but ±48 clears it (extended range)
         // Source exits RIGHT face. Terminal at (101, 200). Alignment at (200, 200+offset).
         // Obstacle at x=140-190, y=183-217:
         //   - ±32: terminal→alignment diagonal crosses obstacle at x=140 where y≈187-213. BLOCKED.
@@ -1450,12 +1450,12 @@ public class EdgeAttachmentCalculatorTest {
     }
 
     // =============================================
-    // B32: Natural approach direction correction tests
+    // Natural approach direction correction tests
     // =============================================
 
     @Test
     public void shouldCorrectTargetFaceToTop_whenSourceNearlyAboveTarget() {
-        // B32 AC-2: Source nearly above target (84px horizontal offset, 200px vertical separation)
+        // Source nearly above target (84px horizontal offset, 200px vertical separation)
         // Treasury Operations → Foreign Exchange Service scenario
         // determineFace() from a side-approach BP would pick LEFT/RIGHT,
         // but natural direction is TOP entry on target
@@ -1478,7 +1478,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldCorrectToHorizontalApproach_whenNearlyHorizontallyAligned() {
-        // B32 AC-2: Source nearly to the left of target (large dx, small dy)
+        // Source nearly to the left of target (large dx, small dy)
         RoutingRect source = new RoutingRect(0, 100, 120, 80, "src");   // center (60, 140)
         RoutingRect target = new RoutingRect(300, 60, 120, 80, "tgt");  // center (360, 100)
         // dx=300, dy=40 → dx > 2*dy → nearly horizontal
@@ -1498,7 +1498,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldNotCorrect_whenDiagonalAlignmentWithMatchingFaces() {
-        // B32/B46: ratio 1.25:1 → B46 classifies as "nearly horizontal" but faces
+        // ratio 1.25:1 → classified as "nearly horizontal" but faces
         // already match natural direction (RIGHT/LEFT), so no correction needed
         RoutingRect source = new RoutingRect(0, 0, 120, 80, "src");     // center (60, 40)
         RoutingRect target = new RoutingRect(200, 160, 120, 80, "tgt"); // center (260, 200)
@@ -1520,7 +1520,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldNotCorrect_whenLargeHorizontalOffset() {
-        // B32 AC-7 test 4: Large horizontal offset → no false correction to vertical
+        // Large horizontal offset → no false correction to vertical
         RoutingRect source = new RoutingRect(0, 0, 120, 80, "src");     // center (60, 40)
         RoutingRect target = new RoutingRect(400, 80, 120, 80, "tgt");  // center (460, 120)
         // dx=400, dy=80 → dx > 2*dy → nearly horizontal, not vertical
@@ -1541,7 +1541,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldNotCorrect_whenFaceAlreadyMatchesNaturalDirection() {
-        // B32 AC-4: If face already correct, no change
+        // If face already correct, no change
         RoutingRect source = new RoutingRect(100, 0, 120, 80, "src");   // center (160, 40)
         RoutingRect target = new RoutingRect(50, 200, 120, 80, "tgt");  // center (110, 240)
         // dx=50, dy=200 → dy > 2*dx → nearly vertical
@@ -1561,7 +1561,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldCorrectHubElement_whenStrongAlignment() {
-        // B46: Hub elements ARE corrected when alignment is strong (2:1+)
+        // Hub elements ARE corrected when alignment is strong (2:1+)
         RoutingRect hub = new RoutingRect(100, 0, 120, 80, "hub");     // center (160, 40)
         RoutingRect target = new RoutingRect(50, 200, 120, 80, "tgt"); // center (110, 240)
         // dx=50, dy=200 → ratio 4:1 → strong vertical alignment
@@ -1589,7 +1589,7 @@ public class EdgeAttachmentCalculatorTest {
 
         calculator.correctApproachDirection(ids, connections, sourceFaces, targetFaces);
 
-        // B46: Hub source SHOULD be corrected for strong alignment (4:1 ratio)
+        // Hub source SHOULD be corrected for strong alignment (4:1 ratio)
         assertEquals("Hub source face SHOULD be corrected for strong alignment", Face.BOTTOM, sourceFaces[0]);
         // Target is NOT a hub (only 1 connection) — should be corrected
         assertEquals("Non-hub target face SHOULD be corrected", Face.TOP, targetFaces[0]);
@@ -1597,7 +1597,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldCorrectBothSourceAndTarget_whenBothContradict() {
-        // B32: Both source and target faces contradict natural vertical alignment
+        // Both source and target faces contradict natural vertical alignment
         RoutingRect source = new RoutingRect(0, 0, 100, 60, "src");     // center (50, 30)
         RoutingRect target = new RoutingRect(30, 300, 100, 60, "tgt");  // center (80, 330)
         // dx=30, dy=300 → dy > 2*dx → nearly vertical, source above
@@ -1617,7 +1617,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldCorrectToBottom_whenSourceBelowTarget() {
-        // B32: Source below target → target enters from BOTTOM
+        // Source below target → target enters from BOTTOM
         RoutingRect source = new RoutingRect(50, 300, 100, 60, "src");  // center (100, 330)
         RoutingRect target = new RoutingRect(30, 0, 100, 60, "tgt");   // center (80, 30)
         // dx=20, dy=300 → dy > 2*dx → nearly vertical, source below
@@ -1637,11 +1637,11 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldIntegrateWithApplyEdgeAttachments_whenEdgeHuggingPath() {
-        // B32 AC-3 originally expected face correction RIGHT→TOP for nearly-vertical alignment.
-        // B35 Phase 1.3 validateFacesForSelfPassThrough reverts B32's correction via false-positive
+        // Originally expected face correction RIGHT→TOP for nearly-vertical alignment.
+        // Phase 1.3 validateFacesForSelfPassThrough reverts that correction via false-positive
         // pass-through trial-path detection (known tech debt at Phase 1.4 comment). Phase 1.4
         // re-corrects only hub connections; this single-connection fixture is not a hub, so target
-        // face stays RIGHT. B72-e: re-blessed to match B35+ pipeline behaviour.
+        // face stays RIGHT. Re-blessed to match the current pipeline behaviour.
         RoutingRect source = new RoutingRect(100, 0, 120, 80, "src");   // center (160, 40)
         RoutingRect target = new RoutingRect(16, 200, 120, 80, "tgt");  // center (76, 240)
         // dx=84, dy=200 → nearly vertical
@@ -1660,7 +1660,7 @@ public class EdgeAttachmentCalculatorTest {
 
         List<AbsoluteBendpointDto> result = bendpointLists.get(0);
 
-        // Target terminal on RIGHT face (B35 Phase 1.3 reverts B32's TOP correction)
+        // Target terminal on RIGHT face (Phase 1.3 reverts the TOP correction)
         AbsoluteBendpointDto targetTerminal = result.get(result.size() - 1);
         assertEquals("Target terminal X on RIGHT face (target.x + w + 1)",
                 137, targetTerminal.x());
@@ -1670,7 +1670,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldCorrect_whenRatioJustAboveTwoToOne() {
-        // B32: Boundary condition — dy = 2*dx + 1 → strictly greater, triggers correction
+        // Boundary condition — dy = 2*dx + 1 → strictly greater, triggers correction
         RoutingRect source = new RoutingRect(0, 0, 100, 60, "src");     // center (50, 30)
         RoutingRect target = new RoutingRect(50, 101, 100, 60, "tgt");  // center (100, 131)
         // dx=50, dy=101 → dy=101 > 2*50=100 → triggers
@@ -1690,10 +1690,10 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldCorrect_whenRatioExactlyTwoToOne() {
-        // B46: 2:1 ratio now triggers correction (threshold relaxed from 2:1 to 1.2:1)
+        // 2:1 ratio now triggers correction (threshold relaxed from 2:1 to 1.2:1)
         RoutingRect source = new RoutingRect(0, 0, 100, 60, "src");     // center (50, 30)
         RoutingRect target = new RoutingRect(50, 100, 100, 60, "tgt");  // center (100, 130)
-        // dx=50, dy=100 → 5*100=500 > 6*50=300 → nearly vertical, triggers B46
+        // dx=50, dy=100 → 5*100=500 > 6*50=300 → nearly vertical, triggers correction
 
         Face[] sourceFaces = new Face[]{Face.RIGHT};
         Face[] targetFaces = new Face[]{Face.LEFT};
@@ -1710,10 +1710,10 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldProduceCenterAlignedTerminal_afterFaceCorrection_forChopboxAnchorCompatibility() {
-        // B32 AC-7 / Task 3.6: Originally verified B29 ChopboxAnchor alignment on TOP face.
-        // B35 Phase 1.3 reverts B32's correction (same root cause as sibling test above).
+        // Originally verified ChopboxAnchor alignment on TOP face.
+        // Phase 1.3 reverts that correction (same root cause as sibling test above).
         // Face stays RIGHT → terminal center-aligned on RIGHT face for ChopboxAnchor compat.
-        // B72-e: re-blessed to match B35+ pipeline behaviour.
+        // Re-blessed to match the current pipeline behaviour.
         RoutingRect source = new RoutingRect(100, 0, 120, 80, "src");   // center (160, 40)
         RoutingRect target = new RoutingRect(16, 200, 120, 80, "tgt");  // center (76, 240)
 
@@ -1732,7 +1732,7 @@ public class EdgeAttachmentCalculatorTest {
         List<AbsoluteBendpointDto> result = bendpointLists.get(0);
         AbsoluteBendpointDto targetTerminal = result.get(result.size() - 1);
 
-        // Terminal on RIGHT face (B35 Phase 1.3 reverts B32's TOP correction)
+        // Terminal on RIGHT face (Phase 1.3 reverts the TOP correction)
         assertEquals("Target terminal X on RIGHT face",
                 target.x() + target.width() + 1, targetTerminal.x());
         // Center-aligned on RIGHT face for ChopboxAnchor compatibility
@@ -1741,12 +1741,12 @@ public class EdgeAttachmentCalculatorTest {
     }
 
     // =============================================
-    // B46: Diagonal-gap approach direction tests (1.2:1 to 2:1 range)
+    // Diagonal-gap approach direction tests (1.2:1 to 2:1 range)
     // =============================================
 
     @Test
     public void shouldCorrectApproachDirection_whenDiagonalAlignment() {
-        // B46 AC-1: Elements at ~1.5:1 ratio (was skipped by B32's 2:1 threshold)
+        // Elements at ~1.5:1 ratio (was skipped by the old 2:1 threshold)
         RoutingRect source = new RoutingRect(0, 0, 100, 60, "src");     // center (50, 30)
         RoutingRect target = new RoutingRect(80, 120, 100, 60, "tgt");  // center (130, 150)
         // dx=80, dy=120 → ratio 1.5:1. 5*120=600 > 6*80=480 → nearly vertical
@@ -1766,7 +1766,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldCorrectApproachDirection_whenNearDiagonalAlignment() {
-        // B46 AC-1: Elements at ~1.25:1 ratio (just above 1.2:1 threshold)
+        // Elements at ~1.25:1 ratio (just above 1.2:1 threshold)
         // Note: 1:1 ratio (dx=100, dy=100) would NOT trigger — need >1.2:1
         RoutingRect source = new RoutingRect(0, 0, 100, 60, "src");       // center (50, 30)
         RoutingRect target = new RoutingRect(100, 125, 100, 60, "tgt");   // center (150, 155)
@@ -1787,7 +1787,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldNotCorrect_whenRatioBelowB46Threshold() {
-        // B46: Elements at exactly 1.2:1 ratio (boundary — NOT triggered, need strictly greater)
+        // Elements at exactly 1.2:1 ratio (boundary — NOT triggered, need strictly greater)
         RoutingRect source = new RoutingRect(0, 0, 100, 60, "src");     // center (50, 30)
         RoutingRect target = new RoutingRect(100, 120, 100, 60, "tgt"); // center (150, 150)
         // dx=100, dy=120 → 5*120=600, 6*100=600 → NOT strictly greater → skip
@@ -1808,10 +1808,10 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldNotCorrectHubElement_whenDiagonalAlignmentWithHub() {
-        // B46 AC-3: Hub elements still skipped even in the B46 diagonal range
+        // Hub elements still skipped even in the diagonal range
         RoutingRect hub = new RoutingRect(0, 0, 100, 60, "hub");       // center (50, 30)
         RoutingRect target = new RoutingRect(80, 120, 100, 60, "tgt"); // center (130, 150)
-        // dx=80, dy=120 → ratio 1.5:1 → B46 range
+        // dx=80, dy=120 → ratio 1.5:1 → diagonal range
 
         List<String> ids = new ArrayList<>();
         List<RoutingPipeline.ConnectionEndpoints> connections = new ArrayList<>();
@@ -1843,7 +1843,7 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldNotCorrect_whenPerfectDiagonal() {
-        // B46: Elements at exactly 1:1 ratio (perfect diagonal) — no correction
+        // Elements at exactly 1:1 ratio (perfect diagonal) — no correction
         RoutingRect source = new RoutingRect(0, 0, 100, 60, "src");     // center (50, 30)
         RoutingRect target = new RoutingRect(150, 150, 100, 60, "tgt"); // center (200, 180)
         // dx=150, dy=150 → 5*150=750, 6*150=900 → 750 > 900? No. Neither axis dominates.
@@ -1863,10 +1863,10 @@ public class EdgeAttachmentCalculatorTest {
 
     @Test
     public void shouldPreserveB32Behavior_whenStrongAlignment() {
-        // B46 AC-2: Existing 2:1+ cases corrected identically to B32
+        // Existing 2:1+ cases corrected identically to the prior behaviour
         RoutingRect source = new RoutingRect(100, 0, 120, 80, "src");   // center (160, 40)
         RoutingRect target = new RoutingRect(16, 200, 120, 80, "tgt");  // center (76, 240)
-        // dx=84, dy=200 → ratio 2.38:1 → well above 2:1, B32 range
+        // dx=84, dy=200 → ratio 2.38:1 → well above 2:1, strong-alignment range
 
         Face[] sourceFaces = new Face[]{Face.RIGHT};
         Face[] targetFaces = new Face[]{Face.RIGHT};
@@ -1882,7 +1882,7 @@ public class EdgeAttachmentCalculatorTest {
     }
 
     // =============================================
-    // B35 Phase A: Self-element pass-through face validation
+    // Self-element pass-through face validation
     // =============================================
 
     @Test

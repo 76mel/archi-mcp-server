@@ -20,7 +20,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Routing comparison test for Story 10-27 (ELK Routing Spike).
+ * Routing comparison test (ELK Routing Spike).
  * Runs the custom A* visibility-graph pipeline on the Application Architecture
  * View fixture and captures baseline metrics for comparison with ELK.
  * Pure-geometry tests - no OSGi runtime required.

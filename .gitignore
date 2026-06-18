@@ -4,3 +4,6 @@ AGENTS.md
 CLAUDE.md
 __pycache__/
 *.pyc
+
+# M0-1 headless test harness output (tools/run-tests.sh)
+build/

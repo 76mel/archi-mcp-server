@@ -10,7 +10,7 @@ import org.junit.Test;
 
 /**
  * Pure-unit JUnit pins for the density-aware default-resolution decision
- * function (Story RoutingPreconditions.InterElement.DensityAwareDefault).
+ * function.
  *
  * <p>Mirrors the convenience-tool sibling's
  * {@code ApplyElementSpacingRecommendationsToolTest} discipline: heuristic
@@ -18,35 +18,34 @@ import org.junit.Test;
  * decision record, all runnable without an OSGi context (no
  * {@link ArchiModelAccessorImpl} class-loading required).</p>
  *
- * <p>Coverage map (story AC-7 sub-tests):</p>
+ * <p>Coverage map:</p>
  * <ul>
- *   <li>AC-7.1 — heuristic-tier pin (3 assertions on
+ *   <li>Heuristic-tier pin (3 assertions on
  *       {@link ElementSpacingHeuristic#targetSpacingForConnectionCount(int, boolean)}).</li>
- *   <li>AC-7.2 — trigger-threshold pin (4 boundary assertions on
+ *   <li>Trigger-threshold pin (4 boundary assertions on
  *       {@link AdjustViewSpacingDefaultResolutionDecision#decide}).</li>
- *   <li>AC-7.3 — omitted-vs-explicit-zero behavioural distinction (paired
+ *   <li>Omitted-vs-explicit-zero behavioural distinction (paired
  *       fixtures sharing identical view state).</li>
- *   <li>AC-7.4 — trigger-fires happy path (AC-4.2 fixture).</li>
- *   <li>AC-7.5 — trigger-fires-but-already-meets-target (AC-4.6).</li>
- *   <li>AC-7.6 — no-trigger no-fire (AC-4.1).</li>
- *   <li>AC-7.7 — no-connections short-circuit (AC-4.5).</li>
- *   <li>AC-7.8 — decision-record-style pin (this entire class IS the AC-7.8
+ *   <li>Trigger-fires happy path.</li>
+ *   <li>Trigger-fires-but-already-meets-target.</li>
+ *   <li>No-trigger no-fire.</li>
+ *   <li>No-connections short-circuit.</li>
+ *   <li>Decision-record-style pin (this entire class IS the
  *       deliverable — pure-unit branch coverage on
  *       {@link AdjustViewSpacingDefaultResolutionDecision}).</li>
- *   <li>AC-7.9 — heuristic-cross-class consistency (one assertion shared
+ *   <li>Heuristic-cross-class consistency (one assertion shared
  *       with {@code ApplyElementSpacingRecommendationsToolTest} fixtures).</li>
  * </ul>
  *
  * <p>NO {@code @Ignore} and NO {@code Assume.*} runtime skips; every test
- * MUST run green at HEAD per
- * {@code feedback_phase1_gap_pattern.md}.</p>
+ * MUST run green at HEAD.</p>
  */
 public class AdjustViewSpacingDefaultResolutionTest {
 
-    // -------- AC-7.1 — Heuristic-tier pin --------
+    // -------- Heuristic-tier pin --------
     // Cross-class duplication with ApplyElementSpacingRecommendationsToolTest
-    // AC-7.1 is intentional defence-in-depth per the story's Heuristic-table
-    // reuse Dev Note: editing the boundaries here requires updates across
+    // is intentional defence-in-depth per the Heuristic-table
+    // reuse note: editing the boundaries here requires updates across
     // THREE pin classes (markdown + utility + this test + sibling test).
 
     @Test
@@ -64,8 +63,8 @@ public class AdjustViewSpacingDefaultResolutionTest {
         assertEquals(100, ElementSpacingHeuristic.targetSpacingForConnectionCount(40, false));
     }
 
-    // -------- AC-7.2 — Trigger-threshold boundary pin --------
-    // Q4=(a) advisory-placeholder thresholds: coincSeg > 2 OR
+    // -------- Trigger-threshold boundary pin --------
+    // Advisory-placeholder thresholds: coincSeg > 2 OR
     // connectionEdgeCoincidence > 4. Boundary cases protect against drift.
 
     @Test
@@ -139,7 +138,7 @@ public class AdjustViewSpacingDefaultResolutionTest {
         assertEquals(5, d.triggerValue());
     }
 
-    // -------- AC-7.3 — Omitted-vs-explicit-zero behavioural distinction --------
+    // -------- Omitted-vs-explicit-zero behavioural distinction --------
     // Paired fixtures sharing identical view state; only the caller-provided
     // delta differs (null vs 0). Backwards-compat preservation pin.
 
@@ -195,7 +194,7 @@ public class AdjustViewSpacingDefaultResolutionTest {
         assertNull(d.reason());
     }
 
-    // -------- AC-7.4 — Trigger-fires happy path (AC-4.2 fixture) --------
+    // -------- Trigger-fires happy path --------
     // V4-class spacing-tight scenario: coincSeg=11, connections=30, current=40.
     // Heuristic for connectionCount=30 => target=80 => delta = max(0, 80-40) = 40.
 
@@ -217,7 +216,7 @@ public class AdjustViewSpacingDefaultResolutionTest {
                 d.triggerMetric());
         assertEquals(11, d.triggerValue());
         // Reason content: must mention BOTH the trigger value AND the heuristic
-        // computation (story AC-4.2 verifies this).
+        // computation.
         assertNotNull(d.reason());
         assertTrue("reason mentions trigger value 11",
                 d.reason().contains("11"));
@@ -237,7 +236,7 @@ public class AdjustViewSpacingDefaultResolutionTest {
 
     @Test
     public void ac7_4_edgeCoincidenceTriggerHappyPath() {
-        // AC-4.3 fixture: edge-coincidence = 5 (>4) trigger fires.
+        // edge-coincidence = 5 (>4) trigger fires.
         AdjustViewSpacingDefaultResolutionDecision d =
                 AdjustViewSpacingDefaultResolutionDecision.decide(
                         /*callerProvidedDelta=*/ null,
@@ -257,7 +256,7 @@ public class AdjustViewSpacingDefaultResolutionTest {
         assertTrue(d.reason().contains("> 4"));
     }
 
-    // -------- AC-7.5 — Trigger-fires but already-meets-target (AC-4.6) --------
+    // -------- Trigger-fires but already-meets-target --------
     // Trigger fires but heuristic returns delta=0 because current already
     // meets/exceeds target. fired=true (transparency: the gate fired) but
     // delta=0 (the all-zero short-circuit at the call site folds this into
@@ -297,7 +296,7 @@ public class AdjustViewSpacingDefaultResolutionTest {
         assertEquals("max(0, 80-120) = 0", 0, d.resolvedDelta());
     }
 
-    // -------- AC-7.6 — No-trigger no-fire (AC-4.1) --------
+    // -------- No-trigger no-fire --------
     // Clean view: zero coincSeg + zero edge-coincidence + groups + connections
     // present. No fire, no reason — existing zero-delta short-circuit takes
     // over at the call site.
@@ -321,7 +320,7 @@ public class AdjustViewSpacingDefaultResolutionTest {
                 d.triggerMetric());
     }
 
-    // -------- AC-7.7 — No-connections short-circuit (AC-4.5) --------
+    // -------- No-connections short-circuit --------
     // Heuristic is connection-count-driven; zero connections => default
     // undefined. No fire, but informational reason populated for transparency.
 
@@ -379,9 +378,9 @@ public class AdjustViewSpacingDefaultResolutionTest {
         assertEquals(0, d.resolvedDelta());
     }
 
-    // -------- AC-7.9 — Heuristic-cross-class consistency --------
+    // -------- Heuristic-cross-class consistency --------
     // ONE assertion verifying that BOTH ApplyElementSpacingDecision (sibling)
-    // and AdjustViewSpacingDefaultResolutionDecision (this story) compute the
+    // and AdjustViewSpacingDefaultResolutionDecision compute the
     // SAME interElementDelta + SAME targetSpacingPx for an identical fixture.
     // This is the multi-class tripwire — change either decision function's
     // heuristic-resolution logic and this test fails until they agree again.
@@ -405,7 +404,7 @@ public class AdjustViewSpacingDefaultResolutionTest {
                         /*hasGroupWithMultipleChildren=*/ true,
                         /*hasTargetSpacingOverride=*/ false);
 
-        // This story's decision function (default-resolution path with
+        // This class's decision function (default-resolution path with
         // trigger fired so the heuristic computation actually runs).
         AdjustViewSpacingDefaultResolutionDecision thisDecision =
                 AdjustViewSpacingDefaultResolutionDecision.decide(
@@ -428,9 +427,9 @@ public class AdjustViewSpacingDefaultResolutionTest {
                 siblingDecision.interElementDelta(), thisDecision.resolvedDelta());
     }
 
-    // -------- AC-16 (soft) — Reason string format stability pin --------
-    // The reason string for the canonical AC-4.2 fixture matches the documented
-    // regex. Soft pin per story AC-16 — protects against accidental drift while
+    // -------- Reason string format stability pin (soft) --------
+    // The reason string for the canonical fixture matches the documented
+    // regex. Soft pin — protects against accidental drift while
     // allowing intentional revision (which would require updating this test).
 
     @Test
@@ -455,7 +454,7 @@ public class AdjustViewSpacingDefaultResolutionTest {
                 d.reason().matches(regex));
     }
 
-    // -------- Row C — hub-aware tier integration (AC-7 tertiary) --------
+    // -------- Hub-aware tier integration --------
     // The decision record stays pure-unit — hasLargeHubs is a CALLER-PROVIDED
     // input, not derived inside the record. These pins verify the caller-
     // selected branch lands the hub-aware tier (or doesn't, when hasLargeHubs

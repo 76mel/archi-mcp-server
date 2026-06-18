@@ -13,7 +13,7 @@ import com.archimatetool.model.IDiagramModelObject;
 import com.archimatetool.model.IDiagramModelContainer;
 
 /**
- * GEF Command that removes all children and connections from a view (Story 8-0c).
+ * GEF Command that removes all children and connections from a view.
  *
  * <p>On execute, snapshots all children and their indices (for z-order restore),
  * collects all unique connections, disconnects connections, then removes all
@@ -58,7 +58,7 @@ public class ClearViewCommand extends Command {
             // Collect unique connections from ALL children recursively (including nested
             // elements inside groups). Without recursion, connections on nested elements
             // are not disconnected before their parent groups are removed, leaving orphaned
-            // connection references in the EMF model (Story 10-14).
+            // connection references in the EMF model.
             Set<IDiagramModelConnection> uniqueConnections = new LinkedHashSet<>();
             for (IDiagramModelObject child : removedChildren) {
                 collectConnectionsRecursive(child, uniqueConnections);

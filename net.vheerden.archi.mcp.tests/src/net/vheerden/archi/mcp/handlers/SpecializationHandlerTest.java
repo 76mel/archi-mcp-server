@@ -19,7 +19,7 @@ import net.vheerden.archi.mcp.registry.CommandRegistry;
 import net.vheerden.archi.mcp.response.ResponseFormatter;
 
 /**
- * Tests for {@link SpecializationHandler} (Story C3c).
+ * Tests for {@link SpecializationHandler}.
  *
  * <p>Uses {@link BaseTestAccessor} which returns canned DTOs from the
  * specialization mutation methods. Verifies tool registration, parameter
@@ -101,9 +101,15 @@ public class SpecializationHandlerTest {
     }
 
     @Test
-    public void shouldRejectMissingNewName_onUpdate() throws Exception {
+    public void shouldRejectMissingConceptType_onUpdate() throws Exception {
+        // newName is now OPTIONAL; the "at least one of newName/imagePath/clearImagePath"
+        // guard moved to ArchiModelAccessorImpl.prepareUpdateSpecialization (INVALID_PARAMETER
+        // "No fields to update …") and is deliberately NOT modelled by BaseTestAccessor (see its
+        // stub-limitation note), so it cannot be exercised through this handler stub. This
+        // test instead pins the handler-level required-param validation that DOES live here:
+        // conceptType is required (requireStringParam) and its absence is rejected.
         McpSchema.CallToolResult result = call("update-specialization",
-                Map.of("name", "Foo", "conceptType", "Node"));
+                Map.of("name", "Foo", "newName", "Bar"));
         assertTrue(result.isError());
     }
 
@@ -142,7 +148,7 @@ public class SpecializationHandlerTest {
         assertNotNull(parsed.get("result"));
     }
 
-    // ---- Story 14-8 (G16) AXIS B — imagePath schema introspection ----
+    // ---- AXIS B — imagePath schema introspection ----
 
     @Test
     public void shouldAdvertiseImagePathOnCreateSpecialization_AC3() {
@@ -233,7 +239,7 @@ public class SpecializationHandlerTest {
 
     @Test
     public void shouldRegisterFourTools_unchanged_AC4() {
-        // Per AC4: AXIS B extends EXISTING tool schemas, does not add new tools.
+        // AXIS B extends EXISTING tool schemas, does not add new tools.
         // Tool count STAYS at 4 (create / update / delete / get-usage).
         assertEquals(4, registry.getToolSpecifications().size());
     }

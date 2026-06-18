@@ -47,7 +47,7 @@ public class SearchHandlerTest {
         objectMapper = new ObjectMapper();
     }
 
-    // ---- Tool Registration Tests (AC #5) ----
+    // ---- Tool Registration Tests ----
 
     @Test
     public void shouldRegisterSearchElementsTool() {
@@ -95,7 +95,7 @@ public class SearchHandlerTest {
         assertTrue(required.contains("query"));
     }
 
-    // ---- Success Path Tests (AC #1) ----
+    // ---- Success Path Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -122,14 +122,14 @@ public class SearchHandlerTest {
         assertEquals("Application", element.get("layer"));
         assertEquals("Main customer-facing web application", element.get("documentation"));
 
-        // Verify nextSteps (AC #1)
+        // Verify nextSteps
         List<String> nextSteps = (List<String>) envelope.get("nextSteps");
         assertNotNull(nextSteps);
         assertEquals(2, nextSteps.size());
         assertTrue(nextSteps.get(0).contains("get-element"));
         assertTrue(nextSteps.get(1).contains("get-relationships"));
 
-        // Verify _meta (AC #1)
+        // Verify _meta
         Map<String, Object> meta = (Map<String, Object>) envelope.get("_meta");
         assertNotNull(meta);
         assertEquals("42", meta.get("modelVersion"));
@@ -157,7 +157,7 @@ public class SearchHandlerTest {
         assertEquals("Order Service", resultList.get(0).get("name"));
     }
 
-    // ---- Empty Results Tests (AC #2) ----
+    // ---- Empty Results Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -176,14 +176,14 @@ public class SearchHandlerTest {
         assertNotNull(resultList);
         assertTrue(resultList.isEmpty());
 
-        // Verify _meta shows zero counts (AC #2)
+        // Verify _meta shows zero counts
         Map<String, Object> meta = (Map<String, Object>) envelope.get("_meta");
         assertNotNull(meta);
         assertEquals(0, meta.get("resultCount"));
         assertEquals(0, meta.get("totalCount"));
         assertEquals(false, meta.get("isTruncated"));
 
-        // Verify specific nextSteps for empty results (AC #2)
+        // Verify specific nextSteps for empty results
         List<String> nextSteps = (List<String>) envelope.get("nextSteps");
         assertNotNull(nextSteps);
         assertEquals(2, nextSteps.size());
@@ -191,7 +191,7 @@ public class SearchHandlerTest {
         assertTrue(nextSteps.get(1).contains("get-model-info"));
     }
 
-    // ---- Parameter Validation Tests (AC #3) ----
+    // ---- Parameter Validation Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -439,7 +439,7 @@ public class SearchHandlerTest {
         assertEquals("INVALID_PARAMETER", error.get("code"));
     }
 
-    // ---- Error Path Tests (AC #1, #3) ----
+    // ---- Error Path Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -491,7 +491,7 @@ public class SearchHandlerTest {
         new SearchHandler(new StubAccessor(true), formatter, null, null);
     }
 
-    // ---- Case-Insensitivity Test (AC #1) ----
+    // ---- Case-Insensitivity Test ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -529,7 +529,7 @@ public class SearchHandlerTest {
         assertEquals("Customer Portal", resultList.get(0).get("name"));
     }
 
-    // ---- Documentation/Property Search Tests (AC #1) ----
+    // ---- Documentation/Property Search Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -567,7 +567,7 @@ public class SearchHandlerTest {
         assertEquals("Customer Portal", resultList.get(0).get("name"));
     }
 
-    // ---- Pagination Tests (Story 6.1) ----
+    // ---- Pagination Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -876,7 +876,7 @@ public class SearchHandlerTest {
         assertTrue(resultList.isEmpty());
     }
 
-    // ---- Type Filter Tests (AC #1, #3) ----
+    // ---- Type Filter Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -938,7 +938,7 @@ public class SearchHandlerTest {
         assertTrue(resultList.isEmpty());
     }
 
-    // ---- Layer Filter Tests (AC #2, #3) ----
+    // ---- Layer Filter Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -994,7 +994,7 @@ public class SearchHandlerTest {
         assertTrue(resultList.isEmpty());
     }
 
-    // ---- Combined Type + Layer Filter Tests (AC #3) ----
+    // ---- Combined Type + Layer Filter Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1032,7 +1032,7 @@ public class SearchHandlerTest {
         assertTrue(resultList.isEmpty());
     }
 
-    // ---- Invalid Type/Layer Validation Tests (AC #4) ----
+    // ---- Invalid Type/Layer Validation Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1080,7 +1080,7 @@ public class SearchHandlerTest {
         assertTrue(correction.contains("Technology"));
     }
 
-    // ---- Case-Sensitivity Tests (AC #4 edge cases) ----
+    // ---- Case-Sensitivity Tests (edge cases) ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1120,7 +1120,7 @@ public class SearchHandlerTest {
         assertTrue(((String) error.get("message")).contains("business"));
     }
 
-    // ---- Blank/Empty Type and Layer Tests (AC #4 edge cases) ----
+    // ---- Blank/Empty Type and Layer Tests (edge cases) ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1210,7 +1210,7 @@ public class SearchHandlerTest {
         assertEquals(3, resultList.size());
     }
 
-    // ---- Type/Layer Filter with No Text Matches (AC #1, #2 edge case) ----
+    // ---- Type/Layer Filter with No Text Matches (edge case) ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1230,7 +1230,7 @@ public class SearchHandlerTest {
         assertTrue(resultList.isEmpty());
     }
 
-    // ---- Updated Schema Tests (AC #5) ----
+    // ---- Updated Schema Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1299,7 +1299,7 @@ public class SearchHandlerTest {
         assertTrue(SearchHandler.VALID_LAYERS.contains("Implementation & Migration"));
     }
 
-    // ---- Story 5.3: Model Version Change Detection Tests ----
+    // ---- Model Version Change Detection Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1381,7 +1381,7 @@ public class SearchHandlerTest {
                 new TypeReference<Map<String, Object>>() {});
     }
 
-    // ---- Session Filter Integration Tests (Task 12.1-12.5) ----
+    // ---- Session Filter Integration Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1512,7 +1512,7 @@ public class SearchHandlerTest {
         }
     }
 
-    // ---- Field Selection Integration Tests (Story 5.2, Task 11.1-11.2) ----
+    // ---- Field Selection Integration Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1569,7 +1569,7 @@ public class SearchHandlerTest {
         assertNull("documentation should be excluded", element.get("documentation"));
     }
 
-    // ---- AC #5: Invalid fields preset fallback + warning (H2 code review fix) ----
+    // ---- Invalid fields preset fallback + warning ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1607,7 +1607,7 @@ public class SearchHandlerTest {
         assertNotNull("Standard fields should include layer", element.get("layer"));
     }
 
-    // ---- Story 5.4: Session Cache Tests ----
+    // ---- Session Cache Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1667,7 +1667,7 @@ public class SearchHandlerTest {
         assertEquals("Accessor should be called for different query", 2, accessor.searchCount);
     }
 
-    // ---- Story 6.2: DryRun Tests ----
+    // ---- DryRun Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1837,7 +1837,7 @@ public class SearchHandlerTest {
         assertEquals("boolean", dryRunProp.get("type"));
     }
 
-    // ---- search-relationships Tests (Story C1) ----
+    // ---- search-relationships Tests ----
 
     @Test
     public void shouldRegisterSearchRelationshipsTool() {
@@ -2383,7 +2383,7 @@ public class SearchHandlerTest {
     }
 
     /**
-     * Stub accessor that counts method invocations for cache hit/miss verification (Story 5.4).
+     * Stub accessor that counts method invocations for cache hit/miss verification.
      */
     private static class CountingAccessor extends StubAccessor {
         int searchCount = 0;

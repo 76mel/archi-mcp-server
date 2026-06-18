@@ -26,7 +26,7 @@ import com.archimatetool.model.IDiagramModelObject;
  * Collects assessment nodes and connections from diagram models for
  * layout quality assessment and routing.
  *
- * <p>Extracted from ArchiModelAccessorImpl (Story 12-4) to improve cohesion.
+ * <p>Extracted from ArchiModelAccessorImpl to improve cohesion.
  * Package-visible — only ArchiModelAccessorImpl should use this class.</p>
  */
 final class AssessmentCollector {
@@ -60,7 +60,7 @@ final class AssessmentCollector {
             boolean isGroup = child instanceof IDiagramModelGroup;
             boolean isNote = child instanceof IDiagramModelNote;
 
-            // B53: Extract name and pre-compute label text width
+            // Extract name and pre-compute label text width
             String name = child.getName();
             double labelTextWidth = 0.0;
             if (name != null && !name.isEmpty() && !isGroup && !isNote) {
@@ -71,7 +71,7 @@ final class AssessmentCollector {
                 }
             }
 
-            // B53: Extract image path and position
+            // Extract image path and position
             String imgPath = ImageHelper.readImagePath(child);
             String imgPosition = null;
             if (imgPath != null && !imgPath.isEmpty()) {

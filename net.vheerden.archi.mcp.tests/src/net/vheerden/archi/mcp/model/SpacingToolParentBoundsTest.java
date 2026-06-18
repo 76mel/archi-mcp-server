@@ -7,16 +7,15 @@ import org.junit.Test;
 
 /**
  * Tests for the spacing-tool parent-bounds-overflow contract added 2026-05-13
- * (Successor E.b — story
- * {@code _bmad-output/implementation-artifacts/backlog-routing-spacing-tool-parent-bounds-followup.md}).
+ * (Successor E.b).
  *
  * <p>Closes the Row B / composed-tool sibling residual gap surfaced by parent
- * Successor E (sprint-status row 730) Task 0a static analysis: the
+ * Successor E (row 730) Task 0a static analysis: the
  * {@code apply-element-spacing-recommendations} / {@code apply-group-spacing-
  * recommendations} / {@code apply-spacing-recommendations(scope=both)} family
  * delegates to {@code ArchiModelAccessorImpl.adjustViewSpacing} →
  * {@code inflateGroupSpacing} (which has its own {@code resizeAncestorGroups}
- * PARALLEL to B15's {@code resizeParentGroupIfNeeded}) +
+ * PARALLEL to {@code resizeParentGroupIfNeeded}) +
  * {@code computeAutoRoutePass(force=true)} that does NOT autoNudge. Mechanism
  * #5a (dominant): {@code inflateGroupSpacing}'s recursive case has a stale-
  * dimensions bug in {@code resolveElementSizes} (line 9337-9348) that reads
@@ -35,8 +34,8 @@ import org.junit.Test;
  * int, int, int)} predicate (line 4173, extracted by parent Successor E as
  * single source of truth per {@code feedback_inherited_primitive_spike.md}),
  * and emits consolidated resize commands via {@code resizeParentGroupIfNeeded}
- * + {@code virtualGroupBounds} + {@code groupResizeCommands} accumulator
- * (B15 pattern). Sibling-symmetric with parent Successor E's mechanism #2b
+ * + {@code virtualGroupBounds} + {@code groupResizeCommands} accumulator.
+ * Sibling-symmetric with parent Successor E's mechanism #2b
  * post-autoNudge overflow pass at lines 3706-3752.</p>
  *
  * <p>Test coverage:</p>
@@ -111,7 +110,7 @@ public class SpacingToolParentBoundsTest {
 	// --- Q5 option B: V4 H2 hub-heavy synthetic fixture (1 hub + 17 fan-out spokes) ---
 	//
 	// Mimics view `id-ddb84fbd57d24caaa15b0da62b75f531` (17-fan-out API Mgmt) —
-	// sprint-status row 730 candidate + Successor D V_p10 calibration anchor.
+	// row 730 candidate + Successor D V_p10 calibration anchor.
 	// Parent: 800x600. Spokes: 80x40 each. The spacing-tool path (Row B
 	// inflation) tightens spacing AND repositions spokes; under high
 	// connectionCount cohort, the tightened-then-recomputed layout pushes
@@ -216,7 +215,7 @@ public class SpacingToolParentBoundsTest {
 	}
 
 	/**
-	 * AC-4 predicate-level compliance: asserts that post-resize parent
+	 * Predicate-level compliance: asserts that post-resize parent
 	 * dimensions (820×630, chosen to accommodate all 17 spokes) satisfy the
 	 * non-overflow predicate for each spoke. The parent dimensions are
 	 * correct-by-construction — this test validates predicate arithmetic only,

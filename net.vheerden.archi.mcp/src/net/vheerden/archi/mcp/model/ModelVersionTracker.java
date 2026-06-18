@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Per-session lazy version comparison for model change detection (Story 5.3 FR28).
+ * Per-session lazy version comparison for model change detection.
  *
  * <p>Tracks the last-seen model version for each MCP session. When a handler
  * calls {@link #checkAndUpdateVersion(String, String)}, the tracker compares

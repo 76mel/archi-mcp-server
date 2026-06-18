@@ -7,7 +7,7 @@ import com.archimatetool.model.IDiagramModelArchimateConnection;
 
 /**
  * GEF Command that removes a connection from a view by disconnecting it
- * from its source and target view objects (Story 7-8).
+ * from its source and target view objects.
  *
  * <p>Captures source and target at construction time for getter access.
  * Note: {@code disconnect()} preserves the connection's internal source/target

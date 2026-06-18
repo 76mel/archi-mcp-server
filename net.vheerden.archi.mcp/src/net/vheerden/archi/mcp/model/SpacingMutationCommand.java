@@ -19,7 +19,7 @@ package net.vheerden.archi.mcp.model;
  * reverse order before returning); (b) building a single
  * {@code NonNotifyingCompoundCommand} wrapping the accepted commands; (c)
  * pushing that compound through the public command stack so the stack records
- * exactly ONE undo entry per AC-6.</p>
+ * exactly ONE undo entry.</p>
  *
  * <p><strong>Contract:</strong> {@link #undo()} MUST perfectly reverse
  * {@link #execute()}'s mutation. Standard GEF {@code Command} contract; the

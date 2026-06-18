@@ -6,7 +6,7 @@ import com.archimatetool.model.IArchimateElement;
 import com.archimatetool.model.IFolder;
 
 /**
- * GEF Command that adds an ArchiMate element to a folder (Story 7-2).
+ * GEF Command that adds an ArchiMate element to a folder.
  *
  * <p>The element must be fully configured (name, documentation, properties)
  * before this command is created. The command only handles folder placement

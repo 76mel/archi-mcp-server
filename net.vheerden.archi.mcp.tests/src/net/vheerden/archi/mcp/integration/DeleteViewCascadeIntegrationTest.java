@@ -27,7 +27,7 @@ import com.archimatetool.model.IFolder;
 import net.vheerden.archi.mcp.model.DeleteViewCommand;
 
 /**
- * Integration regression pin for Story 14-6.1.
+ * Integration regression pin for the delete-view cascade.
  *
  * <p>Reproduces the production failure mode that broke
  * {@code Routing Pipeline Comparison.archimate} on 2026-05-27: a view
@@ -51,7 +51,6 @@ public class DeleteViewCascadeIntegrationTest {
         assumeTrue("requires PDE/OSGi runtime", Platform.isRunning());
     }
 
-    /** AC-6. */
     @Test
     public void shouldNotProduceDanglingReferences_whenViewWithPlaceholdersDeletedAndSerialized() throws Exception {
         IArchimateFactory factory = IArchimateFactory.eINSTANCE;

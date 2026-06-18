@@ -10,9 +10,7 @@ import net.vheerden.archi.mcp.model.routing.RoutingPipeline.ConnectionEndpoints;
 
 /**
  * Best-of-K multi-start outer wrapper around the <em>entirely unchanged</em>
- * {@link RoutingPipeline} (story {@code backlog-routing-best-of-k-multi-start},
- * sprint-status row 762; Task-0 design/feasibility spike
- * {@code _bmad-output/implementation-artifacts/best-of-k-task0-design-spike-2026-05-16.md}).
+ * {@link RoutingPipeline}.
  *
  * <p><b>Why this exists.</b> The pipeline is a greedy polynomial approximation of a
  * latent NP-hard global optimisation (processing-order &rarr; corridor-assignment
@@ -20,7 +18,7 @@ import net.vheerden.archi.mcp.model.routing.RoutingPipeline.ConnectionEndpoints;
  * <em>processing order</em> is established at exactly one site —
  * {@link RoutingPipeline#buildConnectionRoutingOrder} — and the sequential
  * {@link CorridorOccupancyTracker} accumulation makes the final geometry
- * order-sensitive. HPRPS Task-7 measured that sensitivity as a wide quality spread
+ * order-sensitive. Measurement showed that sensitivity as a wide quality spread
  * (HH {@code V_p10 &isin; {4,4,9,4,8,4}} over 6 clones of one source). This class
  * turns that latent, currently-wasted nondeterminism into a deliberate, seeded,
  * deterministic quality lever: run the unchanged pipeline K times over
@@ -35,12 +33,12 @@ import net.vheerden.archi.mcp.model.routing.RoutingPipeline.ConnectionEndpoints;
  * rule, so run&nbsp;0 wins every tie. Therefore
  * {@code objective(emitted) &ge; objective(run0) = objective(current main)} for every
  * input, unconditionally. Unlike HPRPS there is nothing to roll back &mdash; the
- * current-{@code main} result is always in the candidate set and always wins ties.
+ * current result is always in the candidate set and always wins ties.
  * The only ways to regress are <em>non-quality</em>: a performance-budget breach
  * (mitigated by the wall-clock budget + large-view degrade-to-K=1 guard) or a
  * determinism break (the seeded RNG is a pure function of {@code (seed, run)}).
  *
- * <p><b>Atomic-swap discipline (AC-5).</b> This is a NEW outer sibling. It composes
+ * <p><b>Atomic-swap discipline.</b> This is a NEW outer sibling. It composes
  * the pipeline through two injected SAMs and touches NONE of the 6 off-limits
  * inherited primitives ({@code VisibilityGraphRouter} / {@code EdgeAttachmentCalculator}
  * / {@code PathStraightener} / {@code CorridorOccupancyTracker} /
@@ -57,10 +55,9 @@ import net.vheerden.archi.mcp.model.routing.RoutingPipeline.ConnectionEndpoints;
  *
  * <p>The base order is obtained from the unchanged package-visible pure
  * {@link RoutingPipeline#buildConnectionRoutingOrder} (not one of the 6 off-limits
- * primitives) and shuffled with seeded Fisher&ndash;Yates. The orthogonality to
- * {@code project_v4_hub_spoke_coincident_falsification_chain} (B83/B84/B85/lesson-9,
- * H1&ndash;H4) is structural: feed-order + selection only, no internal cost/keying
- * change &mdash; see the Task-0 spike &sect; "AC-2 Item 5".
+ * primitives) and shuffled with seeded Fisher&ndash;Yates. The orthogonality to the
+ * V4 hub-spoke coincident falsification chain is structural: feed-order + selection
+ * only, no internal cost/keying change.
  *
  * <p>Pure-geometry class &mdash; no EMF/SWT dependencies.
  */
@@ -79,8 +76,8 @@ public final class BestOfKRoutingStrategy {
     public static final long DEFAULT_SEED = 0xBE57_0FCAL;
 
     /**
-     * AC-15 large-view guard: above this connection count the search degrades to
-     * K=1 (&equiv; current {@code main}, never-worse preserved even under the
+     * Large-view guard: above this connection count the search degrades to
+     * K=1 (never-worse preserved even under the
      * guard). Gate views are ~30 connections; the threshold leaves generous
      * head-room for normal views while preventing a pathological view from
      * incurring K&times; routing + scoring cost.
@@ -88,7 +85,7 @@ public final class BestOfKRoutingStrategy {
     public static final int DEFAULT_LARGE_VIEW_CONNECTION_THRESHOLD = 120;
 
     /**
-     * AC-15 hard wall-clock budget (ms). Checked between runs; on breach the
+     * Hard wall-clock budget (ms). Checked between runs; on breach the
      * search stops and returns the best-so-far &mdash; which always includes
      * run&nbsp;0, so never-worse-by-construction holds even on an early budget cut.
      */
@@ -100,8 +97,8 @@ public final class BestOfKRoutingStrategy {
     /**
      * The unchanged-pipeline invocation seam. {@code processingOrderOverride}
      * {@code == null} MUST make the pipeline compute its own
-     * {@link RoutingPipeline#buildConnectionRoutingOrder} (&equiv; current
-     * {@code main}); a non-null array is the exact processing order to use.
+     * {@link RoutingPipeline#buildConnectionRoutingOrder}; a non-null array is the
+     * exact processing order to use.
      */
     @FunctionalInterface
     public interface RouteRunner {
@@ -127,8 +124,8 @@ public final class BestOfKRoutingStrategy {
     private final int largeViewThreshold;
     /**
      * Wall-clock budget for the K-1 shuffled runs, checked between runs (run-0
-     * always completes first ⇒ never-worse preserved on a budget cut). AC-11
-     * AC-15-1: a value of {@code 0} <b>disables the wall-clock check entirely</b>
+     * always completes first ⇒ never-worse preserved on a budget cut). A value
+     * of {@code 0} <b>disables the wall-clock check entirely</b>
      * (all K runs execute regardless of elapsed time; intended for tests / a
      * deliberately unbounded search), it does NOT mean "expire immediately".
      * Must be {@code >= 0}; production default {@link #DEFAULT_BUDGET_MILLIS}.
@@ -222,7 +219,7 @@ public final class BestOfKRoutingStrategy {
     }
 
     /**
-     * Effective K after the AC-15 large-view guard and the trivial-view
+     * Effective K after the large-view guard and the trivial-view
      * short-circuit. {@code baseLength < 2} ⇒ only one possible ordering ⇒ K=1.
      */
     int effectiveK(int connectionCount, int baseLength) {
@@ -238,7 +235,7 @@ public final class BestOfKRoutingStrategy {
     /**
      * Seeded Fisher&ndash;Yates shuffle of a copy of {@code base}. Pure function
      * of {@code (seed, run)} &mdash; same inputs ⇒ identical permutation
-     * (AC-16 reproducibility). Distinct seeds ⇒ distinct RNG streams ⇒ distinct
+     * (reproducibility). Distinct seeds ⇒ distinct RNG streams ⇒ distinct
      * orderings (the search is real, not a no-op).
      */
     Integer[] shuffledOrder(Integer[] base, int run) {

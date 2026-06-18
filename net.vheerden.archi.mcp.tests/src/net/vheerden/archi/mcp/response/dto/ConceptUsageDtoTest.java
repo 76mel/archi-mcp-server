@@ -12,7 +12,7 @@ import net.vheerden.archi.mcp.response.dto.ConceptUsageDto.ViewReferenceDto;
 import net.vheerden.archi.mcp.response.dto.ConceptUsageDto.VisualObjectReferenceDto;
 
 /**
- * Tests for {@link ConceptUsageDto} (Story 14-5 / G10).
+ * Tests for {@link ConceptUsageDto} (G10).
  *
  * <p>Pure-JUnit — no EMF / OSGi runtime. Validates the record's Jackson
  * serialisation invariants (omit-null, ordering pass-through, embedding hook).</p>

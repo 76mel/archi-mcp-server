@@ -6,7 +6,7 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Result DTO for the adjust-view-spacing tool (B68).
+ * Result DTO for the adjust-view-spacing tool.
  * Combines spacing inflation results with routing metrics and assessment summary
  * so the LLM gets everything in one response.
  *

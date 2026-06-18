@@ -11,7 +11,7 @@ import com.archimatetool.model.IDiagramModelConnection;
 import com.archimatetool.model.IFolder;
 
 /**
- * GEF Command that deletes an ArchiMate relationship with cascade (Story 8-4).
+ * GEF Command that deletes an ArchiMate relationship with cascade.
  *
  * <p>Cascade removal order on execute:</p>
  * <ol>

@@ -18,7 +18,7 @@ import com.archimatetool.model.IFolder;
 import com.archimatetool.model.IProperty;
 
 /**
- * Tests for {@link UpdateRelationshipCommand} (Story C10).
+ * Tests for {@link UpdateRelationshipCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * execute/undo/redo with name, documentation, and property changes.</p>
@@ -118,7 +118,7 @@ public class UpdateRelationshipCommandTest {
         assertEquals("New docs", relationship.getDocumentation());
     }
 
-    // ---- Empty string clears (AC-1, AC-2) ----
+    // ---- Empty string clears ----
 
     @Test
     public void shouldClearName_whenEmptyStringProvided() {

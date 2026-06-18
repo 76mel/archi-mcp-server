@@ -11,7 +11,7 @@ import org.junit.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Tests for {@link AutoRouteResultDto} (Story 13-7, backlog-b14, RoutingPreconditions.AutoRouteStructuredWarning).
+ * Tests for {@link AutoRouteResultDto} (RoutingPreconditions.AutoRouteStructuredWarning).
  */
 public class AutoRouteResultDtoTest {
 
@@ -70,7 +70,7 @@ public class AutoRouteResultDtoTest {
         assertEquals(2, dto.connectionsFailed());
     }
 
-    // ---- Crossing delta tests (backlog-b14) ----
+    // ---- Crossing delta tests ----
 
     @Test
     public void shouldStoreCrossingFields_whenCanonicalConstructor() {
@@ -155,7 +155,7 @@ public class AutoRouteResultDtoTest {
         assertEquals(0, dto.crossingsAfter());
     }
 
-    // ---- Resized groups tests (backlog-b15) ----
+    // ---- Resized groups tests ----
 
     @Test
     public void shouldStoreResizedGroups_whenCanonicalConstructor() {
@@ -201,7 +201,7 @@ public class AutoRouteResultDtoTest {
         assertTrue(dto.resizedGroups().isEmpty());
     }
 
-    // ---- Straight-line crossings tests (backlog-b22) ----
+    // ---- Straight-line crossings tests ----
 
     @Test
     public void shouldStoreStraightLineCrossings_whenCanonicalConstructor() {
@@ -306,8 +306,7 @@ public class AutoRouteResultDtoTest {
                 dto.structuredWarnings().isEmpty());
     }
 
-    // ---- Interior-termination veto sub-count
-    //      (backlog-auto-route-terminals-only-interior-termination-veto) ----
+    // ---- Interior-termination veto sub-count ----
 
     @Test
     public void serialization_zeroVetoedByInterior_shouldOmitField() throws Exception {
@@ -341,11 +340,11 @@ public class AutoRouteResultDtoTest {
                 json.contains("\"vetoedByZigzag\":3"));
     }
 
-    // ---- Blocked recommendations / nudgeBlockedReason tests (Story 14-12) ----
+    // ---- Blocked recommendations / nudgeBlockedReason tests ----
 
     @Test
     public void shouldOmitBlockedRecommendations_whenEmpty() throws Exception {
-        // Canonical pre-14-12 21-arg convenience constructor (Story 14-12).
+        // Canonical 21-arg convenience constructor.
         // Defaults blockedRecommendations to List.of() and nudgeBlockedReason to null;
         // both must be omitted from JSON per @JsonInclude(NON_EMPTY / NON_NULL).
         AutoRouteResultDto dto = new AutoRouteResultDto(
@@ -367,7 +366,7 @@ public class AutoRouteResultDtoTest {
     public void shouldSerializeBlockedRecommendations_whenPopulated() throws Exception {
         // Construct via the new 23-arg canonical constructor with one recommendation
         // surfaced under blockedRecommendations and nudgeBlockedReason populated to
-        // the canonical sibling_overlap value (Story 14-12).
+        // the canonical sibling_overlap value.
         MoveRecommendationDto rec = new MoveRecommendationDto(
                 "el-1", "AppServer Cluster", 230, 0,
                 "Move 230px east to clear sibling overlap blocking 1 connection",

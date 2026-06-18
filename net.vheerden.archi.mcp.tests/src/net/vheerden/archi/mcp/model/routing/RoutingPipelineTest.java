@@ -16,7 +16,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Tests for {@link RoutingPipeline} (Story 10-6c).
+ * Tests for {@link RoutingPipeline}.
  * Pure-geometry tests — no OSGi runtime required.
  */
 public class RoutingPipelineTest {
@@ -28,7 +28,7 @@ public class RoutingPipelineTest {
         pipeline = new RoutingPipeline();
     }
 
-    // --- Test 4.1: No obstacles → straight line (AC #1) ---
+    // --- Test 4.1: No obstacles → straight line ---
 
     @Test
     public void shouldReturnEmptyBendpoints_whenNoObstacles() {
@@ -41,7 +41,7 @@ public class RoutingPipelineTest {
         assertTrue("No obstacles should produce straight line (0 bendpoints)", bendpoints.isEmpty());
     }
 
-    // --- Test 4.2: Obstacle between source and target → route around (AC #1) ---
+    // --- Test 4.2: Obstacle between source and target → route around ---
 
     @Test
     public void shouldProduceBendpoints_whenObstacleBetweenSourceAndTarget() {
@@ -55,7 +55,7 @@ public class RoutingPipelineTest {
         assertFalse("Should have bendpoints to route around obstacle", bendpoints.isEmpty());
     }
 
-    // --- Test 4.3: All bendpoints avoid obstacle rectangles (AC #1) ---
+    // --- Test 4.3: All bendpoints avoid obstacle rectangles ---
 
     @Test
     public void shouldNotIntersectObstacles_whenRouted() {
@@ -72,7 +72,7 @@ public class RoutingPipelineTest {
         assertNoSegmentIntersectsObstacles(fullPath, obstacles);
     }
 
-    // --- Test 4.4: Multiple connections reuse same pipeline (AC #1) ---
+    // --- Test 4.4: Multiple connections reuse same pipeline ---
 
     @Test
     public void shouldRouteMultipleConnections_withValidResults() {
@@ -96,7 +96,7 @@ public class RoutingPipelineTest {
         assertNoSegmentIntersectsObstacles(buildFullPath(src2, tgt2, bp2), obstacles);
     }
 
-    // --- Test 4.5: Empty path fallback (AC #5) ---
+    // --- Test 4.5: Empty path fallback ---
 
     @Test
     public void shouldReturnEmptyBendpoints_whenNoPathFound() {
@@ -122,7 +122,7 @@ public class RoutingPipelineTest {
         assertTrue("No-path fallback should return empty bendpoints", bendpoints.isEmpty());
     }
 
-    // --- Test 4.6: Self-connection (AC #5) ---
+    // --- Test 4.6: Self-connection ---
 
     @Test
     public void shouldReturnEmptyBendpoints_whenSelfConnection() {
@@ -134,7 +134,7 @@ public class RoutingPipelineTest {
         assertTrue("Self-connection should return empty bendpoints", bendpoints.isEmpty());
     }
 
-    // --- Test 4.7: Performance — 30 obstacles, 50 connections < 500ms (AC #6) ---
+    // --- Test 4.7: Performance — 30 obstacles, 50 connections < 500ms ---
 
     @Test
     public void shouldRouteWithinPerformanceBudget_30obstacles50connections() {
@@ -169,7 +169,7 @@ public class RoutingPipelineTest {
                 elapsedMs < 500);
     }
 
-    // --- Test 4.8: Configurable bend penalty and margin (AC #1) ---
+    // --- Test 4.8: Configurable bend penalty and margin ---
 
     @Test
     public void shouldPassConfigurationToUnderlyingComponents() {
@@ -208,10 +208,10 @@ public class RoutingPipelineTest {
         return true;
     }
 
-    // --- Test 4.9: Large obstacle routing (AC #4 partial) ---
-    // NOTE: AC4's cross-group ancestor exclusion logic lives in ArchiModelAccessorImpl,
+    // --- Test 4.9: Large obstacle routing ---
+    // NOTE: cross-group ancestor exclusion logic lives in ArchiModelAccessorImpl,
     // not in RoutingPipeline. This test verifies the pipeline correctly routes around
-    // large group-sized obstacles. Full AC4 validation requires E2E/integration testing.
+    // large group-sized obstacles. Full validation requires E2E/integration testing.
 
     @Test
     public void shouldRouteAroundGroupObstacle() {
@@ -228,7 +228,7 @@ public class RoutingPipelineTest {
                 buildFullPath(source, target, bendpoints), List.of(groupObstacle));
     }
 
-    // --- Test: group transparency — path routes through group area when group not in obstacles (Story 10-22) ---
+    // --- Test: group transparency — path routes through group area when group not in obstacles ---
 
     @Test
     public void shouldRouteThroughGroupArea_whenGroupNotInObstacles() {
@@ -259,7 +259,7 @@ public class RoutingPipelineTest {
         }
     }
 
-    // --- Test: nested groups both transparent — only leaf elements block routing (Story 10-22) ---
+    // --- Test: nested groups both transparent — only leaf elements block routing ---
 
     @Test
     public void shouldRouteThroughNestedGroupAreas_whenOnlyLeafElementsAreObstacles() {
@@ -289,7 +289,7 @@ public class RoutingPipelineTest {
         }
     }
 
-    // --- Test: batch routing produces ordered paths for parallel connections (Story 10-7a) ---
+    // --- Test: batch routing produces ordered paths for parallel connections ---
 
     @Test
     public void shouldProduceOrderedPaths_whenBatchRoutingParallelConnections() {
@@ -314,7 +314,7 @@ public class RoutingPipelineTest {
         assertNotNull(result.get("c2"));
     }
 
-    // --- Test: single connection backward compatibility via batch (Story 10-7a) ---
+    // --- Test: single connection backward compatibility via batch ---
 
     @Test
     public void shouldPreserveSingleConnectionBehavior_whenBatchWithOneConnection() {
@@ -344,7 +344,7 @@ public class RoutingPipelineTest {
         }
     }
 
-    // --- Test 5.1: Batch routing with nudging separates parallel connections (Story 10-7b) ---
+    // --- Test 5.1: Batch routing with nudging separates parallel connections ---
 
     @Test
     public void shouldSeparateParallelConnections_whenBatchRoutingWithNudging() {
@@ -387,7 +387,7 @@ public class RoutingPipelineTest {
         }
     }
 
-    // --- Test 5.2: Single connection produces clean path via batch (Story 10-7b) ---
+    // --- Test 5.2: Single connection produces clean path via batch ---
 
     @Test
     public void shouldProduceCleanPath_whenBatchRoutingWithNudging() {
@@ -678,7 +678,7 @@ public class RoutingPipelineTest {
         assertEquals("Should collapse to straight line", 2, path.size());
     }
 
-    // --- Tests for label clearance pass (Story 10-8) ---
+    // --- Tests for label clearance pass ---
 
     @Test
     public void shouldNotBreakExistingRoutes_whenNoLabels() {
@@ -740,7 +740,7 @@ public class RoutingPipelineTest {
         assertNotNull(result.get("c1"));
     }
 
-    // --- Story 10-25: Post-pipeline obstacle re-validation (AC #2) ---
+    // --- Post-pipeline obstacle re-validation ---
 
     @Test
     public void shouldRemoveObstacleViolations_whenSegmentPassesThroughObstacle() {
@@ -785,7 +785,7 @@ public class RoutingPipelineTest {
         assertEquals(400, path.get(1).x());
     }
 
-    // --- Story 10-25: Orthogonal path enforcement (AC #4) ---
+    // --- Orthogonal path enforcement ---
 
     @Test
     public void shouldInsertLTurn_whenDiagonalSegmentDetected() {
@@ -839,7 +839,7 @@ public class RoutingPipelineTest {
         }
     }
 
-    // --- Story 10-25: Edge-clipping pattern — narrow gap routing (AC #1, #2) ---
+    // --- Edge-clipping pattern — narrow gap routing ---
 
     @Test
     public void shouldNotClipElementEdges_whenTwoRowsWithNarrowGap() {
@@ -887,7 +887,7 @@ public class RoutingPipelineTest {
         }
     }
 
-    // --- Story 10-25: Same-level obstacle avoidance (AC #1, Pattern 4) ---
+    // --- Same-level obstacle avoidance (Pattern 4) ---
 
     @Test
     public void shouldRouteAroundMiddleElement_whenThreeAtSameLevel() {
@@ -920,7 +920,7 @@ public class RoutingPipelineTest {
         }
     }
 
-    // --- Story 10-25: Orthogonal segments preserved in batch routing (AC #4) ---
+    // --- Orthogonal segments preserved in batch routing ---
 
     @Test
     public void shouldProduceOrthogonalSegments_afterBatchRouting() {
@@ -950,7 +950,7 @@ public class RoutingPipelineTest {
         }
     }
 
-    // --- Story 10-28: Post-attachment orthogonal enforcement (AC #3) ---
+    // --- Post-attachment orthogonal enforcement ---
 
     @Test
     public void shouldEnforceOrthogonal_afterEdgeAttachment() {
@@ -1015,11 +1015,11 @@ public class RoutingPipelineTest {
         }
     }
 
-    // --- Story 10-28: Post-attachment obstacle re-validation ---
+    // --- Post-attachment obstacle re-validation ---
 
     @Test
     public void shouldNotCrossObstacles_afterEdgeAttachmentAndCleanup() {
-        // B69-C re-bless: obstacles are to the right of both source and target,
+        // Re-bless: obstacles are to the right of both source and target,
         // with clear line-of-sight between source(430,815) and target(560,355).
         // Pipeline produces a direct/simplified route with 0+ BPs — valid since
         // the obstacle-free path requires no intermediate waypoints.
@@ -1087,7 +1087,7 @@ public class RoutingPipelineTest {
     }
 
     // ====================================================================
-    // Path Simplification Tests (Story 10-26)
+    // Path Simplification Tests
     // ====================================================================
 
     @Test
@@ -1241,7 +1241,7 @@ public class RoutingPipelineTest {
         }
     }
 
-    // --- Story 10-30: RoutingResult structure and failure classification ---
+    // --- RoutingResult structure and failure classification ---
 
     @Test
     public void shouldReturnRoutingResult_withRoutedAndEmptyFailed_whenAllSucceed() {
@@ -1294,7 +1294,7 @@ public class RoutingPipelineTest {
         assertNull("Backward-compat constructor should have null crossedElementId",
                 fc.crossedElementId());
 
-        // Verify FailedConnection with crossedElementId (Story 10-34)
+        // Verify FailedConnection with crossedElementId
         FailedConnection fcWithCrossed = new FailedConnection("c2", "src", "tgt",
                 "element_crossing", "obs");
         assertEquals("obs", fcWithCrossed.crossedElementId());
@@ -1384,7 +1384,7 @@ public class RoutingPipelineTest {
                         List.of()));
     }
 
-    // --- Story 10-32: RoutingResult violatedRoutes + pipeline preservation ---
+    // --- RoutingResult violatedRoutes + pipeline preservation ---
 
     @Test
     public void shouldNullGuardViolatedRoutes_whenNull() {
@@ -1402,7 +1402,7 @@ public class RoutingPipelineTest {
         assertNotNull(result.violatedRoutes().get("c1"));
     }
 
-    // --- Story 10-34: findFirstObstacleViolation returns obstacle identity ---
+    // --- findFirstObstacleViolation returns obstacle identity ---
 
     @Test
     public void shouldRouteAroundWall_viaPerimeterNodes() {
@@ -1479,11 +1479,11 @@ public class RoutingPipelineTest {
         }
     }
 
-    // --- Story 13-4: Target/source bounding box approach tests ---
+    // --- Target/source bounding box approach tests ---
 
     @Test
     public void shouldApproachTargetFromOutside_whenTargetToRight() {
-        // AC-A1: Target to the right of source → approach from left edge
+        // Target to the right of source → approach from left edge
         RoutingRect source = new RoutingRect(0, 170, 100, 60, "src");   // center (50, 200)
         RoutingRect target = new RoutingRect(300, 170, 100, 60, "tgt"); // center (350, 200)
 
@@ -1497,7 +1497,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldApproachTargetFromOutside_whenTargetToLeft() {
-        // AC-A1: Target to the left of source → approach from right edge
+        // Target to the left of source → approach from right edge
         RoutingRect source = new RoutingRect(300, 170, 100, 60, "src");
         RoutingRect target = new RoutingRect(0, 170, 100, 60, "tgt");
 
@@ -1510,7 +1510,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldApproachTargetFromOutside_whenTargetAbove() {
-        // AC-A2: Target above source → approach from bottom edge
+        // Target above source → approach from bottom edge
         RoutingRect source = new RoutingRect(170, 300, 100, 60, "src");
         RoutingRect target = new RoutingRect(170, 0, 100, 60, "tgt");
 
@@ -1523,7 +1523,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldApproachTargetFromOutside_whenTargetBelow() {
-        // AC-A2: Target below source → approach from top edge
+        // Target below source → approach from top edge
         RoutingRect source = new RoutingRect(170, 0, 100, 60, "src");
         RoutingRect target = new RoutingRect(170, 300, 100, 60, "tgt");
 
@@ -1536,7 +1536,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldDepartSourceFromOutside_whenTargetToRight() {
-        // AC-A4: Source departure should be clean
+        // Source departure should be clean
         RoutingRect source = new RoutingRect(0, 170, 100, 60, "src");
         RoutingRect target = new RoutingRect(300, 170, 100, 60, "tgt");
 
@@ -1549,7 +1549,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldDepartSourceFromOutside_whenTargetToLeft() {
-        // AC-A4: Source departure when target is to the left
+        // Source departure when target is to the left
         RoutingRect source = new RoutingRect(300, 170, 100, 60, "src");
         RoutingRect target = new RoutingRect(0, 170, 100, 60, "tgt");
 
@@ -1562,7 +1562,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldDepartSourceFromOutside_whenTargetAbove() {
-        // AC-A4: Source departure when target is above
+        // Source departure when target is above
         RoutingRect source = new RoutingRect(170, 300, 100, 60, "src");
         RoutingRect target = new RoutingRect(170, 0, 100, 60, "tgt");
 
@@ -1575,7 +1575,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldDepartSourceFromOutside_whenTargetBelow() {
-        // AC-A4: Source departure when target is below
+        // Source departure when target is below
         RoutingRect source = new RoutingRect(170, 0, 100, 60, "src");
         RoutingRect target = new RoutingRect(170, 300, 100, 60, "tgt");
 
@@ -1588,7 +1588,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldNotRegress_existingRouteWithObstacle() {
-        // AC-A5: Existing test scenario should still produce valid routes
+        // Existing test scenario should still produce valid routes
         RoutingRect source = new RoutingRect(0, 170, 100, 60, "src");
         RoutingRect target = new RoutingRect(400, 170, 100, 60, "tgt");
         RoutingRect obstacle = new RoutingRect(200, 150, 100, 100, "obs");
@@ -1603,7 +1603,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldNotPassThroughTarget_whenSimilarYCoordinates() {
-        // AC-A3: The specific ESB→API Gateway scenario: elements at similar y-coordinates
+        // The specific ESB→API Gateway scenario: elements at similar y-coordinates
         // Source at left, target at right, similar y → horizontal route should NOT pass through target
         RoutingRect source = new RoutingRect(100, 280, 150, 50, "esb");     // center (175, 305)
         RoutingRect target = new RoutingRect(400, 250, 150, 70, "apigw");   // center (475, 285)
@@ -1771,7 +1771,7 @@ public class RoutingPipelineTest {
     }
 
     // ===================================================================
-    // Story 13-8: Fallback Edge Port Strategy
+    // Fallback Edge Port Strategy
     // ===================================================================
 
     @Test
@@ -1817,7 +1817,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldFallbackToAlternativeEdgePort_whenPrimaryBlockedByAdjacentObstacle() {
-        // Reproduce the ESB → Contact Centre scenario from story context:
+        // Reproduce the ESB → Contact Centre scenario:
         // ESB at (530,250) 220x200, Event Streaming at (770,250) 220x200 immediately to the right
         // Contact Centre at (950,0) 220x120 above-right
         // Primary edge port = RIGHT (dx dominance) → leads into Event Streaming
@@ -1952,7 +1952,7 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // Story 13-12: Terminal realignment tests
+    // Terminal realignment tests
     // =============================================
 
     @Test
@@ -2131,7 +2131,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldPreserveTerminalFaceCenter_whenLargeHorizontalOffset() {
-        // B69-C re-bless: pipeline alignment/simplification now produces Y=210
+        // Re-bless: pipeline alignment/simplification now produces Y=210
         // (target center Y) for the source exit, creating a clean horizontal
         // path to the target. This is correct — the pipeline optimizes the route.
         RoutingRect source = new RoutingRect(100, 200, 120, 40, "src");  // center (160, 220)
@@ -2163,7 +2163,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldPreserveTerminalFaceCenter_whenLargeVerticalOffset() {
-        // AC4: Large vertical offset should not produce diagonal exit
+        // Large vertical offset should not produce diagonal exit
         RoutingRect source = new RoutingRect(100, 100, 120, 40, "src");  // center (160, 120)
         RoutingRect target = new RoutingRect(110, 500, 120, 40, "tgt");  // center (170, 520)
         List<RoutingPipeline.ConnectionEndpoints> connections = List.of(
@@ -2193,7 +2193,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldRestoreBothTerminals_whenBothShiftedByMicroJogRemoval() {
-        // M2: Both source and target shifted simultaneously
+        // Both source and target shifted simultaneously
         RoutingRect source = new RoutingRect(100, 200, 120, 40, "src");
         RoutingRect target = new RoutingRect(500, 200, 120, 40, "tgt");
         RoutingPipeline.ConnectionEndpoints conn =
@@ -2222,7 +2222,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldDetectFace_whenDistributedTerminalNotAtCenter() {
-        // M3 / AC6: Distributed terminal offset from face center
+        // Distributed terminal offset from face center
         RoutingRect element = new RoutingRect(100, 200, 120, 40, "e1");
         // RIGHT face, distributed: x = 221 (edge+1), y = 210 (not center 220)
         int[] terminal = {221, 210};
@@ -2237,7 +2237,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldRealignTerminals_whenRedistributedToAdjacentFace() {
-        // M4 / AC7: Hub redistribution moves connection to adjacent face
+        // Hub redistribution moves connection to adjacent face
         // Source terminal redistributed from RIGHT to BOTTOM face
         RoutingRect source = new RoutingRect(100, 200, 120, 40, "src");  // bottom edge at y=240
         RoutingRect target = new RoutingRect(300, 400, 120, 40, "tgt");
@@ -2265,7 +2265,7 @@ public class RoutingPipelineTest {
                 160, path.get(1).x());
     }
 
-    // --- Snap-to-straight tests (backlog-b17) ---
+    // --- Snap-to-straight tests ---
 
     @Test
     public void shouldSnapToStraight_whenVerticalNearAligned12px() {
@@ -2400,7 +2400,7 @@ public class RoutingPipelineTest {
         // stage 4.6b realignTerminals restores the pre-snap target terminal X coordinate.
         // The snap/realign tension is a known pipeline design limitation — the net result
         // is a valid routed path that is NOT fully straight.
-        // B72-e: re-blessed from vacuous pass (pre-B71 the size guard skipped all assertions).
+        // Re-blessed from vacuous pass (previously the size guard skipped all assertions).
         // NOTE: test name is historical — snap behavior cannot be directly asserted due to
         // snap/realign tension. Assertions verify valid routing output with boundary terminals.
         RoutingRect source = new RoutingRect(0, 170, 100, 60, "src");
@@ -2435,7 +2435,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldRouteSuccessfully_whenSnapThresholdDisabled() {
-        // B69-C re-bless: snap threshold=0 disables snapToStraight, but B37
+        // Re-bless: snap threshold=0 disables snapToStraight, but
         // simplifyPath independently collapses the Z-bend when no obstacles
         // block the simplified path. 18px offset over 200px vertical → the
         // greedy shortcutting finds a direct route. Connection routed successfully.
@@ -2452,11 +2452,11 @@ public class RoutingPipelineTest {
 
         List<AbsoluteBendpointDto> routed = result.routed().get("c1");
         assertNotNull("Connection should be routed", routed);
-        // B37 simplification may collapse Z-bend to a direct/minimal path
+        // Simplification may collapse Z-bend to a direct/minimal path
         assertFalse("Should produce a non-empty path", routed.isEmpty());
     }
 
-    // ---- Straight-line crossing estimate tests (backlog-b22) ----
+    // ---- Straight-line crossing estimate tests ----
 
     @Test
     public void shouldReturnZeroCrossings_whenEmptyConnectionList() {
@@ -2505,7 +2505,7 @@ public class RoutingPipelineTest {
         assertEquals(0, crossings);
     }
 
-    // ---- Segment intersection tests (backlog-b22) ----
+    // ---- Segment intersection tests ----
 
     @Test
     public void shouldDetectIntersection_whenSegmentsCrossInMiddle() {
@@ -2523,7 +2523,7 @@ public class RoutingPipelineTest {
         assertFalse(RoutingPipeline.segmentsIntersect(0, 0, 50, 50, 50, 50, 100, 100));
     }
 
-    // ---- Bendpoint clearance enforcement tests (backlog-b22) ----
+    // ---- Bendpoint clearance enforcement tests ----
 
     @Test
     public void shouldNudgeBendpoint_whenTooCloseToObstacle() {
@@ -2664,7 +2664,7 @@ public class RoutingPipelineTest {
         assertEquals("BP should be nudged to obsTop - MIN_CLEARANCE", 172, nudgedBp.y());
     }
 
-    // ---- Straight-line crossing estimate in pipeline integration test (backlog-b22) ----
+    // ---- Straight-line crossing estimate in pipeline integration test ----
 
     @Test
     public void shouldIncludeStraightLineCrossingsInRoutingResult() {
@@ -2707,7 +2707,7 @@ public class RoutingPipelineTest {
                 0, result.straightLineCrossings());
     }
 
-    // ---- Crossing inflation warning tests (backlog-b22, code review fix M4) ----
+    // ---- Crossing inflation warning tests ----
 
     @Test
     public void shouldBuildCrossingInflationWarning_whenAboveThreshold() {
@@ -2743,11 +2743,11 @@ public class RoutingPipelineTest {
         assertNull("Should not warn when routing reduces crossings", warning);
     }
 
-    // ---- B25: Orthogonality-preserving propagation tests ----
+    // ---- Orthogonality-preserving propagation tests ----
 
     @Test
     public void shouldPropagateYNudge_toAdjacentNonTerminalBP() {
-        // B69-C re-bless: BP(155,200) is fully inside obstacle (both h-band and v-band),
+        // Re-bless: BP(155,200) is fully inside obstacle (both h-band and v-band),
         // so enforceMinClearance nudges BOTH axes: Y to 187 (obsTop 195-8) and
         // X to 132 (obsLeft 140-8). X propagates to BP[3] which shares X=155.
         RoutingRect source = new RoutingRect(0, 190, 40, 20, "src");
@@ -2778,7 +2778,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldPropagateXNudge_toAdjacentNonTerminalBP() {
-        // B69-C re-bless: BP(100,115) is fully inside obstacle (both bands), so
+        // Re-bless: BP(100,115) is fully inside obstacle (both bands), so
         // enforceMinClearance nudges both axes. X nudges to obsLeft(95)-8=87
         // (left side wins when distToLeft==distToRight). Y nudges to obsTop(100)-8=92.
         RoutingRect source = new RoutingRect(0, 0, 40, 20, "src");
@@ -2827,7 +2827,7 @@ public class RoutingPipelineTest {
         assertEquals(200, path.get(2).y());
     }
 
-    // ---- Multi-obstacle clearance verification test (backlog-b22, code review fix H1) ----
+    // ---- Multi-obstacle clearance verification test (code review fix H1) ----
 
     @Test
     public void shouldRevertNudge_whenMultiObstacleNudgeLeavesResidualViolation() {
@@ -2870,7 +2870,7 @@ public class RoutingPipelineTest {
         assertEquals("BP should be reverted to original y", 222, path.get(1).y());
     }
 
-    // ---- B26: Segment-based clearance enforcement tests ----
+    // ---- Segment-based clearance enforcement tests ----
 
     @Test
     public void shouldShiftVerticalSegment_whenTooCloseToObstacleLeftEdge() {
@@ -3145,7 +3145,7 @@ public class RoutingPipelineTest {
     }
 
     // =========================================================================
-    // enforceTerminalCorridorClearance — 2-BP paths (backlog-b27)
+    // enforceTerminalCorridorClearance — 2-BP paths
     // =========================================================================
 
     @Test
@@ -3322,7 +3322,7 @@ public class RoutingPipelineTest {
     }
 
     // =========================================================================
-    // enforceTerminalCorridorClearance — 3-BP paths (backlog-b27)
+    // enforceTerminalCorridorClearance — 3-BP paths
     // =========================================================================
 
     @Test
@@ -3410,12 +3410,12 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // B28: Post-pipeline terminal orthogonality verification
+    // Post-pipeline terminal orthogonality verification
     // =============================================
 
     @Test
     public void shouldFixDiagonalSourceTerminal() {
-        // B69-C re-bless: enforceTerminalOrthogonality fixes BOTH diagonals.
+        // Re-bless: enforceTerminalOrthogonality fixes BOTH diagonals.
         // After source fix inserts L-turn at index 1, the target terminal check
         // finds the target BP is also diagonal and inserts a second L-turn.
         RoutingRect source = new RoutingRect(0, 170, 100, 60, "src");
@@ -3441,7 +3441,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldFixDiagonalTargetTerminal() {
-        // B69-C re-bless: enforceTerminalOrthogonality fixes BOTH diagonals.
+        // Re-bless: enforceTerminalOrthogonality fixes BOTH diagonals.
         RoutingRect source = new RoutingRect(0, 170, 100, 60, "src");
         RoutingRect target = new RoutingRect(400, 170, 100, 60, "tgt");
 
@@ -3556,7 +3556,7 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // B61: terminals-only rectification (pure-geometry helper)
+    // terminals-only rectification (pure-geometry helper)
     // =============================================
 
     @Test
@@ -3676,7 +3676,6 @@ public class RoutingPipelineTest {
 
     // =============================================
     // Interior-termination veto predicate
-    // (backlog-auto-route-terminals-only-interior-termination-veto)
     // =============================================
 
     @Test
@@ -3756,8 +3755,7 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // Zigzag/reversal-introduction veto predicate
-    // (backlog-auto-route-terminals-only-interior-termination-veto, widened scope)
+    // Zigzag/reversal-introduction veto predicate (widened scope)
     // =============================================
 
     @Test
@@ -3847,29 +3845,29 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // B29 / B70: ChopboxAnchor center-aligned terminal alignment
+    // ChopboxAnchor center-aligned terminal alignment
     //
-    // History: B29 prepended a center-aligned BP whenever the first/last BP
-    // did not share a coordinate with element center, to prevent diagonal
-    // visual exits under Archi's ChopboxAnchor formula. B70 discovered this
-    // destroyed B9 hub port distribution: terminals placed on the element
+    // History: an earlier pass prepended a center-aligned BP whenever the
+    // first/last BP did not share a coordinate with element center, to prevent
+    // diagonal visual exits under Archi's ChopboxAnchor formula. This was found
+    // to destroy hub port distribution: terminals placed on the element
     // perimeter at a distributed coordinate (e.g. (-1, 115) on a LEFT face)
     // got overwritten with face-midpoint BPs (e.g. (-1, 130)), collapsing
-    // every connection on a hub face onto a single visual port. The B70
+    // every connection on a hub face onto a single visual port. The
     // guard in alignTerminalsWithCenter skips the overwrite when the BP is
     // already on the element perimeter, because the line from element center
     // to an on-perimeter BP already exits through the perimeter within 1 px
     // of the distributed port coordinate.
     //
-    // Tests below flip from "assert alignment inserted" (old B29 contract)
-    // to "assert alignment NOT inserted" (B70 guard contract) for the
+    // Tests below flip from "assert alignment inserted" (old contract)
+    // to "assert alignment NOT inserted" (guard contract) for the
     // perimeter-distributed cases.
     // =============================================
 
     @Test
     public void shouldNotAlignSourceTerminal_whenLeftFacePerimeterDistributedY() {
         // Element center at (50, 130). LEFT face terminal at (-1, distY=115) — distY ≠ centerY.
-        // BP is on LEFT perimeter (x == element.x() - 1), so B70 guard fires and skips the
+        // BP is on LEFT perimeter (x == element.x() - 1), so the guard fires and skips the
         // center-alignment prepend. The line from center (50,130) to (-1,115) already exits
         // the LEFT face at ~y=115.3 — within 1 px of the distributed port.
         RoutingRect source = new RoutingRect(0, 100, 100, 60, "src"); // center=(50,130)
@@ -4073,11 +4071,11 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // B44: Center-termination fix
+    // Center-termination fix
     // =============================================
 
     /**
-     * B44 AC2/AC5: fixCenterTerminatedPath should move source terminal from element
+     * fixCenterTerminatedPath should move source terminal from element
      * center to the nearest edge face midpoint when the first BP is at source center.
      */
     @Test
@@ -4106,7 +4104,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B44 AC2/AC5: fixCenterTerminatedPath should move target terminal from element
+     * fixCenterTerminatedPath should move target terminal from element
      * center to the nearest edge face midpoint when the last BP is at target center.
      */
     @Test
@@ -4133,7 +4131,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B44 AC5: fixCenterTerminatedPath should fix both terminals when both are at centers.
+     * fixCenterTerminatedPath should fix both terminals when both are at centers.
      */
     @Test
     public void shouldFixBothCenterTerminations_whenBothAtElementCenters() {
@@ -4160,7 +4158,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B44 AC5: fixCenterTerminatedPath should not modify terminals already at edge faces.
+     * fixCenterTerminatedPath should not modify terminals already at edge faces.
      */
     @Test
     public void shouldNotModifyPath_whenTerminalsNotAtCenter() {
@@ -4183,7 +4181,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B44 AC3/AC5: Vertically adjacent elements (small gap) — source should exit from
+     * Vertically adjacent elements (small gap) — source should exit from
      * BOTTOM face, target should enter from TOP face, never center.
      */
     @Test
@@ -4213,7 +4211,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B44 AC3/AC5: Horizontally adjacent elements (small gap) — source exits RIGHT,
+     * Horizontally adjacent elements (small gap) — source exits RIGHT,
      * target enters LEFT, never center.
      */
     @Test
@@ -4241,7 +4239,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B44 AC5: Short path with exactly 2 BPs — fixCenterTerminatedPath should handle
+     * Short path with exactly 2 BPs — fixCenterTerminatedPath should handle
      * without ArrayIndexOutOfBoundsException.
      */
     @Test
@@ -4267,7 +4265,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B44 AC5: fixCenterTerminatedPath should return 0 for paths with fewer than 2 BPs.
+     * fixCenterTerminatedPath should return 0 for paths with fewer than 2 BPs.
      */
     @Test
     public void shouldReturnZero_whenPathTooShort() {
@@ -4285,7 +4283,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B44 AC5: EdgeAttachmentCalculator.determineFace (now static) should return correct
+     * EdgeAttachmentCalculator.determineFace (now static) should return correct
      * faces for all four directions. Used by fixCenterTerminatedPath for face selection.
      */
     @Test
@@ -4307,11 +4305,11 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B70: alignTerminalsWithCenter re-run after post-processing must NOT
+     * alignTerminalsWithCenter re-run after post-processing must NOT
      * overwrite a perimeter-distributed terminal that survived intermediate
-     * stages. Originally written for B44 AC2 under the assumption that
+     * stages. Originally written under the assumption that
      * terminals at distributed Y were invalid and needed re-alignment — the
-     * B70 guard corrects this. If stage 4.7i removed the alignment BP and
+     * guard corrects this. If stage 4.7i removed the alignment BP and
      * the terminal BP remains on the perimeter, the terminal is intact and
      * no further action is needed.
      */
@@ -4342,7 +4340,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B44 AC5: fixCenterTerminatedPath should handle overlapping elements where source and
+     * fixCenterTerminatedPath should handle overlapping elements where source and
      * target bounds intersect. The face selection must still produce valid edge face midpoints.
      */
     @Test
@@ -4370,7 +4368,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B44 AC5: fixCenterTerminatedPath should handle large offset paths where elements
+     * fixCenterTerminatedPath should handle large offset paths where elements
      * are far apart and the terminal BP is at element center.
      */
     @Test
@@ -4400,7 +4398,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B44 AC2: Combined flow test — fixCenterTerminatedPath followed by
+     * Combined flow test — fixCenterTerminatedPath followed by
      * alignTerminalsWithCenter (simulating full stage 4.7k sequence). Verifies
      * the combined operation produces correct, clean results.
      */
@@ -4439,18 +4437,18 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // B70: Hub port distribution survives the full pipeline
+    // Hub port distribution survives the full pipeline
     // =============================================
 
     /**
-     * B70 AC-1 (primary): five parallel connections into one hub face must
+     * Primary: five parallel connections into one hub face must
      * produce five distinct last-BP y-values after routeAllConnections.
      *
-     * <p>B9 (EdgeAttachmentCalculator.computeAttachmentPoint) distributes
-     * terminals along a face when groupSize >= 2. B29's
+     * <p>EdgeAttachmentCalculator.computeAttachmentPoint distributes
+     * terminals along a face when groupSize >= 2. An earlier
      * alignTerminalsWithCenter — called from stages 4.7e/4.7k/4.7m/4.7o —
      * used to overwrite those distributed terminals with face-midpoint
-     * BPs, collapsing the visual exits onto a single port. The B70 guard
+     * BPs, collapsing the visual exits onto a single port. The guard
      * in alignTerminalsWithCenter skips the overwrite when the terminal
      * is already on the element perimeter.</p>
      *
@@ -4459,7 +4457,7 @@ public class RoutingPipelineTest {
      */
     @Test
     public void shouldPreserveHubPortDistribution_whenFiveConnectionsOnLeftFace() {
-        // Hub with a tall LEFT face (height 300, y∈[100..400]) to give B9's
+        // Hub with a tall LEFT face (height 300, y∈[100..400]) to give the
         // distribution plenty of room. Sources stacked to the left, all with
         // centers within the hub's y-range, but offset from hub center y=250
         // so no connection degenerates to an axis-aligned straight line
@@ -4512,19 +4510,19 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // B70-a: parametric slot-at-hub-center reproduction
+    // parametric slot-at-hub-center reproduction
     // =============================================
 
     /**
-     * B70-a Task 0: parametric failing test for the residual hub-collapse on
+     * Task 0: parametric failing test for the residual hub-collapse on
      * V4 Integration Architecture (3 of 7 API Gateway outbounds collapse to
      * the LEFT-face midpoint instead of distributed perimeter slots).
      *
-     * <p>For odd {@code groupSize}, B9's
+     * <p>For odd {@code groupSize},
      * {@code EdgeAttachmentCalculator.computeAttachmentPoint} places slot
      * {@code (N-1)/2} at exactly {@code element.centerY()} (algebraically,
-     * independent of element height — see backlog-b70-a Section 5). The
-     * existing B70 test at {@code shouldPreserveHubPortDistribution_when
+     * independent of element height). The
+     * existing test at {@code shouldPreserveHubPortDistribution_when
      * FiveConnectionsOnLeftFace} explicitly avoids this by offsetting
      * sources from hub center y; this helper does the opposite, forcing
      * one connection into the slot-at-hub-center geometry that V4
@@ -4534,11 +4532,11 @@ public class RoutingPipelineTest {
      * for ATM / Relationship Manager / Corporate Banking). Targets are
      * stacked in a column to the LEFT of the hub on 60 px pitch, with
      * the middle target's center y == hub.centerY(). The connection from
-     * hub center to that target is purely horizontal — the failure mode
-     * the B70-a brief identifies as the load-bearing clue.</p>
+     * hub center to that target is purely horizontal — the load-bearing
+     * failure mode.</p>
      *
      * <p>At HEAD this should FAIL for at least the middle slot
-     * (groupSize=3,5,7). Pass criterion is what the B70-a fix must
+     * (groupSize=3,5,7). Pass criterion is what the fix must
      * achieve: every first BP on hub LEFT perimeter, all first-BP y
      * values distinct.</p>
      */
@@ -4546,7 +4544,7 @@ public class RoutingPipelineTest {
         assertTrue("Helper requires odd groupSize; got " + groupSize,
                 groupSize % 2 == 1);
 
-        // Hub centered at y=300, generous height so B9's distributed slot
+        // Hub centered at y=300, generous height so the distributed slot
         // spacing is well above minSpacing.
         int hubH = 60 * (groupSize + 1); // 240 / 360 / 480 for N=3/5/7
         RoutingRect hub = new RoutingRect(500, 300 - hubH / 2, 120, hubH, "hub");
@@ -4631,11 +4629,11 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // B31: Router corridor exploration investigation
+    // Router corridor exploration investigation
     // =============================================
 
     /**
-     * Investigation test: reproduces B31 geometry (Fraud Detection -> Card Service
+     * Investigation test: reproduces the geometry (Fraud Detection -> Card Service
      * with Customer Onboarding Service blocking in between, 100px corridors on both sides).
      * Tests routeConnection() (A* only, no pipeline stages) to determine if the
      * graph-level path avoids the blocker.
@@ -4674,7 +4672,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * Investigation test: same B31 geometry through the FULL pipeline (routeAllConnections).
+     * Investigation test: same geometry through the FULL pipeline (routeAllConnections).
      * If routeConnection() succeeds but routeAllConnections() fails, the issue is
      * downstream stage corruption (Hypothesis 3).
      */
@@ -4783,8 +4781,8 @@ public class RoutingPipelineTest {
 
     /**
      * Investigation test: Blocker overlapping the direct center-to-center line
-     * but NOT the source/target elements — exactly the B31 scenario where
-     * endpoint pass-through (13-4) does NOT trigger because the blocker is a THIRD element.
+     * but NOT the source/target elements — the scenario where
+     * endpoint pass-through does NOT trigger because the blocker is a THIRD element.
      */
     @Test(timeout = 10000)
     public void shouldRouteAroundThirdElementBlocker_fullPipeline() {
@@ -4819,11 +4817,11 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // B31: Corridor re-route unit tests (AC-7)
+    // Corridor re-route unit tests
     // =============================================
 
     /**
-     * AC-7: Corridor re-route recovers a connection that the batch pipeline fails.
+     * Corridor re-route recovers a connection that the batch pipeline fails.
      * Uses a test subclass that simulates a batch pipeline violation on the first routing
      * attempt (by injecting a crossing BP), then verifies the stage 5a corridor re-route
      * produces a clean path.
@@ -4872,7 +4870,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * AC-7: Corridor re-route respects obstacle clearance — re-routed path
+     * Corridor re-route respects obstacle clearance — re-routed path
      * must not cross ANY obstacle.
      */
     @Test(timeout = 10000)
@@ -4904,7 +4902,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * AC-7: Corridor re-route produces orthogonal-only segments.
+     * Corridor re-route produces orthogonal-only segments.
      */
     @Test(timeout = 10000)
     public void shouldProduceOrthogonalSegments_whenCorridorReroute() {
@@ -4934,12 +4932,12 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * AC-7: Connection with no available corridor still fails gracefully (no false positives).
+     * Connection with no available corridor still fails gracefully (no false positives).
      * Blocker fully enclosed — no corridor route possible.
      */
     @Test(timeout = 10000)
     public void shouldStillFail_whenNoCorridorAvailable() {
-        // B69-C re-bless: B36 exterior routing (perimeterMargin=50) + B47 corridor
+        // Re-bless: exterior routing (perimeterMargin=50) + corridor
         // diversity now find a viable exterior path around the walls. The 20px gaps
         // plus perimeter margin allow routing over/under the wall structure.
         RoutingRect source = new RoutingRect(0, 150, 80, 40, "src");     // center (40, 170)
@@ -4959,13 +4957,13 @@ public class RoutingPipelineTest {
 
         RoutingResult result = pipeline.routeAllConnections(connections, allObstacles);
 
-        // B36/B47 enhanced routing finds an exterior path around the walls
+        // Enhanced routing finds an exterior path around the walls
         assertTrue("Connection should be routed via exterior path",
                 result.routed().containsKey("c1"));
     }
 
     /**
-     * AC-7: Existing successfully-routed connections remain unaffected by the
+     * Existing successfully-routed connections remain unaffected by the
      * corridor re-route mechanism. The re-route only triggers for failed connections.
      */
     @Test(timeout = 10000)
@@ -5000,12 +4998,12 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * AC-7: When corridors exist on both sides of a blocker, the router should
+     * When corridors exist on both sides of a blocker, the router should
      * prefer the shorter corridor (closer detour from the direct path).
      */
     @Test(timeout = 10000)
     public void shouldPreferShorterCorridor_whenMultipleCorridorsAvailable() {
-        // B69-C re-bless: B41 clearance weighting (weight=75) rewards wider corridors.
+        // Re-bless: clearance weighting (weight=75) rewards wider corridors.
         // Lower corridor (190px gap) is wider than upper (80px gap), so clearance
         // weight now outweighs the shorter detour distance. Either corridor is valid.
         RoutingRect source = new RoutingRect(0, 200, 120, 60, "src");        // center (60, 230)
@@ -5034,14 +5032,14 @@ public class RoutingPipelineTest {
     }
 
     // ===================================================================
-    // Backlog B33: Self-element pass-through safety net
+    // Self-element pass-through safety net
     // Tests that correctEndpointPassThroughs handles scenarios where
     // terminal quality stages (4.6b-4.7e) re-introduce self-element crossings.
     // ===================================================================
 
     @Test
     public void shouldCorrectSelfSourcePassThrough_whenTerminalStagesCauseClipping() {
-        // AC-1: After terminal stages, a segment clips through source element corner.
+        // After terminal stages, a segment clips through source element corner.
         // Source at (0,0,120,60). Path exits source right face, but a segment routes
         // back across source body due to terminal realignment.
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");     // x:0-120, y:0-60
@@ -5065,7 +5063,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldCorrectSelfTargetPassThrough_whenTerminalStagesCauseClipping() {
-        // AC-2: After terminal stages, a segment clips through target element corner.
+        // After terminal stages, a segment clips through target element corner.
         // All BPs are outside target — only the segment between them crosses the body.
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");
         RoutingRect target = new RoutingRect(300, 200, 120, 60, "tgt"); // x:300-420, y:200-260
@@ -5087,7 +5085,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldRemoveBoundaryBP_whenBPOnTargetEdge() {
-        // B69-C re-bless: BP(360,200) is on target boundary (target.y=200, x=360
+        // Re-bless: BP(360,200) is on target boundary (target.y=200, x=360
         // in [300,420]). correctEndpointPassThroughs step 1 removes BPs on endpoint
         // boundaries via isInsideOrOnBoundary. Path 3→2 BPs is correct behaviour.
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");
@@ -5107,7 +5105,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldSkipCorrection_whenSourceTargetOverlap() {
-        // AC-9: Overlapping source/target guard — should not crash
+        // Overlapping source/target guard — should not crash
         RoutingRect source = new RoutingRect(100, 100, 120, 60, "src");
         RoutingRect target = new RoutingRect(150, 120, 120, 60, "tgt"); // overlaps source
 
@@ -5124,7 +5122,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldProduceOrthogonalPath_afterSelfSourceCorrection() {
-        // AC-4: Detour insertions must maintain orthogonality
+        // Detour insertions must maintain orthogonality
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");
         RoutingRect target = new RoutingRect(300, 200, 120, 60, "tgt");
 
@@ -5151,7 +5149,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldCorrectBothSourceAndTargetPassThroughs_onSamePath() {
-        // AC-1+AC-2 combined: path clips through both source and target simultaneously.
+        // Combined: path clips through both source and target simultaneously.
         // Verifies source correction doesn't introduce new target crossings and vice versa.
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");     // x:0-120, y:0-60
         RoutingRect target = new RoutingRect(300, 200, 120, 60, "tgt"); // x:300-420, y:200-260
@@ -5175,7 +5173,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldHandleShortPath_withTwoBendpoints() {
-        // AC-9: Short paths (2-3 BPs) handled correctly without crash
+        // Short paths (2-3 BPs) handled correctly without crash
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");
         RoutingRect target = new RoutingRect(300, 0, 120, 60, "tgt");
 
@@ -5191,14 +5189,14 @@ public class RoutingPipelineTest {
     }
 
     // ===================================================================
-    // Backlog B34: Self-element pass-through face correction
+    // Self-element pass-through face correction
     // Tests that face re-selection eliminates self-element crossings
     // by changing where connections exit/enter elements, not detours.
     // ===================================================================
 
     @Test
     public void b34_shouldDetectSelfSourceCrossing_onFullPath() {
-        // AC-4: Detection uses full path with segment skipping.
+        // Detection uses full path with segment skipping.
         // Source at (0,0,120,60). Path exits right, then a later segment clips back
         // through source body horizontally.
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");
@@ -5224,7 +5222,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b34_shouldDetectSelfTargetCrossing_onFullPath() {
-        // AC-4: Detection on target element with last-segment skipping.
+        // Detection on target element with last-segment skipping.
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");
         RoutingRect target = new RoutingRect(300, 200, 120, 60, "tgt"); // x:300-420, y:200-260
 
@@ -5242,7 +5240,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b34_shouldNotDetect_whenPathIsClean() {
-        // AC-4: Clean path returns -1.
+        // Clean path returns -1.
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");
         RoutingRect target = new RoutingRect(300, 200, 120, 60, "tgt");
 
@@ -5261,8 +5259,8 @@ public class RoutingPipelineTest {
 
     @Test
     public void b34_shouldFixSelfSourceCrossing_byFaceReselection() {
-        // B69-C re-bless: crossing is interior (segment at y=150 through source body),
-        // not terminal-adjacent. Post-B35 redesign, correctSelfElementPassThrough only
+        // Re-bless: crossing is interior (segment at y=150 through source body),
+        // not terminal-adjacent. Post-redesign, correctSelfElementPassThrough only
         // re-routes terminal-adjacent crossings — correctly returns false for interior ones.
         RoutingRect source = new RoutingRect(100, 100, 120, 60, "src"); // x:100-220, y:100-160
         RoutingRect target = new RoutingRect(100, 350, 120, 60, "tgt"); // x:100-220, y:350-410
@@ -5291,7 +5289,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b34_shouldFixSelfTargetCrossing_byFaceReselection() {
-        // AC-2, AC-3: Face re-selection eliminates self-target crossing.
+        // Face re-selection eliminates self-target crossing.
         RoutingRect source = new RoutingRect(100, 100, 120, 60, "src");
         RoutingRect target = new RoutingRect(100, 350, 120, 60, "tgt"); // x:100-220, y:350-410
 
@@ -5321,7 +5319,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b34_shouldNotModifyCleanPath() {
-        // AC-9: Clean path should remain unchanged.
+        // Clean path should remain unchanged.
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");
         RoutingRect target = new RoutingRect(300, 200, 120, 60, "tgt");
 
@@ -5345,8 +5343,8 @@ public class RoutingPipelineTest {
 
     @Test
     public void b34_shouldFixBothSourceAndTargetCrossings() {
-        // B69-C re-bless: both crossings are interior (non-terminal-adjacent segments
-        // pass through source and target bodies). Post-B35 redesign, the method
+        // Re-bless: both crossings are interior (non-terminal-adjacent segments
+        // pass through source and target bodies). Post-redesign, the method
         // correctly returns false for interior crossings it cannot reroute.
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");     // x:0-120, y:0-60
         RoutingRect target = new RoutingRect(300, 200, 120, 60, "tgt"); // x:300-420, y:200-260
@@ -5373,7 +5371,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b34_shouldProduceOrthogonalPath_afterFaceCorrection() {
-        // AC-5, AC-9: Path must be orthogonal after face re-selection + cleanup.
+        // Path must be orthogonal after face re-selection + cleanup.
         RoutingRect source = new RoutingRect(100, 100, 120, 60, "src");
         RoutingRect target = new RoutingRect(100, 350, 120, 60, "tgt");
 
@@ -5401,7 +5399,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b34_shouldReturnFalse_whenAllFacesStillCross() {
-        // B69-C re-bless: 40x40 source with 5px inset produces a 30x30 detection zone.
+        // Re-bless: 40x40 source with 5px inset produces a 30x30 detection zone.
         // Path segments all route around the inset rect, so detection returns -1.
         // Method is correctly a no-op when no crossing is detected.
         RoutingRect source = new RoutingRect(100, 100, 40, 40, "src"); // x:100-140, y:100-140, small
@@ -5433,8 +5431,8 @@ public class RoutingPipelineTest {
 
     @Test
     public void b34_existingRoutingTests_shouldPassUnchanged() {
-        // AC-6: Verify existing routing produces valid results (regression check).
-        // Re-run a representative routing scenario to ensure B34 doesn't break anything.
+        // Verify existing routing produces valid results (regression check).
+        // Re-run a representative routing scenario to ensure the correction doesn't break anything.
         RoutingRect source = new RoutingRect(0, 170, 100, 60, "src");
         RoutingRect target = new RoutingRect(400, 170, 100, 60, "tgt");
         RoutingRect obstacle = new RoutingRect(200, 150, 100, 100, "obs");
@@ -5448,14 +5446,14 @@ public class RoutingPipelineTest {
     }
 
     // ===================================================================
-    // Backlog B35 Phase B: Re-routed face correction with clearance waypoint
+    // Phase B: Re-routed face correction with clearance waypoint
     // Tests that face correction inserts a clearance waypoint and removes
     // internal BPs, producing a coherent re-routed path (not Frankenstein).
     // ===================================================================
 
     @Test
     public void b35_shouldInsertClearanceWaypoint_onNewFace() {
-        // B69-C re-bless: crossing at segment (120,150) is interior — rerouting the
+        // Re-bless: crossing at segment (120,150) is interior — rerouting the
         // terminal-adjacent BPs retains the interior crossing segment on all face
         // candidates. Method correctly returns false.
         RoutingRect source = new RoutingRect(100, 100, 120, 60, "src"); // x:100-220, y:100-160
@@ -5482,7 +5480,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b35_shouldReRouteTerminalSegments_notJustSwapTerminal() {
-        // B69-C re-bless: interior crossing — correction returns false, path unchanged.
+        // Re-bless: interior crossing — correction returns false, path unchanged.
         RoutingRect source = new RoutingRect(100, 100, 120, 60, "src");
         RoutingRect target = new RoutingRect(100, 350, 120, 60, "tgt");
 
@@ -5504,7 +5502,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b35_shouldUseAngularProximityOrder_forFaceSelection() {
-        // B69-C re-bless: interior crossing — correction returns false, path unchanged.
+        // Re-bless: interior crossing — correction returns false, path unchanged.
         RoutingRect source = new RoutingRect(100, 100, 120, 60, "src");
         RoutingRect target = new RoutingRect(100, 350, 120, 60, "tgt");
 
@@ -5524,7 +5522,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b35_shouldPreserveCleanPath_whenNoSelfPassThrough() {
-        // AC-9: Phase B is a no-op for clean connections.
+        // Phase B is a no-op for clean connections.
         RoutingRect source = new RoutingRect(0, 0, 120, 60, "src");
         RoutingRect target = new RoutingRect(300, 200, 120, 60, "tgt");
 
@@ -5545,7 +5543,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b35_shouldMaintainOrthogonality_afterReRoute() {
-        // B69-C re-bless: interior crossing — correction returns false, path unchanged.
+        // Re-bless: interior crossing — correction returns false, path unchanged.
         // Orthogonality check still passes since original path was orthogonal.
         RoutingRect source = new RoutingRect(100, 100, 120, 60, "src"); // x:100-220, y:100-160
         RoutingRect target = new RoutingRect(100, 350, 120, 60, "tgt");
@@ -5575,7 +5573,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b35_shouldHandleBothSourceAndTarget_selfPassThrough() {
-        // B69-C re-bless: source crossing is interior (non-terminal-adjacent) — unfixable.
+        // Re-bless: source crossing is interior (non-terminal-adjacent) — unfixable.
         // Target crossing is terminal-adjacent (last BPs enter target body) — fixable.
         RoutingRect source = new RoutingRect(100, 100, 120, 60, "src"); // x:100-220, y:100-160
         RoutingRect target = new RoutingRect(100, 350, 120, 60, "tgt"); // x:100-220, y:350-410
@@ -5606,7 +5604,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b35_shouldEliminateAllSelfPassThroughs_phaseAPlusBCombined() {
-        // AC-11 Integration: Phase A (EdgeAttachmentCalculator) + Phase B (RoutingPipeline)
+        // Integration: Phase A (EdgeAttachmentCalculator) + Phase B (RoutingPipeline)
         // together eliminate all self-element PTs on a known PT-producing geometry.
         //
         // Setup: source at top-left, target at bottom-right, intermediate BP below source.
@@ -5655,11 +5653,11 @@ public class RoutingPipelineTest {
                 -1, tgtPT);
     }
 
-    // --- B36: perimeterMargin threading ---
+    // --- perimeterMargin threading ---
 
     @Test
     public void shouldUseDefaultPerimeterMarginEqualToMargin_whenDefaultConstructor() {
-        // Default constructor: perimeterMargin = margin = 10 (backward compat, AC-8)
+        // Default constructor: perimeterMargin = margin = 10 (backward compat)
         // Verify by routing around a single obstacle — works with narrow perimeter
         RoutingPipeline defaultPipeline = new RoutingPipeline();
         List<RoutingRect> obstacles = List.of(
@@ -5722,7 +5720,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void shouldRouteSuccessfully_withCustomOccupancyWeight() {
-        // B62-2: 5-param constructor with explicit occupancy weight should route successfully
+        // 5-param constructor with explicit occupancy weight should route successfully
         RoutingPipeline p4 = new RoutingPipeline(
                 RoutingPipeline.DEFAULT_BEND_PENALTY, RoutingPipeline.DEFAULT_MARGIN,
                 RoutingPipeline.DEFAULT_CONGESTION_WEIGHT, RoutingPipeline.DEFAULT_MARGIN, 1.5);
@@ -5741,14 +5739,14 @@ public class RoutingPipelineTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void shouldRejectNegativeOccupancyWeight() {
-        // B62-2: Negative occupancy weight should be rejected
+        // Negative occupancy weight should be rejected
         new RoutingPipeline(
                 RoutingPipeline.DEFAULT_BEND_PENALTY, RoutingPipeline.DEFAULT_MARGIN,
                 RoutingPipeline.DEFAULT_CONGESTION_WEIGHT, RoutingPipeline.DEFAULT_MARGIN, -1.0);
     }
 
     // ===================================================================
-    // B37: Late-stage path simplification (simplifyFinalPath)
+    // Late-stage path simplification (simplifyFinalPath)
     // ===================================================================
 
     @Test
@@ -5930,7 +5928,7 @@ public class RoutingPipelineTest {
 
     @Test
     public void b37_shouldNotRemoveB35ClearanceWaypoint_whenSourceTargetExcluded() {
-        // Simulates B35 Phase B clearance detour around own source element.
+        // Simulates Phase B clearance detour around own source element.
         // Source element at (100,100,120,60) — excluded from obstacle list.
         // Path detours around source via clearance waypoint at y=90 (10px above element).
         // Even though source is excluded from obstacles, the shortcut past the clearance
@@ -5961,11 +5959,11 @@ public class RoutingPipelineTest {
     }
 
     // ===================================================================
-    // B72-a: Source/target self-hug correction (correctSourceSelfHug / correctTargetSelfHug)
+    // Source/target self-hug correction (correctSourceSelfHug / correctTargetSelfHug)
     // ===================================================================
 
     /**
-     * B72-a AC-9a: LEFT face hug detected and corrected.
+     * LEFT face hug detected and corrected.
      * Source on LEFT face at x=471, bp0=(471, 200), bp1=(471, 400) — face-parallel hug.
      * Obstacle to the left at x=200-269. Corridor midpoint should be at ~(370, ...).
      */
@@ -6001,7 +5999,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-a AC-9b: RIGHT face hug detected and corrected.
+     * RIGHT face hug detected and corrected.
      */
     @Test
     public void correctSourceSelfHug_shouldCorrectRightFaceHug() {
@@ -6030,7 +6028,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-a AC-9c: TOP face hug detected and corrected.
+     * TOP face hug detected and corrected.
      */
     @Test
     public void correctSourceSelfHug_shouldCorrectTopFaceHug() {
@@ -6059,7 +6057,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-a AC-9c: BOTTOM face hug detected and corrected.
+     * BOTTOM face hug detected and corrected.
      */
     @Test
     public void correctSourceSelfHug_shouldCorrectBottomFaceHug() {
@@ -6088,7 +6086,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-a AC-9d: Non-hugging path left unchanged.
+     * Non-hugging path left unchanged.
      */
     @Test
     public void correctSourceSelfHug_shouldLeaveNonHugPathUnchanged() {
@@ -6110,7 +6108,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-a AC-9e: Path too short (< 3 BPs) left unchanged.
+     * Path too short (< 3 BPs) left unchanged.
      */
     @Test
     public void correctSourceSelfHug_shouldLeaveTooShortPathUnchanged() {
@@ -6129,7 +6127,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-a AC-9f: Corridor blocked by obstacle — left unchanged.
+     * Corridor blocked by obstacle — left unchanged.
      */
     @Test
     public void correctSourceSelfHug_shouldLeavePathUnchanged_whenCorridorBlocked() {
@@ -6154,7 +6152,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-a AC-9: path[0] is never modified (terminal anchor immutability).
+     * path[0] is never modified (terminal anchor immutability).
      */
     @Test
     public void correctSourceSelfHug_shouldNeverModifyTerminalAnchor() {
@@ -6179,7 +6177,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-a AC-2: target-side face hug detected and corrected (symmetry test).
+     * target-side face hug detected and corrected (symmetry test).
      */
     @Test
     public void correctTargetSelfHug_shouldCorrectLeftFaceHug() {
@@ -6206,7 +6204,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-a AC-4 Exemplar 1: API Gateway -> Corporate Banking Portal.
+     * Exemplar 1: API Gateway -> Corporate Banking Portal.
      * Source LEFT face at x=471, face-hugging segment (471,191)→(471,679) = 488px.
      * Corridor P↔M is x∈[269,449]. Correction should move bp1 into corridor range.
      */
@@ -6217,7 +6215,7 @@ public class RoutingPipelineTest {
         TerminalAnchoring anchoring = new TerminalAnchoring(EdgeAttachmentCalculator.Face.LEFT);
         // faceLine = 471
 
-        // Path from Q2 capture: (471,191) → (471,679) → (134,679)
+        // Captured path: (471,191) → (471,679) → (134,679)
         List<AbsoluteBendpointDto> path = new ArrayList<>(List.of(
                 new AbsoluteBendpointDto(471, 191),
                 new AbsoluteBendpointDto(471, 679),
@@ -6240,7 +6238,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-a AC-4 Exemplar 4: Enterprise Service Bus -> Core Banking System.
+     * Exemplar 4: Enterprise Service Bus -> Core Banking System.
      * Source RIGHT face at x=657, face-hugging segment.
      * Corridor M↔C is x∈[721,991]. Correction should move into corridor range.
      */
@@ -6251,7 +6249,7 @@ public class RoutingPipelineTest {
         TerminalAnchoring anchoring = new TerminalAnchoring(EdgeAttachmentCalculator.Face.RIGHT);
         // faceLine = 657
 
-        // Path from Q2 capture: source exits RIGHT at x=657, hugs face
+        // Captured path: source exits RIGHT at x=657, hugs face
         // ESB slot exits at (657, ~350), face-hug to (657, ~572), then corner to target
         List<AbsoluteBendpointDto> path = new ArrayList<>(List.of(
                 new AbsoluteBendpointDto(657, 350),
@@ -6272,7 +6270,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-a AC-4 Exemplar 6: API Gateway -> ATM Channel System.
+     * Exemplar 6: API Gateway -> ATM Channel System.
      * Source LEFT face at x=471, face-hugging segment = 58px (shortest exemplar).
      * Same corridor as Exemplar 1.
      */
@@ -6300,14 +6298,14 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // B72-b: Target-approach face-hug correction (Class B exemplars)
+    // Target-approach face-hug correction (Class B exemplars)
     // Root cause: simplifyFinalPath horizontal-first L-turn creates midpoint at
     // (target_faceLine, a.y) — same mechanism as Class A but at the target end.
-    // correctTargetSelfHug (stage 4.7p, B72-a) already handles this pattern.
+    // correctTargetSelfHug (stage 4.7p) already handles this pattern.
     // =============================================
 
     /**
-     * B72-b AC-4 Exemplar 2: ESB → Treasury Management System.
+     * Exemplar 2: ESB → Treasury Management System.
      * Target LEFT face at x=1005, face-hugging segment (1005,396)→(1005,941) = 545px.
      * Corridor M↔C is x∈[721,991], midline x≈856.
      * correctTargetSelfHug should redirect bp[last-1] into corridor range.
@@ -6319,7 +6317,7 @@ public class RoutingPipelineTest {
         TerminalAnchoring anchoring = new TerminalAnchoring(EdgeAttachmentCalculator.Face.LEFT);
         int faceLine = anchoring.lineCoordinate(target); // 1005
 
-        // Path from Q2 capture: (657,396) → (1005,396) → (1005,941)
+        // Captured path: (657,396) → (1005,396) → (1005,941)
         List<AbsoluteBendpointDto> path = new ArrayList<>(List.of(
                 new AbsoluteBendpointDto(657, 396),
                 new AbsoluteBendpointDto(1005, 396),
@@ -6345,7 +6343,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-b AC-4 Exemplar 3: Card Management System → Event Streaming Platform.
+     * Exemplar 3: Card Management System → Event Streaming Platform.
      * Target RIGHT face at x=671, face-hugging segment (671,276)→(671,500) = 224px.
      * Corridor M↔C is x∈[721,991], midline x≈856. But hugging x=671 is INSIDE
      * Middleware group (west of corridor). Correction should push east into corridor.
@@ -6357,7 +6355,7 @@ public class RoutingPipelineTest {
         TerminalAnchoring anchoring = new TerminalAnchoring(EdgeAttachmentCalculator.Face.RIGHT);
         int faceLine = anchoring.lineCoordinate(target); // 671
 
-        // Path from Q2 capture: (1005,276) → (671,276) → (671,500)
+        // Captured path: (1005,276) → (671,276) → (671,500)
         List<AbsoluteBendpointDto> path = new ArrayList<>(List.of(
                 new AbsoluteBendpointDto(1005, 276),
                 new AbsoluteBendpointDto(671, 276),
@@ -6381,7 +6379,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-b AC-4 Exemplar 5: API Gateway → Contact Centre Platform.
+     * Exemplar 5: API Gateway → Contact Centre Platform.
      * Target RIGHT face at x=227, face-hugging segment (227,143)→(227,506) = 363px.
      * Corridor P↔M is x∈[269,449], midline x≈359.
      */
@@ -6392,7 +6390,7 @@ public class RoutingPipelineTest {
         TerminalAnchoring anchoring = new TerminalAnchoring(EdgeAttachmentCalculator.Face.RIGHT);
         int faceLine = anchoring.lineCoordinate(target); // 227
 
-        // Path from Q2 capture: (471,143) → (227,143) → (227,506)
+        // Captured path: (471,143) → (227,143) → (227,506)
         List<AbsoluteBendpointDto> path = new ArrayList<>(List.of(
                 new AbsoluteBendpointDto(471, 143),
                 new AbsoluteBendpointDto(227, 143),
@@ -6416,7 +6414,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-b AC-4 Exemplar 7: API Gateway → Branch Teller System.
+     * Exemplar 7: API Gateway → Branch Teller System.
      * Target RIGHT face at x=206, face-hugging segment (206,120)→(206,401) = 281px.
      * Corridor P↔M is x∈[269,449], midline x≈359.
      */
@@ -6428,7 +6426,7 @@ public class RoutingPipelineTest {
         TerminalAnchoring anchoring = new TerminalAnchoring(EdgeAttachmentCalculator.Face.RIGHT);
         int faceLine = anchoring.lineCoordinate(target); // 206
 
-        // Path from Q2 capture: (471,120) → (206,120) → (206,401)
+        // Captured path: (471,120) → (206,120) → (206,401)
         List<AbsoluteBendpointDto> path = new ArrayList<>(List.of(
                 new AbsoluteBendpointDto(471, 120),
                 new AbsoluteBendpointDto(206, 120),
@@ -6450,7 +6448,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-b AC-5 Exemplar 8: API Gateway → Mobile Banking App.
+     * Exemplar 8: API Gateway → Mobile Banking App.
      * Target RIGHT face at x=192, face-hugging segment = 24px (marginal case).
      * 24px >= 20px threshold, so correctTargetSelfHug should still fire.
      */
@@ -6462,7 +6460,7 @@ public class RoutingPipelineTest {
         TerminalAnchoring anchoring = new TerminalAnchoring(EdgeAttachmentCalculator.Face.RIGHT);
         int faceLine = anchoring.lineCoordinate(target); // 192
 
-        // Path from Q2 capture: (471,215) → (192,215) → (192,191)
+        // Captured path: (471,215) → (192,215) → (192,191)
         List<AbsoluteBendpointDto> path = new ArrayList<>(List.of(
                 new AbsoluteBendpointDto(471, 215),
                 new AbsoluteBendpointDto(192, 215),
@@ -6484,7 +6482,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-b AC-11: V7-like geometry should NOT trigger target face-hug correction.
+     * V7-like geometry should NOT trigger target face-hug correction.
      * V7 paths exit into open space, not face-adjacent coordinates.
      */
     @Test
@@ -6510,7 +6508,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-b AC-11: Short face-hug (< 20px) should NOT be corrected.
+     * Short face-hug (< 20px) should NOT be corrected.
      */
     @Test
     public void correctTargetSelfHug_shouldNotFire_whenHugTooShort() {
@@ -6533,7 +6531,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-b AC-11: Target face-hug with corridor blocked by obstacle should not be corrected.
+     * Target face-hug with corridor blocked by obstacle should not be corrected.
      */
     @Test
     public void correctTargetSelfHug_shouldNotFire_whenCorridorBlocked() {
@@ -6559,7 +6557,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B72-b AC-7/AC-11: terminal anchor immutability — path[0] must never be modified.
+     * terminal anchor immutability — path[0] must never be modified.
      */
     @Test
     public void correctTargetSelfHug_shouldNeverModifySourceTerminal() {
@@ -6580,20 +6578,20 @@ public class RoutingPipelineTest {
 
         RoutingPipeline.correctTargetSelfHug(path, obstacles, anchoring, target);
 
-        // path[0] must be untouched (terminal anchor immutability per AC-7)
+        // path[0] must be untouched (terminal anchor immutability)
         assertEquals("path[0].x must be unchanged", origBp0X, path.get(0).x());
         assertEquals("path[0].y must be unchanged", origBp0Y, path.get(0).y());
     }
 
-    // B39 tests removed: Stage 4.7h now reuses CoincidentSegmentDetector (tested in
+    // Coincident-segment tests removed: Stage 4.7h now reuses CoincidentSegmentDetector (tested in
     // CoincidentSegmentDetectorTest.java — 13 tests covering detect + applyOffsets).
 
     // =============================================
-    // B45: Interior terminal BP fix
+    // Interior terminal BP fix
     // =============================================
 
     /**
-     * B45 AC4: fixInteriorTerminalBPs should reposition source terminal BP that is
+     * fixInteriorTerminalBPs should reposition source terminal BP that is
      * inside source element (horizontal geometry — BP.x inside source x-range).
      * Mirrors E2E finding: App Server Farm (574,159,222,55) BP[0] at (777,186).
      */
@@ -6621,7 +6619,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45 AC4: fixInteriorTerminalBPs should reposition source terminal BP that is
+     * fixInteriorTerminalBPs should reposition source terminal BP that is
      * inside source element (vertical geometry — BP.y inside source y-range).
      * Mirrors E2E finding: Integration Hub (730,374,254,55) BP[1] at (857,398).
      */
@@ -6649,7 +6647,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45 AC4: fixInteriorTerminalBPs should reposition target terminal BP
+     * fixInteriorTerminalBPs should reposition target terminal BP
      * that is inside target element.
      */
     @Test
@@ -6676,7 +6674,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45 AC4: fixInteriorTerminalBPs should remove intermediate BP
+     * fixInteriorTerminalBPs should remove intermediate BP
      * that is inside an endpoint element.
      */
     @Test
@@ -6704,7 +6702,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45 AC4: fixInteriorTerminalBPs should remove intermediate BP
+     * fixInteriorTerminalBPs should remove intermediate BP
      * that is inside the TARGET element (complements source-side test above).
      */
     @Test
@@ -6731,7 +6729,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45 AC4: fixInteriorTerminalBPs should fix BP exactly on element boundary.
+     * fixInteriorTerminalBPs should fix BP exactly on element boundary.
      * isInsideOrOnBoundary returns true for boundary BPs. Normal edge attachment
      * places BPs at 1px outside (x-1, x+w+1, etc.), so a BP ON the boundary
      * indicates a problem that needs correction.
@@ -6759,7 +6757,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45 AC4: fixInteriorTerminalBPs should NOT trigger for BP 1px outside
+     * fixInteriorTerminalBPs should NOT trigger for BP 1px outside
      * element boundary. This is the normal edge attachment position.
      */
     @Test
@@ -6784,7 +6782,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45 AC4: fixInteriorTerminalBPs should fix both terminals simultaneously
+     * fixInteriorTerminalBPs should fix both terminals simultaneously
      * when both are inside their respective elements.
      */
     @Test
@@ -6814,8 +6812,8 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45: fixInteriorTerminalBPs should also fix terminal BPs that happen
-     * to be at exact element center (superset of B44 center-termination check).
+     * fixInteriorTerminalBPs should also fix terminal BPs that happen
+     * to be at exact element center (superset of the center-termination check).
      */
     @Test
     public void shouldFixCenterBP_asSuperset() {
@@ -6839,7 +6837,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45: fixInteriorTerminalBPs should return 0 for paths with fewer than 2 BPs.
+     * fixInteriorTerminalBPs should return 0 for paths with fewer than 2 BPs.
      */
     @Test
     public void shouldReturnZeroForInteriorFix_whenPathTooShort() {
@@ -6858,14 +6856,14 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45: fixInteriorTerminalBPs should insert an L-bend when repositioning
+     * fixInteriorTerminalBPs should insert an L-bend when repositioning
      * a source terminal BP to the TOP face creates a diagonal with the next BP.
      * Mirrors E2E finding: Integration Hub (730,374,254,55) → DMS (1430,399,246,55),
      * where source top face midpoint y=373 differs from next BP y=398.
      */
     @Test
     public void shouldInsertLBend_whenSourceFixCreatesNonOrthogonalPath() {
-        // B69-C re-bless: fixInteriorTerminalBPs fixes source (1) then removes the
+        // Re-bless: fixInteriorTerminalBPs fixes source (1) then removes the
         // L-bend BP which lands inside the target element (1) → total fixes=2.
         // Source at (730, 374) w=254 h=55, center (857, 401)
         RoutingRect source = new RoutingRect(730, 374, 254, 55, "src");
@@ -6894,7 +6892,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45: fixInteriorTerminalBPs should insert an L-bend when repositioning
+     * fixInteriorTerminalBPs should insert an L-bend when repositioning
      * a target terminal BP creates a diagonal with the previous BP.
      */
     @Test
@@ -6926,7 +6924,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B45: fixInteriorTerminalBPs should NOT insert L-bend when the fix
+     * fixInteriorTerminalBPs should NOT insert L-bend when the fix
      * preserves axis alignment (no diagonal created).
      */
     @Test
@@ -6952,7 +6950,7 @@ public class RoutingPipelineTest {
         assertEquals(186, path.get(0).y());
     }
 
-    // --- B47: Connection ordering tests ---
+    // --- Connection ordering tests ---
 
     @Test
     public void buildConnectionRoutingOrder_shouldSortByDescendingManhattanDistance() {
@@ -7007,19 +7005,18 @@ public class RoutingPipelineTest {
     }
 
     // =====================================================================
-    // B69-B Task 1 — BE→RelMgr semantic fixture + predicate (Tasks 1.1–1.4)
+    // BE→RelMgr semantic fixture + predicate
     //
     // Fixture provenance: captured 2026-04-13 evening via mcp__archi__get-view-contents
     // against view id-fb3874c8deb249939112922e06120178 ("7. Business Architecture -
-    // enhanced layout"). Full provenance + JSON snapshot in
-    // _bmad-output/implementation-artifacts/fixtures/be-to-relmgr-view7-widened/.
-    // The data below mirrors scenario.json — keep them in sync if either is edited.
+    // enhanced layout"). The data below mirrors the captured snapshot — keep them in
+    // sync if either is edited.
     //
-    // FULL-VIEW FIXTURE RATIONALE (post-Task-1.2-failure-finding, 2026-04-13 evening):
+    // FULL-VIEW FIXTURE RATIONALE (post-failure-finding, 2026-04-13 evening):
     // An initial single-connection fixture produced a clean y=188 interior route for
     // BE→RelMgr and could not reproduce the y=1054 perimeter detour. The detour is a
     // global-route-set interaction pathology — it only appears when all 22 connections
-    // on View 7 widened are routed as a batch with B47 corridor occupancy and B47
+    // on View 7 widened are routed as a batch with corridor occupancy and
     // connection ordering. The fixture was expanded to include ALL 22 connections
     // under the same contract the live `computeAutoRoutePass` call site uses
     // (`ArchiModelAccessorImpl.java:5877-5977`): per-connection obstacles exclude
@@ -7027,11 +7024,11 @@ public class RoutingPipelineTest {
     // ancestor groups; `allObstacles` is all non-group elements with no exclusions;
     // per-connection labelExcludeSets include source/target/ancestors/children IDs.
     //
-    // This finding itself validates B69-B's architectural claim that routing quality
+    // This finding itself validates the architectural claim that routing quality
     // is a global property of the route set, not a per-connection A* property.
     //
-    // Semantic predicate per AC-1 / AC-3: coordinate-agnostic within a corridor band.
-    // AC-3 forbids regression to the y=1054 perimeter detour; any horizontal run inside
+    // Semantic predicate: coordinate-agnostic within a corridor band.
+    // Forbids regression to the y=1054 perimeter detour; any horizontal run inside
     // an interior corridor band satisfying [yLow, yHigh] and spanning [xMin, xMax] passes.
     // =====================================================================
 
@@ -7116,18 +7113,18 @@ public class RoutingPipelineTest {
             V7_GROUP_BUSINESS_SERVICES, new RoutingRect(24,  441, 1168, 334, V7_GROUP_BUSINESS_SERVICES),
             V7_GROUP_BUSINESS_FUNCTIONS, new RoutingRect(24,  925, 1264, 334, V7_GROUP_BUSINESS_FUNCTIONS));
 
-    /** BE→RelMgr is the only size-4 survivor on View 7 widened per the B66 falsification forensic. */
+    /** BE→RelMgr is the only size-4 survivor on View 7 widened per the falsification forensic. */
     private static final String BE_RELMGR_CONNECTION_ID = "id-9d7fdd75806e4297a0f01091a4883d88";
     private static final String BE_ELEMENT_ID           = "id-2302f18daffb4731be3eb485185860a9";
     private static final String RELMGR_ELEMENT_ID       = "id-fb55d94011504217b0fc4655189649d4";
 
-    /** BE→RelMgr baseline-HEAD horizontal-run y-coordinate (the perimeter detour AC-3 forbids). */
+    /** BE→RelMgr baseline-HEAD horizontal-run y-coordinate (the forbidden perimeter detour). */
     private static final int BE_RELMGR_BASELINE_DETOUR_Y = 1054;
 
     /**
      * View 7 widened connection descriptor — maps each of the 22 viewConnectionIds
      * to its source and target element IDs. Order preserved from the
-     * `get-view-contents` response; batch routing is order-sensitive (B47).
+     * `get-view-contents` response; batch routing is order-sensitive.
      */
     private record V7ConnRef(String connId, String srcElemId, String tgtElemId, String labelText) {}
 
@@ -7223,12 +7220,12 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * Task 1.4 — semantic predicate helper. Returns {@code true} iff {@code path} contains
+     * Semantic predicate helper. Returns {@code true} iff {@code path} contains
      * at least one horizontal segment (adjacent bendpoints with equal y) such that
      * (a) its y falls inside {@code [yLow, yHigh]} inclusive, and (b) its x-span covers
      * {@code [xMin, xMax]} — i.e., {@code min(x1,x2) <= xMin} and {@code max(x1,x2) >= xMax}.
      *
-     * <p>This is the semantic-assertion primitive for all B69-B corridor checks. Reserve
+     * <p>This is the semantic-assertion primitive for all corridor checks. Reserve
      * {@code assertEquals(y, ...)} on routed coordinates for fixture-baseline reproduction only.
      *
      * @param path  routed bendpoints (intermediate only; endpoints are at element centres)
@@ -7260,7 +7257,7 @@ public class RoutingPipelineTest {
         return false;
     }
 
-    // --- Task 1.4 self-test: hasHorizontalRunInside predicate ---
+    // --- self-test: hasHorizontalRunInside predicate ---
 
     @Test
     public void hasHorizontalRunInside_shouldReturnTrue_whenHorizontalRunCoversRangeInsideBand() {
@@ -7313,10 +7310,10 @@ public class RoutingPipelineTest {
                 List.of(new AbsoluteBendpointDto(500, 500)), 0, 1000, 0, 1000));
     }
 
-    // --- Task 1.2: BE→RelMgr baseline fidelity check (semantic assertion) ---
+    // --- BE→RelMgr baseline fidelity check (semantic assertion) ---
 
     /**
-     * Task 1.2 — asserts that {@link RoutingPipeline#routeAllConnections} run against the
+     * Asserts that {@link RoutingPipeline#routeAllConnections} run against the
      * full 22-connection View 7 widened fixture reproduces the pathological y=1054
      * perimeter detour for the BE→RelMgr connection at HEAD. This is the fidelity gate
      * for the fixture — if the live model's routing behaviour drifts from what the
@@ -7326,17 +7323,17 @@ public class RoutingPipelineTest {
      * pathology, not a per-connection A* result. A single-connection call produces a
      * clean y=188 interior route (empirically verified 2026-04-13 evening, pre-fixture-
      * expansion). The detour only appears when all 22 connections are routed as a
-     * batch with B47 corridor-occupancy tracking and B47 ordering. This test therefore
+     * batch with corridor-occupancy tracking and ordering. This test therefore
      * uses the full batch under the same exclusion contract as the live
      * {@code computeAutoRoutePass} call site.
      *
-     * <p><b>Assertion shape:</b> semantic (per B69-B Task 1.2 decision, user-ratified).
+     * <p><b>Assertion shape:</b> semantic.
      * The test checks for a horizontal run inside a loose band around y=1054 spanning
      * approximately the expected perimeter x-range. Coordinate-equality assertions are
      * deliberately avoided to survive router tie-break jitter.
      *
      * <p>Calls {@code routeAllConnections} with {@code enableChannelNudging=false} so the
-     * test asserts the true pre-B69-B HEAD baseline, unaffected by the Stage 4.7o
+     * test asserts the true pre-nudge HEAD baseline, unaffected by the Stage 4.7o
      * channel nudging pass.
      */
     @Test
@@ -7345,12 +7342,12 @@ public class RoutingPipelineTest {
         List<RoutingRect> allObstacles = v7WidenedAllObstacles();
         Map<String, java.util.Set<String>> labelExcludeSets = v7WidenedLabelExcludeSets();
 
-        // B69-B Task 4 re-bless: the fixture captures the PRE-B69-B HEAD baseline,
-        // where BE→RelMgr falls into the y=1054 perimeter detour under B47 corridor
-        // occupancy + ordering alone. Post-Task-4, the default routing run invokes
+        // Re-bless: the fixture captures the earlier HEAD baseline,
+        // where BE→RelMgr falls into the y=1054 perimeter detour under corridor
+        // occupancy + ordering alone. Afterwards, the default routing run invokes
         // Stage 4.7o channel nudging and produces a centred interior route (BE→RelMgr
-        // at y=702 under the unit-test obstacles) — which is the AC-3 semantic centring
-        // result, but no longer the pre-B69-B "baseline" this fidelity test asserts.
+        // at y=702 under the unit-test obstacles) — which is the semantic centring
+        // result, but no longer the earlier "baseline" this fidelity test asserts.
         // Disabling channel nudging restores the true HEAD baseline and keeps the
         // fidelity gate meaningful against future fixture drift.
         RoutingResult routingResult = pipeline.routeAllConnections(
@@ -7382,13 +7379,13 @@ public class RoutingPipelineTest {
                 foundBaselineRun);
     }
 
-    // --- Task 1.3: BE→RelMgr non-regression under B69-B (AC-3 hard gate) ---
+    // --- BE→RelMgr non-regression (hard gate) ---
 
     /**
-     * Task 1.3 / I2 — AC-3 hard gate. Asserts that {@link RoutingPipeline#routeAllConnections}
+     * I2 — hard gate. Asserts that {@link RoutingPipeline#routeAllConnections}
      * with channel nudging enabled produces a BE→RelMgr route whose horizontal run is
      * NOT the y={@value #BE_RELMGR_BASELINE_DETOUR_Y} perimeter detour. Any interior
-     * y-coordinate satisfies the AC-3 semantic predicate.
+     * y-coordinate satisfies the semantic predicate.
      */
     @Test
     public void routeAllConnections_shouldNotRegressBeToRelMgr_withChannelNudgingEnabled() {
@@ -7407,9 +7404,9 @@ public class RoutingPipelineTest {
         assertNotNull("BE→RelMgr connection should be routed", beToRelMgrPath);
         assertFalse("Routed path should have bendpoints", beToRelMgrPath.isEmpty());
 
-        // AC-3 hard gate (the only load-bearing assertion): the path must NOT
+        // Hard gate (the only load-bearing assertion): the path must NOT
         // regress to the y=1054 perimeter detour. Any interior y satisfies the
-        // semantic predicate per the AC-3 wording ("any other y-coordinate that
+        // semantic predicate ("any other y-coordinate that
         // satisfies the same semantic predicate"). Tight ±2 band because a true
         // regression would reproduce the baseline exactly.
         boolean regressedToBaselineDetour = hasHorizontalRunInside(
@@ -7425,14 +7422,14 @@ public class RoutingPipelineTest {
     }
 
     // =====================================================================
-    // Task 5.2 — I1-I6 integration tests per AC-15 (B69-B)
+    // I1-I6 integration tests
     // =====================================================================
     //
-    // Coverage map (AC-15):
+    // Coverage map:
     //   I1 — shouldCentreRetailCustomerToAccountHolder_onView7Widened        (this file, below)
-    //   I2 — shouldNotRegressBeToRelMgr_withChannelNudgingEnabled            (Task 1.3, same file)
+    //   I2 — shouldNotRegressBeToRelMgr_withChannelNudgingEnabled            (same file)
     //   I3 — shouldSkipChannelNudging_whenEnableChannelNudgingFalse          (this file, below)
-    //   I4 — shouldNotTouchFlatElkView_evenWhenEnableChannelNudgingTrue      (DEFERRED to Task 6 live E2E)
+    //   I4 — shouldNotTouchFlatElkView_evenWhenEnableChannelNudgingTrue      (DEFERRED to live E2E)
     //   I5 — shouldPreserveTerminalAlignment_onAllRoutes                     (this file, below)
     //   I6 — shouldBeIdempotent_onView7Widened                               (this file, below)
     //
@@ -7440,13 +7437,13 @@ public class RoutingPipelineTest {
     // entirely via ElkLayoutEngine.extractBendpoints — there is no pure-geometry
     // RoutingPipelineTest shape that can exercise Stage 4.7o on an ELK path
     // (the accessor dispatch is the real gate). The V3 (Application Collaboration)
-    // zero-delta assertion in AC-6 lives in the Task 6 live E2E validation; the
+    // zero-delta assertion lives in the live E2E validation; the
     // pure-geometry no-op behaviour is already covered by T7 in
     // ChannelNudgingPassTest (nudge_shouldBeNoOp_whenInputHasNoMultiOccupantCorridors).
 
     /**
-     * I1 (AC-1) — Retail Customer → Account Holder semantic centring gate on
-     * View 7 widened. The AC-1 load-bearing acceptance criterion: the horizontal
+     * I1 — Retail Customer → Account Holder semantic centring gate on
+     * View 7 widened. The load-bearing acceptance criterion: the horizontal
      * run of this connection must land inside the interior corridor rather than
      * grazing the wall. Semantic predicate, not coordinate assertion.
      */
@@ -7470,16 +7467,16 @@ public class RoutingPipelineTest {
         // (x∈[374,564], y∈[196,251]) sit on the same Actors row, separated
         // horizontally by the gap x∈[564,994]. A direct route drops vertically
         // out of one, runs horizontally through an interior corridor, then
-        // rises into the other. Pre-nudge (HEAD without B69-B), the horizontal
+        // rises into the other. Pre-nudge (HEAD), the horizontal
         // run grazes y=301 — 50px below the actors row, clipping the top wall
-        // of the interior corridor [251, 505]. AC-1 demands B69-B move the run
+        // of the interior corridor [251, 505]. The requirement is to move the run
         // off the wall into the central band of the corridor.
         //
         // Predicate: horizontal run at y∈[320, 460] (the inner 140px of the
         // 254px corridor — excludes the top 70px where y=301 wall-grazes and
         // the bottom 45px near the lower obstacles) covering the mid-gap x
         // window [700, 950] (a 250px slice of the 430px inter-element gap).
-        // Loose enough to accept any fan-out track B69-B allocates, tight
+        // Loose enough to accept any fan-out track the nudging allocates, tight
         // enough to reject the pre-nudge y=301 wall-grazing baseline.
         boolean centredInInteriorCorridor = hasHorizontalRunInside(
                 path, 320, 460, 700, 950);
@@ -7489,13 +7486,12 @@ public class RoutingPipelineTest {
                         + "Actual path: " + path,
                 centredInInteriorCorridor);
 
-        // B71 AC-10 diagnostic (compose §12.2 amendment 5): wiring-regression
-        // safety net. Discriminates a "wrong-wiring" failure (preservesTerminal
-        // Anchoring incorrectly applied to a legitimate ChannelNudgingPass
-        // centring nudge) from a genuine centring regression. Non-blocking —
-        // the AC-1 assertion above is the load-bearing gate; this only fires
-        // when bp[0] is neither on the source face line nor centre-collinear.
-        // See B71 Dev Notes "Wiring-regression safety net".
+        // Diagnostic: wiring-regression safety net. Discriminates a
+        // "wrong-wiring" failure (preservesTerminalAnchoring incorrectly applied
+        // to a legitimate ChannelNudgingPass centring nudge) from a genuine
+        // centring regression. Non-blocking — the centring assertion above is the
+        // load-bearing gate; this only fires when bp[0] is neither on the source
+        // face line nor centre-collinear.
         RoutingPipeline.ConnectionEndpoints rcConn = null;
         for (RoutingPipeline.ConnectionEndpoints conn : connections) {
             if (retailCustToAccountHolderConnId.equals(conn.connectionId())) {
@@ -7525,7 +7521,7 @@ public class RoutingPipelineTest {
     /**
      * I3 — enableChannelNudging=false gate. Proves the flag actually gates the
      * pass: when false, BE→RelMgr falls back to the y=1054 perimeter detour
-     * (pre-B69-B baseline); when true, it does not. Establishes that the flag
+     * (earlier baseline); when true, it does not. Establishes that the flag
      * is the only difference between the two paths.
      */
     @Test
@@ -7578,7 +7574,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * I5 (AC-8) — terminal-alignment invariant preservation. Every routed
+     * I5 — terminal-alignment invariant preservation. Every routed
      * connection's first and last bendpoint must share a coordinate with its
      * respective element center on at least one axis (matching the post-condition
      * assertion from ChannelNudgingPass.preservesTerminalAlignment). Property
@@ -7605,14 +7601,14 @@ public class RoutingPipelineTest {
             int tgtCy = conn.target().centerY();
             AbsoluteBendpointDto first = path.get(0);
             AbsoluteBendpointDto last = path.get(path.size() - 1);
-            // B70-updated invariant: a terminal is "aligned" if it is either
-            // (a) on the element perimeter (B9 hub port distribution case — the
+            // Invariant: a terminal is "aligned" if it is either
+            // (a) on the element perimeter (hub port distribution case — the
             //     line from center to an on-perimeter BP exits the element at
             //     the distributed port coordinate within 1 px), OR
-            // (b) shares a coordinate with the element center (classic B29 case
+            // (b) shares a coordinate with the element center (classic case
             //     — horizontal/vertical center ray clips at the face midpoint).
-            // The pre-B70 invariant rejected case (a) and forced every terminal
-            // onto case (b), destroying B9 distribution.
+            // The earlier invariant rejected case (a) and forced every terminal
+            // onto case (b), destroying distribution.
             boolean firstAligned = RoutingPipeline.isOnElementPerimeter(first, conn.source())
                     || first.x() == srcCx || first.y() == srcCy;
             boolean lastAligned = RoutingPipeline.isOnElementPerimeter(last, conn.target())
@@ -7631,7 +7627,7 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * I6 (AC-4) — idempotence. Routing the same view with the same parameters
+     * I6 — idempotence. Routing the same view with the same parameters
      * twice in succession produces byte-identical bendpoints the second time.
      * Catches hidden state or order-dependence in ChannelNudgingPass.
      */
@@ -7656,11 +7652,10 @@ public class RoutingPipelineTest {
 
     // =============================================
     // Source-side reversal / self-pass-through on a lane-crossing hand-off
-    // (backlog-auto-route-source-side-reversal-lane-crossing)
     // =============================================
 
     /**
-     * AC-1 — deterministic synthetic reproduction of the View-C Submit→Capture
+     * Deterministic synthetic reproduction of the View-C Submit→Capture
      * source-side reversal, asserting the FIXED (clean-L) behaviour.
      *
      * <p>Exact captured View-C geometry: a horizontal-dominant down-right hand-off
@@ -7671,8 +7666,7 @@ public class RoutingPipelineTest {
      * far-left edge (12,168), which cascaded (orthogonalize → correctSelfElementPassThrough
      * → simplifyFinalPath) into a source LEFT-face attachment (39,105) and a reversal that
      * passes back through the source body — stored BPs {@code [(39,105),(390,105),(390,234)]},
-     * routing "poor", {@code zigzagCount 1}, self-pass-through. Live oracle:
-     * {@code retail-bank-mcp-test-2026-05-21-1627} View C.</p>
+     * routing "poor", {@code zigzagCount 1}, self-pass-through. Live oracle: View C.</p>
      *
      * <p>The fix excludes the endpoints' ancestor containers from the clearance obstacle
      * set (consistent with the A* router's ancestor exclusion), so the corner is left in
@@ -7717,7 +7711,7 @@ public class RoutingPipelineTest {
                         + "(39,105) LEFT-face reversal. Full path: " + path,
                 first.x() >= submit.centerX());
 
-        // (b) No zigzag/reversal (AC-9 oracle = LayoutQualityAssessor.countZigzags mirror).
+        // (b) No zigzag/reversal (oracle = LayoutQualityAssessor.countZigzags mirror).
         List<double[]> full = new ArrayList<>();
         full.add(new double[]{submit.centerX(), submit.centerY()});
         for (AbsoluteBendpointDto bp : path) {
@@ -7735,11 +7729,11 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // B71 — TerminalAnchoring path-straightener invariant (AC-8-REVISED)
+    // TerminalAnchoring path-straightener invariant
     // =============================================
 
     /**
-     * B71 AC-8-REVISED — "for every connection, the
+     * "For every connection, the
      * {@link TerminalAnchoring#preservesTerminalAnchoring} predicate holds
      * immediately before and immediately after each of the five wrap sites".
      *
@@ -7755,11 +7749,11 @@ public class RoutingPipelineTest {
      * path's perimeter terminal intact OR roll back any mutation that would
      * have collapsed it.
      *
-     * <p>Per AC-8-REVISED this is stage-local, not pipeline-global: the
+     * <p>This is stage-local, not pipeline-global: the
      * predicate need not hold at the 4.7h/k/m/o stages whose contracts
      * deliberately produce the rejection shape. Those stages are governed
      * by I5 ({@link #routeAllConnections_shouldPreserveTerminalAlignment_onAllRoutes})
-     * which uses the looser perimeter-OR-centre-collinear assertion. AC-8
+     * which uses the looser perimeter-OR-centre-collinear assertion. This
      * lives <em>beside</em> I5, not instead of it.
      *
      * <p>The hand-pinned V4 row (LEFT face, source rect (472,67,107,200))
@@ -7770,20 +7764,20 @@ public class RoutingPipelineTest {
      */
     @Test
     public void shouldRejectPerimeterCollapse_atEveryStraightenerMutator() {
-        // Use the existing B70-a parametric V4-equivalent fixture (groupSize=7
+        // Use the existing parametric V4-equivalent fixture (groupSize=7
         // mirrors the API Gateway hub fan-out). The helper already asserts
         // that every routed connection's first BP sits on the hub LEFT
         // perimeter — i.e., that the slot 3/7 collapse class is rejected
-        // end-to-end. This delegation IS the AC-8-REVISED assertion: the
+        // end-to-end. This delegation IS the assertion: the
         // five PathStraightener / CoincidentSegmentDetector wrap sites
         // either leave the perimeter terminal alone or roll back, and the
         // resulting first BP is on the perimeter for every connection in
         // the fixture.
         assertHubPortDistributionPreservedForLeftFace(7);
 
-        // Additional B71-specific layer: apply the predicate directly to the
+        // Additional layer: apply the predicate directly to the
         // routed paths and confirm no first BP is in the centre-collinear-
-        // off-face-line shape that the B71 wrap is designed to reject.
+        // off-face-line shape that the wrap is designed to reject.
         // groupSize=7 fixture rebuild for an isolated routing pass.
         int groupSize = 7;
         int hubH = 60 * (groupSize + 1);
@@ -7834,28 +7828,28 @@ public class RoutingPipelineTest {
     }
 
     // =============================================
-    // B73: capacity-aware port distribution — coincident resolver unblocked
+    // capacity-aware port distribution — coincident resolver unblocked
     // =============================================
 
     /**
-     * B73 AC-7: undersized hub (68px tall, 10 connections on LEFT face) routes
+     * Undersized hub (68px tall, 10 connections on LEFT face) routes
      * all connections, and the coincident segment resolver successfully applies
      * offsets without terminal-anchoring rollback.
      *
-     * <p>Pre-B73: distributed ports at 3-8px spacing created distinct perimeter
+     * <p>Previously: distributed ports at 3-8px spacing created distinct perimeter
      * terminals that locked out the coincident resolver (each offset violated
-     * {@link TerminalAnchoring#preservesEndpoints}). With B73's reduced-port
+     * {@link TerminalAnchoring#preservesEndpoints}). With reduced-port
      * distribution, multiple connections share fewer ports, and the resolver
      * can freely offset overlapping segments for shared-port connections.</p>
      *
      * <p>The contrast test ({@code shouldRetainDistribution_whenProperlySizedHub})
-     * uses a 300px tall hub to verify that properly-sized hubs retain full B9
+     * uses a 300px tall hub to verify that properly-sized hubs retain full
      * distribution and the coincident resolver respects perimeter anchoring.</p>
      */
     @Test
     public void shouldReducePortsOnUndersizedHub_andRouteSuccessfully() {
         // Undersized hub: 68px tall, 8 connections to the left
-        // B73: spacing = (68-10)/9 = 6.44 < 12 → reduced to 3 ports
+        // spacing = (68-10)/9 = 6.44 < 12 → reduced to 3 ports
         // Targets placed within hub's y-range to encourage LEFT face exit
         RoutingRect hub = new RoutingRect(500, 100, 120, 68, "hub");
         int hubMidY = hub.y() + hub.height() / 2; // 134
@@ -7908,13 +7902,13 @@ public class RoutingPipelineTest {
     }
 
     /**
-     * B73 contrast test: properly-sized hub (300px tall, 5 connections) retains
-     * B9 distribution — all 5 connections have distinct last-BP y values.
+     * Contrast test: properly-sized hub (300px tall, 5 connections) retains
+     * distribution — all 5 connections have distinct last-BP y values.
      */
     @Test
     public void shouldRetainDistribution_whenProperlySizedHub() {
         // Hub height 300: usableLength = 290, spacing = 290/6 = 48.3 >= 12 → distributed
-        // Mirror B70 test geometry for reliability
+        // Mirror the hub-distribution test geometry for reliability
         RoutingRect hub  = new RoutingRect(500, 100, 120, 300, "hub");
         RoutingRect src1 = new RoutingRect(0, 105, 100, 40, "src1");
         RoutingRect src2 = new RoutingRect(0, 155, 100, 40, "src2");
@@ -7956,11 +7950,11 @@ public class RoutingPipelineTest {
     }
 
     // =====================================================================
-    // B75 — Inter-group corridor channel nudging integration
+    // Inter-group corridor channel nudging integration
     // =====================================================================
 
     /**
-     * B75 AC-1/AC-4: Three connections between elements in two groups arranged
+     * Three connections between elements in two groups arranged
      * horizontally. Verifies that routing completes successfully with group
      * boundaries provided and that extractTopLevelGroupBounds correctly
      * identifies both groups as top-level.

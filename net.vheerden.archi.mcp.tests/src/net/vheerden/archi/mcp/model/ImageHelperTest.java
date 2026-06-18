@@ -11,7 +11,7 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- * Tests for {@link ImageHelper} (Story C4).
+ * Tests for {@link ImageHelper}.
  *
  * <p>Coverage calculation tests are pure geometry — no EMF required.
  * Apply/read round-trip tests require EMF and run as PDE JUnit.</p>
@@ -120,8 +120,7 @@ public class ImageHelperTest {
         ImageHelper.validateImageParams(params);
     }
 
-    // ---- Backlog W2 (story `backlog-cloud-icon-container-node-collision`):
-    // pure-geometry icon-band reservation tests. AC-8 test seam — no SWT,
+    // ---- pure-geometry icon-band reservation tests. Test seam — no SWT,
     // no EMF, callable headless. ----
 
     // ---- reservedIconBandForCorner: 4 corners + 6 non-corners + enum coverage ----
@@ -141,7 +140,7 @@ public class ImageHelperTest {
 
     @Test
     public void w2_reservedIconBand_bottomLeftCornerReturns24() {
-        // bottom-left=6 — the W2 retail-bank bug case
+        // bottom-left=6 — the retail-bank bug case
         assertEquals(24, ImageHelper.reservedIconBandForCorner(6, 16, 8));
     }
 
@@ -196,19 +195,19 @@ public class ImageHelperTest {
     }
 
     // ---- anyChildOccupiesIconBand: 4 corners × {occupied / empty} = 8 cases
-    //      + AC-14 Case A (no children) + AC-14 Case B (corner empty pin) ----
+    //      + Case A (no children) + Case B (corner empty pin) ----
 
     @Test
     public void w2_anyChildOccupiesIconBand_bottomLeftWithChildInCornerReturnsTrue() {
         // Parent 200×100. Bottom-left icon band: x=0..24, y=76..100.
-        // Child rect at (10, 80, 30, 15) — overlaps the band (the W2 retail-bank bug case).
+        // Child rect at (10, 80, 30, 15) — overlaps the band (the retail-bank bug case).
         List<int[]> rects = List.of(new int[] {10, 80, 30, 15});
         assertTrue(ImageHelper.anyChildOccupiesIconBand(200, 100, 6, 16, 8, rects));
     }
 
     @Test
     public void w2_anyChildOccupiesIconBand_bottomLeftWithChildOnlyInTopHalfReturnsFalse() {
-        // AC-14 Case B byte-identical pin: container with bottom-left icon
+        // Case B byte-identical pin: container with bottom-left icon
         // + child only in top half → corner empty → lever short-circuits.
         // Parent 200×100. Bottom-left band: x=0..24, y=76..100.
         // Child at (10, 10, 30, 30) — entirely in top half (y=10..40).

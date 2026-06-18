@@ -17,7 +17,7 @@ import net.vheerden.archi.mcp.model.routing.HubFaceConnectionPartitioner.HubFace
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Unit tests for {@link AlternativeCorridorSelector} (H5 story Task 2 — Axis 1).
+ * Unit tests for {@link AlternativeCorridorSelector}.
  *
  * <p>Pure-geometry: no EMF, no SWT, no PDE. Hand-constructed scenarios exercise
  * the proposeShift / apply / restore primitives without engaging the full
@@ -187,7 +187,7 @@ public class AlternativeCorridorSelectorTest {
 
     @Test
     public void evaluate_shouldAcceptProposal_atRelaxedBudget_whenStrictBudgetWouldReject() {
-        // Same path as the rejection test, but widened budget (AC-6.2 retry path) admits.
+        // Same path as the rejection test, but widened budget (retry path) admits.
         List<List<AbsoluteBendpointDto>> paths = new ArrayList<>();
         paths.add(path(bp(210, 196), bp(210, 198), bp(260, 198), bp(260, 196)));
 

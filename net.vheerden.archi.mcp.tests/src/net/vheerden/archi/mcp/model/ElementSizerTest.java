@@ -189,7 +189,7 @@ public class ElementSizerTest {
         assertEquals(1, lines);
     }
 
-    // ---- computeLabelHeightFromMetrics (B50) ----
+    // ---- computeLabelHeightFromMetrics ----
 
     @Test
     public void computeLabelHeight_singleLine_returnsApprox25() {
@@ -284,7 +284,7 @@ public class ElementSizerTest {
 
     // --- fitTextBoxHeightToContent (notes + group label-band) -----------------------------
     //
-    // backlog-view-title-note-autosize — Task-3.1 pure-unit coverage.
+    // View title-note autosize — pure-unit coverage.
     // Pattern mirrors computeLabelHeight tests above: fixed FontMetrics records (no SWT).
     //
     // Constants used by callers:
@@ -301,7 +301,7 @@ public class ElementSizerTest {
 
     @Test
     public void fitTextBoxHeight_emptyText_returnsMinHeight_note() {
-        // AC-3: empty content → note height ≈ DEFAULT_NOTE_HEIGHT
+        // empty content → note height ≈ DEFAULT_NOTE_HEIGHT
         int h = ElementSizer.fitTextBoxHeightToContentFromMetrics(
                 "", 185, metricsFor(""), PADDING, NOTE_MIN, NOTE_MAX);
         assertEquals(NOTE_MIN, h);
@@ -338,7 +338,7 @@ public class ElementSizerTest {
 
     @Test
     public void fitTextBoxHeight_oneLine_clampsUpToMinHeight() {
-        // AC-3: 1-line content → returns minHeight (floor preserved, no shrink below default)
+        // 1-line content → returns minHeight (floor preserved, no shrink below default)
         // lineCount=1, lineHeight=14, padding=6 → raw height = 20 → clamp up to NOTE_MIN (80)
         String text = "Title";
         ElementSizer.FontMetrics metrics = metricsFor(text, 35);
@@ -349,7 +349,7 @@ public class ElementSizerTest {
 
     @Test
     public void fitTextBoxHeight_sixLineWrap_growsBeyondMinHeight_retailBankTitle() {
-        // AC-1: the Retail Bank prompt's title note ("A — Business Architecture: …banking products")
+        // The Retail Bank prompt's title note ("A — Business Architecture: …banking products")
         // when rendered at DEFAULT_NOTE_WIDTH (185) wraps to ~6 lines and should grow past
         // DEFAULT_NOTE_HEIGHT (80).
         //
@@ -368,7 +368,7 @@ public class ElementSizerTest {
 
     @Test
     public void fitTextBoxHeight_pathologicalLong_clampsToMaxHeight() {
-        // AC-4: pathological wall-of-text degrades to maxHeight (not the canvas blowing up).
+        // Pathological wall-of-text degrades to maxHeight (not the canvas blowing up).
         // 100 wordWidths of 170 each → 100 lines → raw 100*14 + 6 = 1406, clamp to NOTE_MAX (600)
         StringBuilder text = new StringBuilder();
         int[] wordWidths = new int[100];
@@ -385,7 +385,7 @@ public class ElementSizerTest {
 
     @Test
     public void fitTextBoxHeight_groupShortLabel_returnsGroupMinHeight() {
-        // AC-15 helper-side analog: short group label at width=300 should clamp up to
+        // Helper-side analog: short group label at width=300 should clamp up to
         // DEFAULT_GROUP_HEIGHT (200), not return 200+ε. The accessor caller then
         // short-circuits to DEFAULT_GROUP_HEIGHT literally — this test pins the floor.
         String label = "Banking Products";
@@ -399,7 +399,7 @@ public class ElementSizerTest {
 
     @Test
     public void fitTextBoxHeight_groupLongLabel_growsBeyondGroupMinHeight() {
-        // AC-7: long group label at default width forces label band > DEFAULT_GROUP_HEIGHT.
+        // Long group label at default width forces label band > DEFAULT_GROUP_HEIGHT.
         // Need raw height > 200 → lineCount * 14 + 6 > 200 → lineCount >= 14 lines.
         StringBuilder label = new StringBuilder();
         int[] wordWidths = new int[14];
@@ -418,7 +418,7 @@ public class ElementSizerTest {
 
     @Test
     public void fitTextBoxHeight_widerBox_fewerLines() {
-        // Pinning AC-1 behaviour: same text at wider width wraps fewer times → smaller height.
+        // Pinning behaviour: same text at wider width wraps fewer times → smaller height.
         String text = "Word1 Word2 Word3";
         ElementSizer.FontMetrics metrics = metricsFor(text, 100, 100, 100);
 
@@ -450,5 +450,74 @@ public class ElementSizerTest {
                 "Anything", 100, metricsFor("Anything", 50), PADDING, 500, 200);
         // raw = 14+6=20, Math.min(200, 20)=20, Math.max(500, 20)=500
         assertEquals(500, h);
+    }
+
+    // --- computeWrapFitDimensions (view-embedded function box-sizing for wrap) ---------
+    //
+    // Compact wrap-fit: keep the box WIDTH, grow HEIGHT so the label wraps to a 2nd line and fits.
+    // Formula: contentWidth = fixedWidth − HORIZONTAL_PADDING(30);
+    //          lineCount = simulateWordWrap(…, contentWidth);
+    //          height = lineCount × lineHeight + VERTICAL_PADDING(20); width = fixedWidth (verbatim).
+    // RED-ON-REVERT: if this is ever swapped back to computeDimensions (single-line widening),
+    // the width assertions break (computeDimensions returns a different, wider width).
+
+    @Test
+    public void computeWrapFitDimensions_shouldKeepWidthAndGrowHeight_whenLabelWrapsTwoLines() {
+        // Simplified 3-word analogue of the View-G fixture shape (the real label "Mobile Payments &
+        // Transfers" is 4 tokens; this synthetic 3-word/[60,50,55] case is self-consistent and keeps
+        // the wrap arithmetic readable). A 150-wide box, ~165px single-line text:
+        // content = 150−30 = 120. Words 60/50/55: 60, 60+4+50=114 (fits), 114+4+55=173>120 → wrap → 2 lines.
+        ElementSizer.FontMetrics metrics = metricsFor("Mobile Payments Transfers", 60, 50, 55);
+        int[] size = ElementSizer.computeWrapFitDimensionsFromMetrics("Mobile Payments Transfers", metrics, 150);
+        assertEquals("width must be preserved verbatim (the grid pitch)", 150, size[0]);
+        assertEquals("height = 2 lines × 14 + 20", 2 * 14 + 20, size[1]); // 48
+        assertTrue("grew well past the clipped 26px box, clears the live 2-line wrap threshold (>=40)",
+                size[1] >= 40);
+    }
+
+    @Test
+    public void computeWrapFitDimensions_shouldKeepWidthAndStaySingleLine_whenLabelFits() {
+        // Wide box → label fits single line → 1 line; width still preserved verbatim.
+        ElementSizer.FontMetrics metrics = metricsFor("Payment Processing Engine", 49, 70, 42);
+        int[] size = ElementSizer.computeWrapFitDimensionsFromMetrics("Payment Processing Engine", metrics, 300);
+        assertEquals("width preserved verbatim", 300, size[0]);
+        assertEquals("height = 1 line × 14 + 20", 1 * 14 + 20, size[1]); // 34
+    }
+
+    @Test
+    public void computeWrapFitDimensions_shouldReturnFixedWidthAndDefaultHeight_whenLabelNull() {
+        int[] size = ElementSizer.computeWrapFitDimensionsFromMetrics(null, null, 150);
+        assertEquals(150, size[0]);
+        assertEquals(ElementSizer.DEFAULT_HEIGHT, size[1]);
+    }
+
+    @Test
+    public void computeWrapFitDimensions_shouldReturnDefaultHeight_whenContentWidthNonPositive() {
+        // fixedWidth == HORIZONTAL_PADDING → contentWidth = 0 → no useful wrap → default height,
+        // width still returned verbatim.
+        ElementSizer.FontMetrics metrics = metricsFor("Some Label Here", 28, 35, 28);
+        int[] size = ElementSizer.computeWrapFitDimensionsFromMetrics(
+                "Some Label Here", metrics, ElementSizer.HORIZONTAL_PADDING);
+        assertEquals(ElementSizer.HORIZONTAL_PADDING, size[0]);
+        assertEquals(ElementSizer.DEFAULT_HEIGHT, size[1]);
+    }
+
+    @Test
+    public void computeWrapFitDimensions_publicEmptyLabel_returnsFixedWidthDefaultHeight() {
+        // Public method short-circuits on empty BEFORE any SWT measurement — safe headlessly.
+        int[] size = ElementSizer.computeWrapFitDimensions("", 150);
+        assertEquals(150, size[0]);
+        assertEquals(ElementSizer.DEFAULT_HEIGHT, size[1]);
+    }
+
+    @Test
+    public void computeWrapFitDimensions_multiLineLabel_growsProportionally() {
+        // Narrow box: content = 120−30 = 90; each 70px word forces its own line → 4 lines.
+        ElementSizer.FontMetrics metrics = metricsFor("Segmentation And Personalisation Service", 70, 70, 70, 70);
+        int[] size = ElementSizer.computeWrapFitDimensionsFromMetrics(
+                "Segmentation And Personalisation Service", metrics, 120);
+        assertEquals(120, size[0]);
+        assertEquals("height = 4 lines × 14 + 20", 4 * 14 + 20, size[1]); // 76
+        assertTrue("taller than the 2-line case", size[1] > (2 * 14 + 20));
     }
 }

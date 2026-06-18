@@ -51,7 +51,7 @@ public class RelationshipDtoTest {
         assertEquals(dto1.hashCode(), dto2.hashCode());
     }
 
-    // ---- Story 14-7 (G1) ----
+    // ---- G1 ----
 
     @Test
     public void shouldSerialiseG1Fields_whenSet_AC4() throws Exception {

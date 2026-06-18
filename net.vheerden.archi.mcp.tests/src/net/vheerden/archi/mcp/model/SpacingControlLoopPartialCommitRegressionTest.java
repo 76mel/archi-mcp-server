@@ -16,12 +16,10 @@ import org.eclipse.gef.commands.Command;
 import org.junit.Test;
 
 /**
- * Regression pin for the Session-7 root-cause fix of the AC-8.7 disposition B
- * (REGRESSION) finding captured in
- * {@code _bmad-output/implementation-artifacts/
- * control-loop-redesign-empirical-2026-05-15/aggregate.md} 2026-05-15.
+ * Regression pin for the root-cause fix of the disposition B
+ * (REGRESSION) finding captured in the 2026-05-15 empirical run.
  *
- * <p><strong>The bug (pre-Session 7):</strong> when
+ * <p><strong>The bug (pre-fix):</strong> when
  * {@code ArchiModelAccessorImpl.computeAdjustViewSpacing(...)} threw any
  * {@code RuntimeException} between step 7's first
  * {@code mutationDispatcher.dispatchImmediate(spacingCompound)} and step 10's
@@ -34,9 +32,9 @@ import org.junit.Test;
  * already-met and short-circuited with {@code heuristic_already_met_no_change}.
  * The tool surfaced the inner RuntimeException as MCP {@code INTERNAL_ERROR}
  * via the accessor's outer-catch block. All four symptoms were observed
- * deterministically across 6 Arm B runs in Session 6 (HH × 3 + ST × 3).</p>
+ * deterministically across 6 Arm B runs (HH × 3 + ST × 3).</p>
  *
- * <p><strong>The fix (Session 7):</strong>
+ * <p><strong>The fix:</strong>
  * <ol>
  *   <li><strong>Safety:</strong> wrap steps 7–10 of
  *       {@code computeAdjustViewSpacing} in {@code try-finally} so the
@@ -49,7 +47,7 @@ import org.junit.Test;
  *       {@code runComposerArm}) now {@code catch (RuntimeException)} in
  *       {@code buildMutationCommand} and return {@code null}, which the
  *       loop interprets as "ladder exhausted" per its existing contract
- *       (verified by the pin classes
+ *       (verified by the pin class
  *       {@link SpacingControlLoopTest#iterate_buildReturnsNullAtIteration0_terminatesBudgetExhausted}
  *       and the multi-iteration accept tests). The tool returns a valid
  *       response with {@code terminationReason =
@@ -64,11 +62,11 @@ import org.junit.Test;
  *       {@code RuntimeException} from {@code buildMutationCommand} causes the
  *       exception to PROPAGATE to the caller. This is intentional — the
  *       caller (accessor closure) is the layer responsible for graceful
- *       degradation per Decision-A.1=α. If a future refactor inadvertently
+ *       degradation. If a future refactor inadvertently
  *       wraps the throw inside the loop, this test will fail loudly.</li>
  *   <li>The loop's contract that a {@code Callbacks} which RETURNS
  *       {@code null} from {@code buildMutationCommand} (the accessor's
- *       graceful-degradation path post-Session-7) causes the loop to
+ *       graceful-degradation path) causes the loop to
  *       terminate with {@code budget_exhausted_after_N_iterations}
  *       preserving any earlier-iteration accepted commands. This is the
  *       observable behavior the accessor closure relies on.</li>
@@ -78,7 +76,7 @@ import org.junit.Test;
  *       iteration 0 succeeded) preserves iteration 0's accepted command in
  *       the {@code Result.acceptedCommands()} list AND emits
  *       {@code budget_exhausted_after_1_iterations}.</li>
- *   <li>The partial-commit symptom from the Session 6 empirical is no
+ *   <li>The partial-commit symptom from the empirical is no
  *       longer observable at the loop level: the loop's
  *       {@code finalizeWithReset(...)} contract undoes accepted commands in
  *       reverse order before returning, regardless of how termination was
@@ -93,16 +91,14 @@ import org.junit.Test;
  * {@code ArchiPlugin.getInstance()} for class-loading (see
  * {@link SpacingControlLoopUndoIntegrationTest} javadoc § "Substrate
  * substitution"). The {@code try-finally} fix is validated end-to-end by
- * the AC-8 re-empirical paired-arc N=12 (Session 7 Task 5 re-fire); if the
- * re-empirical disposition resolves to E (parity OR improvement), the
+ * the re-fired paired-arc empirical; if the
+ * re-empirical disposition resolves to parity OR improvement, the
  * try-finally is empirically validated. If the re-empirical still shows
  * partial-commit symptoms, this test class will be extended with a
  * targeted helper-test using a custom-built {@code MutationDispatcher}
  * stub.</p>
  *
- * <p><strong>Story:</strong>
- * {@code backlog-convenience-tool-control-loop-architectural-redesign}
- * Session 7 (Decision-A.1=α narrow root-cause fix). Sibling-symmetric with
+ * <p>Narrow root-cause fix. Sibling-symmetric with
  * existing {@link SpacingControlLoopTest} pin class.</p>
  */
 public class SpacingControlLoopPartialCommitRegressionTest {
@@ -196,8 +192,8 @@ public class SpacingControlLoopPartialCommitRegressionTest {
                     + "closure can handle it");
         } catch (RuntimeException actual) {
             // THEN: the exception is propagated AS-IS (no wrapping).
-            // The accessor's 5-arg closures catch this layer per
-            // Decision-A.1 / Session 7 and convert it to a null return
+            // The accessor's 5-arg closures catch this layer
+            // and convert it to a null return
             // (= "ladder exhausted" signal).
             assertSame("loop must NOT swallow RuntimeException — closure "
                     + "is the mandated handler per Session 7 fix",
@@ -216,7 +212,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
     public void buildMutationCommand_returnsNullAtIteration0_terminatesBudgetExhausted0() {
         // GIVEN: a Callbacks whose buildMutationCommand returns null on the
         // FIRST invocation, simulating the closure catching RuntimeException
-        // on iteration 0 (helper threw post-Session-7 try-finally).
+        // on iteration 0 (helper threw after the try-finally fix).
         AtomicInteger buildCount = new AtomicInteger(0);
         SpacingControlLoop.Callbacks gracefulCallbacks =
                 new SpacingControlLoop.Callbacks() {
@@ -325,8 +321,8 @@ public class SpacingControlLoopPartialCommitRegressionTest {
         // undone once (finalizeWithReset). The caller (accessor) re-executes
         // it via the outer NonNotifyingCompoundCommand on the public command
         // stack — that happens OUTSIDE the loop body so it's not counted
-        // here. Per AC-6 contract documented in SpacingControlLoop class
-        // javadoc.
+        // here. Per the single-undo contract documented in the
+        // SpacingControlLoop class javadoc.
         assertEquals("iteration 0 executed once by loop's APPLY",
                 1, iter0Cmd.executes);
         assertEquals("iteration 0 undone once by finalizeWithReset",
@@ -396,7 +392,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
         // Undo order: iter-1 then iter-0 (REVERSE) per
         // SpacingControlLoop.finalizeWithReset contract — caller's outer
         // NonNotifyingCompoundCommand re-executes them in forward order via
-        // the public command stack (AC-6 single-undo).
+        // the public command stack (single-undo).
         assertEquals("undo order: 1, 0 (reverse for compound re-execution)",
                 List.of(1, 0), sharedUndoOrder);
     }
@@ -425,7 +421,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
             }
         };
 
-        // Wrap it in the Session-7 closure pattern: catch RuntimeException +
+        // Wrap it in the closure pattern: catch RuntimeException +
         // return null. This is the structural shape of the patches in
         // ArchiModelAccessorImpl.applyElementSpacingRecommendations 5-arg /
         // applyGroupSpacingRecommendations 5-arg / runComposerArm.
@@ -436,7 +432,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
                 try {
                     return rawThrowingCallback.buildMutationCommand(delta);
                 } catch (RuntimeException e) {
-                    return null; // Session-7 graceful-degradation pattern
+                    return null; // graceful-degradation pattern
                 }
             }
 
@@ -479,24 +475,23 @@ public class SpacingControlLoopPartialCommitRegressionTest {
     }
 
     // ------------------------------------------------------------------
-    // Pin 6 — Session 8 (Decision-A.1.1 = α') root-cause fix:
+    // Pin 6 — root-cause fix:
     //          cmd.execute() RuntimeException recovered via best-effort
     //          cmd.undo() + new iteration_apply_failed termination branch.
     //
-    // Pre-Session-8 bug: SpacingControlLoop.iterate() called cmd.execute()
-    // UNGUARDED at line 331. The helper's mergedCompound is a GEF
+    // Pre-fix bug: SpacingControlLoop.iterate() called cmd.execute()
+    // UNGUARDED. The helper's mergedCompound is a GEF
     // CompoundCommand which does NOT roll back on partial-throw (when a
     // contained route command NPE/ISEs on post-inflation degenerate
-    // geometry, per refined hypothesis H-3.1). The RuntimeException escaped
+    // geometry). The RuntimeException escaped
     // iterate(), reached the accessor's outer catch, and surfaced as MCP
-    // INTERNAL_ERROR — the exact symptom triad documented across Sessions 6
-    // + 7 + memory [[feedback_control_loop_internal_error_partial_commit]].
+    // INTERNAL_ERROR — the exact symptom triad observed repeatedly.
     //
-    // Session 8 fix: cmd.execute() + observeLayout() wrapped in try-catch
+    // Fix: cmd.execute() + observeLayout() wrapped in try-catch
     // with best-effort cmd.undo() + new
     // REASON_ITERATION_APPLY_FAILED_PREFIX terminationReason taxonomy
     // branch. Earlier accepted iterations preserved via finalizeWithReset
-    // for the caller's outer compound to re-dispatch as AC-6 single undo.
+    // for the caller's outer compound to re-dispatch as a single undo.
     // ------------------------------------------------------------------
 
     /**
@@ -545,8 +540,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
         // GIVEN: a Callbacks that accepts iterations 0 + 1 then returns a
         // cmd at iteration 2 whose execute() throws RuntimeException
         // (simulating GEF CompoundCommand partial-throw on a route command
-        // NPE mid-application — the Session 6/7 symptom triad's actual
-        // throw site per refined hypothesis H-1.1).
+        // NPE mid-application — the symptom triad's actual throw site).
         List<Integer> sharedExecOrder = new ArrayList<>();
         List<Integer> sharedUndoOrder = new ArrayList<>();
         TrackedCmd iter0Cmd = new TrackedCmd(0, sharedExecOrder, sharedUndoOrder);
@@ -594,7 +588,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
                 /*toolLabel=*/ "regression-test");
 
         // WHEN: invoking the loop with a throwing cmd should NOT propagate
-        // the RuntimeException — Session 8 patch's try-catch around
+        // the RuntimeException — the patch's try-catch around
         // cmd.execute() recovers gracefully.
         SpacingControlLoop.Result result;
         try {
@@ -607,7 +601,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
             return; // unreachable; satisfies compiler
         }
 
-        // THEN: terminationReason is the NEW Session-8 taxonomy string.
+        // THEN: terminationReason is the NEW taxonomy string.
         assertEquals("terminationReason = iteration_apply_failed_at_iteration_2_reverted_after_2_accepted_iterations",
                 "iteration_apply_failed_at_iteration_2_reverted_after_2_accepted_iterations",
                 result.terminationReason());
@@ -640,11 +634,11 @@ public class SpacingControlLoopPartialCommitRegressionTest {
                 List.of(0, 1, 2), sharedExecOrder);
 
         // Undo order: 2 (best-effort), then 1, 0 (finalizeWithReset reverse).
-        // The Session 8 patch first undoes the throwing iter-2 cmd via the
+        // The patch first undoes the throwing iter-2 cmd via the
         // catch's best-effort cmd.undo(); then finalizeWithReset undoes
         // accepted iterations 1, 0 in reverse order so the caller's outer
-        // compound re-executes them via the public command stack (AC-6
-        // single-undo).
+        // compound re-executes them via the public command stack
+        // (single-undo).
         assertEquals("undo order: 2 (failed iter best-effort), then 1, 0 (reverse)",
                 List.of(2, 1, 0), sharedUndoOrder);
     }
@@ -771,24 +765,20 @@ public class SpacingControlLoopPartialCommitRegressionTest {
     }
 
     // ==================================================================
-    // Decision-A.1.3 = α''' Fix-1 + Fix-2 (Session 11, 2026-05-16,
-    // Task 10.6). Party-mode-resolved pins T1/T2/T3/T5
-    // (control-loop-redesign-empirical-2026-05-15-session10/
-    //  task-10-4-party-mode-resolution.md § 4).
+    // Fix-1 + Fix-2. Pins T1/T2/T3/T5.
     //
     // SUBSTRATE NOTE (sibling-symmetric with this class's javadoc § "What
     // these tests do NOT pin" + SpacingControlLoopUndoIntegrationTest
-    // Session-5 + SwtUiThreadDispatcherTest Session-9 substrate decisions):
+    // + SwtUiThreadDispatcherTest substrate decisions):
     // the EMF route-normalization internals (computeAutoRoutePass +
     // mutationDispatcher temp-dispatch/undo inside the private accessor
     // method ArchiModelAccessorImpl.routeNormalizedBaseline) require the
     // full PDE Plug-in Test substrate the project does not ship
     // (ArchiPlugin.getInstance() class-loading chain). These tests pin the
     // CONTRACT Fix-1+Fix-2 must satisfy at the loop + scalar level —
-    // exactly what changes the Sessions 6-10 deterministic
+    // exactly what changes the deterministic
     // aggregate_threshold_regressed_at_iteration_0 symptom. The end-to-end
-    // EMF behaviour is validated by the 4th AC-8 paired-arc re-empirical
-    // (Task 10.8).
+    // EMF behaviour is validated by the re-fired paired-arc empirical.
     // ==================================================================
 
     /**
@@ -808,7 +798,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
     }
 
     // ------------------------------------------------------------------
-    // T1 — baseline_routeNormalized_noNetMutationLeaked (AC-6 load-bearing).
+    // T1 — baseline_routeNormalized_noNetMutationLeaked (load-bearing).
     //
     // The one undo-leak away from corrupting the user's model on EVERY
     // call. Fix-1's route-normalized baseline pass must leak ZERO commands
@@ -817,7 +807,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
     // phantom baseline-capture command. (The accessor's
     // routeNormalizedBaseline dispatches+undoes the temp route via
     // mutationDispatcher and never returns a command into the loop — the
-    // EMF temp-undo is validated end-to-end by the AC-8 re-empirical.)
+    // EMF temp-undo is validated end-to-end by the re-fired empirical.)
     // ------------------------------------------------------------------
 
     @Test
@@ -878,15 +868,15 @@ public class SpacingControlLoopPartialCommitRegressionTest {
     // ------------------------------------------------------------------
     // T2 — baseline_routeDegraded_returnsBareStateZeroIterations.
     //
-    // Winston's guarded-form safety net (party-mode § 2). The decision rule
+    // The guarded-form safety net. The decision rule
     // is routeNorm.thresholdsMet() < bare.thresholdsMet() (strictly worse on
     // the graded scalar = a dropped perceptual band or correctness bit =
     // materially worse). When it fires the accessor returns the bare input
     // untouched (0 iterations) with terminationReason
     // reroute_degraded_input_baseline — the loop is never entered. Pinned:
-    // the arithmetic rule on the shipped scalar + the additive AC-5
+    // the arithmetic rule on the shipped scalar + the additive
     // taxonomy constant. (The accessor early-return is EMF; validated
-    // end-to-end by AC-8.)
+    // end-to-end by the empirical.)
     // ------------------------------------------------------------------
 
     @Test
@@ -895,7 +885,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
         LayoutMetrics bare =
                 scalarMetrics(0, 0, 0, /*m4=*/ 7, /*cs=*/ 4, /*hpq=*/ 0.86, 150);
         // The tool's own reroute DEGRADES it (introduces a boundary
-        // violation + drops HPQ a band) — Winston's "not observed but not
+        // violation + drops HPQ a band) — the "not observed but not
         // impossible" case.
         LayoutMetrics routeDegraded =
                 scalarMetrics(/*bv=*/ 1, 0, 0, /*m4=*/ 8, /*cs=*/ 6,
@@ -912,7 +902,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
         assertFalse("route-consistent must NOT trip the degraded guard",
                 routeOk.thresholdsMet() < bare.thresholdsMet());
 
-        // Additive AC-5 pre-loop taxonomy constant (party-mode § 6).
+        // Additive pre-loop taxonomy constant.
         assertEquals("reroute_degraded_input_baseline",
                 SpacingControlLoop.REASON_REROUTE_DEGRADED_INPUT_BASELINE);
     }
@@ -974,8 +964,8 @@ public class SpacingControlLoopPartialCommitRegressionTest {
     // ------------------------------------------------------------------
     // T5 — postHubResize_doesNotRevertAtIteration0.
     //
-    // THE falsifiable encoding that the Sessions 6-10 deterministic symptom
-    // is DEAD — the test that would have caught this in Session 2. With
+    // THE falsifiable encoding that the deterministic symptom
+    // is DEAD — the test that would have caught this earlier. With
     // Fix-1 (route-normalized same-basis baseline) + Fix-2 (graded scalar),
     // a realistic post-hub-resize HH/ST snapshot stepped +30px must NOT
     // yield aggregate_threshold_regressed_at_iteration_0. The companion
@@ -1004,7 +994,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
 
     @Test
     public void t5_preFixCondition_documentsWhyItUsedToRevert() {
-        // The RC-1+RC-2 mechanism (decision-a13-diagnosis.md): the OLD
+        // The RC-1+RC-2 mechanism: the OLD
         // baseline was bare/un-rerouted with the OLD binary-at-0 aggregate.
         // On post-hub-resize geometry the hub resize lifts HPQ>=0.75 so the
         // un-rerouted baseline scored the OLD aggregate = 1-2; the first
@@ -1074,22 +1064,21 @@ public class SpacingControlLoopPartialCommitRegressionTest {
     }
 
     // ------------------------------------------------------------------
-    // T15 — Density-aware-termination preservation pin (Story
-    // `backlog-control-loop-density-aware-termination` AC-7/AC-12).
+    // T15 — Density-aware-termination preservation pin.
     //
     // The shipped LayoutQualityScalar (scalarMetrics(...)) uses the 7-arg
     // LayoutMetrics ctor → avgSpacingPx = NaN; this class's Requests pass
     // no hubExtent → null. So the density-aware discriminator is INERT and
-    // the Decision-A.1.3 / partial-commit / route-normalized contract is
+    // the partial-commit / route-normalized contract is
     // byte-identical. This pin makes that explicit AND asserts the new
     // Result.densityDiagnosis() field never leaks onto a preserved
-    // row-703 terminal.
+    // terminal.
     // ------------------------------------------------------------------
 
     @Test
     public void densityAware_regimeAbsent_decisionA13ContractPreserved() {
         // Climbing scalar with the SHIPPED qualityScalar (NaN avg) — the
-        // loop must accept to budget exactly as row-703, with NO density
+        // loop must accept to budget as before, with NO density
         // diagnosis surfaced.
         SpacingControlLoop.Request request = new SpacingControlLoop.Request(
                 /*initialSpacingPx=*/ 50, /*targetSpacingPx=*/ 300,
@@ -1126,10 +1115,9 @@ public class SpacingControlLoopPartialCommitRegressionTest {
     }
 
     // ==================================================================
-    // FIX-1 — Story `backlog-control-loop-density-aware-fixes` AC-1/AC-2/
-    //         AC-5. The composer two-arm transition's speculative
+    // FIX-1 — The composer two-arm transition's speculative
     //         element-arm replay + finally-undo of the UNWRAPPED accepted
-    //         commands was the one path the Session-9 SwtUiThreadDispatcher
+    //         commands was the one path the SwtUiThreadDispatcher
     //         marshalling did NOT cover. ACTUAL captured stack trace
     //         (2026-05-17, runtime log — NOT a static guess):
     //
@@ -1144,15 +1132,15 @@ public class SpacingControlLoopPartialCommitRegressionTest {
     //     at ...ArchiModelAccessorImpl.applySpacingRecommendations(:8286)  <- raw c.execute()
     //     ... reactor.core.scheduler.SchedulerTask ... (NOT the SWT UI thread)
     //
-    //   Fix-1 routes that replay/undo through the SAME Session-9
+    //   Fix-1 routes that replay/undo through the SAME
     //   SwtUiThreadDispatcher boundary via ComposerSpeculativeReplay
-    //   (extension, not re-architecture — AC-4: 2×2 / 3-state enum /
+    //   (extension, not re-architecture — 2×2 / 3-state enum /
     //   aggregate objective / loop accept-back-off semantics untouched).
     //   SUBSTRATE: the composer is EMF/OSGi (not pure-unit-instantiable);
     //   per this class's SUBSTRATE NOTE these pins pin the CONTRACT the fix
     //   must satisfy at the unit level; the end-to-end "no INTERNAL_ERROR /
-    //   no partial-commit on ST" is validated by the AC-6 re-fired
-    //   paired-arc empirical (row-774 Task 7).
+    //   no partial-commit on ST" is validated by the re-fired
+    //   paired-arc empirical.
     // ==================================================================
 
     /** Records execute/undo order across a shared list (GEF Command). */
@@ -1189,7 +1177,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
         ComposerSpeculativeReplay.undoReverse(cmds);
 
         // Forward replay 0,1,2 then reverse undo 2,1,0 — the composer
-        // two-arm hand-off semantics are PRESERVED (AC-4), only the
+        // two-arm hand-off semantics are PRESERVED, only the
         // dispatch boundary changed.
         assertEquals(Arrays.asList(
                 "x:0", "x:1", "x:2", "u:2", "u:1", "u:0"), order);
@@ -1210,7 +1198,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
         // THE falsifiable contract: a command whose execute() reproduces the
         // captured off-UI-thread NPE MUST propagate out of the marshalled
         // helper (SwtUiThreadDispatcher's documented re-throw contract) so
-        // the composer's Session-8 graceful-degradation catch + the Fix-1
+        // the composer's graceful-degradation catch + the Fix-1
         // envelope logger.error STILL see it. If a regression made the
         // helper swallow it, the partial-commit would go silent again —
         // this pin fails first.
@@ -1232,7 +1220,7 @@ public class SpacingControlLoopPartialCommitRegressionTest {
     public void fix1_throwSiteCondition_documentsCapturedRootCause() {
         // t5_preFixCondition-style documentary pin (the codebase's accepted
         // EMF-validation split: contract pinned here, end-to-end via the
-        // AC-6 re-empirical). PRE-FIX: the composer ran a RAW
+        // re-empirical). PRE-FIX: the composer ran a RAW
         //   for (Command c : elementArm.acceptedCommands) c.execute();
         // (+ a reverse finally-undo) directly on the reactor worker thread
         // → NonNotifyingCompoundCommand.firePropertyChange →
@@ -1242,19 +1230,18 @@ public class SpacingControlLoopPartialCommitRegressionTest {
         // throw was NON-deterministic because the speculative block only
         // runs when the element arm accepted >=1 iteration AND the group
         // arm fires (interGroupDelta>0) — best-of-K / escalate-path
-        // dependent (row-773 2/3 ST). POST-FIX: both loops are delegated to
+        // dependent. POST-FIX: both loops are delegated to
         // ComposerSpeculativeReplay, which routes them through the SAME
-        // Session-9 SwtUiThreadDispatcher boundary the loop body already
+        // SwtUiThreadDispatcher boundary the loop body already
         // uses. This pin is RED pre-fix by construction (the helper did not
         // exist) and GREEN post-fix.
-        // Story `backlog-control-loop-st-passhonest-branch-agent-in-loop`
-        // (row 775) AC-7(c): strengthened from the prior boolean-tautology
-        // (`assertTrue(true)`-style; row-774 Sonnet F4) to REAL falsifiable
+        // Strengthened from the prior boolean-tautology
+        // (`assertTrue(true)`-style) to REAL falsifiable
         // structural content — the captured-root-cause invariant (a raw
         // command `.execute()` off the UI thread IS the breach) is now
         // pinned by exercising the actual ComposerSpeculativeReplay →
         // SwtUiThreadDispatcher wire and asserting its re-throw contract
-        // for BOTH the captured-NPE class AND (row-775 AC-7(a)) Error.
+        // for BOTH the captured-NPE class AND Error.
 
         // (1) The captured throw site: a replayed command whose execute()
         // throws the exact NPE class (TreeModelView.doRefreshFromNotifications
@@ -1278,15 +1265,15 @@ public class SpacingControlLoopPartialCommitRegressionTest {
                     capturedNpe, actual);
         }
 
-        // (2) row-775 AC-7(a) tie-in — the genuinely new falsifiable
+        // (2) Error tie-in — the genuinely new falsifiable
         // content: an Error (the LinkageError sibling of the captured-NPE
         // arc) thrown by a replayed command MUST also propagate as the
-        // SAME instance. PRE-AC-7(a) the SwtUiThreadDispatcher caught only
+        // SAME instance. Previously the SwtUiThreadDispatcher caught only
         // RuntimeException, so under a real SWT Display this Error would be
         // silently swallowed by syncExec — exactly the invisible-loss
         // failure class the Fix-1 arc exists to prevent. FAILS if the
         // speculative replay is reverted to a raw loop bypassing the
-        // boundary, or if AC-7(a) regresses.
+        // boundary, or if the Error-propagation widening regresses.
         Error boundaryError = new NoClassDefFoundError(
                 "simulated off-UI-thread LinkageError at the composer "
                 + "speculative-replay boundary");

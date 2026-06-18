@@ -8,9 +8,9 @@ import com.archimatetool.model.IFolder;
 
 /**
  * GEF Command that creates an ArchiMate relationship: connects source/target
- * and adds to a folder (Story 7-2, B19).
+ * and adds to a folder.
  *
- * <p><strong>B19 fix:</strong> {@code connect()} is called inside {@code execute()},
+ * <p><strong>Fix:</strong> {@code connect()} is called inside {@code execute()},
  * not during preparation. This ensures EMF cross-references only exist after the
  * command runs on the command stack, preventing orphaned relationships.</p>
  *
@@ -29,7 +29,7 @@ public class CreateRelationshipCommand extends Command {
      * Creates a command to connect and add a relationship to a folder.
      *
      * <p>Source and target are passed explicitly because {@code connect()} has not
-     * been called yet at construction time (B19: deferred connect).</p>
+     * been called yet at construction time (deferred connect).</p>
      *
      * @param relationship the relationship to connect and add (NOT yet connected)
      * @param folder       the target folder (typically the Relations folder)

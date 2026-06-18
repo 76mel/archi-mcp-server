@@ -15,7 +15,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Greedy label position optimizer for routed connections (Story 11-31).
+ * Greedy label position optimizer for routed connections.
  * Pure-geometry class — no EMF/SWT dependencies.
  *
  * <p>After routing and label clearance, this optimizer evaluates all 3 possible
@@ -34,7 +34,7 @@ public class LabelPositionOptimizer {
     static final double LABEL_PROXIMITY_THRESHOLD = 5.0;
 
     /**
-     * Result of a multi-trial label optimization pass (Story backlog-b12).
+     * Result of a multi-trial label optimization pass.
      *
      * @param allPositions     connectionId → chosen textPosition for ALL labeled connections
      * @param changedPositions connectionId → new textPosition (only connections whose position changed)
@@ -84,7 +84,7 @@ public class LabelPositionOptimizer {
 
     /**
      * Runs multiple greedy optimization trials with different processing orders
-     * and returns the result with the lowest total overlap score (Story backlog-b12).
+     * and returns the result with the lowest total overlap score.
      *
      * <p>Trial 0 uses the deterministic longest-first ordering (same as {@link #optimize}).
      * Trials 1+ shuffle the ordering using the provided {@link Random}. The trial with

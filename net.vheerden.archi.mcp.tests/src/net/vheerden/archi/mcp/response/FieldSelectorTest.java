@@ -18,7 +18,7 @@ import net.vheerden.archi.mcp.response.dto.ViewDto;
 import net.vheerden.archi.mcp.response.dto.ViewNodeDto;
 
 /**
- * Tests for {@link FieldSelector} — field selection and exclude filtering (Story 5.2).
+ * Tests for {@link FieldSelector} — field selection and exclude filtering.
  */
 public class FieldSelectorTest {
 
@@ -599,7 +599,7 @@ public class FieldSelectorTest {
     public void shouldContainAllValidExcludeFields() {
         Set<String> expected = Set.of("documentation", "properties", "layer", "type",
                 "specialization", "viewpointType", "connectionRouterType", "folderPath",
-                "visualMetadata", "connections", "groups", "notes");
+                "visualMetadata", "connections", "groups", "notes", "images");
         assertEquals(expected, FieldSelector.VALID_EXCLUDE_FIELDS);
     }
 

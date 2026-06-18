@@ -7,7 +7,7 @@ import org.junit.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Tests for {@link DeleteResultDto} record (Story 8-4).
+ * Tests for {@link DeleteResultDto} record.
  */
 public class DeleteResultDtoTest {
 

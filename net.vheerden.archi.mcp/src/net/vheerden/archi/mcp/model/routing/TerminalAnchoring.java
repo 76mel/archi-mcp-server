@@ -9,10 +9,9 @@ import net.vheerden.archi.mcp.model.routing.EdgeAttachmentCalculator.Face;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Perimeter-terminal immutability carrier for B71.
+ * Perimeter-terminal immutability carrier.
  *
- * <p>See {@code _bmad-output/implementation-artifacts/b71-q1-carrier-analysis.md §9.5}
- * for the design derivation. The record carries exactly one field — the {@link Face}
+ * <p>The record carries exactly one field — the {@link Face}
  * on which the terminal bendpoint is anchored — because every other piece of
  * information the predicate needs (axis, face-line coordinate, source center) can be
  * derived on demand from the connection's live source rect, keeping the predicate
@@ -51,11 +50,11 @@ public record TerminalAnchoring(Face face) {
     }
 
     /**
-     * Winston's axis-agnostic form (Q1 §9.5, compose §12).
+     * Axis-agnostic form.
      *
      * <p>Rejects paths whose {@code path[0]} is collinear with the source center on the
      * parallel axis <strong>and</strong> NOT on the face line — the ChopboxAnchor
-     * degeneracy signature. Preserves legitimate B9-distributed slots (off-center on the
+     * degeneracy signature. Preserves legitimate distributed slots (off-center on the
      * face) and classic centre-face exits (on-center on the face). Empty paths return
      * {@code true} (fast-path).
      */
@@ -71,9 +70,9 @@ public record TerminalAnchoring(Face face) {
         Axis orthogonal = before.orthogonalAxis();
         int bp0Orthogonal = (orthogonal == Axis.X) ? bp0.x() : bp0.y();
         int faceLine      = before.lineCoordinate(source);
-        // B72-c: bp[0] must remain on the face line. The original B71
+        // bp[0] must remain on the face line. The original
         // degeneracy-only check allowed lateral displacement when bp0's
-        // parallel coordinate was nudged off centerY by B72-c's
+        // parallel coordinate was nudged off centerY by the
         // slot-at-center fix. No wrap site should ever drag bp[0] off
         // the perimeter.
         return bp0Orthogonal == faceLine;
@@ -89,7 +88,7 @@ public record TerminalAnchoring(Face face) {
      * <p>Either anchoring may be {@code null}, in which case that end is
      * unchecked — this is the test-compat path used by legacy overloads of the
      * five wrap sites in {@link PathStraightener} and
-     * {@link CoincidentSegmentDetector#applyOffsets} so that pre-B71 callers
+     * {@link CoincidentSegmentDetector#applyOffsets} so that legacy callers
      * remain green when no anchoring is supplied.
      */
     public static boolean preservesEndpoints(

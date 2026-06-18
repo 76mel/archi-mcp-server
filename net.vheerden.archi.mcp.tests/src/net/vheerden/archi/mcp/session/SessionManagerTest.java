@@ -2,6 +2,8 @@ package net.vheerden.archi.mcp.session;
 
 import static org.junit.Assert.*;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -210,7 +212,7 @@ public class SessionManagerTest {
         assertFalse(sessionManager.getSessionFilter("session-1").isPresent());
     }
 
-    // ---- Story 5.2: Field selection extension tests ----
+    // ---- Field selection extension tests ----
 
     @Test
     public void shouldStoreFieldsPreset_whenFieldsProvided() {
@@ -307,7 +309,7 @@ public class SessionManagerTest {
         assertNull(effective);
     }
 
-    // ---- Story 5.3: Model version tracking integration tests ----
+    // ---- Model version tracking integration tests ----
 
     @Test
     public void shouldReturnFalse_whenFirstVersionCheck() {
@@ -349,7 +351,7 @@ public class SessionManagerTest {
         assertFalse("First check after dispose should return false", changed);
     }
 
-    // ---- Story 5.4: Session caching integration tests ----
+    // ---- Session caching integration tests ----
 
     @Test
     public void shouldReturnNull_whenNoCacheEntryExists() {
@@ -425,5 +427,191 @@ public class SessionManagerTest {
     public void shouldNotThrow_whenInvalidatingNonexistentSession() {
         sessionManager.invalidateSessionCache("no-such-session");
         // No exception = pass
+    }
+
+    // ---- idle-TTL eviction ----
+
+    @Test
+    public void shouldEvictFromBothMaps_whenSessionIdleBeyondTtl() {
+        // A session with BOTH a filter and a cache entry is fully removed when idle past the TTL.
+        sessionManager.setSessionFilter("session-1", "ApplicationComponent", null);
+        sessionManager.putCacheEntry("session-1", "key-1", "data-1");
+        assertEquals(1, sessionManager.sessionStateCount());
+        assertEquals(1, sessionManager.cachedSessionCount());
+        assertEquals(1, sessionManager.trackedSessionCount());
+
+        // Inject a clock 25h ahead so the 24h TTL is exceeded — no sleeping.
+        List<String> evicted = sessionManager.sweepExpired(Instant.now().plus(Duration.ofHours(25)));
+
+        assertEquals(List.of("session-1"), evicted);
+        assertFalse(sessionManager.getSessionFilter("session-1").isPresent());
+        assertNull(sessionManager.getCacheEntry("session-1", "key-1"));
+        assertEquals(0, sessionManager.sessionStateCount());
+        assertEquals(0, sessionManager.cachedSessionCount());
+        assertEquals(0, sessionManager.trackedSessionCount());
+    }
+
+    @Test
+    public void shouldSurvive_whenSessionAccessedWithinTtlWindow() {
+        sessionManager.setSessionFilter("session-1", "ApplicationComponent", null);
+
+        // 23h < 24h TTL — the session is still within its idle window.
+        List<String> evicted = sessionManager.sweepExpired(Instant.now().plus(Duration.ofHours(23)));
+
+        assertTrue(evicted.isEmpty());
+        assertTrue(sessionManager.getSessionFilter("session-1").isPresent());
+        assertEquals(1, sessionManager.trackedSessionCount());
+    }
+
+    @Test
+    public void shouldEvictCacheOnlySession_whenIdleBeyondTtl() {
+        // A session that only ever caches (never sets a filter) has no SessionState, yet is still
+        // TTL-tracked via the unified last-access clock and evicted when idle.
+        sessionManager.putCacheEntry("cache-only", "key-1", "data-1");
+        assertEquals(0, sessionManager.sessionStateCount());
+        assertEquals(1, sessionManager.cachedSessionCount());
+        assertEquals(1, sessionManager.trackedSessionCount());
+
+        List<String> evicted = sessionManager.sweepExpired(Instant.now().plus(Duration.ofHours(25)));
+
+        assertEquals(List.of("cache-only"), evicted);
+        assertNull(sessionManager.getCacheEntry("cache-only", "key-1"));
+        assertEquals(0, sessionManager.cachedSessionCount());
+        assertEquals(0, sessionManager.trackedSessionCount());
+    }
+
+    @Test
+    public void shouldSurviveCacheOnlySession_whenAccessedWithinTtlWindow() {
+        sessionManager.putCacheEntry("cache-only", "key-1", "data-1");
+
+        List<String> evicted = sessionManager.sweepExpired(Instant.now().plus(Duration.ofHours(23)));
+
+        assertTrue(evicted.isEmpty());
+        assertEquals("data-1", sessionManager.getCacheEntry("cache-only", "key-1"));
+    }
+
+    @Test
+    public void shouldNeverEvictDefaultSession_whenIdleBeyondTtl() {
+        // The shared fallback (used when an exchange is null / carries no session id) is immune.
+        sessionManager.setSessionFilter(null, "ApplicationComponent", null);
+        sessionManager.putCacheEntry(null, "key-1", "data-1");
+
+        List<String> evicted = sessionManager.sweepExpired(Instant.now().plus(Duration.ofHours(72)));
+
+        assertTrue("default session must never be evicted", evicted.isEmpty());
+        assertTrue(sessionManager.getSessionFilter(null).isPresent());
+        assertEquals("data-1", sessionManager.getCacheEntry(null, "key-1"));
+    }
+
+    @Test
+    public void shouldRefreshLastAccessOnRead_soActivelyQueriedSessionSurvives() {
+        // The critical property: a session that is only ever *read* (getEffective*) — never re-set —
+        // must NOT look idle. Proven deterministically with an injected clock: the read at t0+23h refreshes
+        // last-access, so a sweep at t0+30h sees age 7h (<24h) and keeps it. WITHOUT the read-path touch the
+        // entry would still read t0 and the same sweep would evict it (age 30h) — so this is not a tautology.
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+        sessionManager.setClock(() -> t0);
+        sessionManager.setSessionFilter("session-1", "ApplicationComponent", null);
+
+        Instant t23 = t0.plus(Duration.ofHours(23));
+        sessionManager.setClock(() -> t23);
+        sessionManager.getEffectiveType("session-1", null); // pure read — refreshes last-access to t23
+
+        List<String> evicted = sessionManager.sweepExpired(t0.plus(Duration.ofHours(30)));
+
+        assertTrue("a read within the window refreshed last-access", evicted.isEmpty());
+        assertTrue(sessionManager.getSessionFilter("session-1").isPresent());
+    }
+
+    @Test
+    public void shouldEvictReadStaleSession_whenNotReadWithinWindow() {
+        // The negative control for the test above: with NO intervening read, the same session created at t0
+        // IS evicted by a sweep at t0+30h. Pins that the survival above is caused by the read, not the setup.
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+        sessionManager.setClock(() -> t0);
+        sessionManager.setSessionFilter("session-1", "ApplicationComponent", null);
+
+        List<String> evicted = sessionManager.sweepExpired(t0.plus(Duration.ofHours(30)));
+
+        assertEquals(List.of("session-1"), evicted);
+    }
+
+    @Test
+    public void shouldDropLastAccess_whenClearSessionFilterAndNoCacheRemains() {
+        // Lockstep: clearing the only state must fully reclaim the last-access clock entry (no orphan,
+        // no later "idle-evicted" log for a session that already holds nothing).
+        sessionManager.setSessionFilter("session-1", "ApplicationComponent", null);
+        assertEquals(1, sessionManager.trackedSessionCount());
+
+        sessionManager.clearSessionFilter("session-1");
+
+        assertEquals(0, sessionManager.trackedSessionCount());
+    }
+
+    @Test
+    public void shouldKeepLastAccess_whenClearSessionFilterButCacheRemains() {
+        // A cache-only remnant must stay TTL-tracked — dropping the clock entry here would orphan the cache
+        // from the sweep (which iterates lastAccess) and leak it forever.
+        sessionManager.setSessionFilter("session-1", "ApplicationComponent", null);
+        sessionManager.putCacheEntry("session-1", "key-1", "data-1");
+
+        sessionManager.clearSessionFilter("session-1");
+
+        assertEquals(1, sessionManager.trackedSessionCount());
+        assertEquals(1, sessionManager.cachedSessionCount());
+        // And it is still evictable on idle (the invariant the tracking preserves).
+        assertEquals(List.of("session-1"),
+                sessionManager.sweepExpired(Instant.now().plus(Duration.ofHours(25))));
+    }
+
+    @Test
+    public void shouldDropLastAccess_whenInvalidateCacheAndNoFilterRemains() {
+        sessionManager.putCacheEntry("session-1", "key-1", "data-1");
+        assertEquals(1, sessionManager.trackedSessionCount());
+
+        sessionManager.invalidateSessionCache("session-1");
+
+        assertEquals(0, sessionManager.trackedSessionCount());
+    }
+
+    @Test
+    public void shouldKeepLastAccess_whenInvalidateCacheButFilterRemains() {
+        sessionManager.setSessionFilter("session-1", "ApplicationComponent", null);
+        sessionManager.putCacheEntry("session-1", "key-1", "data-1");
+
+        sessionManager.invalidateSessionCache("session-1");
+
+        assertEquals(1, sessionManager.trackedSessionCount());
+        assertEquals(1, sessionManager.sessionStateCount());
+    }
+
+    @Test
+    public void shouldNotMintPhantomEntry_whenReadingUntrackedSession() {
+        // A read against a session that never created state must not register a last-access key
+        // (otherwise a read-only fabricated-id flood would grow the map between write-path sweeps).
+        sessionManager.getEffectiveType("never-seen", null);
+        sessionManager.getCacheEntry("never-seen", "key");
+        sessionManager.getSessionFilter("never-seen");
+
+        assertEquals(0, sessionManager.trackedSessionCount());
+    }
+
+    @Test
+    public void shouldApplyStrictlyExceedsSemantics_inIdlePredicate() {
+        // The pure predicate is the deterministic TTL core (mirrors MutationContext.isExpired).
+        Instant now = Instant.now();
+        Duration ttl = Duration.ofHours(24);
+
+        assertFalse("fresh (now) is not idle", SessionManager.isIdle(now, now, ttl));
+        assertFalse("exactly at the TTL is NOT idle (strictly-exceeds)",
+                SessionManager.isIdle(now.minus(ttl), now, ttl));
+        assertTrue("past the TTL is idle",
+                SessionManager.isIdle(now.minus(Duration.ofHours(26)), now, ttl));
+        assertFalse("null timestamp is defensively not-idle",
+                SessionManager.isIdle(null, now, ttl));
+        assertFalse("null now is defensively not-idle",
+                SessionManager.isIdle(now.minus(Duration.ofHours(26)), null, ttl));
+        assertFalse("null ttl is defensively not-idle",
+                SessionManager.isIdle(now.minus(Duration.ofHours(26)), now, null));
     }
 }

@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.response.dto;
 
 /**
- * Canonical {@link AutoRouteResultDto#nudgeBlockedReason} values (Story 14-12).
+ * Canonical {@link AutoRouteResultDto#nudgeBlockedReason} values.
  *
  * <p>Codes are stable; once published, never renamed (only deprecated and
  * superseded by a new code). This is part of the MCP response contract.

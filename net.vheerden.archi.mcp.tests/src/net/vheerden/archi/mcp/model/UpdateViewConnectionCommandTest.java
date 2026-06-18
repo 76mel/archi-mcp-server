@@ -23,7 +23,7 @@ import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelBendpoint;
 
 /**
- * Tests for {@link UpdateViewConnectionCommand} (Story 7-8).
+ * Tests for {@link UpdateViewConnectionCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * execute (replace bendpoints), undo (restore old), and empty array (clear).</p>
@@ -165,7 +165,7 @@ public class UpdateViewConnectionCommandTest {
         assertEquals(99, connection.getBendpoints().get(0).getStartX());
     }
 
-    // ---- Story 11-2: Connection styling tests ----
+    // ---- Connection styling tests ----
 
     @Test
     public void shouldApplyLineColor_whenStylingProvided() {
@@ -280,7 +280,7 @@ public class UpdateViewConnectionCommandTest {
         assertEquals(2, connection.getLineWidth());
     }
 
-    // ---- Story 13-1: Label visibility tests ----
+    // ---- Label visibility tests ----
 
     @Test
     public void shouldHideLabel_whenShowLabelFalse() {
@@ -346,7 +346,7 @@ public class UpdateViewConnectionCommandTest {
         assertTrue(cmd.hasNameVisibleChange());
     }
 
-    // ---- Story 13-11: Label position (textPosition) tests ----
+    // ---- Label position (textPosition) tests ----
 
     @Test
     public void shouldSetTextPosition_toTarget() {

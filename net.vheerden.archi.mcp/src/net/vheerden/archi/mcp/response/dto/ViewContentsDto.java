@@ -11,10 +11,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * and relationships present in a view, plus visual position metadata
  * for each element and connection routing metadata.</p>
  *
- * <p><strong>Story 8-6:</strong> Added groups and notes arrays for
+ * <p>Added groups and notes arrays for
  * visual grouping rectangles and text annotations on diagrams.</p>
  *
- * <p><strong>Story 14-8 / G16:</strong> Added images array for standalone
+ * <p>Added images array for standalone
  * {@code IDiagramModelImage} visuals (sibling to notes / groups /
  * view-references). Populated only when the view contains image visuals;
  * null otherwise (NON_NULL omits from JSON).</p>
@@ -34,10 +34,10 @@ public record ViewContentsDto(
     List<DiagramImageDto> images
 ) {
     /**
-     * Story 14-8 back-compat constructor — preserves the 10-arg ctor surface
-     * from Story 8-6 by delegating with {@code null} for the new {@code images}
+     * Back-compat constructor — preserves the 10-arg ctor surface
+     * by delegating with {@code null} for the new {@code images}
      * field (NON_NULL omits from JSON, so views without image visuals serialise
-     * byte-identically to their Story 8-6 form).
+     * byte-identically to their prior form).
      */
     public ViewContentsDto(String viewId, String viewName, String viewpoint,
             String connectionRouterType,
@@ -50,7 +50,7 @@ public record ViewContentsDto(
 
     /**
      * Convenience constructor without groups, notes, images, and
-     * connectionRouterType (backward compat with pre-Story-8-6 callers).
+     * connectionRouterType (backward compat with earlier callers).
      */
     public ViewContentsDto(String viewId, String viewName, String viewpoint,
             List<ElementDto> elements, List<RelationshipDto> relationships,

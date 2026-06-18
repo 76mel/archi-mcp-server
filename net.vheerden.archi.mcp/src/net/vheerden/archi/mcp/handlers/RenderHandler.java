@@ -20,8 +20,8 @@ import net.vheerden.archi.mcp.registry.CommandRegistry;
 import net.vheerden.archi.mcp.response.ResponseFormatter;
 
 /**
- * Handler for view rendering/export tools: export-view (Story 8-1; extended
- * for PDF + JPG + SVG fix in Story 14-4).
+ * Handler for view rendering/export tools: export-view (extended
+ * for PDF + JPG + SVG support).
  *
  * <p>Renders ArchiMate views as PNG, JPG, SVG, or PDF and returns them either
  * inline (as MCP {@link McpSchema.ImageContent} for raster formats,
@@ -60,7 +60,7 @@ public class RenderHandler {
 
     /**
      * Registers all tools provided by this handler with the command registry.
-     * Registers: export-view (Story 8-1).
+     * Registers: export-view.
      */
     public void registerTools() {
         registry.registerTool(buildExportViewSpec());

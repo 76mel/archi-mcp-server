@@ -1,8 +1,8 @@
 package net.vheerden.archi.mcp.model.routing;
 
 /**
- * Represents a connection that could not be routed within constraints (Story 10-30).
- * Enriched with crossed obstacle identity (Story 10-34).
+ * Represents a connection that could not be routed within constraints.
+ * Enriched with crossed obstacle identity.
  * Pure-geometry record — no EMF/SWT dependencies.
  *
  * @param connectionId       unique identifier for the connection

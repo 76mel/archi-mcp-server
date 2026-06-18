@@ -45,7 +45,7 @@ public class ModelQueryHandlerTest {
         objectMapper = new ObjectMapper();
     }
 
-    // ---- Tool Registration Tests (AC #3) ----
+    // ---- Tool Registration Tests ----
 
     @Test
     public void shouldRegisterGetModelInfoTool() {
@@ -53,7 +53,7 @@ public class ModelQueryHandlerTest {
         ModelQueryHandler handler = new ModelQueryHandler(accessor, formatter, registry, null);
         handler.registerTools();
 
-        // Story 14-5 G10: registerTools now registers 5 tools — get-model-info, update-model, get-element, find-concept-usage, list-specializations
+        // registerTools now registers 5 tools — get-model-info, update-model, get-element, find-concept-usage, list-specializations
         assertEquals(5, registry.getToolCount());
         McpServerFeatures.SyncToolSpecification spec = findToolSpec("get-model-info");
         assertEquals("get-model-info", spec.tool().name());
@@ -82,7 +82,69 @@ public class ModelQueryHandlerTest {
         assertTrue(tool.inputSchema().properties().isEmpty());
     }
 
-    // ---- Success Path Tests (AC #1) ----
+    // ---- Approval-mode read-only surfacing ----
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void shouldSurfaceApprovalMode_inGetModelInfo() throws Exception {
+        // The agent reads the human-owned gate state via get-model-info so it can honestly
+        // say "you're gated — confirm in Archi". The value comes from the read-only provider,
+        // stamped fresh on the response (never served stale).
+        net.vheerden.archi.mcp.model.MutationDispatcher dispatcher =
+                new net.vheerden.archi.mcp.model.MutationDispatcher(() -> null);
+        dispatcher.setApprovalModeProvider(() -> true);
+        StubAccessor accessor = new StubAccessor(true) {
+            @Override
+            public net.vheerden.archi.mcp.model.MutationDispatcher getMutationDispatcher() {
+                return dispatcher;
+            }
+        };
+        ModelQueryHandler handler = new ModelQueryHandler(accessor, formatter, registry, null);
+        handler.registerTools();
+
+        Map<String, Object> gated = (Map<String, Object>) parseJson(invokeHandler()).get("result");
+        assertEquals(Boolean.TRUE, gated.get("approvalMode"));
+
+        dispatcher.setApprovalModeProvider(() -> false);
+        Map<String, Object> open = (Map<String, Object>) parseJson(invokeHandler()).get("result");
+        assertEquals(Boolean.FALSE, open.get("approvalMode"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void shouldStampLiveApprovalMode_overCachedValue() throws Exception {
+        // "never stale from cache": model-info is cacheable but the gate is dynamic. A cache
+        // HIT must report the LIVE bit, not the value captured when the envelope was cached.
+        net.vheerden.archi.mcp.model.MutationDispatcher dispatcher =
+                new net.vheerden.archi.mcp.model.MutationDispatcher(() -> null);
+        dispatcher.setApprovalModeProvider(() -> true);
+        CountingAccessor accessor = new CountingAccessor() {
+            @Override
+            public net.vheerden.archi.mcp.model.MutationDispatcher getMutationDispatcher() {
+                return dispatcher;
+            }
+        };
+        SessionManager sm = new SessionManager(SearchHandler.VALID_TYPES, SearchHandler.VALID_LAYERS);
+        ModelQueryHandler handler = new ModelQueryHandler(accessor, formatter, registry, sm);
+        handler.registerTools();
+
+        // First call: cache miss, caches an envelope with approvalMode=true.
+        Map<String, Object> env1 = parseJson(invokeHandler());
+        assertEquals(Boolean.TRUE, ((Map<String, Object>) env1.get("result")).get("approvalMode"));
+        assertEquals(1, accessor.getModelInfoCount);
+
+        // Human opens the gate; the second call is a cache HIT (accessor not re-queried) but must
+        // re-stamp the live value (false) over the cached true.
+        dispatcher.setApprovalModeProvider(() -> false);
+        Map<String, Object> env2 = parseJson(invokeHandler());
+        assertEquals("second call should be a cache hit", true,
+                ((Map<String, Object>) env2.get("_meta")).get("cacheHit"));
+        assertEquals("cached envelope reused — accessor not called again", 1, accessor.getModelInfoCount);
+        assertEquals("approvalMode must be re-stamped live, not served stale",
+                Boolean.FALSE, ((Map<String, Object>) env2.get("result")).get("approvalMode"));
+    }
+
+    // ---- Success Path Tests ----
 
     @Test
     public void shouldReturnModelInfo_whenModelLoaded() throws Exception {
@@ -104,7 +166,7 @@ public class ModelQueryHandlerTest {
         assertEquals(5, modelResult.get("relationshipCount"));
         assertEquals(3, modelResult.get("viewCount"));
 
-        // AC #1: element type distribution
+        // element type distribution
         @SuppressWarnings("unchecked")
         Map<String, Object> typeDist =
                 (Map<String, Object>) modelResult.get("elementTypeDistribution");
@@ -112,7 +174,7 @@ public class ModelQueryHandlerTest {
         assertEquals(4, typeDist.get("ApplicationComponent"));
         assertEquals(6, typeDist.get("BusinessProcess"));
 
-        // Story 5.5 AC #3: relationship type distribution
+        // relationship type distribution
         @SuppressWarnings("unchecked")
         Map<String, Object> relTypeDist =
                 (Map<String, Object>) modelResult.get("relationshipTypeDistribution");
@@ -120,7 +182,7 @@ public class ModelQueryHandlerTest {
         assertEquals(3, relTypeDist.get("ServingRelationship"));
         assertEquals(2, relTypeDist.get("FlowRelationship"));
 
-        // Story 5.5 AC #3: layer distribution
+        // layer distribution
         @SuppressWarnings("unchecked")
         Map<String, Object> layerDist =
                 (Map<String, Object>) modelResult.get("layerDistribution");
@@ -191,7 +253,7 @@ public class ModelQueryHandlerTest {
                 nextSteps.get(3).contains("Avoid"));
     }
 
-    // ---- Boundary Value Tests for Dynamic nextSteps (Review Fix M1) ----
+    // ---- Boundary Value Tests for Dynamic nextSteps ----
 
     @Test
     public void shouldReturnSmallModelNextSteps_whenElementCountIs99() throws Exception {
@@ -279,7 +341,7 @@ public class ModelQueryHandlerTest {
         assertFalse(result.isError());
     }
 
-    // ---- Error Path Tests (AC #2) ----
+    // ---- Error Path Tests ----
 
     @Test
     public void shouldReturnModelNotLoadedError_whenNoModelLoaded() throws Exception {
@@ -331,7 +393,7 @@ public class ModelQueryHandlerTest {
         new ModelQueryHandler(new StubAccessor(true), formatter, null, null);
     }
 
-    // ---- get-element Registration Tests (AC #3) ----
+    // ---- get-element Registration Tests ----
 
     @Test
     public void shouldRegisterGetElementTool() {
@@ -368,7 +430,7 @@ public class ModelQueryHandlerTest {
                 required == null || required.isEmpty());
     }
 
-    // ---- get-element Success Path Tests (AC #1) ----
+    // ---- get-element Success Path Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -391,7 +453,7 @@ public class ModelQueryHandlerTest {
         assertEquals("Application", elementResult.get("layer"));
         assertEquals("A test component for unit testing", elementResult.get("documentation"));
 
-        // Verify properties list contents (AC #1: properties key-value pairs)
+        // Verify properties list contents (properties key-value pairs)
         List<Map<String, Object>> props = (List<Map<String, Object>>) elementResult.get("properties");
         assertNotNull(props);
         assertEquals(1, props.size());
@@ -414,7 +476,7 @@ public class ModelQueryHandlerTest {
         assertEquals(false, meta.get("isTruncated"));
     }
 
-    // ---- get-element Error Path Tests (AC #2) ----
+    // ---- get-element Error Path Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -548,7 +610,7 @@ public class ModelQueryHandlerTest {
         assertEquals("INVALID_PARAMETER", error.get("code"));
     }
 
-    // ---- get-element Batch Schema Tests (AC #4) ----
+    // ---- get-element Batch Schema Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -600,7 +662,7 @@ public class ModelQueryHandlerTest {
         assertEquals("string", idProp.get("type"));
     }
 
-    // ---- get-element Batch Success Tests (AC #1) ----
+    // ---- get-element Batch Success Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -672,7 +734,7 @@ public class ModelQueryHandlerTest {
         assertTrue(nextSteps.get(1).contains("search-elements"));
     }
 
-    // ---- get-element Batch Partial Match Tests (AC #2) ----
+    // ---- get-element Batch Partial Match Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -730,7 +792,7 @@ public class ModelQueryHandlerTest {
         assertTrue(notFound.contains("bad-2"));
     }
 
-    // ---- get-element Backward Compatibility Tests (AC #3) ----
+    // ---- get-element Backward Compatibility Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -753,7 +815,7 @@ public class ModelQueryHandlerTest {
         assertEquals("test-element-id", elementResult.get("id"));
     }
 
-    // ---- get-element Batch Validation Tests (AC #1, #4) ----
+    // ---- get-element Batch Validation Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -945,7 +1007,7 @@ public class ModelQueryHandlerTest {
         assertEquals("test-element-id", resultList.get(0).get("id"));
     }
 
-    // ---- Field Selection Integration Tests (Story 5.2, Task 11.3-11.4) ----
+    // ---- Field Selection Integration Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -999,7 +1061,7 @@ public class ModelQueryHandlerTest {
         assertNull("properties should be excluded", element.get("properties"));
     }
 
-    // ---- Story 5.3: Model Version Change Detection Tests ----
+    // ---- Model Version Change Detection Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1088,7 +1150,7 @@ public class ModelQueryHandlerTest {
         assertEquals(true, meta.get("modelChanged"));
     }
 
-    // ---- Story 5.4: Session Cache Tests ----
+    // ---- Session Cache Tests ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -1248,7 +1310,7 @@ public class ModelQueryHandlerTest {
                 new TypeReference<Map<String, Object>>() {});
     }
 
-    // ---- list-specializations tests (Story C3a) ----
+    // ---- list-specializations tests ----
 
     @Test
     public void shouldListAllSpecializations() throws Exception {
@@ -1324,7 +1386,7 @@ public class ModelQueryHandlerTest {
         return spec.callHandler().apply(null, request);
     }
 
-    // ---- update-model tests (Story 14-3 G6) ----
+    // ---- update-model tests (G6) ----
 
     @Test
     public void shouldRegisterUpdateModelTool_whenRegisterToolsCalled_AC2() {
@@ -1377,9 +1439,8 @@ public class ModelQueryHandlerTest {
         // !isBlank(). Without the explicit args.containsKey("name") + "".equals(...) guard
         // in handleUpdateModel, an empty name would be silently stripped and the accessor
         // would see name=null — producing the misleading "No fields to update" error
-        // instead of AC8's required "Model name must not be empty." This test verifies
-        // the handler forwards "" to the accessor unchanged. Empirically caught in the
-        // 14-3 empirical run (2026-05-26).
+        // instead of the required "Model name must not be empty." This test verifies
+        // the handler forwards "" to the accessor unchanged.
         RecordingUpdateModelAccessor accessor = new RecordingUpdateModelAccessor(
                 new ModelInfoDto("X", null, null, 0, 0, 0, 0, Map.of(), Map.of(), Map.of()));
         new ModelQueryHandler(accessor, formatter, registry, null).registerTools();
@@ -1391,7 +1452,7 @@ public class ModelQueryHandlerTest {
     @Test
     public void shouldProduceCorrectErrorMessage_whenNameIsEmpty_AC8() throws Exception {
         // End-to-end pin: the accessor's prepareUpdateModel must reject "" with the
-        // AC8 message — once the handler forwards "" correctly (per the test above),
+        // required message — once the handler forwards "" correctly (per the test above),
         // this asserts the accessor wires the boundary rejection.
         RejectingUpdateModelAccessor accessor = new RejectingUpdateModelAccessor(
                 net.vheerden.archi.mcp.response.ErrorCode.INVALID_PARAMETER,
@@ -1478,7 +1539,7 @@ public class ModelQueryHandlerTest {
 
     @Test
     public void shouldCarryClearPurposeSignal_throughHandlerBoundary_AC12() {
-        // AC12 proposal rendering itself lives in ArchiModelAccessorImpl (Layer 3).
+        // Proposal rendering itself lives in ArchiModelAccessorImpl (Layer 3).
         // At the handler boundary (Layer 2), what matters is that an empty-string
         // "purpose" is forwarded to accessor.updateModel as "" (not null) — the
         // accessor is then responsible for converting it to clearPurpose=true.
@@ -1629,7 +1690,7 @@ public class ModelQueryHandlerTest {
     }
 
     /**
-     * Stub accessor that counts method invocations for cache hit/miss verification (Story 5.4).
+     * Stub accessor that counts method invocations for cache hit/miss verification.
      */
     private static class CountingAccessor extends StubAccessor {
         int getModelInfoCount = 0;
@@ -1725,7 +1786,7 @@ public class ModelQueryHandlerTest {
     }
 
     /**
-     * Story 14-3 (G6): stub that throws a configured ModelAccessException on updateModel —
+     * G6: stub that throws a configured ModelAccessException on updateModel —
      * used to exercise validation error paths at the handler boundary.
      */
     private static class RejectingUpdateModelAccessor extends StubAccessor {
@@ -1746,7 +1807,7 @@ public class ModelQueryHandlerTest {
     }
 
     /**
-     * Story 14-3 (G6): stub that records its updateModel inputs and returns a
+     * G6: stub that records its updateModel inputs and returns a
      * pre-canned ModelInfoDto. Used to verify handler→accessor forwarding.
      */
     private static class RecordingUpdateModelAccessor extends StubAccessor {
@@ -1771,7 +1832,7 @@ public class ModelQueryHandlerTest {
     }
 
     /**
-     * Story 14-3 (G6): stub whose getModelInfo response carries explicit
+     * G6: stub whose getModelInfo response carries explicit
      * purpose + properties — used to verify the read-side parity surfacing.
      */
     private static class ModelMetadataAwareAccessor extends StubAccessor {

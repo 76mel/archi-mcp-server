@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.model;
 
 /**
- * Text processing utilities for view annotations (Story 9-0b).
+ * Text processing utilities for view annotations.
  *
  * <p>Interprets common escape sequences in text content so that
  * LLM-generated strings containing literal {@code \n}, {@code \t},

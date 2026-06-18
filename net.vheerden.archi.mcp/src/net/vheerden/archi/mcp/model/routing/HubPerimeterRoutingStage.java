@@ -18,20 +18,19 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * property of the route set, not a local property of individual edges or connections.
  * This stage extends that commitment from {@link ChannelNudgingPass} (channel-global
  * nudging) to a NEW orchestration owning <em>hub-perimeter</em> quality. The 2-axis
- * defect was discovered analytically in the predecessor scoping spike (row 722, story
- * key {@code backlog-routing-pipeline-v4-hub-and-spoke-m4-floor-closure}, spike Tasks
- * 3-6) after the H1-H4 single-axis hypotheses were falsified or refuted; H5 is the
+ * defect was discovered analytically in the predecessor scoping spike after the H1-H4
+ * single-axis hypotheses were falsified or refuted; H5 is the
  * coordinated abstraction combining the design insights.
  *
  * <p><b>Insertion point:</b> {@link RoutingPipeline#routeAllConnections} between
  * {@link ChannelNudgingPass} and {@link PathStraightener}. Single constructor field +
- * one invocation line per AC-2.3. All upstream stages and {@code LayoutQualityAssessor}
- * are untouched per AC-9.1-9.6 atomic-swap discipline.
+ * one invocation line. All upstream stages and {@code LayoutQualityAssessor}
+ * are untouched per atomic-swap discipline.
  *
- * <p><b>Composition (sibling-API discipline per [[feedback_inherited_primitive_spike]]):</b>
+ * <p><b>Composition (sibling-API discipline):</b>
  * <ul>
  *   <li>{@link HubFaceConnectionPartitioner} — assembles per-(hub, face) cell route-sets.
- *       Local degree-counter for hub detection (AC-5.2 amendment).</li>
+ *       Local degree-counter for hub detection.</li>
  *   <li>{@link AlternativeCorridorSelector} — Axis 1 corridor-CHOICE: shifts segments
  *       AWAY from hub-face proximity within a length-cost-premium budget.</li>
  *   <li>{@link CorridorSpreadEnforcer} — Axis 2 intra-corridor SPREAD: distributes
@@ -44,7 +43,7 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * zero-spread clusters. The orchestrator never re-partitions — original cell membership
  * carries through both passes.
  *
- * <p><b>Metric-monotonicity verifier (AC-6 framework + Task 12).</b> Each proposal
+ * <p><b>Metric-monotonicity verifier.</b> Each proposal
  * is wrapped by {@link #verifyMetricMonotonicity}, a lightweight before/after monotonicity
  * check on M4 (connection-edge-coincidence count), V_p10 (V-axis parallel-connection-gap
  * 10th percentile) and HPQ (hub-port-quality aggregate). Tier-1 defects (overlap,
@@ -52,30 +51,29 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * shifts intermediate bendpoints (loop bound {@code s = 1..lastIdx-2} in
  * {@link HubFaceConnectionPartitioner#partition}), never moves terminal endpoints.
  * The verifier mirrors the relevant
- * subset of {@code LayoutQualityAssessor} logic locally — per AC-9.6 the assessor stays
+ * subset of {@code LayoutQualityAssessor} logic locally — the assessor stays
  * untouched and its visibility cannot be elevated, so its operative constants
  * ({@code EDGE_COINCIDENCE_*}, {@code PARALLEL_GAP_AXIS_TOLERANCE_PX},
  * {@code M5_FACE_GUARD_MIN_CONNECTIONS}, {@code HUB_PORT_SLOT_TOLERANCE_PX},
  * {@code PERIMETER_TOLERANCE_PX}, {@code ZIGZAG_AXIS_TOLERANCE_PX}) are inlined here
  * with cross-reference Javadocs. The mirror-discipline tradeoff (potential drift) is
- * documented in [[feedback_pin_calibration_substrate_parity]] — accepted to preserve
- * the atomic-swap envelope.
+ * accepted to preserve the atomic-swap envelope.
  *
- * <p><b>Retry policy (AC-6.2):</b> if Axis 1 produces no viable proposal at the strict
+ * <p><b>Retry policy:</b> if Axis 1 produces no viable proposal at the strict
  * budget {@link AlternativeCorridorSelector#ALTERNATIVE_CORRIDOR_COST_PREMIUM}, the
  * orchestrator retries at {@link AlternativeCorridorSelector#ALTERNATIVE_CORRIDOR_COST_PREMIUM_MAX}.
  * If the relaxed retry also fails OR the verifier rolls back the apply, the connection
- * is left unchanged (AC-6.3 monotonicity).
+ * is left unchanged (monotonicity).
  *
  * <p><b>Pure geometry.</b> No EMF, no SWT, no PDE. Mutates caller-supplied bendpoint
  * lists in place.
  */
 public class HubPerimeterRoutingStage {
 
-    // ----- Per-metric observer constants (Task 12.3 lightweight mirror) ---------
+    // ----- Per-metric observer constants (lightweight mirror) ---------
     // Inlined from net.vheerden.archi.mcp.model.LayoutQualityAssessor because the
-    // assessor is package-private and AC-9.6 forbids elevating its visibility. Drift
-    // risk acknowledged in [[feedback_pin_calibration_substrate_parity]]; tradeoff
+    // assessor is package-private and elevating its visibility is forbidden. Drift
+    // risk acknowledged; tradeoff
     // accepted to preserve the atomic-swap envelope.
 
     /** Mirror of {@code LayoutQualityAssessor.EDGE_COINCIDENCE_TOLERANCE_PX} (3.0). */
@@ -104,9 +102,7 @@ public class HubPerimeterRoutingStage {
     private final CorridorSpreadEnforcer enforcer;
 
     /**
-     * HPRPS Track-A (story
-     * {@code backlog-routing-pipeline-v4-hub-and-spoke-hprps-full-implementation}):
-     * the terminal-segment corridor-migration sibling. Composed as a third
+     * HPRPS Track-A: the terminal-segment corridor-migration sibling. Composed as a third
      * independent axis (see {@link #apply}). It reaches exactly the
      * terminal-incident size-3 L-shapes that {@link HubFaceConnectionPartitioner}
      * correctly excludes (its {@code s=1; s<lastIdx-1} bound is NOT relaxed) and on
@@ -163,7 +159,7 @@ public class HubPerimeterRoutingStage {
                          int migratorRolled) {}
 
     /**
-     * Pre-apply snapshot of M4 / V_p10 / HPQ consumed by {@link #verifyMetricMonotonicity} (Task 12).
+     * Pre-apply snapshot of M4 / V_p10 / HPQ consumed by {@link #verifyMetricMonotonicity}.
      *
      * @param m4Count   connectionEdgeCoincidenceCount mirror
      * @param vP10      V-axis parallelConnectionGap 10th percentile (boxed; {@code null}
@@ -251,10 +247,10 @@ public class HubPerimeterRoutingStage {
         // Axis 3 (HPRPS Track-A): terminal-segment corridor migration. Runs over ALL
         // connections (its own terminal-incident discovery; does NOT route through the
         // partitioner cells and does NOT relax the partitioner loop bound) and reads
-        // the post-Axis-1/2 path state. Each proposal is independently B71-safe + Tier-1
+        // the post-Axis-1/2 path state. Each proposal is independently safe + Tier-1
         // -clean by construction (the migrator's own preservesTerminalAnchoring + Tier-1
         // self-checks gate emission); it is ADDITIONALLY wrapped by the SAME
-        // verifyMetricMonotonicity (M4 / V_p10 / HPQ rollback) per AC-4.
+        // verifyMetricMonotonicity (M4 / V_p10 / HPQ rollback).
         int migratorApplied = 0;
         int migratorRolled = 0;
         List<TerminalSegmentCorridorMigrator.MigrationProposal> migrations =
@@ -276,7 +272,7 @@ public class HubPerimeterRoutingStage {
     }
 
     /**
-     * Lightweight per-metric observer per Task 12.3 + AC-6.1. Mirrors the subset of
+     * Lightweight per-metric observer. Mirrors the subset of
      * {@code LayoutQualityAssessor} computations needed for monotonicity verification.
      * Allocation-bounded and dependency-free of the assessor itself.
      *
@@ -293,14 +289,14 @@ public class HubPerimeterRoutingStage {
     }
 
     /**
-     * Verify monotonicity on M4 / V_p10 / HPQ (AC-6.3 + Task 12). Returns {@code true}
+     * Verify monotonicity on M4 / V_p10 / HPQ. Returns {@code true}
      * when no metric has regressed against {@code pre}; returns {@code false} otherwise
      * so the caller rolls the proposal back.
      *
      * <p><b>Scope:</b> covers M4, V_p10, HPQ only. Tier-1 defects (overlap, passThrough,
      * interiorTermination, zigzag) are protected by construction (see class Javadoc).
      *
-     * <p>V_p10 null-handling (Task 12.4):
+     * <p>V_p10 null-handling:
      * <ul>
      *   <li>pre {@code null} + post {@code null} → no regression ({@code true})</li>
      *   <li>pre {@code null} + post value → improvement ({@code true})</li>

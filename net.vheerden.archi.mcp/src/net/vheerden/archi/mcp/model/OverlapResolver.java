@@ -174,7 +174,7 @@ class OverlapResolver {
 	}
 
 	/**
-	 * Checks if any non-group, non-note sibling elements have overlapping bounding boxes (Story 13-9).
+	 * Checks if any non-group, non-note sibling elements have overlapping bounding boxes.
 	 * Used to skip autoNudge when degenerate geometry would crash the routing pipeline.
 	 * Excludes containment overlaps (parent-child nesting) which are intentional, not degenerate.
 	 * Pure geometry — no EMF dependencies.

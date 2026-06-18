@@ -8,32 +8,26 @@ package net.vheerden.archi.mcp.model;
  * architectural-separation rule (decision logic lives outside the EMF-bound
  * accessor for pure-unit testability).
  *
- * <p><strong>SIBLING-REPLACE per Task 0 spike</strong> (per
- * {@code feedback_inherited_primitive_spike.md} B69-B 2026-04-13 precedent):
- * the three single-shot decision records remain UNCHANGED + continue to act
- * as the ENTRY GUARD for the control loop. This record carries the NEW
- * per-iteration-step decision semantics; the three semantic mismatches with
- * the single-shot role (cardinality / input-dimensions / output-semantics)
- * are documented in
- * {@code control-loop-redesign-spike-2026-05-15/role-boundary-spike.md} §
- * 0.4.</p>
+ * <p><strong>SIBLING-REPLACE:</strong> the three single-shot decision records
+ * remain UNCHANGED + continue to act as the ENTRY GUARD for the control loop.
+ * This record carries the NEW per-iteration-step decision semantics; the three
+ * semantic mismatches with the single-shot role are cardinality /
+ * input-dimensions / output-semantics.</p>
  *
  * <p><strong>Ladder design:</strong> monotone +10/step
- * (30, 40, 50, 60, 70, …) starting at iteration 0. Rationale: Arm A manual
+ * (30, 40, 50, 60, 70, …) starting at iteration 0. Rationale: manual
  * agents iterated 30-60-80-100-120px deltas with {@code assess-layout}
- * observation between steps per Story
- * `backlog-routing-preconditions-empirical-when-triad-complete` Arm A 6/6
- * trajectory data 2026-05-15. The ladder starts small to maximize observation
+ * observation between steps. The ladder starts small to maximize observation
  * density on the inflation knee's lower-velocity regime. Three alternative
- * ladders (constant / geometric / halving-toward-target) argued against in
- * the architecture-spec § 1.2.</p>
+ * ladders (constant / geometric / halving-toward-target) were considered and
+ * rejected.</p>
  *
- * <p><strong>Per-iteration step cap</strong> (composer-only via Option α from
- * Task 0 spike): when called from the composer path, the cap is
+ * <p><strong>Per-iteration step cap</strong> (composer-only via Option α):
+ * when called from the composer path, the cap is
  * {@link ApplySpacingDecision#ELEMENT_KNEE_LIMIT_PX} (80) or
  * {@link ApplySpacingDecision#GROUP_KNEE_LIMIT_PX} (100); the constants
  * (originally per-call clamp limits) are re-purposed as per-iteration step
- * caps per Task 0.5 Option α. Sibling tools pass
+ * caps. Sibling tools pass
  * {@link Integer#MAX_VALUE} (no cap; the heuristic target is the upper
  * bound).</p>
  *
@@ -51,7 +45,7 @@ package net.vheerden.archi.mcp.model;
  *                        the back-off predicate runs in
  *                        {@link SpacingControlLoop} POST-observation, not at
  *                        decision time. Kept in the record shape for forward-
- *                        compatibility per architecture-spec § 1.1.3.
+ *                        compatibility.
  */
 public record SpacingIterationDecision(
         int nextStepDelta,
@@ -62,7 +56,7 @@ public record SpacingIterationDecision(
      * Computes the next-step decision from the iteration index + the
      * current/target spacing baselines.
      *
-     * <p>Ladder semantics (initial design per architecture-spec § 1.2):
+     * <p>Ladder semantics:
      * <pre>
      *   remainingToTarget = targetSpacingPx - currentSpacingPx
      *                       (always &gt;= 0 because the loop short-circuits
@@ -75,7 +69,7 @@ public record SpacingIterationDecision(
      *
      * <p>When {@code currentSpacingPx &gt;= targetSpacingPx}, returns
      * {@code (0, false, null)} — the loop treats this as ladder-exhausted +
-     * terminates with the appropriate {@code terminationReason} (per AC-5).
+     * terminates with the appropriate {@code terminationReason}.
      * When {@code perIterationStepCapPx &lt;= 0}, returns
      * {@code (0, false, null)} (degenerate cap).</p>
      *

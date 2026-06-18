@@ -17,7 +17,7 @@ import com.archimatetool.model.IDiagramModelReference;
 import com.archimatetool.model.IFolder;
 
 /**
- * Tests for {@link AddViewReferenceToViewCommand} (Story 14-6 / G8).
+ * Tests for {@link AddViewReferenceToViewCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * execute (add to container) and undo (remove from container) behavior.

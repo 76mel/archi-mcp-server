@@ -7,20 +7,17 @@ import org.junit.Test;
 
 /**
  * Tests for the {@code update-view-object} raw-MCP-tool-path parent-bounds-
- * overflow contract added 2026-05-14 (Successor H6 — story
- * {@code _bmad-output/implementation-artifacts/backlog-routing-update-view-object-parent-bounds-followup.md}).
+ * overflow contract added 2026-05-14 (Successor H6).
  *
  * <p>Closes the third invocation point of the parent-bounds-update triad
- * surfaced by the H5 audit 2026-05-14 (audit doc:
- * {@code _bmad-output/implementation-artifacts/comparison1-rerun-2026-05-14/h5-audit.md}).
- * Successor E (sprint-status row 730) closed the {@code autoRouteConnections}
- * autoNudge path; Successor E.b (row 732) closed the {@code adjustViewSpacing}
- * spacing-tool path; this story closes the raw {@code update-view-object}
+ * surfaced by the H5 audit 2026-05-14.
+ * Successor E closed the {@code autoRouteConnections}
+ * autoNudge path; Successor E.b closed the {@code adjustViewSpacing}
+ * spacing-tool path; this test covers the raw {@code update-view-object}
  * handler path (the convenience-tool layer the LLM agent reaches first when
  * acting on a {@code detect-hub-elements} suggestion).</p>
  *
- * <p>The Comparison-1 RE-RUN 2026-05-14 (aggregate:
- * {@code _bmad-output/implementation-artifacts/comparison1-rerun-2026-05-14/aggregate.md})
+ * <p>The Comparison-1 RE-RUN 2026-05-14
  * surfaced the ST Arm-6 STRICT first-mutation Tier-1 cascade rate at 3/3 driven
  * by the workflow sequence: {@code detect-hub-elements} → {@code update-view-object}
  * (2D hub resize: e.g., API Mgmt 214×68 → 304×143 on ST, or 300×250 → 390×325 on
@@ -36,7 +33,7 @@ import org.junit.Test;
  *
  * <p>Test coverage (Q5 option A: V4 H2 hub-heavy synthetic fixture):
  * 5 predicate-level tests on the update-view-object-specific overflow geometries
- * (hub 2D-resize / hub move past parent bounds) + 1 AC-4 named compliance
+ * (hub 2D-resize / hub move past parent bounds) + 1 named compliance
  * aggregate test asserting post-resize parent dims satisfy non-overflow for the
  * full set of children in the realistic ST + HH bifurcation scenarios.</p>
  *
@@ -49,7 +46,7 @@ import org.junit.Test;
  *
  * <p>Coordinate convention: {@code childNewX/Y} are relative-to-parent (matches
  * Archi's nested-object storage convention per the v3 routing-pipeline coordinate
- * model documented in {@code _bmad-output/project-context.md}).</p>
+ * model).</p>
  *
  * <p><b>AI integration gap (deferred per E.b AI-2 precedent):</b> end-to-end
  * verification that the H6 insertion points in {@code prepareUpdateViewObject}
@@ -57,7 +54,7 @@ import org.junit.Test;
  * actually emit a {@code NonNotifyingCompoundCommand} when an LLM-agent-issued
  * hub-resize breaches parent bounds requires an Eclipse/OSGi JUnit fixture.
  * Predicate-level coverage here is sufficient to validate the arithmetic
- * contract; integration verification rolls into AC-10 Comparison-1 paired-arc
+ * contract; integration verification rolls into the Comparison-1 paired-arc
  * empirical re-run.</p>
  */
 public class UpdateViewObjectParentBoundsTest {
@@ -131,7 +128,7 @@ public class UpdateViewObjectParentBoundsTest {
 	}
 
 	/**
-	 * AC-4 named compliance test: asserts that after H6 fires
+	 * Named compliance test: asserts that after H6 fires
 	 * {@code resizeParentGroupIfNeeded} for an ST-scenario hub-resize bifurcation,
 	 * every sibling child of the now-expanded parent group satisfies the
 	 * non-overflow predicate. The post-resize parent dimensions are

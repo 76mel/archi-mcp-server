@@ -268,7 +268,7 @@ Is the view connected (showing relationships)?
 │   ├── Will elements be in groups?
 │   │   ├── YES → create groups → add elements with parentViewObjectId (autoSize=true)
 │   │   │        → layout-within-group for each group (autoResize=true)
-│   │   └── NO  → add elements (autoSize=true) → layout-flat-view (grid/row/column) or compute-layout (tree/spring/directed)
+│   │   └── NO  → add elements (autoSize=true) → layout-flat-view (grid/row/column) or auto-layout-and-route (graph-aware ELK layout + routing)
 │   └── export-view to verify
 │
 └── YES (relationship view)
@@ -315,7 +315,7 @@ No relationships shown — focus on element organisation.
 
 1. `create-view` with name and optional viewpoint
 2. **If grouped:** `add-group-to-view` for each group → `add-to-view` with `parentViewObjectId` and `autoSize: true` for each element → `layout-within-group` per group with `autoResize: true`
-3. **If flat:** `add-to-view` with `autoSize: true` for each element → `layout-flat-view` with `arrangement: "grid"` (or `compute-layout` with `grid`/`tree` algorithm for graph-aware positioning)
+3. **If flat:** `add-to-view` with `autoSize: true` for each element → `layout-flat-view` with `arrangement: "grid"` (or `auto-layout-and-route` for graph-aware ELK positioning + routing)
 4. `export-view` to verify
 
 ### Branch 2: Connected View, LLM-Managed Positions (structural intent)
@@ -413,7 +413,7 @@ For flat views, ELK routing is generally adequate on its own and neither follow-
 - If quality is poor after one algorithm, try a different one — `spring` and `directed` often complement each other
 - Use `apply-positions` for fine-tuning individual element positions without re-running the full algorithm
 - When initial placement will be refined by routing iteration, use approximate coordinates — don't waste effort on precision that will be overridden
-- **Note placement:** Notes are excluded from layout algorithms (`compute-layout`, `auto-layout-and-route`, `layout-within-group`) and do not affect `assess-layout` quality scoring. Use `position: "above-content"` on `add-note-to-view` after layout is complete to place title notes automatically above diagram content. Note-element overlaps are reported informatively by `assess-layout` but do not penalize the rating
+- **Note placement:** Notes are excluded from layout algorithms (`auto-layout-and-route`, `layout-within-group`) and do not affect `assess-layout` quality scoring. Use `position: "above-content"` on `add-note-to-view` after layout is complete to place title notes automatically above diagram content. Note-element overlaps are reported informatively by `assess-layout` but do not penalize the rating
 - **View cloning for layout experiments:** Before trying a fundamentally different layout approach (switching algorithm, restructuring groups, changing direction), use `clone-view` to preserve the current state. Experiment on the clone — if the new approach is worse, delete the clone and keep the original. This is safer than relying on multiple `undo` operations across a complex layout sequence. Also useful for presenting alternative layouts to the user for comparison (e.g., clone a view, apply ELK to the clone, keep the original grouped layout — let the user choose)
 - **Tagging elements with specializations:** When creating elements that should carry a specialization (e.g., "Microservice", "Cloud Server"), pass the `specialization` parameter to `create-element` directly — the specialization is auto-created on first use, and the element + specialization land in one undo unit. For batch creation, use `bulk-mutate` to pre-register specializations with `create-specialization` followed by `create-element` operations referencing them. See `archimate://reference/archimate-specializations` for the full vocabulary management workflow.
 

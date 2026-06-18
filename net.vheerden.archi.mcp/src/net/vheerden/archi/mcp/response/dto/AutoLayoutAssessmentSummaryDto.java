@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * Summary of layout quality assessment performed during auto-layout-and-route
- * with targetRating (Story 11-16).
+ * with targetRating.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record AutoLayoutAssessmentSummaryDto(

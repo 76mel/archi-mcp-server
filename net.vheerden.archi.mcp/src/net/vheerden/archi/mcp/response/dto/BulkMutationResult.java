@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import net.vheerden.archi.mcp.model.ProposalContext;
 
 /**
- * Aggregated result of a bulk-mutate operation (Story 7-5, enhanced Story 11-9).
+ * Aggregated result of a bulk-mutate operation.
  *
  * <p>When {@code continueOnError} is false (default), all operations succeed or none do,
  * and {@code failedOperations} is empty. When {@code continueOnError} is true, succeeded

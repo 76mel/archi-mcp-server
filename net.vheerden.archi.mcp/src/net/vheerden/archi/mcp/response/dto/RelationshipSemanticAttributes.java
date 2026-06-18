@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * Bundle of optional ArchiMate-relationship semantic attributes shared by
- * {@code create-relationship} and {@code update-relationship} (Story 14-7 / G1).
+ * {@code create-relationship} and {@code update-relationship}.
  *
  * <p>All three fields are independently optional and type-conditional —
  * each applies only to the matching relationship subtype:
@@ -19,7 +19,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * for {@code accessType} (use {@code "access"} for unspecified). For
  * {@code influenceStrength}, empty string CLEARS the underlying EMF value.</p>
  *
- * <p>Mirrors the Story 14-2 {@code StylingParams} record-bundle precedent
+ * <p>Mirrors the {@code StylingParams} record-bundle precedent
  * for clusters of conceptually-related additive fields.</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)

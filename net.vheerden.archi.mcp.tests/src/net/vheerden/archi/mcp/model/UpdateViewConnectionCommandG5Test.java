@@ -12,7 +12,7 @@ import com.archimatetool.model.IArchimateFactory;
 import com.archimatetool.model.IDiagramModelArchimateConnection;
 
 /**
- * Single-undo-unit pins for the Story 14-2 G5 styling rail extensions to
+ * Single-undo-unit pins for the G5 styling rail extensions to
  * {@link UpdateViewConnectionCommand}: typography (font composite-string merge).
  *
  * <p>Note: lineStyle is a view-object property in Archi 5.8 (Task-9 empirical correction)
@@ -32,7 +32,7 @@ public class UpdateViewConnectionCommandG5Test {
     }
 
     // ------------------------------------------------------------------
-    // Typography — AC3 merge into composite-string
+    // Typography — merge into composite-string
     // ------------------------------------------------------------------
 
     @Test
@@ -66,7 +66,7 @@ public class UpdateViewConnectionCommandG5Test {
     }
 
     // ------------------------------------------------------------------
-    // AC11 — back-compat: pre-G5 styling-only call leaves font alone
+    // back-compat: pre-G5 styling-only call leaves font alone
     // ------------------------------------------------------------------
 
     @Test
@@ -90,7 +90,7 @@ public class UpdateViewConnectionCommandG5Test {
     }
 
     // ------------------------------------------------------------------
-    // AC10 — single-undo-unit covering typography + pre-G5 fields
+    // single-undo-unit covering typography + pre-G5 fields
     // ------------------------------------------------------------------
 
     @Test

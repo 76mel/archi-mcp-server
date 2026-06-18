@@ -10,7 +10,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Tests for {@link LabelClearance} (Story 10-8).
+ * Tests for {@link LabelClearance}.
  * Pure-geometry tests — no OSGi runtime required.
  */
 public class LabelClearanceTest {
@@ -47,11 +47,11 @@ public class LabelClearanceTest {
                 "Accesses", 1); // textPosition=1 (middle)
 
         assertNotNull(rect);
-        // "Accesses" = 8 chars → width = 8*7+10 = 66, height = 14+6 = 20
-        assertEquals(66, rect.width());
+        // "Accesses" = 8 chars → width = 8*8+10 = 74, height = 14+6 = 20
+        assertEquals(74, rect.width());
         assertEquals(20, rect.height());
-        // Midpoint of 750px path = 375, centered: 375 - 33 = 342
-        assertEquals(342, rect.x());
+        // Midpoint of 750px path = 375, centered: 375 - 37 = 338
+        assertEquals(338, rect.x());
         // Vertically centered: 100 - 10 = 90
         assertEquals(90, rect.y());
     }
@@ -66,9 +66,9 @@ public class LabelClearanceTest {
                 "Uses", 0); // textPosition=0 (source = 15%)
 
         assertNotNull(rect);
-        // 15% of 1000 = 150, label "Uses" = 4*7+10 = 38 width
-        // x = 150 - 19 = 131
-        assertEquals(131, rect.x());
+        // 15% of 1000 = 150, label "Uses" = 4*8+10 = 42 width
+        // x = 150 - 21 = 129
+        assertEquals(129, rect.x());
     }
 
     @Test
@@ -81,9 +81,9 @@ public class LabelClearanceTest {
                 "Uses", 2); // textPosition=2 (target = 85%)
 
         assertNotNull(rect);
-        // 85% of 1000 = 850, label "Uses" = 4*7+10 = 38 width
-        // x = 850 - 19 = 831
-        assertEquals(831, rect.x());
+        // 85% of 1000 = 850, label "Uses" = 4*8+10 = 42 width
+        // x = 850 - 21 = 829
+        assertEquals(829, rect.x());
     }
 
     @Test
@@ -95,8 +95,8 @@ public class LabelClearanceTest {
                 "A", 1);
         assertNotNull(rect);
         // Path length = 10px, label at 50% = 5px from source
-        // "A" = 1*7+10 = 17 width, 14+6 = 20 height
-        assertEquals(17, rect.width());
+        // "A" = 1*8+10 = 18 width, 14+6 = 20 height
+        assertEquals(18, rect.width());
         assertEquals(20, rect.height());
     }
 

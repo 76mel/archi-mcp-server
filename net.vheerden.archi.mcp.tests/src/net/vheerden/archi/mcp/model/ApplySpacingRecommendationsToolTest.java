@@ -18,14 +18,12 @@ import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
 /**
  * JUnit pin for the apply-spacing-recommendations composed convenience tool.
  *
- * <p>Per Story {@code RoutingPreconditions.Composed.ApplySpacingRecommendations}
- * AC-7 — sub-tests AC-7.1 (scope-dispatch happy path), AC-7.2 (scope-dispatch
- * error path), AC-7.3 (heuristic-table delegation pin), AC-7.4 (short-circuit
- * composition), AC-7.5 (dryRun true preserves recommendation w/o mutation),
- * AC-7.6 (dryRun false → apply path branches), AC-7.7 (tier boundaries),
- * AC-7.8 (knee-clamp behavioural pin), AC-7.9 (knee-clamp constants pin),
- * AC-7.10 (targetOverride + knee-clamp interaction), AC-7.11 (pure-unit
- * decision-record tests).</p>
+ * <p>Sub-tests: scope-dispatch happy path, scope-dispatch error path,
+ * heuristic-table delegation pin, short-circuit composition, dryRun true
+ * preserves recommendation w/o mutation, dryRun false → apply path branches,
+ * tier boundaries, knee-clamp behavioural pin, knee-clamp constants pin,
+ * targetOverride + knee-clamp interaction, pure-unit decision-record
+ * tests.</p>
  *
  * <p><strong>Pure-unit tests (no OSGi).</strong> Per
  * {@code feedback_first_principles_routing.md} architectural-separation rule:
@@ -36,10 +34,10 @@ import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
  * pure-unit approach).</p>
  *
  * <p>Behavioural assertions involving real model state (e.g.,
- * "after.M4 &lt; before.M4 strict inequality") are deferred to AC-11 live
- * smoke + AC-12 empirical paired-arc per Soft-AC-15 trade-off.</p>
+ * "after.M4 &lt; before.M4 strict inequality") are deferred to live smoke +
+ * empirical paired-arc.</p>
  *
- * <p>The heuristic-table delegation pin in AC-7.3 tests that the composed
+ * <p>The heuristic-table delegation pin tests that the composed
  * tool's target spacings flow through the existing
  * {@link ElementSpacingHeuristic} + {@link GroupSpacingHeuristic} utilities —
  * any future change to those tables propagates automatically without
@@ -47,7 +45,7 @@ import net.vheerden.archi.mcp.response.dto.AssessLayoutResultDto;
  * {@code feedback_metric_and_regression_test_together.md}, the knee-clamp
  * constants {@link ApplySpacingDecision#ELEMENT_KNEE_LIMIT_PX} +
  * {@link ApplySpacingDecision#GROUP_KNEE_LIMIT_PX} ARE pinned here directly
- * (AC-7.9) — any future revision MUST edit this file.</p>
+ * — any future revision MUST edit this file.</p>
  */
 public class ApplySpacingRecommendationsToolTest {
 
@@ -81,7 +79,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ============================================================
-    // AC-7.9 — knee-clamp limit constants pinned
+    // knee-clamp limit constants pinned
     // (any future revision MUST edit this test)
     // ============================================================
 
@@ -96,7 +94,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ============================================================
-    // AC-7.3 — heuristic-table delegation pins
+    // heuristic-table delegation pins
     // (delegation-equivalence, NOT re-encoding the table; future
     //  heuristic edits ripple through this composed tool automatically)
     // ============================================================
@@ -130,7 +128,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ============================================================
-    // AC-7.7 — tier boundaries (15/16/30/31) on both heuristics
+    // tier boundaries (15/16/30/31) on both heuristics
     // ============================================================
 
     @Test
@@ -158,7 +156,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ============================================================
-    // AC-7.2 — scope-dispatch error path (invalid scope value)
+    // scope-dispatch error path (invalid scope value)
     // ============================================================
 
     @Test
@@ -187,7 +185,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ============================================================
-    // AC-7.1 — scope-dispatch happy path (3 tests, one per valid scope)
+    // scope-dispatch happy path (3 tests, one per valid scope)
     // ============================================================
 
     @Test
@@ -235,7 +233,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ============================================================
-    // AC-7.4 — short-circuit composition (6 enumerated cases)
+    // short-circuit composition (6 enumerated cases)
     // ============================================================
 
     @Test
@@ -356,7 +354,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ============================================================
-    // AC-7.5 — dryRun=true preserves recommendation w/o mutation
+    // dryRun=true preserves recommendation w/o mutation
     // ============================================================
 
     @Test
@@ -401,7 +399,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ============================================================
-    // AC-7.6 — dryRun=false happy path (apply path branches)
+    // dryRun=false happy path (apply path branches)
     // ============================================================
 
     @Test
@@ -441,7 +439,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ============================================================
-    // AC-7.8 — knee-clamp behavioural pin
+    // knee-clamp behavioural pin
     // ============================================================
 
     @Test
@@ -519,7 +517,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ============================================================
-    // AC-7.10 — targetOverride parameters (knee-clamp still applies)
+    // targetOverride parameters (knee-clamp still applies)
     // ============================================================
 
     @Test
@@ -551,7 +549,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ============================================================
-    // AC-7.11 — pure-unit decision-record tests (covering branches not
+    // pure-unit decision-record tests (covering branches not
     // captured above): no-change reason wording on per-arm shorts
     // ============================================================
 
@@ -704,9 +702,7 @@ public class ApplySpacingRecommendationsToolTest {
     }
 
     // ===================================================================
-    // AC-7.5 — Control-loop extensions (Story
-    //          backlog-convenience-tool-control-loop-architectural-redesign
-    //          Task 3.10, 2026-05-15). Composer-arm variant.
+    // Control-loop extensions (2026-05-15). Composer-arm variant.
     //
     // The composer runs TWO control loops per architecture-spec § 1.7
     // Option A (element-arm first, then group-arm). Each arm reports its
@@ -716,7 +712,7 @@ public class ApplySpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_composerArm_element_engagedOnPositiveDelta_iterates() {
-        // AC-7.5 (1) composer: element-arm engaged with positive delta.
+        // (1) composer: element-arm engaged with positive delta.
         // Composer uses ELEMENT_KNEE_LIMIT_PX = 80 as the per-iteration cap.
         LayoutMetrics initial = new LayoutMetrics(
                 1, 0.5, 4, 2, 0, 0.0, 10);
@@ -740,7 +736,7 @@ public class ApplySpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_composerArm_group_engagedWithGroupKneeLimit() {
-        // AC-7.5 (1b) composer: group-arm engaged with GROUP_KNEE_LIMIT_PX cap.
+        // (1b) composer: group-arm engaged with GROUP_KNEE_LIMIT_PX cap.
         LayoutMetrics initial = new LayoutMetrics(1, 0.5, 8, 4, 0, 0.0, 20);
         LayoutMetrics post = new LayoutMetrics(2, 0.8, 4, 2, 0, 8.0, 15);
 
@@ -761,7 +757,7 @@ public class ApplySpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_composerDto_perArmTerminationReasons_independentlyParseable() {
-        // AC-7.5 (3) composer: per-arm terminationReason fields carry the
+        // (3) composer: per-arm terminationReason fields carry the
         // 5-branch taxonomy independently for element + group arms.
         AssessLayoutResultDto before = composerStubAssessment("view-c1", 20);
         AssessLayoutResultDto after = composerStubAssessment("view-c1", 20);
@@ -785,7 +781,7 @@ public class ApplySpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_composerDto_perArmInvariants_iterationCountEqualsDeltasSize() {
-        // AC-7.5 (4) composer: per-arm iterationCount == appliedDeltas.size().
+        // (4) composer: per-arm iterationCount == appliedDeltas.size().
         AssessLayoutResultDto before = composerStubAssessment("view-c2", 20);
         AssessLayoutResultDto after = composerStubAssessment("view-c2", 20);
         // Element-arm: 3 iterations summing to 120 (initial=40, target=160).
@@ -821,7 +817,7 @@ public class ApplySpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_composerArm_iterationBudget_respectedAsCap() {
-        // AC-7.5 (5) composer: a single arm's budget cap is honoured.
+        // (5) composer: a single arm's budget cap is honoured.
         LayoutMetrics initial = new LayoutMetrics(1, 0.5, 4, 2, 0, 0.0, 10);
         LayoutMetrics post = new LayoutMetrics(2, 0.8, 2, 1, 0, 5.0, 8);
 
@@ -842,7 +838,7 @@ public class ApplySpacingRecommendationsToolTest {
 
     @Test
     public void controlLoop_composerDto_shortCircuit_perArmFieldsNeutral() {
-        // AC-7.5 (2) composer: on short-circuit (e.g., both deltas zero OR
+        // (2) composer: on short-circuit (e.g., both deltas zero OR
         // dryRun), the per-arm DTO fields populate with neutral
         // terminationReason + 0 iterationCount + empty appliedDeltas.
         AssessLayoutResultDto before = composerStubAssessment("view-c3", 20);
@@ -866,7 +862,7 @@ public class ApplySpacingRecommendationsToolTest {
                 dto.adjustResult());
     }
 
-    // ---- AC-7.5 helpers — composer variant ----
+    // ---- helpers — composer variant ----
 
     private static final class ComposerToolTestCallbacks
             implements SpacingControlLoop.Callbacks {

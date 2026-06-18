@@ -32,7 +32,6 @@ import net.vheerden.archi.mcp.response.dto.FolderDto;
 import net.vheerden.archi.mcp.response.dto.FolderTreeDto;
 import net.vheerden.archi.mcp.response.dto.LayoutFlatViewResultDto;
 import net.vheerden.archi.mcp.response.dto.ResizeElementsResultDto;
-import net.vheerden.archi.mcp.response.dto.LayoutViewResultDto;
 import net.vheerden.archi.mcp.response.dto.LayoutWithinGroupResultDto;
 import net.vheerden.archi.mcp.response.dto.MoveResultDto;
 import net.vheerden.archi.mcp.response.dto.OptimizeGroupOrderResultDto;
@@ -66,9 +65,8 @@ import net.vheerden.archi.mcp.response.dto.ViewPositionSpec;
  *   <li>Future write operations can be added without handler changes</li>
  * </ul>
  *
- * <p>Model detection and session initialization are implemented in Story 1.5.
- * Query methods (getElementById, getModelInfo, getViews, getViewContents)
- * are implemented in Story 2.1.</p>
+ * <p>Query methods include getElementById, getModelInfo, getViews, and
+ * getViewContents.</p>
  */
 public interface ArchiModelAccessor {
 
@@ -124,7 +122,7 @@ public interface ArchiModelAccessor {
 
     /**
      * Returns the cross-view "where used" footprint for an ArchiMate concept
-     * (element or relationship). Story 14-5 / G10.
+     * (element or relationship).
      *
      * <p>Lists every view + visual object/connection that references the concept.
      * Inverse of {@link #getViewContents(String)}; intended for impact analysis
@@ -175,7 +173,7 @@ public interface ArchiModelAccessor {
                                               String sourceLayerFilter, String targetLayerFilter,
                                               String specializationFilter);
 
-    // ---- Specialization listing (Story C3a) ----
+    // ---- Specialization listing ----
 
     /**
      * Lists all specialization (profile) definitions in the model.
@@ -189,7 +187,7 @@ public interface ArchiModelAccessor {
      */
     List<Map<String, Object>> listSpecializations(String conceptTypeFilter);
 
-    // ---- Specialization mutations (Story C3c) ----
+    // ---- Specialization mutations ----
 
     /**
      * Creates a new specialization (profile) definition. Idempotent: if a profile
@@ -210,7 +208,7 @@ public interface ArchiModelAccessor {
             String name, String conceptType, String imagePath);
 
     /**
-     * Back-compat overload (Story 14-8 / G16) — delegates to the canonical
+     * Back-compat overload — delegates to the canonical
      * 4-arg signature with {@code imagePath = null} (no icon).
      *
      * @deprecated use {@link #createSpecialization(String, String, String, String)}
@@ -226,8 +224,8 @@ public interface ArchiModelAccessor {
      * profile with {@code (newName, conceptType)} already exists (and is not the
      * same instance), the operation fails with {@code VALIDATION_ERROR}.
      *
-     * <p>Story 14-8 / G16 adds the optional {@code imagePath} (set/change icon)
-     * and {@code clearImagePath} (explicit clear) parameters. They are mutually
+     * <p>The optional {@code imagePath} (set/change icon)
+     * and {@code clearImagePath} (explicit clear) parameters are mutually
      * exclusive; providing both rejects with {@code INVALID_PARAMETER}. At least
      * one of {@code newName} / {@code imagePath} / {@code clearImagePath=true}
      * MUST be supplied.</p>
@@ -246,7 +244,7 @@ public interface ArchiModelAccessor {
             String imagePath, boolean clearImagePath);
 
     /**
-     * Back-compat overload (Story 14-8 / G16) — delegates to the canonical
+     * Back-compat overload — delegates to the canonical
      * 6-arg signature with {@code imagePath = null} and {@code clearImagePath = false}.
      *
      * @deprecated use {@link #updateSpecialization(String, String, String, String, String, boolean)}
@@ -304,7 +302,7 @@ public interface ArchiModelAccessor {
      */
     List<RelationshipDto> getRelationshipsForElement(String elementId);
 
-    // ---- Folder navigation (Story 7-0b) ----
+    // ---- Folder navigation ----
 
     /**
      * Gets all root-level folders in the model.
@@ -351,7 +349,7 @@ public interface ArchiModelAccessor {
      */
     List<FolderDto> searchFolders(String nameQuery);
 
-    // ---- Discovery-first patterns (Story 7-4) ----
+    // ---- Discovery-first patterns ----
 
     /**
      * Finds existing elements of the given type whose names are similar to the
@@ -360,8 +358,7 @@ public interface ArchiModelAccessor {
      * <p>When {@code specialization} is non-null, only candidates whose <em>primary</em>
      * profile name matches (case-insensitive) are returned. When {@code specialization}
      * is null, only candidates without a primary profile match. Two elements with the
-     * same name and type but different specializations are NOT considered duplicates.
-     * (Story C3b)</p>
+     * same name and type but different specializations are NOT considered duplicates.</p>
      *
      * <p><strong>Tier 1 limitation:</strong> Only the primary profile is considered.
      * Concepts with multiple profiles where the requested specialization matches a
@@ -386,7 +383,7 @@ public interface ArchiModelAccessor {
      */
     Optional<ElementDto> findExactMatch(String type, String name);
 
-    // ---- Mutation creation methods (Story 7-2) ----
+    // ---- Mutation creation methods ----
 
     /**
      * Creates a new ArchiMate element in the model.
@@ -405,7 +402,7 @@ public interface ArchiModelAccessor {
      * @param specialization optional specialization name; if non-null, the named profile is
      *                       resolved (case-insensitive) or auto-created and assigned as the
      *                       primary profile. Profile creation + element creation are wrapped
-     *                       in a compound command for atomic undo. (Story C3b)
+     *                       in a compound command for atomic undo.
      * @return MutationResult containing the created ElementDto and optional batch sequence
      * @throws NoModelLoadedException if no model is loaded
      * @throws ModelAccessException if type is invalid or folder not found
@@ -415,7 +412,7 @@ public interface ArchiModelAccessor {
             String specialization);
 
     /**
-     * Creates a new ArchiMate element with optional source traceability (Story 7-6).
+     * Creates a new ArchiMate element with optional source traceability.
      *
      * <p>When {@code source} is non-null, its entries are merged into the element's
      * properties prefixed with "mcp.source." (e.g., source key "tool" becomes
@@ -428,7 +425,7 @@ public interface ArchiModelAccessor {
      * @param properties     optional key-value properties map
      * @param folderId       optional target folder ID (null for type-default folder)
      * @param source         optional source traceability map (keys auto-prefixed with "mcp.source.")
-     * @param specialization optional specialization name (Story C3b)
+     * @param specialization optional specialization name
      * @return MutationResult containing the created ElementDto and optional batch sequence
      * @throws NoModelLoadedException if no model is loaded
      * @throws ModelAccessException if type is invalid or folder not found
@@ -449,11 +446,11 @@ public interface ArchiModelAccessor {
      * @param sourceId           source element ID (required)
      * @param targetId           target element ID (required)
      * @param name               optional relationship name
-     * @param specialization     optional specialization name; auto-creates profile if absent (Story C3b)
+     * @param specialization     optional specialization name; auto-creates profile if absent
      * @param semanticAttributes optional bundle of ArchiMate semantic attributes — type-conditional:
      *                           {@code accessType} for AccessRelationship, {@code associationDirected}
      *                           for AssociationRelationship, {@code influenceStrength} for
-     *                           InfluenceRelationship (Story 14-7 / G1). Pass
+     *                           InfluenceRelationship. Pass
      *                           {@link RelationshipSemanticAttributes#NONE} or {@code null} for none.
      * @return MutationResult containing the created RelationshipDto and optional batch sequence
      * @throws NoModelLoadedException if no model is loaded
@@ -466,7 +463,7 @@ public interface ArchiModelAccessor {
 
     /**
      * Back-compat overload preserving the 6-arg signature for callers that don't
-     * supply G1 semantic attributes. Delegates to the 7-arg overload with
+     * supply semantic attributes. Delegates to the 7-arg overload with
      * {@link RelationshipSemanticAttributes#NONE}.
      */
     default MutationResult<RelationshipDto> createRelationship(String sessionId, String type,
@@ -509,7 +506,7 @@ public interface ArchiModelAccessor {
     MutationResult<ViewDto> cloneView(String sessionId, String sourceViewId,
             String newName, String folderId);
 
-    // ---- Mutation update methods (Story 7-3) ----
+    // ---- Mutation update methods ----
 
     /**
      * Updates an existing ArchiMate element's fields.
@@ -525,7 +522,7 @@ public interface ArchiModelAccessor {
      * @param properties     property merge map (null value = remove key), or null to leave unchanged
      * @param specialization new specialization name, empty string to clear all profiles, or null
      *                       to leave unchanged. Setting a value REPLACES any existing profiles
-     *                       (single-profile semantics for Tier 1 tools, Story C3b).
+     *                       (single-profile semantics for Tier 1 tools).
      * @return MutationResult containing the updated ElementDto and optional batch sequence
      * @throws NoModelLoadedException if no model is loaded
      * @throws ModelAccessException if element not found or no fields to update
@@ -549,8 +546,8 @@ public interface ArchiModelAccessor {
      * @param documentation      new documentation, or null to leave unchanged
      * @param properties         property merge map (null value = remove key), or null to leave unchanged
      * @param specialization     new specialization name, empty string to clear, or null to leave
-     *                           unchanged (Story C3b)
-     * @param semanticAttributes optional bundle of ArchiMate semantic attributes (Story 14-7 / G1) —
+     *                           unchanged
+     * @param semanticAttributes optional bundle of ArchiMate semantic attributes —
      *                           {@code accessType} (AccessRelationship), {@code associationDirected}
      *                           (AssociationRelationship), {@code influenceStrength}
      *                           (InfluenceRelationship). For each field, {@code null} = leave unchanged;
@@ -567,7 +564,7 @@ public interface ArchiModelAccessor {
 
     /**
      * Back-compat overload preserving the 6-arg signature for callers that don't
-     * supply G1 semantic attributes. Delegates to the 7-arg overload with
+     * supply semantic attributes. Delegates to the 7-arg overload with
      * {@link RelationshipSemanticAttributes#NONE}.
      */
     default MutationResult<RelationshipDto> updateRelationship(String sessionId, String id,
@@ -597,7 +594,7 @@ public interface ArchiModelAccessor {
             String viewpoint, String documentation, Map<String, String> properties,
             String connectionRouterType);
 
-    // ---- Model metadata mutation (Story 14-3, G6) ----
+    // ---- Model metadata mutation ----
 
     /**
      * Updates the loaded model's own metadata — name, purpose, and custom properties.
@@ -606,7 +603,7 @@ public interface ArchiModelAccessor {
      * corresponding field unchanged. For properties, a merge semantic applies:
      * non-null values add/update, null values remove the property key.</p>
      *
-     * <p>Story 14-3 (G6): closes the model-level read/write parity gap with
+     * <p>Closes the model-level read/write parity gap with
      * jArchi. {@code documentation} is intentionally NOT a parameter —
      * {@code IArchimateModel} has no {@code setDocumentation(String)} in Archi 5.7/5.8
      * (the model's free-text field IS {@code purpose}).</p>
@@ -622,7 +619,7 @@ public interface ArchiModelAccessor {
     MutationResult<ModelInfoDto> updateModel(String sessionId, String name,
             String purpose, Map<String, String> properties);
 
-    // ---- View placement (Story 7-7) ----
+    // ---- View placement ----
 
     /**
      * Places an existing model element onto a view as a diagram object.
@@ -632,7 +629,7 @@ public interface ArchiModelAccessor {
      * also creates visual connections for any existing relationships to elements
      * already on the view.</p>
      *
-     * <p><strong>Story 8-6:</strong> Added optional parentViewObjectId to nest
+     * <p>The optional parentViewObjectId nests
      * elements inside visual groups.</p>
      *
      * @param sessionId          the session identifier for mode detection
@@ -654,7 +651,7 @@ public interface ArchiModelAccessor {
             ImageParams imageParams);
 
     /**
-     * Creates a visual grouping rectangle on a view diagram (Story 8-6).
+     * Creates a visual grouping rectangle on a view diagram.
      *
      * @param sessionId          the session identifier for mode detection
      * @param viewId             the view's unique identifier (required)
@@ -673,7 +670,7 @@ public interface ArchiModelAccessor {
             String parentViewObjectId, StylingParams styling, ImageParams imageParams);
 
     /**
-     * Creates a text note on a view diagram (Story 8-6).
+     * Creates a text note on a view diagram.
      *
      * @param sessionId          the session identifier for mode detection
      * @param viewId             the view's unique identifier (required)
@@ -694,7 +691,7 @@ public interface ArchiModelAccessor {
 
     /**
      * Creates a view-reference visual object on a view that embeds another view
-     * as a clickable thumbnail (Story 14-6 / G8). The visual displays the referenced
+     * as a clickable thumbnail. The visual displays the referenced
      * view's name dynamically — Archi's figure reads {@code referencedModel.getName()}
      * at render time, so there is no stored name field on the reference (and renaming
      * the referenced view auto-updates every embedding visual without a separate
@@ -704,8 +701,8 @@ public interface ArchiModelAccessor {
      * @param viewId             the TARGET view ID (required) — where the view-reference
      *                           visual is placed
      * @param referencedViewId   the SOURCE view ID being referenced (required); must
-     *                           resolve to {@code IArchimateDiagramModel} per the
-     *                           Story 14-6 Q3 default (ArchiMate views only)
+     *                           resolve to {@code IArchimateDiagramModel}
+     *                           (ArchiMate views only)
      * @param x                  x coordinate (null for auto-placement; both x and y
      *                           must be specified together or both omitted)
      * @param y                  y coordinate (see x)
@@ -713,7 +710,7 @@ public interface ArchiModelAccessor {
      * @param height             height (null for default 80)
      * @param parentViewObjectId optional group/element viewObjectId to nest inside;
      *                           when non-null, x/y are RELATIVE to the parent's origin
-     * @param styling            optional G5 styling surface (StylingHelper applies)
+     * @param styling            optional styling surface (StylingHelper applies)
      * @return MutationResult containing the EmbeddedViewDto
      * @throws NoModelLoadedException if no model is loaded
      * @throws ModelAccessException if view not found, referenced view not found or
@@ -727,7 +724,7 @@ public interface ArchiModelAccessor {
 
     /**
      * Adds a standalone image visual ({@code IDiagramModelImage}) to a view
-     * (Story 14-8 / G16). Mirrors {@link #addViewReferenceToView}, swapping
+     * Mirrors {@link #addViewReferenceToView}, swapping
      * the typed-reference EMF class for the image-visual EMF class.
      *
      * <p>Distinct from {@code IIconic.imagePath} on element/group/note
@@ -749,7 +746,7 @@ public interface ArchiModelAccessor {
      *                            read from archive, fallback 200)
      * @param parentViewObjectId  optional group/element viewObjectId to nest
      *                            inside; when non-null x/y are relative to parent
-     * @param styling             optional G5 styling surface
+     * @param styling             optional styling surface
      * @return MutationResult containing the DiagramImageDto
      * @throws NoModelLoadedException if no model is loaded
      * @throws ModelAccessException if view not found, imagePath does not exist
@@ -762,8 +759,7 @@ public interface ArchiModelAccessor {
             StylingParams styling, String borderColor, String documentation);
 
     /**
-     * Back-compat 9-arg overload (Story 14-8 / G16 follow-up — found in AC10
-     * empirical Step 5). Delegates to the canonical 11-arg signature with
+     * Back-compat 9-arg overload. Delegates to the canonical 11-arg signature with
      * {@code borderColor = null} and {@code documentation = null}.
      *
      * @deprecated use {@link #addImageToView(String, String, String, Integer, Integer, Integer, Integer, String, StylingParams, String, String)}
@@ -804,7 +800,7 @@ public interface ArchiModelAccessor {
             List<BendpointDto> bendpoints, List<AbsoluteBendpointDto> absoluteBendpoints,
             StylingParams styling, Boolean showLabel, Integer textPosition);
 
-    // ---- View editing and removal (Story 7-8) ----
+    // ---- View editing and removal ----
 
     /**
      * Updates the visual bounds and optionally text of a view object on a diagram.
@@ -813,11 +809,11 @@ public interface ArchiModelAccessor {
      * corresponding field unchanged. At least one of x, y, width, height, text,
      * styling, image, or labelExpression must be non-null.</p>
      *
-     * <p><strong>Story 8-6:</strong> The text parameter updates the label for
+     * <p>The text parameter updates the label for
      * groups or content for notes. It is rejected with INVALID_PARAMETER when
      * the viewObjectId references an ArchiMate element view object.</p>
      *
-     * <p><strong>Story 14-1 (G4):</strong> The {@code labelExpression} parameter
+     * <p>The {@code labelExpression} parameter
      * writes Archi's per-view-object dynamic label template (e.g. {@code "${name}"},
      * {@code "${property:Owner}"}). Null leaves unchanged; empty string clears
      * (Archi falls back to the element's static name). Stored as a generic
@@ -903,7 +899,7 @@ public interface ArchiModelAccessor {
     /**
      * Atomically applies a complete visual layout to a view.
      * Repositions elements/groups/notes and updates connection bendpoints
-     * in a single undo unit with no operation count limit (Story 9-0a).
+     * in a single undo unit with no operation count limit.
      *
      * @param sessionId   the session identifier for mode detection
      * @param viewId      the view's unique identifier (required)
@@ -921,28 +917,7 @@ public interface ArchiModelAccessor {
             List<ViewConnectionSpec> connections,
             String description);
 
-    /**
-     * Computes and applies an automatic layout to a view using the
-     * specified algorithm or preset. Repositions all elements and clears
-     * all connection bendpoints (straight lines) in a single undo unit.
-     *
-     * @param sessionId the session identifier for mode detection
-     * @param viewId    the view's unique identifier (required)
-     * @param algorithm layout algorithm name, or null if using preset
-     * @param preset    semantic preset name, or null if using algorithm
-     * @param options   optional layout parameters (e.g., "spacing")
-     * @return MutationResult containing LayoutViewResultDto with update counts
-     * @throws NoModelLoadedException if no model is loaded
-     * @throws ModelAccessException if view not found, invalid algorithm/preset, or both provided
-     */
-    MutationResult<LayoutViewResultDto> layoutView(
-            String sessionId,
-            String viewId,
-            String algorithm,
-            String preset,
-            Map<String, Object> options);
-
-    // ---- Layout assessment (Story 9-2) ----
+    // ---- Layout assessment ----
 
     /**
      * Assesses the layout quality of a view, returning objective metrics
@@ -956,7 +931,7 @@ public interface ArchiModelAccessor {
     AssessLayoutResultDto assessLayout(String viewId);
 
     /**
-     * Assesses layout quality with optional per-metric violator IDs (B55).
+     * Assesses layout quality with optional per-metric violator IDs.
      *
      * @param viewId the view to assess
      * @param includeViolatorIds if true, response includes violatorIds map
@@ -976,7 +951,7 @@ public interface ArchiModelAccessor {
      */
     ContentBounds getContentBounds(String viewId);
 
-    // ---- Auto-route connections (Story 9-5) ----
+    // ---- Auto-route connections ----
 
     /**
      * Applies automated orthogonal routing to connections on a view.
@@ -992,10 +967,10 @@ public interface ArchiModelAccessor {
      * @param force         when true, applies all routes including constraint-violating ones
      *                      and reports violations instead of failures
      * @param autoNudge     when true, automatically applies move recommendations and re-routes
-     *                      in a single atomic operation (Story 13-7). Ignored when force is true.
-     * @param perimeterMargin exterior perimeter extension in pixels beyond outermost obstacles (B36).
+     *                      in a single atomic operation. Ignored when force is true.
+     * @param perimeterMargin exterior perimeter extension in pixels beyond outermost obstacles.
      *                        Larger values give A* more space for exterior routing around dense element clusters.
-     * @param mode            scope of path the call may touch (B61): "full" (default) re-routes
+     * @param mode            scope of path the call may touch: "full" (default) re-routes
      *                        whole connections via the visibility-graph A* router; "terminals-only"
      *                        leaves all intermediate bendpoints unchanged and only modifies the
      *                        first and/or last bendpoint to ensure terminal segments are orthogonal.
@@ -1011,7 +986,7 @@ public interface ArchiModelAccessor {
             boolean autoNudge, int snapThreshold, int perimeterMargin, String mode);
 
     /**
-     * Overload with the B69-B channel-global ordered nudging gate (AC-11).
+     * Overload with the channel-global ordered nudging gate.
      *
      * <p>When {@code enableChannelNudging} is true (default), routes are post-processed by
      * a channel-global ordered nudging pass that centres single-occupant routes in their
@@ -1024,7 +999,7 @@ public interface ArchiModelAccessor {
             boolean autoNudge, int snapThreshold, int perimeterMargin, String mode,
             boolean enableChannelNudging);
 
-    // ---- Auto-layout-and-route (Story 10-29) ----
+    // ---- Auto-layout-and-route ----
 
     /**
      * Applies ELK Layered algorithm to compute both element positions AND
@@ -1051,7 +1026,7 @@ public interface ArchiModelAccessor {
             String sessionId, String viewId, String mode,
             String direction, int spacing, String targetRating);
 
-    // ---- Adjust view spacing (B68) ----
+    // ---- Adjust view spacing ----
 
     /**
      * Inflates inter-element, parent-padding, and inter-group spacing by user-specified
@@ -1139,9 +1114,7 @@ public interface ArchiModelAccessor {
 
     /**
      * Control-loop entry point for the apply-element-spacing-recommendations
-     * convenience tool (Story
-     * {@code backlog-convenience-tool-control-loop-architectural-redesign}
-     * AC-1 + AC-4 + AC-5 + AC-6, 2026-05-15). Sibling-symmetric with the
+     * convenience tool. Sibling-symmetric with the
      * existing 4-arg signature; adds an explicit {@code iterationBudget}
      * parameter so callers can cap the observe → decide → back-off control
      * loop's iteration count.
@@ -1149,14 +1122,14 @@ public interface ArchiModelAccessor {
      * <p>The default interface implementation delegates to the existing
      * 4-arg signature, IGNORING {@code iterationBudget} — preserves
      * backwards-compat for the 30+ test stubs that implement only the 4-arg
-     * via {@code BaseTestAccessor} extends pattern (per architecture-spec
-     * § 1.10 O6). The canonical {@link ArchiModelAccessorImpl} overrides
+     * via {@code BaseTestAccessor} extends pattern. The canonical
+     * {@link ArchiModelAccessorImpl} overrides
      * BOTH signatures: the 4-arg delegates to this 5-arg with the default
      * budget (5); the 5-arg embeds the {@code SpacingControlLoop} iterate
      * body.</p>
      *
      * @param iterationBudget caller-tunable iteration budget; null →
-     *                        default 5 per AC-4; out-of-range [1, 20] →
+     *                        default 5; out-of-range [1, 20] →
      *                        {@code INVALID_PARAMETER}
      */
     default MutationResult<ApplyElementSpacingRecommendationsResultDto>
@@ -1248,7 +1221,7 @@ public interface ArchiModelAccessor {
      * {@link #applyElementSpacingRecommendations(String, String, boolean, Integer, Integer)}.
      *
      * @param iterationBudget caller-tunable iteration budget; null →
-     *                        default 5 per AC-4
+     *                        default 5
      */
     default MutationResult<ApplyGroupSpacingRecommendationsResultDto>
             applyGroupSpacingRecommendations(
@@ -1285,7 +1258,7 @@ public interface ArchiModelAccessor {
      * clamp; not session-tracked); (3) bundled scope dispatch via the
      * {@code scope} enum.</p>
      *
-     * <p><strong>{@code scope} dispatch</strong> per AC-2:
+     * <p><strong>{@code scope} dispatch</strong>:
      * <ul>
      *   <li>{@code "both"} (default) — compute BOTH element + group deltas
      *       and pass both to a single {@code adjustViewSpacing} call.</li>
@@ -1307,8 +1280,8 @@ public interface ArchiModelAccessor {
      * to NO MORE than +{@value ApplySpacingDecision#ELEMENT_KNEE_LIMIT_PX}px
      * (element) / +{@value ApplySpacingDecision#GROUP_KNEE_LIMIT_PX}px
      * (inter-group) from the view's current spacing baselines. Beyond
-     * this cumulative-from-current point, the H1 spacing diagnostic
-     * 2026-05-06 showed passThroughs / nonOrthogonalTerminals /
+     * this cumulative-from-current point, spacing diagnostics
+     * showed passThroughs / nonOrthogonalTerminals /
      * xings-per-connection regress. The clamp fires per-call (not session-
      * tracked); successive calls each re-detect current spacing.</p>
      *
@@ -1328,8 +1301,7 @@ public interface ArchiModelAccessor {
      * both deltas, both clamp flags, and both proposedXxxDelta values; the
      * {@code after} snapshot and {@code adjustResult} are null.</p>
      *
-     * <p>Pinned by {@code ApplySpacingRecommendationsToolTest}
-     * AC-7.1 through AC-7.11.</p>
+     * <p>Pinned by {@code ApplySpacingRecommendationsToolTest}.</p>
      *
      * @param sessionId                  the session identifier for mode
      *                                   detection
@@ -1344,13 +1316,11 @@ public interface ArchiModelAccessor {
      * @param elementTargetSpacingOverride optional explicit target element
      *                                   spacing; non-null overrides the
      *                                   heuristic. The knee-clamp still
-     *                                   applies on top of the override
-     *                                   (AC-7.10).
+     *                                   applies on top of the override.
      * @param groupTargetSpacingOverride optional explicit target inter-group
      *                                   spacing; non-null overrides the
      *                                   heuristic. The knee-clamp still
-     *                                   applies on top of the override
-     *                                   (AC-7.10).
+     *                                   applies on top of the override.
      * @return MutationResult containing ApplySpacingRecommendationsResultDto
      * @throws NoModelLoadedException if no model is loaded
      * @throws ModelAccessException if view not found or invalid parameters
@@ -1365,11 +1335,11 @@ public interface ArchiModelAccessor {
     /**
      * Control-loop entry point for the apply-spacing-recommendations composer.
      * Sibling-symmetric with the apply-element + apply-group control-loop
-     * entry points; composer fires TWO coordinated control loops per
-     * architecture-spec § 1.7 Option A (element-arm first, then group-arm).
+     * entry points; composer fires TWO coordinated control loops
+     * (element-arm first, then group-arm).
      *
      * @param iterationBudget caller-tunable iteration budget; null →
-     *                        default 8 per AC-4 (composer covers both arms);
+     *                        default 8 (composer covers both arms);
      *                        out-of-range [1, 20] → {@code INVALID_PARAMETER}
      */
     default MutationResult<ApplySpacingRecommendationsResultDto>
@@ -1407,7 +1377,7 @@ public interface ArchiModelAccessor {
             List<String> elementIds, List<String> relationshipTypes,
             Boolean showLabel, StylingParams styling);
 
-    // ---- Layout within group (Story 9-9) ----
+    // ---- Layout within group ----
 
     /**
      * Arranges child elements within a visual group using row, column, or grid
@@ -1490,7 +1460,7 @@ public interface ArchiModelAccessor {
             Integer elementHeight, boolean autoWidth, Integer columns,
             Map<String, String> groupArrangements);
 
-    // ---- Flat view layout (Story 13-6) ----
+    // ---- Flat view layout ----
 
     /**
      * Positions all top-level elements on a flat view using a configurable arrangement.
@@ -1519,7 +1489,7 @@ public interface ArchiModelAccessor {
             String categoryField, Integer columns,
             boolean autoLayoutChildren);
 
-    // ---- Resize elements to fit (Story B48) ----
+    // ---- Resize elements to fit ----
 
     /**
      * Resizes elements on a view to fit their label text using font-metrics-based sizing.
@@ -1536,7 +1506,35 @@ public interface ArchiModelAccessor {
     MutationResult<ResizeElementsResultDto> resizeElementsToFit(
             String sessionId, String viewId, List<String> elementIds);
 
-    // ---- Hub element detection (Story 13-3) ----
+    /**
+     * Resizes elements to fit their labels, with an opt-in <strong>wrap-fit</strong> mode.
+     *
+     * <p>When {@code wrapFit} is {@code false}, behaviour is identical to
+     * {@link #resizeElementsToFit(String, String, List)} (single-line aspect-ratio sizing via
+     * {@code ElementSizer.computeAutoSize}). When {@code true}, each targeted leaf <em>keeps its
+     * current width</em> and only grows its height so the label wraps and fits
+     * ({@code ElementSizer.computeWrapFitDimensions}); ancestor containers are grown
+     * height-only to contain the now-taller children. This preserves a dense grid's horizontal
+     * pitch (no sibling shift) — the lever that takes embedded ApplicationFunctions out of the
+     * clipped 150×26 state without the bloat/destruction of single-line sizing.</p>
+     *
+     * <p>Default implementation delegates to the 3-arg overload (ignoring {@code wrapFit}) so that
+     * test stubs and alternate accessors need no change; {@code ArchiModelAccessorImpl} overrides
+     * this with the real wrap-fit path.</p>
+     *
+     * @param sessionId  the session identifier for mode detection
+     * @param viewId     the view's unique identifier (required)
+     * @param elementIds optional list of specific element view object IDs to resize;
+     *                   if null or empty, resizes all elements on the view
+     * @param wrapFit    when true, keep width and grow height to wrap; when false, single-line sizing
+     * @return MutationResult containing ResizeElementsResultDto
+     */
+    default MutationResult<ResizeElementsResultDto> resizeElementsToFit(
+            String sessionId, String viewId, List<String> elementIds, boolean wrapFit) {
+        return resizeElementsToFit(sessionId, viewId, elementIds);
+    }
+
+    // ---- Hub element detection ----
 
     /**
      * Detects hub elements on a view by counting visual connections per element,
@@ -1549,7 +1547,7 @@ public interface ArchiModelAccessor {
      */
     DetectHubElementsResultDto detectHubElements(String viewId);
 
-    // ---- Deletion methods (Story 8-4) ----
+    // ---- Deletion methods ----
 
     /**
      * Deletes an ArchiMate element with full cascade.
@@ -1609,7 +1607,7 @@ public interface ArchiModelAccessor {
      */
     MutationResult<DeleteResultDto> deleteFolder(String sessionId, String folderId, boolean force);
 
-    // ---- Folder mutation methods (Story 8-5) ----
+    // ---- Folder mutation methods ----
 
     /**
      * Creates a new subfolder within a parent folder.
@@ -1659,7 +1657,7 @@ public interface ArchiModelAccessor {
     MutationResult<MoveResultDto> moveToFolder(String sessionId,
             String objectId, String targetFolderId);
 
-    // ---- Bulk mutation (Story 7-5, enhanced Story 11-9) ----
+    // ---- Bulk mutation ----
 
     /**
      * Executes multiple mutation operations as a single compound command.
@@ -1690,7 +1688,19 @@ public interface ArchiModelAccessor {
     BulkMutationResult executeBulk(String sessionId, List<BulkOperation> operations,
             String description, boolean continueOnError);
 
-    // ---- View export (Story 8-1) ----
+    /**
+     * As {@link #executeBulk(String, List, boolean)} but carrying the optional agent-supplied
+     * {@code intent}. When approval mode is on, {@code intent} is persisted on the
+     * single bulk proposal ({@code PendingProposal.intent}) and flows to the card's quiet
+     * {@code agent's note:} line. The server never depends on {@code intent}; with it null this
+     * behaves byte-identically to the four-arg overload.
+     *
+     * @param intent the agent's optional stated intent for this batch, or null
+     */
+    BulkMutationResult executeBulk(String sessionId, List<BulkOperation> operations,
+            String description, boolean continueOnError, String intent);
+
+    // ---- View export ----
 
     /**
      * Renders a view to an image in the specified format.
@@ -1717,7 +1727,7 @@ public interface ArchiModelAccessor {
     ExportResult exportView(String viewId, String format, double scale, int quality,
             boolean inline, String outputDirectory);
 
-    // ---- Command stack undo/redo (Story 11-1) ----
+    // ---- Command stack undo/redo ----
 
     /**
      * Undoes the specified number of most recent operations from the command stack.
@@ -1746,7 +1756,7 @@ public interface ArchiModelAccessor {
      */
     UndoRedoResultDto redo(int steps);
 
-    // ---- Mutation support (Story 7-1) ----
+    // ---- Mutation support ----
 
     /**
      * Returns the MutationDispatcher for mutation operations.
@@ -1801,7 +1811,7 @@ public interface ArchiModelAccessor {
      */
     void removeModelChangeListener(ModelChangeListener listener);
 
-    // ---- Image management (Story C4) ----
+    // ---- Image management ----
 
     /**
      * Adds an image to the model's archive for use on view objects.

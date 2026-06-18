@@ -26,10 +26,10 @@ import net.vheerden.archi.mcp.response.dto.ExportViewResultDto;
 /**
  * Handles view export to PNG, JPG, SVG, and PDF formats.
  *
- * <p>Extracted from ArchiModelAccessorImpl (Story 12-4) to improve cohesion.
+ * <p>Extracted from ArchiModelAccessorImpl to improve cohesion.
  * Package-visible — only ArchiModelAccessorImpl should use this class.</p>
  *
- * <p><strong>Bundle dependencies (Story 14-4):</strong> SVG and PDF rendering
+ * <p><strong>Bundle dependencies:</strong> SVG and PDF rendering
  * require the optional {@code com.archimatetool.export.svg} bundle (declared
  * with {@code resolution:=optional} in MANIFEST.MF). PNG and JPG use core SWT
  * and have no external bundle dependency. When the SVG bundle is absent the
@@ -126,7 +126,7 @@ final class ViewExportService {
                 ImageLoader loader = new ImageLoader();
                 loader.data = new ImageData[] { imageData };
                 // SWT's ImageLoader.compression is a scalar int (1-100 for JPEG),
-                // not an int[] as the Story 14-4 Dev Notes pseudocode suggested
+                // not an int[]
                 // (verified against SWT 3.126 on Archi 5.8).
                 loader.compression = quality;
                 loader.save(baos, SWT.IMAGE_JPEG);
@@ -233,8 +233,7 @@ final class ViewExportService {
                             double scale, boolean inline, String outputDirectory) {
         // scale: not forwarded — PDFExportProvider.export(IDiagramModel, File) has
         // no scale overload; vector PDF is resolution-independent and the tool
-        // description documents this. Story 14-4 Dev Notes §"Predicted Task-0
-        // disposition" rationale.
+        // description documents this.
         if (Platform.getBundle("com.archimatetool.export.svg") == null) {
             throw new ModelAccessException(
                     "PDF export is not available. The Archi SVG export plugin "
@@ -255,9 +254,8 @@ final class ViewExportService {
 
         // Inside syncExec: SWT-thread-only work (PDF provider dispatch + temp-file
         // read). Outside syncExec: bulk file I/O for the file-mode output directory,
-        // mirroring the renderPng / renderSvg pattern. Per cross-LLM review (Sonnet
-        // 4.6, 2026-05-27) M1: writeToFile on the Display thread would freeze the
-        // Archi GUI for multi-MB PDFs.
+        // mirroring the renderPng / renderSvg pattern: writeToFile on the Display
+        // thread would freeze the Archi GUI for multi-MB PDFs.
         Display.getDefault().syncExec(() -> {
             File tempPdf = null;
             try {

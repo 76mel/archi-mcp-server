@@ -7,9 +7,9 @@
  *
  * <p>UI components:</p>
  * <ul>
- *   <li>McpPreferencePage - Server settings preferences (Story 1.2)</li>
- *   <li>McpMenuContribution - Start/Stop menu actions (Story 1.4)</li>
- *   <li>McpStatusIndicator - Server status display (Story 1.4)</li>
+ *   <li>McpPreferencePage - Server settings preferences</li>
+ *   <li>McpMenuContribution - Start/Stop menu actions</li>
+ *   <li>McpStatusIndicator - Server status display</li>
  * </ul>
  */
 package net.vheerden.archi.mcp.ui;

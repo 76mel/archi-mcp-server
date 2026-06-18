@@ -1,12 +1,10 @@
 # Layout Engine
 
-This document describes the layout and quality assessment systems, including Zest-based algorithms, ELK Layered integration, group-aware layout, and the multi-metric quality assessment framework.
+This document describes the layout and quality assessment systems, including ELK Layered integration, group-aware layout, and the multi-metric quality assessment framework.
 
 ## Table of Contents
 
-- [Layout Algorithms (Zest)](#layout-algorithms-zest)
 - [ELK Layered Algorithm](#elk-layered-algorithm)
-- [Layout Presets](#layout-presets)
 - [Flat View Layout](#flat-view-layout)
 - [Group-Aware Layout](#group-aware-layout)
 - [Hub Element Detection](#hub-element-detection)
@@ -15,46 +13,6 @@ This document describes the layout and quality assessment systems, including Zes
 - [Auto-Layout-and-Route with Target Rating](#auto-layout-and-route-with-target-rating)
 - [View Spacing Adjustment](#view-spacing-adjustment)
 - [Configuration Constants](#configuration-constants)
-
-## Layout Algorithms (Zest)
-
-The `LayoutEngine` computes element positions using Eclipse Zest graph layout algorithms. It produces **positions only** (no connection routing).
-
-### Supported Algorithms
-
-| Algorithm | Description | Best For |
-|-----------|-------------|----------|
-| `tree` | Top-down hierarchical tree (in the family of [15]) | Hierarchical relationships |
-| `spring` | Force-directed/spring-based (in the family of [13], [14]) | Organic clustering |
-| `directed` | Sugiyama-style layered hierarchy [7] | Complex directed graphs |
-| `radial` | Concentric circles | Hub/network views |
-| `grid` | Regular grid arrangement | Information-dense layouts |
-| `horizontal-tree` | Left-to-right tree (in the family of [15]) | Horizontal hierarchies |
-
-The `radial` and `grid` presets are empirical project heuristics with no specific academic provenance. See [bibliography.md](bibliography.md) for the cited references and a confidence note on the Zest preset family attributions.
-
-### Computation Pipeline
-
-1. Resolve spacing from options (default: 50px)
-2. Instantiate Zest algorithm with `NO_LAYOUT_NODE_RESIZING` style
-3. Build `SimpleNode`/`SimpleRelationship` graph from layout nodes and edges
-4. Compute canvas dimensions: `ceil(sqrt(nodeCount)) * (avgDimension + spacing) + 2 * padding`
-5. Run `algorithm.applyLayout()` with computed canvas bounds
-6. Extract positions from Zest entities (round to integers)
-7. Post-layout overlap resolution via `OverlapResolver`
-
-### Post-Layout Overlap Resolution
-
-After Zest completes, the `OverlapResolver` eliminates sibling overlaps:
-
-- Group elements by `parentId` (separate resolution per sibling group)
-- For each group, iterate up to 10 times:
-  1. Horizontal pass: sort by x, push right elements to maintain spacing gap
-  2. Vertical pass: sort by y, push down elements to maintain spacing gap
-  3. If zero overlaps remain, stop
-- Elements in different sibling groups are never compared
-
-**Source:** `model/LayoutEngine.java`
 
 ## ELK Layered Algorithm
 
@@ -104,19 +62,6 @@ Only **intermediate bendpoints** are extracted from ELK output. Start/end attach
 
 **Source:** `model/ElkLayoutEngine.java`
 
-## Layout Presets
-
-Semantic mappings from preset names to algorithm + default spacing:
-
-| Preset | Algorithm | Spacing | Use Case |
-|--------|-----------|---------|----------|
-| `compact` | grid | 20px | Tight grid for information density |
-| `spacious` | tree | 80px | Generous spacing for readability |
-| `hierarchical` | tree | 50px | Top-down tree reflecting relationships |
-| `organic` | spring | 50px | Force-directed for related elements |
-
-**Source:** `model/LayoutPreset.java`
-
 ## Flat View Layout
 
 The `layout-flat-view` tool positions all top-level elements and groups on a view using row, column, or grid arrangements. It eliminates manual x/y coordinate calculation for flat (non-grouped) views.
@@ -146,7 +91,6 @@ The `layout-flat-view` tool positions all top-level elements and groups on a vie
 |------|----------|
 | `layout-flat-view` | Flat views with no groups — automatic positioning with sorting/categorization |
 | `layout-within-group` | Position children inside a specific container — a visual group or an ArchiMate-element container |
-| `compute-layout` | Graph-aware layout using Zest algorithms (tree, spring, directed, etc.) |
 | `auto-layout-and-route` | Combined ELK layout + routing in one operation |
 
 **Source:** `model/ArchiModelAccessorImpl.java`, `handlers/ViewPlacementHandler.java`
@@ -352,7 +296,7 @@ The `resize-elements-to-fit` tool resizes all (or selected) elements on an exist
 4. **Parent height never shrinks** — only grows to accommodate the wrapped label and its children
 5. Apply all size changes as a single compound command (atomic undo)
 
-The dynamic label height (B50) replaces the previous fixed `CONTAINMENT_LABEL_TOP = 25` constant. Long parent labels that wrap across two or three lines now correctly reserve vertical space for every line, eliminating the failure mode where a multi-line parent label visually obscured its first child.
+The dynamic label height replaces the previous fixed `CONTAINMENT_LABEL_TOP = 25` constant. Long parent labels that wrap across two or three lines now correctly reserve vertical space for every line, eliminating the failure mode where a multi-line parent label visually obscured its first child.
 
 **Parameters:**
 
@@ -435,11 +379,11 @@ Estimates label bounding boxes from text length and path position. Uses 10px ins
 
 #### Pass-Throughs
 
-Detects connections that cross through element rectangles. Clips connection paths from element centers to perimeter (using Archi's OrthogonalAnchor model) and tests segment-vs-rectangle intersection using the Liang–Barsky line-clipping algorithm [16]. Excludes ancestors, descendants, and groups (transparent containers). Uses 10px inset to absorb corner-arc imprecision.
+Detects connections that cross through element rectangles. Clips connection paths from element centers to perimeter (using Archi's OrthogonalAnchor model) and tests segment-vs-rectangle intersection using the Liang–Barsky line-clipping algorithm [13]. Excludes ancestors, descendants, and groups (transparent containers). Uses 10px inset to absorb corner-arc imprecision.
 
 Also detects **self-element pass-throughs** — cases where non-terminal segments of a connection's route pass through the connection's own source or target element body (using 5px inset). This catches routes that enter endpoint elements through interior points rather than approaching cleanly from an edge.
 
-**Rating:** counted from cross-element pass-throughs only — 0 = "pass", 1-3 = "fair", 4+ = "poor". Self-element pass-throughs are reported in the assessment output (informational) but **excluded from rating** (B54). Self-element geometry frequently cannot be resolved by re-routing alone, and penalising it masks the structural quality of cross-element routing.
+**Rating:** counted from cross-element pass-throughs only — 0 = "pass", 1-3 = "fair", 4+ = "poor". Self-element pass-throughs are reported in the assessment output (informational) but **excluded from rating**. Self-element geometry frequently cannot be resolved by re-routing alone, and penalising it masks the structural quality of cross-element routing.
 
 #### Coincident Segments
 
@@ -462,7 +406,7 @@ The assessor redesign introduces five perception-aligned metrics (M1 corrected, 
 | **M1** (corrected) | `nonOrthogonalTerminalCount` | Visible-segment-length guard. Pre-redesign, the metric over-reported clipped diagonals — bendpoints inside the source/target element bounds were counted as if visible. The corrected M1 ignores Archi-clipped diagonals (post-clip visible segment only) and was calibrated against the V4 manual oracle (manual = 21). |
 | **M2** | `interiorTerminatingCount` | Connections whose terminal bendpoint lands inside the source or target element bounds. Routing Tier 1R. Previously unmeasured. |
 | **M3** | `zigzagCount` | Reversal patterns where two consecutive segments meet at a shared axis (zigzag triple). Routing Tier 1R. Previously unmeasured. M3 **skips connections already classified as pass-throughs** by `detectPassThroughs` (classification-precedence guard at `LayoutQualityAssessor.countZigzags()`): for the failed-detour-around-element pattern the visually-correct label is passthrough-only — the small reversal is a consequence of the failed detour, not an independent defect. Pinned by `RoutingClassificationPrecedenceTest`. |
-| **M4** | `connectionEdgeCoincidenceCount` | Connection segments running parallel to and within `EDGE_COINCIDENCE_TOLERANCE_PX` (3px) of a foreign element's edge line. Routing Tier 1R with thresholds `EDGE_COINCIDENCE_GOOD_MAX = 2` and `EDGE_COINCIDENCE_FAIR_MAX = 5`. Pre-redesign only conn-vs-conn coincidence was measured (B45 self-exclusion). The self-exclusion guard removal makes M4 always flag parallel-coincident segments. **v1.3 oracle baseline corrected to M4 = 12** (previously documented as 2 — the discrepancy was a measurement artefact, not a routing change). **Topology-bound floor caveat:** on hub-and-spoke layouts at hub-port-quality-fixed hub sizes, M4 has a structural floor that does not respond to spacing inflation. M4 above the floor reflects routable congestion; M4 at the floor reflects topology. |
+| **M4** | `connectionEdgeCoincidenceCount` | Connection segments running parallel to and within `EDGE_COINCIDENCE_TOLERANCE_PX` (3px) of a foreign element's edge line. Routing Tier 1R with thresholds `EDGE_COINCIDENCE_GOOD_MAX = 2` and `EDGE_COINCIDENCE_FAIR_MAX = 5`. Pre-redesign only conn-vs-conn coincidence was measured under an earlier self-exclusion guard. Removing that guard makes M4 always flag parallel-coincident segments. **v1.3 oracle baseline corrected to M4 = 12** (previously documented as 2 — the discrepancy was a measurement artefact, not a routing change). **Topology-bound floor caveat:** on hub-and-spoke layouts at hub-port-quality-fixed hub sizes, M4 has a structural floor that does not respond to spacing inflation. M4 above the floor reflects routable congestion; M4 at the floor reflects topology. |
 | **M5** | `hubPortQualityScore`, `hubPortQualityFaces` | View-aggregate mean of per-hub-face distinct-slot ratios for any element face with ≥ 4 connections. Catastrophic example pre-redesign: 1 face slot for 7 connections (HPQ 0.18). v1.3 oracle HPQ measured 0.18 (catastrophic, invisible to old assessor); current pipeline preserves 0.77 — roughly five times better. Thresholds: `pass` ≥ 0.95, `good` ≥ 0.75, `fair` ≥ 0.5, `poor` < 0.5. |
 | **R8** | `corridorUtilisation`, `corridorUtilisationDetails` | Wide-corridor utilisation — measures how well wide corridors carry connections in proportion to their width. Pinned ≥ 0.25 on the V4 oracle by `V4OracleCorridorUtilisationRegressionTest`. |
 | **`parallelConnectionGap_V_p10`** | `vAxisParallelGapP10`, `vAxisParallelGapNarrow25Count`, `parallelConnectionGapDetail` | Informational narrow-corridor signal. The primary value is the 10th-percentile pairwise parallel gap on the V axis (in pixels); the ArchiMate manual-routed reference anchors at 13.30 ± 0.5. The secondary `vAxisParallelGapNarrow25Count` counts V-axis segments below 25 px gap (more = worse). Calibration validated against an ordered reference set of four views (gold > hub-heavy-source > standard-source > narrow-corridor regime — monotonic by owner perception). **Currently no rating impact** — surfaces the structural narrow-corridor floor so an LLM agent can recognise when convenience spacing tools cannot mitigate further. Full per-axis detail (mean / min / p10 / narrowGapCount@{15,25,40} for V and H axes) returned in `parallelConnectionGapDetail` when `includeViolatorIds: true`. Pinned by `ParallelConnectionGapMetricTest`. |
@@ -476,13 +420,13 @@ Two cut-points were re-anchored to align with the visual-severity hierarchy:
 
 #### M6 — Two-Dimensional Overall Rating
 
-M6 replaces B38's single-tier overall rating with two independently computed tier indices: a **layout tier** (driven by element-level metrics) and a **routing tier** (driven by connection-level metrics including M2/M3/M4 routing-tier promotions and M5 hub-port quality). The overall rating is the worse of the two:
+M6 replaces the earlier single-tier overall rating with two independently computed tier indices: a **layout tier** (driven by element-level metrics) and a **routing tier** (driven by connection-level metrics including M2/M3/M4 routing-tier promotions and M5 hub-port quality). The overall rating is the worse of the two:
 
 ```text
 overallRating = levelToRating(max(layoutLevel, routingLevel))
 ```
 
-This decouples layout quality from routing quality so a poor-routing fix does not drag a strong-layout view's tier and vice versa. `parentLabelObscuredCount` and `labelTruncationCount` (B53 informational detections) are promoted into the layout tier under M6.
+This decouples layout quality from routing quality so a poor-routing fix does not drag a strong-layout view's tier and vice versa. `parentLabelObscuredCount` and `labelTruncationCount` (informational detections) are promoted into the layout tier under M6.
 
 ### JUnit-Protected Release-Gate Metrics
 
@@ -537,7 +481,7 @@ Flags parent elements whose label area at the top of the element is overlapped b
 
 Flags elements that carry a custom image (`imagePath` set) and visually overlap any sibling element at the same containment level. The check uses the element's full bounds, not the image rectangle alone, since custom images extend the visible footprint.
 
-### Violator IDs (B55)
+### Violator IDs
 
 When `includeViolatorIds: true` is passed to `assess-layout`, the response includes a `violatorIds` map returning the specific visual object IDs that violate each metric. This enables targeted per-element fixes instead of global re-layout.
 
@@ -641,16 +585,7 @@ Run layout once (ELK in `auto` mode, or the orchestrated workflow in `grouped` m
 
 ### With targetRating
 
-Multi-iteration quality loop (max 5 attempts). The v1.4 **smart iteration strategy** (B62) replaces the earlier monotonic spacing-bump loop with a factor-aware iteration over four orthogonal levers: spacing, corridor diversity (`occupancyWeight` bumped up to 4× the default), reverse-sweep crossing minimisation (`CrossingMinimizer.reverseSweep = true`), and a tier-weighted score with a Tier-1 veto. Plateau detection short-circuits once successive iterations stop improving. Iteration helpers consume the M6 layout-tier × routing-tier model so a stuck factor in one dimension can still unlock progress in the other.
-
-```text
-B62-1: factor-aware iteration loop (spacing, occupancy, sweep, score)
-B62-2: parameterized corridor diversity (occupancyWeight scaling)
-B62-3: reverse-sweep crossing minimizer
-B62-4: tier-weighted score + Tier-1 veto (consumes M6 tiers)
-B62-5: factor-aware plateau detection
-B62-6: end-to-end validation
-```
+Multi-iteration quality loop (max 5 attempts). The v1.4 **smart iteration strategy** replaces the earlier monotonic spacing-bump loop with a factor-aware iteration over four orthogonal levers: spacing, corridor diversity (`occupancyWeight` bumped up to 4× the default), reverse-sweep crossing minimisation (`CrossingMinimizer.reverseSweep = true`), and a tier-weighted score with a Tier-1 veto. Plateau detection short-circuits once successive iterations stop improving. Iteration helpers consume the M6 layout-tier × routing-tier model so a stuck factor in one dimension can still unlock progress in the other.
 
 ```mermaid
 flowchart TD
@@ -675,7 +610,7 @@ ELK does not see elements inside groups as obstacles for inter-group connections
 
 ## View Spacing Adjustment
 
-The `adjust-view-spacing` tool (B68, v1.4) inflates the inter-element and inter-group spacing on an existing view and re-routes connections in a single atomic operation. It is the targeted alternative to re-running ELK from scratch when an existing arrangement only needs more breathing room.
+The `adjust-view-spacing` tool (v1.4) inflates the inter-element and inter-group spacing on an existing view and re-routes connections in a single atomic operation. It is the targeted alternative to re-running ELK from scratch when an existing arrangement only needs more breathing room.
 
 ### When to Use
 
@@ -792,14 +727,6 @@ Pass an explicit `spacing` value (including 0 or 40) to suppress default-resolut
 
 ## Configuration Constants
 
-### LayoutEngine (Zest)
-
-| Constant | Value |
-|----------|-------|
-| Default spacing | 50px |
-| Canvas padding | 20px |
-| Overlap resolution max iterations | 10 |
-
 ### ElkLayoutEngine
 
 | Constant | Value |
@@ -840,9 +767,6 @@ Pass an explicit `spacing` value (including 0 or 40) to suppress default-resolut
 [10]: bibliography.md#ref-10
 [11]: bibliography.md#ref-11
 [13]: bibliography.md#ref-13
-[14]: bibliography.md#ref-14
-[15]: bibliography.md#ref-15
-[16]: bibliography.md#ref-16
 
 Inline citations above (e.g. `[7]`) link to the entry of the same number in [bibliography.md](bibliography.md).
 

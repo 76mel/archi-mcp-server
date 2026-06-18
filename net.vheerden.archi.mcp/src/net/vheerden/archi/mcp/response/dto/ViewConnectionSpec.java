@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * Input specification for a single connection bendpoint update
- * within an apply-positions operation (Story 9-0a, renamed 11-8).
+ * within an apply-positions operation.
  *
  * <p>Bendpoints and absoluteBendpoints are mutually exclusive.
  * If neither is provided, all bendpoints are cleared (straight line).</p>

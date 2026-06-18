@@ -20,21 +20,18 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * {@link AlternativeCorridorSelector} (Axis 1 — corridor-CHOICE diversification) and
  * {@link CorridorSpreadEnforcer} (Axis 2 — intra-corridor SPREAD enforcement) operate
  * on. The two axes must be visible simultaneously: hub-perimeter quality is a
- * 2-axis simultaneous property per the V4 chain mechanism-design synthesis (predecessor
- * scoping spike § Tasks 2-6, story key
- * {@code backlog-routing-pipeline-v4-hub-and-spoke-m4-floor-closure}).
+ * 2-axis simultaneous property per the V4 chain mechanism-design synthesis.
  *
- * <p><b>Hub detection (AC-5.2 amendment, refined 2026-05-13 PM late Task 1 closure).</b>
+ * <p><b>Hub detection.</b>
  * An element is a hub if its incident-connection degree is greater than or equal to
  * {@link #HUB_DETECTION_THRESHOLD} (5). The threshold value mirrors
- * {@code LayoutQualityAssessor.HUB_DETECTION_THRESHOLD} per Successor B convention, but
+ * {@code LayoutQualityAssessor.HUB_DETECTION_THRESHOLD}, but
  * is inlined locally because {@code LayoutQualityAssessor} is package-private to
  * {@code net.vheerden.archi.mcp.model} (not visible from this {@code .routing}
- * sub-package) AND AC-9.6 forbids elevating its visibility. The local degree-counter
+ * sub-package) and elevating its visibility is forbidden. The local degree-counter
  * duplicates the assessor's internal counter; this is acceptable per sibling-API
- * discipline (4 candidate primitives FLAGGED HIGH role-boundary in the spike § AC-6
- * inventory). If the assessor's threshold ever changes, this constant must be updated
- * in lockstep — pin-test {@code v4OracleAllSixThresholds_pinReleaseGate} (AC-7.4) is the
+ * discipline. If the assessor's threshold ever changes, this constant must be updated
+ * in lockstep — pin-test {@code v4OracleAllSixThresholds_pinReleaseGate} is the
  * regression guard.
  *
  * <p><b>Cell membership.</b> A connection is a member of a (hub, face) cell if it has
@@ -50,9 +47,9 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * tolerance (3px per {@code EDGE_COINCIDENCE_TOLERANCE_PX}) so that connections currently
  * near-but-not-flagging M4 are included in cell scope. This gives the Axis 1/2 primitives
  * margin to act proactively before connections trip the M4 trigger — a 4px gap today is
- * a 2px gap tomorrow after a different upstream change. Per story body AC-5.3 verbatim
- * ("within {@code EDGE_COINCIDENCE_FAIR_MAX = 5px} of any hub face") — note the story's
- * constant reference is to the grading threshold (count) not the proximity tolerance;
+ * a 2px gap tomorrow after a different upstream change. The design intent is "within
+ * {@code EDGE_COINCIDENCE_FAIR_MAX = 5px} of any hub face" — note that constant
+ * reference is to the grading threshold (count) not the proximity tolerance;
  * the intent (5px proximity) is the load-bearing scope.
  *
  * <p><b>Parallel-overlap requirement (10px).</b> Matches the assessor's M4 algorithm
@@ -72,8 +69,8 @@ public class HubFaceConnectionPartitioner {
 
     /**
      * Hub-detection degree threshold. Mirrors {@code LayoutQualityAssessor.HUB_DETECTION_THRESHOLD}
-     * (package-private from this sub-package; see class-level Javadoc for the AC-9.6
-     * rationale for local inlining). Successor B convention: an element with 5 or more
+     * (package-private from this sub-package; see class-level Javadoc for the
+     * rationale for local inlining). An element with 5 or more
      * incident connections qualifies as a hub.
      */
     static final int HUB_DETECTION_THRESHOLD = 5;
@@ -190,7 +187,7 @@ public class HubFaceConnectionPartitioner {
             if (conn == null || path == null || path.size() < 2) continue;
             int lastIdx = path.size() - 1;
 
-            // B71 TerminalAnchoring exemption: terminal-incident segments (those whose start bp
+            // TerminalAnchoring exemption: terminal-incident segments (those whose start bp
             // is the source terminal at idx=0, or whose end bp is the target terminal at idx=lastIdx)
             // are NOT eligible cell members. H5's perpendicular-shift primitives would mutate the
             // terminal bp's coordinate, violating preservesEndpoints. Terminal-segment positioning

@@ -8,11 +8,10 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- * Tests for {@link OverlapResolver#findOverlappingElementIds(List)} (Story
- * RoutingPreconditions.AutoRouteStructuredWarning, Row E).
+ * Tests for {@link OverlapResolver#findOverlappingElementIds(List)}.
  *
  * <p>Pure geometry — runnable without OSGi. Paired with
- * {@link HasOverlappingElementsTest} per Story AC-7's "paired test class"
+ * {@link HasOverlappingElementsTest} under the "paired test class"
  * allowance (the {@code ArchiModelAccessorImpl.autoRouteConnections} method is
  * OSGi-dependent and tested via E2E integration plus live-MCP smoke per Task
  * 6, not via this unit-test class).</p>
@@ -92,7 +91,7 @@ public class FindOverlappingElementIdsTest {
 	public void shouldReturnFirstPair_whenMultipleOverlapsExist() {
 		// Three pairwise overlaps exist among (a,b), (a,c), (b,c).
 		// The helper short-circuits on the FIRST iteration that finds an overlap
-		// (per AC-1 + Task 1.5 first-pair design decision).
+		// (Task 1.5 first-pair design decision).
 		List<AssessmentNode> nodes = List.of(
 				element("a", 100, 100, 200, 200),
 				element("b", 150, 150, 200, 200),

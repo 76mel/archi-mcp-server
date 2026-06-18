@@ -3,10 +3,10 @@ package net.vheerden.archi.mcp.response.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Result DTO for the auto-layout-and-route tool (Story 10-29, extended Story 11-31, backlog-b13, backlog-b24).
+ * Result DTO for the auto-layout-and-route tool.
  * Supports two modes: "auto" (ELK Layered) and "grouped" (orchestrated Branch 2 workflow).
  *
- * <p>When {@code targetRating} is specified (Story 11-16), the tool iterates
+ * <p>When {@code targetRating} is specified, the tool iterates
  * with increasing spacing until the target quality rating is achieved or
  * max iterations are reached. The additional fields ({@code targetRating},
  * {@code achievedRating}, {@code iterationsPerformed}, {@code assessmentSummary})
@@ -14,7 +14,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * <p>When {@code targetRating} is not achieved, {@code limitingFactor} identifies
  * the worst-performing quality metric (matching a key from {@code ratingBreakdown})
- * and {@code suggestedRemediation} provides an actionable recommendation (backlog-b13).</p>
+ * and {@code suggestedRemediation} provides an actionable recommendation.</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record AutoLayoutAndRouteResultDto(

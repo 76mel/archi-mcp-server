@@ -23,7 +23,7 @@ import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IDiagramModelArchimateObject;
 
 /**
- * JUnit Plug-in Test for {@link ViewExportService} — Story 14-4 G7.
+ * JUnit Plug-in Test for {@link ViewExportService} — G7.
  *
  * <p>Exercises the per-format render path end-to-end (PNG/JPG/SVG/PDF) using
  * a tiny synthetic diagram fixture (1 element). Validates that each format

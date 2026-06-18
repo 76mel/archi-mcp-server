@@ -12,11 +12,10 @@ import net.vheerden.archi.mcp.model.routing.EdgeAttachmentCalculator.Face;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * B71 — TerminalAnchoring path-straightener invariant: parameterised
+ * TerminalAnchoring path-straightener invariant: parameterised
  * generator matrix.
  *
- * <p><strong>Membership rule (Dev Notes / compose §12.2 amendment 3,
- * verbatim):</strong>
+ * <p><strong>Membership rule:</strong>
  *
  * <blockquote>
  * This predicate is enforced exclusively at {@code path[0]} / {@code path[last]}
@@ -32,15 +31,9 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * enum constants via {@link TerminalAnchoringAssertion}, yielding
  * 5 × 81 = <strong>405 parameterised assertions</strong>.
  *
- * <p>Per compose §12.2 amendment 3 the cartesian dispatch is the test-side
+ * <p>The cartesian dispatch is the test-side
  * encoding of the wrap-site rule: any future sixth mutator that joins the
  * rule auto-qualifies through {@link WrapSite} without scope renegotiation.
- *
- * <p>References:
- * <ul>
- *   <li>{@code _bmad-output/implementation-artifacts/b71-q3-channel-nudging-envelope.md §6}</li>
- *   <li>{@code _bmad-output/implementation-artifacts/b71-day3-falsifiability-compose.md §2}</li>
- * </ul>
  */
 public class ChopboxAnchorDegeneracyTest {
 
@@ -67,7 +60,7 @@ public class ChopboxAnchorDegeneracyTest {
         }
     }
 
-    /** Five centerline offsets per compose §12.2 amendment 4. */
+    /** Five centerline offsets. */
     private static final int[] CENTERLINE_OFFSETS = {0, -1, 1, -50, 50};
 
     /**
@@ -140,7 +133,7 @@ public class ChopboxAnchorDegeneracyTest {
     /**
      * The headline V4 fixture: source rect (472, 67, 107, 200), Face.LEFT,
      * collapsed path {@code [(364, 167), (364, 559), (144, 559)]}. After a
-     * straightener mutator collapses the legitimate B9 distributed slot 3/7
+     * straightener mutator collapses the legitimate distributed slot 3/7
      * out of the path, bp[0] sits on the parallel axis through the source
      * center but NOT on the LEFT face line — the predicate must REJECT.
      */

@@ -1,12 +1,11 @@
 # Extension Guide
 
-This document provides step-by-step instructions for extending the ArchiMate MCP Server plugin: adding new tools, creating handler classes, adding layout algorithms, and registering MCP resources.
+This document provides step-by-step instructions for extending the ArchiMate MCP Server plugin: adding new tools, creating handler classes, and registering MCP resources.
 
 ## Table of Contents
 
 - [Adding a New Tool](#adding-a-new-tool)
 - [Creating a New Handler Class](#creating-a-new-handler-class)
-- [Adding a Layout Algorithm](#adding-a-layout-algorithm)
 - [Adding an MCP Resource](#adding-an-mcp-resource)
 - [Checklist](#checklist)
 
@@ -220,58 +219,6 @@ All model access goes through the `ArchiModelAccessor` interface. This boundary 
 - Pure-query tools (`get-specialization-usage`) call the accessor and format the result without entering the mutation pipeline at all
 - The class doc string explicitly notes the architecture boundary and the relationship to inline mutation parameters declared on other handlers
 
-## Adding a Layout Algorithm
-
-### Step 1: Add Algorithm Description
-
-In `LayoutEngine.java`, add to the static `ALGORITHM_DESCRIPTIONS` map:
-
-```java
-static {
-    ALGORITHM_DESCRIPTIONS = new LinkedHashMap<>();
-    ALGORITHM_DESCRIPTIONS.put("tree", "top-down hierarchical tree");
-    ALGORITHM_DESCRIPTIONS.put("spring", "force-directed/spring-based");
-    // ... existing algorithms ...
-    ALGORITHM_DESCRIPTIONS.put("your-algo", "brief description here");
-}
-```
-
-### Step 2: Add Algorithm Resolution
-
-In the `resolveAlgorithm()` method, add a case:
-
-```java
-private AbstractLayoutAlgorithm resolveAlgorithm(String name, double spacing) {
-    int style = LayoutStyles.NO_LAYOUT_NODE_RESIZING;
-    switch (name) {
-        case "tree":
-            return new TreeLayoutAlgorithm(style);
-        // ... existing cases ...
-        case "your-algo":
-            YourAlgorithm algo = new YourAlgorithm(style);
-            algo.setSpacing((int) spacing);
-            return algo;
-        default:
-            throw new ModelAccessException(
-                    "Invalid algorithm. Valid: " + listAlgorithms(),
-                    ErrorCode.INVALID_PARAMETER);
-    }
-}
-```
-
-**Requirements:**
-- The algorithm must extend `AbstractLayoutAlgorithm` from Eclipse Zest
-- Use `NO_LAYOUT_NODE_RESIZING` style to prevent node resizing
-- The LayoutEngine handles overlap resolution after algorithm execution
-
-### Optional: Add a Preset
-
-In `LayoutPreset.java`, map a semantic name to your algorithm:
-
-```java
-PRESETS.put("your-preset", new LayoutPreset("your-algo", 50));
-```
-
 ## Adding an MCP Resource
 
 MCP Resources are static reference materials served to LLM clients.
@@ -331,13 +278,6 @@ Use this checklist when extending the plugin:
 - [ ] No EMF/SWT/ArchimateTool imports (Layer 2 boundary)
 - [ ] `registerTools()` method registers all tools
 - [ ] Handler instantiated and registered in `McpServerManager.initializeHandlers()`
-
-**Adding a layout algorithm:**
-
-- [ ] Description added to `ALGORITHM_DESCRIPTIONS` map
-- [ ] Case added to `resolveAlgorithm()` switch
-- [ ] Algorithm extends `AbstractLayoutAlgorithm` from Zest
-- [ ] Optional: preset mapping in `LayoutPreset.java`
 
 **Adding an MCP resource:**
 

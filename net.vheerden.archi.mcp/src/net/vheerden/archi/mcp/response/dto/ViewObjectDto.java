@@ -3,21 +3,21 @@ package net.vheerden.archi.mcp.response.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Data Transfer Object for a visual element placed on a view (Story 7-7, 11-2).
+ * Data Transfer Object for a visual element placed on a view.
  *
  * <p>Represents the created or found diagram object on a view, including
  * its unique view object ID, the referenced model element, position/size,
  * and optional visual styling properties.</p>
  *
- * <p><strong>Story 11-2:</strong> Added optional styling fields (fillColor,
+ * <p>Added optional styling fields (fillColor,
  * lineColor, fontColor, opacity, lineWidth). These are omitted from JSON
  * when null (i.e., when the object uses Archi's default styling).</p>
  *
- * <p><strong>Story 14-1 (G4):</strong> Added optional {@code labelExpression}
+ * <p>Added optional {@code labelExpression}
  * field — Archi's per-view-object dynamic label template (e.g. {@code "${name}"},
  * {@code "${property:Owner}"}). Omitted from JSON when null (no label expression set).</p>
  *
- * <p><strong>Story 14-2 (G5):</strong> Added optional typography fields
+ * <p>Added optional typography fields
  * ({@code fontName}, {@code fontSize}, {@code fontStyle}), {@code gradient},
  * {@code borderType} (note-specific), {@code deriveLineColor}, and
  * {@code outlineOpacity}. All omitted from JSON when at Archi default.</p>
@@ -57,7 +57,7 @@ public record ViewObjectDto(
 ) {
 
     /**
-     * Constructor matching the post-{@code 14-1} 22-field shape (no Story 14-2 typography/
+     * Constructor matching the 22-field shape (no typography/
      * gradient/borderType/deriveLineColor/outlineOpacity/lineStyle fields). Delegates to the canonical
      * 30-field constructor with eight trailing nulls. Preserves existing call sites byte-identically.
      */
@@ -81,7 +81,7 @@ public record ViewObjectDto(
     }
 
     /**
-     * Constructor matching the pre-{@code 14-1} 21-field shape (no labelExpression).
+     * Constructor matching the prior 21-field shape (no labelExpression).
      * Delegates to the canonical 30-field constructor with nine trailing nulls.
      */
     public ViewObjectDto(
@@ -103,7 +103,7 @@ public record ViewObjectDto(
     }
 
     /**
-     * Constructor matching the pre-{@code backlog-group-element-styling-surface} 18-field shape
+     * Constructor matching the prior 18-field shape
      * (styling + image fields, no figureType/textAlignment/verticalTextAlignment). Delegates to the
      * canonical constructor with trailing nulls.
      */

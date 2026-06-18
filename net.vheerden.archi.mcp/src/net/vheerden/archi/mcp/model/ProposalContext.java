@@ -4,7 +4,7 @@ import java.time.Instant;
 
 /**
  * Lightweight context returned when a mutation is stored as a proposal
- * instead of executed immediately (Story 7-6, human-in-the-loop approval).
+ * instead of executed immediately (human-in-the-loop approval).
  *
  * <p>Contains only the proposal identifier and metadata needed by handlers
  * to format the proposal response. The full proposal state (Command, entity,

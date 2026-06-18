@@ -107,7 +107,7 @@ public class ViewConnectionDtoTest {
         assertEquals(dto1.hashCode(), dto2.hashCode());
     }
 
-    // ---- Story 13-1: nameVisible tests ----
+    // ---- nameVisible tests ----
 
     @Test
     public void shouldDefaultNameVisibleToNull_inConvenienceConstructor() {

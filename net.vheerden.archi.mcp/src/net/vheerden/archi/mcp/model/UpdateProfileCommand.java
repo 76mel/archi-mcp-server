@@ -9,7 +9,7 @@ import com.archimatetool.model.IProfile;
 /**
  * GEF Command that updates a specialization (profile) definition.
  *
- * <p><strong>Story C3c (original):</strong> renames the profile via
+ * <p>Renames the profile via
  * {@link IProfile#setName(String)}. The profile's name is the only mutable
  * identity field exposed by the {@code update-specialization} tool —
  * conceptType is part of the profile's identity and cannot be changed in
@@ -17,12 +17,12 @@ import com.archimatetool.model.IProfile;
  * references it (because concepts hold a reference, not a copy of the
  * name).</p>
  *
- * <p><strong>Story 14-8 / G16:</strong> extended to also update the
+ * <p>Extended to also update the
  * profile's {@code imagePath} (the specialization icon). The 3-arg
  * constructor accepts an {@link ImagePathChange} value encoding the three
  * possible operations (UNCHANGED / SET_TO / CLEAR). Both the rename and
  * the imagePath change are applied in one atomic, undoable execution.
- * Per Task 0.4 EMF probe: {@link IProfile#setImagePath(String)} is
+ * Per EMF probe: {@link IProfile#setImagePath(String)} is
  * non-idempotent (raw {@code putfield} + {@code eNotify}) — this command
  * applies an idempotence guard before invoking the setter to avoid
  * spurious model-dirty flips on same-value sets.</p>
@@ -35,17 +35,17 @@ public class UpdateProfileCommand extends Command {
 
     private final IProfile profile;
 
-    // Name change (Story C3c)
+    // Name change
     private final String newName;
     private final String oldName;
     private final boolean willChangeName;
 
-    // imagePath change (Story 14-8 / G16)
+    // imagePath change
     private final ImagePathChange imagePathChange;
     private final String oldImagePath;
 
     /**
-     * Back-compat 2-arg ctor for rename-only operations (Story C3c).
+     * Back-compat 2-arg ctor for rename-only operations.
      * Delegates to the canonical 3-arg ctor with {@link ImagePathChange#unchanged()}.
      *
      * @param profile the profile to update
@@ -56,7 +56,7 @@ public class UpdateProfileCommand extends Command {
     }
 
     /**
-     * Canonical 3-arg ctor (Story 14-8 / G16). Either {@code newName} or
+     * Canonical 3-arg ctor. Either {@code newName} or
      * {@code imagePathChange} may be a no-op — the accessor's "at least one
      * of newName / imagePath / clearImagePath" guard ensures the command is
      * never constructed with no work to do.
@@ -100,7 +100,7 @@ public class UpdateProfileCommand extends Command {
     }
 
     /**
-     * Applies the imagePath change with an idempotence guard (Task 0.4 EMF
+     * Applies the imagePath change with an idempotence guard (EMF
      * probe: {@code setImagePath} is non-idempotent — same-value sets fire
      * spurious EMF notifications). Skip the setter call when the effective
      * new value already equals the current value.
@@ -145,19 +145,19 @@ public class UpdateProfileCommand extends Command {
         return newName;
     }
 
-    /** Package-visible for testing (Story 14-8). */
+    /** Package-visible for testing. */
     String getOldImagePath() {
         return oldImagePath;
     }
 
-    /** Package-visible for testing (Story 14-8). */
+    /** Package-visible for testing. */
     ImagePathChange getImagePathChange() {
         return imagePathChange;
     }
 
     /**
      * Value type encoding the three possible operations on a profile's
-     * {@code imagePath} field (Story 14-8 / G16).
+     * {@code imagePath} field.
      *
      * <ul>
      *   <li>{@link Kind#UNCHANGED}: leave the imagePath untouched</li>

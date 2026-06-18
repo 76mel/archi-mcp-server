@@ -8,7 +8,7 @@ import net.vheerden.archi.mcp.model.geometry.GeometryUtils;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Stateless pure-geometry orthogonal (Manhattan) routing for connections (Story 9-5).
+ * Stateless pure-geometry orthogonal (Manhattan) routing for connections.
  * No EMF imports — operates on {@link RoutingRect} records and returns
  * {@link AbsoluteBendpointDto} lists.
  *
@@ -24,7 +24,7 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * for converting to/from Archi's relative offset model.</p>
  *
  * @deprecated Replaced by {@link net.vheerden.archi.mcp.model.routing.RoutingPipeline}
- *             which uses visibility-graph-based routing with A* search (Story 10-6c).
+ *             which uses visibility-graph-based routing with A* search.
  *             Retained as reference and fallback.
  */
 @Deprecated

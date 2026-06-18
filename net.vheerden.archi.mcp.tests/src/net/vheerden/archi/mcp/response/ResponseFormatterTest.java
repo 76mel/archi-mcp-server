@@ -155,7 +155,7 @@ public class ResponseFormatterTest {
         assertTrue(json.contains("\"totalCount\""));
     }
 
-    // ---- Story 5.3: addModelChangedFlag tests ----
+    // ---- addModelChangedFlag tests ----
 
     @Test
     @SuppressWarnings("unchecked")
@@ -188,7 +188,7 @@ public class ResponseFormatterTest {
         ResponseFormatter.addModelChangedFlag(envelope); // no-op, no exception
     }
 
-    // ---- Story 5.4: addCacheHitFlag tests ----
+    // ---- addCacheHitFlag tests ----
 
     @Test
     @SuppressWarnings("unchecked")
@@ -234,7 +234,7 @@ public class ResponseFormatterTest {
         assertEquals(true, meta.get("modelChanged"));
     }
 
-    // ---- Story 6.1: addCursorToken tests ----
+    // ---- addCursorToken tests ----
 
     @Test
     @SuppressWarnings("unchecked")
@@ -278,7 +278,7 @@ public class ResponseFormatterTest {
         assertFalse("cursor should not be added when null", meta.containsKey("cursor"));
     }
 
-    // ---- Story 6.1: ErrorCode INVALID_CURSOR test ----
+    // ---- ErrorCode INVALID_CURSOR test ----
 
     @Test
     public void shouldHaveInvalidCursorErrorCode() {
@@ -303,7 +303,7 @@ public class ResponseFormatterTest {
         assertFalse(json.contains("\"suggestedCorrection\""));
     }
 
-    // ---- Story 6.2: formatDryRun tests ----
+    // ---- formatDryRun tests ----
 
     @Test
     @SuppressWarnings("unchecked")
@@ -385,7 +385,7 @@ public class ResponseFormatterTest {
         assertFalse(envelope.containsKey("nextSteps"));
     }
 
-    // ---- formatGraph tests (Story 6.3) ----
+    // ---- formatGraph tests ----
 
     @Test
     @SuppressWarnings("unchecked")
@@ -443,7 +443,7 @@ public class ResponseFormatterTest {
         assertEquals(2, nextSteps.size());
     }
 
-    // ---- formatSummary tests (Story 6.3) ----
+    // ---- formatSummary tests ----
 
     @Test
     public void shouldBuildSummaryEnvelope_withSummaryKeyNotResult() {
@@ -515,7 +515,7 @@ public class ResponseFormatterTest {
         assertEquals("cursor-abc", meta.get("cursor"));
     }
 
-    // ---- Story 8-8: sessionActive in _meta (AC4) ----
+    // ---- sessionActive in _meta ----
 
     @Test
     @SuppressWarnings("unchecked")
@@ -582,7 +582,7 @@ public class ResponseFormatterTest {
         assertEquals(true, meta.get("sessionActive"));
     }
 
-    // ---- Story 8-8: addSessionWarning (AC4) ----
+    // ---- addSessionWarning ----
 
     @Test
     @SuppressWarnings("unchecked")

@@ -21,7 +21,7 @@ import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelGroup;
 
 /**
- * Tests for {@link ClearViewCommand} (Story 8-0c).
+ * Tests for {@link ClearViewCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * execute (clear all children + disconnect connections) and undo (restore all).</p>
@@ -224,7 +224,7 @@ public class ClearViewCommandTest {
         assertEquals(List.of(0, 1, 2), cmd.getOriginalIndices());
     }
 
-    // ---- Story 10-14: Nested group connection cleanup ----
+    // ---- Nested group connection cleanup ----
 
     @Test
     public void shouldDisconnectConnectionsInsideGroups() {
@@ -276,7 +276,7 @@ public class ClearViewCommandTest {
         ClearViewCommand cmd = new ClearViewCommand(groupView);
         cmd.execute();
 
-        // Connections inside groups must be disconnected (the fix for Story 10-14)
+        // Connections inside groups must be disconnected
         assertEquals("View should have no children", 0, groupView.getChildren().size());
         assertTrue("Nested connection should be disconnected from source",
                 nestedObj1.getSourceConnections().isEmpty());

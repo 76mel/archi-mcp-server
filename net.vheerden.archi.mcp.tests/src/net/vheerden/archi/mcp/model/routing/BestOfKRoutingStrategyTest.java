@@ -16,8 +16,7 @@ import net.vheerden.archi.mcp.model.routing.BestOfKRoutingStrategy.RouteRunner;
 import net.vheerden.archi.mcp.model.routing.RoutingPipeline.ConnectionEndpoints;
 
 /**
- * Unit tests for {@link BestOfKRoutingStrategy} (story
- * {@code backlog-routing-best-of-k-multi-start}, Task 1.2; AC-3 / AC-4 / AC-16).
+ * Unit tests for {@link BestOfKRoutingStrategy}.
  *
  * <p><b>No rollback is tested because best-of-K needs none.</b> The never-worse
  * guarantee is monotone-by-selection: run&nbsp;0 ({@code null} override &equiv;
@@ -26,7 +25,7 @@ import net.vheerden.archi.mcp.model.routing.RoutingPipeline.ConnectionEndpoints;
  * objective is {@code &ge;} current {@code main} for every input, BY CONSTRUCTION.
  * These tests assert that construction directly with a deterministic fake pipeline
  * runner + a controlled scorer (the real pipeline + assessor are exercised
- * end-to-end in Task 3/AC-4 on the V4 oracle fixture).
+ * end-to-end on the V4 oracle fixture).
  *
  * <p>Pure-geometry tests &mdash; no OSGi runtime required. Same package as the
  * class under test, so the package-visible {@code effectiveK} / {@code shuffledOrder}
@@ -102,7 +101,7 @@ public class BestOfKRoutingStrategyTest {
         return list;
     }
 
-    // --- AC-4 never-worse-by-construction --------------------------------
+    // --- never-worse-by-construction --------------------------------
 
     @Test
     public void shouldReturnExactRun0Result_whenK1() {
@@ -157,7 +156,7 @@ public class BestOfKRoutingStrategyTest {
                 s0.score(result) >= s0.score(RUN0));
     }
 
-    // --- AC-16 determinism / reproducibility -----------------------------
+    // --- determinism / reproducibility -----------------------------
 
     @Test
     public void shouldProduceIdenticalOrderSequence_forSameSeed() {
@@ -244,7 +243,7 @@ public class BestOfKRoutingStrategyTest {
         }
     }
 
-    // --- AC-15 large-view guard + wall-clock budget ----------------------
+    // --- large-view guard + wall-clock budget ----------------------
 
     @Test
     public void shouldDegradeToK1_whenViewExceedsLargeViewThreshold() {
@@ -296,7 +295,7 @@ public class BestOfKRoutingStrategyTest {
         new BestOfKRoutingStrategy(null, scorer(1, 0));
     }
 
-    /** AC-11 TEST-1: directly pin the ctor null-scorer guard. */
+    /** Directly pin the ctor null-scorer guard. */
     @Test(expected = IllegalArgumentException.class)
     public void shouldRejectNullScorer() {
         new BestOfKRoutingStrategy(new RecordingRunner(), null);

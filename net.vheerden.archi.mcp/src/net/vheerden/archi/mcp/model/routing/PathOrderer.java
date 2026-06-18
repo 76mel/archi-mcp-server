@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Path orderer for crossing minimization in shared corridors (Story 10-7a).
+ * Path orderer for crossing minimization in shared corridors.
  * Pure-geometry class — no EMF/SWT dependencies.
  *
  * <p>After all connections in a view are individually routed, this class
@@ -19,9 +19,9 @@ import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
  * and detects unnecessary crossings by comparing perpendicular endpoint
  * positions against segment ordering within each corridor.</p>
  *
- * <p>10-7a computes corridor analysis (segment extraction, grouping, crossing
+ * <p>This stage computes corridor analysis (segment extraction, grouping, crossing
  * detection). Physical reordering of segments requires spatial separation
- * (nudging), which is story 10-7b's responsibility. Bendpoint lists are
+ * (nudging), which is a separate stage's responsibility. Bendpoint lists are
  * returned unmodified.</p>
  *
  * <p>Only analyses connections within shared corridors. Topological crossings
@@ -94,7 +94,7 @@ public class PathOrderer {
      * <p>Performs corridor analysis (segment extraction, grouping, crossing detection)
      * and logs the results. Bendpoint lists are returned unmodified because physically
      * reordering collinear segments requires spatial separation (nudging), which is
-     * story 10-7b's responsibility.</p>
+     * a separate stage's responsibility.</p>
      *
      * @param connectionIds  list of connection identifiers (parallel with bendpointLists)
      * @param bendpointLists list of bendpoint lists (one per connection), in absolute coordinates
@@ -114,14 +114,14 @@ public class PathOrderer {
             return new ArrayList<>(bendpointLists);
         }
 
-        // Detect crossings (physical reordering requires nudging from 10-7b)
+        // Detect crossings (physical reordering requires a separate nudging stage)
         List<CrossingInfo> crossings = detectCrossings(
                 connectionIds, bendpointLists, sourceCenters, targetCenters);
 
         logger.debug("Path ordering analysis: {} crossings detected across {} connections",
                 crossings.size(), bendpointLists.size());
 
-        // Return unmodified copies — physical reordering applied by 10-7b nudging
+        // Return unmodified copies — physical reordering applied by a separate nudging stage
         List<List<AbsoluteBendpointDto>> result = new ArrayList<>();
         for (List<AbsoluteBendpointDto> bps : bendpointLists) {
             result.add(new ArrayList<>(bps));
@@ -131,7 +131,7 @@ public class PathOrderer {
 
     /**
      * Detects unnecessary crossings in shared corridors across all connections.
-     * Package-visible for testing and for consumption by 10-7b nudging.
+     * Package-visible for testing and for consumption by the nudging stage.
      *
      * @return list of detected crossings (each crossing identifies two segments from different connections)
      */

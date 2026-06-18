@@ -34,7 +34,7 @@ import net.vheerden.archi.mcp.response.dto.RelationshipSemanticAttributes;
 import org.eclipse.gef.commands.Command;
 
 /**
- * Tests for {@link ElementUpdateHandler} (Story 7-3).
+ * Tests for {@link ElementUpdateHandler}.
  *
  * <p>Uses a StubUpdateAccessor that returns canned DTOs for the
  * updateElement method, avoiding EMF/GEF dependencies in handler tests.</p>
@@ -272,7 +272,7 @@ public class ElementUpdateHandlerTest {
         assertEquals("MODEL_NOT_LOADED", error.get("code"));
     }
 
-    // ---- Approval mode tests (Story 7-6) ----
+    // ---- Approval mode tests ----
 
     @Test
     public void shouldReturnProposalResponse_whenApprovalModeEnabled() throws Exception {
@@ -301,7 +301,7 @@ public class ElementUpdateHandlerTest {
 
         @SuppressWarnings("unchecked")
         List<String> nextSteps = (List<String>) result.get("nextSteps");
-        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("decide-mutation")));
+        assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
         assertTrue(nextSteps.stream().anyMatch(s -> s.contains("list-pending-approvals")));
     }
 
@@ -505,7 +505,7 @@ public class ElementUpdateHandlerTest {
         assertEquals("INVALID_PARAMETER", error.get("code"));
     }
 
-    // ---- Story 14-7 (G1) tests ----
+    // ---- G1 tests ----
 
     @Test
     @SuppressWarnings("unchecked")

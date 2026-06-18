@@ -8,15 +8,14 @@ import org.junit.Test;
  * JUnit pin for {@link GroupSpacingHeuristic#targetSpacingForConnectionCount(int, boolean, boolean)}.
  * Pure-unit tests (no OSGi).
  *
- * <p>Per Story RoutingPreconditions.HubAwareSpacingHeuristics AC-7 primary —
- * pins the entire 3x3 heuristic table (connected-no-hubs / connected-has-hubs
+ * <p>Pins the entire 3x3 heuristic table (connected-no-hubs / connected-has-hubs
  * / unconnected × ≤15 / 16-30 / &gt;30) plus the 15/16/30/31 boundary
  * transitions on each column plus the unconnected hub-agnostic invariant
  * ({@code (N, false, true)} returns the SAME value as
  * {@code (N, false, false)}). Sibling-symmetric with
  * {@link ElementSpacingHeuristicTest}.</p>
  *
- * <p>Per {@code feedback_metric_and_regression_test_together.md}: any change
+ * <p>Any change
  * to the heuristic table requires a coordinated edit across (1) the markdown
  * resource {@code archimate-view-patterns.md} §2, (2)
  * {@link GroupSpacingHeuristic}, (3) this test, (4) the four production
@@ -195,11 +194,10 @@ public class GroupSpacingHeuristicTest {
     }
 
     // ------------------------------------------------------------------
-    // AC-7.3 — Control-loop honours heuristic target as upper bound
+    // Control-loop honours heuristic target as upper bound
     // ------------------------------------------------------------------
     //
-    // Story `backlog-convenience-tool-control-loop-architectural-redesign`
-    // AC-7.3. Each of the 9 group-spacing heuristic branches (3 tiers × 3
+    // Each of the 9 group-spacing heuristic branches (3 tiers × 3
     // columns = connected-no-hubs / connected-has-hubs / unconnected) is
     // pinned: when SpacingIterationDecision.decideNextStep is called with
     // currentSpacingPx == heuristic-target, it returns keepGoing=false +

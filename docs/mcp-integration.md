@@ -278,6 +278,22 @@ Optional TLS support via PKCS12/JKS keystore:
 - Keystore path and password configured in Archi preferences
 - Validated at startup (path existence, password correctness)
 
+### Authentication (Bearer Token)
+
+Optional, opt-in bearer-token authentication enforced by `BearerTokenAuthHandler`, a Jetty `Handler.Wrapper` that runs *before* either transport servlet. It is the orthogonal complement to TLS: TLS encrypts the channel, the bearer token authenticates the caller.
+
+- **Off by default** (`PREF_AUTH_TOKEN_ENABLED = false`) so existing clients are unaffected until a user opts in.
+- When enabled, **every request to both `/mcp` and `/sse`** must carry an `Authorization: Bearer <token>` header. The `Bearer` scheme keyword is matched case-insensitively; the token value is matched exactly.
+- A missing or invalid token returns **`401 Unauthorized`** with a `WWW-Authenticate: Bearer realm="MCP Server"` challenge (RFC 7235 / RFC 6750). The 401 body is the same JSON-RPC error envelope as every other HTTP-level error (`-32600`, `data.httpStatus: 401`).
+- The presented token is compared to the stored token in **constant time** (both SHA-256-digested, compared via `MessageDigest.isEqual`), so neither the value nor the length leaks via timing. The token value is never logged.
+- **Fail-closed:** if enabled but the token cannot be read from secure storage at startup, the server starts with an unmatchable random token so every request is rejected rather than served unauthenticated.
+
+The token itself is managed by `BearerTokenStore`: a 256-bit `SecureRandom` value, URL-safe Base64 without padding (43 characters), generated and regenerated from the preferences page and persisted in **Equinox secure storage** (never written to plaintext preferences). Regenerating invalidates the old token — every client must update its `Authorization` header.
+
+This composes with the loopback/DNS-rebinding `OriginHostValidationHandler` (which returns `403` for disallowed `Origin`/`Host` on a browser, loopback bind only): Origin/Host validation is the outer guard, the bearer token the inner one enforced on every request regardless of bind address.
+
+**Source:** `server/BearerTokenAuthHandler.java`, `server/BearerTokenStore.java`
+
 ### Server Lifecycle
 
 ```mermaid

@@ -24,10 +24,8 @@ import net.vheerden.archi.mcp.model.SpacingControlLoop;
 import net.vheerden.archi.mcp.model.SpacingMutationCommand;
 
 /**
- * Integration pin for AC-7.4 of Story
- * `backlog-convenience-tool-control-loop-architectural-redesign`: the
- * single-undo wrapping invariant of the embedded observe → decide → back-off
- * control loop.
+ * Integration pin for the single-undo wrapping invariant of the embedded
+ * observe → decide → back-off control loop.
  *
  * <p><strong>Substrate (Path B-prime — real-EMF pure-unit JUnit):</strong>
  * mirrors the project's existing convention for command-level tests
@@ -49,58 +47,58 @@ import net.vheerden.archi.mcp.model.SpacingMutationCommand;
  * notification suppression; that static initializer requires
  * {@code ArchiPlugin.getInstance() != null} which is only true under the OSGi
  * runtime. Pure-unit JUnit cannot satisfy that precondition without launching
- * a full PDE substrate. The AC-7.4 invariant under test (atomic
+ * a full PDE substrate. The invariant under test (atomic
  * execute/undo/redo across N inner commands wrapped in a single compound) is
  * provided by the GEF base {@code CompoundCommand}'s standard semantics —
  * the {@code NonNotifyingCompoundCommand} subclass adds ONLY notification-
  * suppression (irrelevant to undo atomicity). The production
  * {@code ArchiModelAccessorImpl.applyXxxSpacingRecommendations(...)} methods
- * use {@code NonNotifyingCompoundCommand} (verified live during Session 5
- * Task 4.5(d) sanity check via the live MCP plugin); this test substrates
+ * use {@code NonNotifyingCompoundCommand} (verified live via the MCP plugin);
+ * this test substrates
  * the same atomicity property at the GEF base level.</p>
  *
- * <p><strong>What this pin verifies (AC-7.4 properties (a) + (b) + (c)):</strong>
+ * <p><strong>What this pin verifies (properties (a) + (b) + (c)):</strong>
  * <ol>
  *   <li>{@code oneAccessorCall_compoundCommandWrapsAllAcceptedIterations} —
- *       AC-7.4 (a): one tool call produces exactly ONE undo-stack entry. The
+ *       (a): one tool call produces exactly ONE undo-stack entry. The
  *       {@link SpacingControlLoop#iterate} call's
  *       {@code result.acceptedCommands()} list is wrapped in exactly one
  *       {@link CompoundCommand}; the compound's
  *       {@code getCommands().size()} equals the accepted-iteration count;
  *       {@code result.iterations().size()} matches both.</li>
  *   <li>{@code compoundUndo_revertsAllAcceptedIterationsAtomically} —
- *       AC-7.4 (b): {@code compound.undo()} called ONCE reverts ALL accepted
+ *       (b): {@code compound.undo()} called ONCE reverts ALL accepted
  *       iterations atomically. Real EMF state (an element's
  *       {@link IDiagramModelArchimateObject#setBounds(int,int,int,int)} x
  *       coordinate) verified to return to the pre-execute baseline, NOT to
  *       any intermediate state.</li>
- *   <li>{@code compoundRedo_replaysAllAcceptedIterationsAtomically} — AC-7.4
+ *   <li>{@code compoundRedo_replaysAllAcceptedIterationsAtomically} —
  *       (c): {@code compound.redo()} called ONCE after an undo replays ALL
  *       accepted iterations atomically. Real EMF state verified to return to
  *       the post-execute target, NOT to any intermediate state.</li>
  * </ol></p>
  *
  * <p><strong>Scope caveat (documented intentionally):</strong> this pin
- * verifies the COMPOUND atomicity property — the level at which the AC-7.4
+ * verifies the COMPOUND atomicity property — the level at which the
  * invariant lives. It does NOT exercise the accessor's
  * {@code dispatchOrQueue(...)} end-to-end stack-push behaviour through the
  * Archi {@code CommandStack} (that requires full OSGi/PDE substrate which the
  * project does NOT use for tests). The accessor-level end-to-end behaviour was
- * verified live during Session 5 mid-session via Task 4.5 sub-promise (d) —
+ * verified live —
  * the live MCP {@code apply-element-spacing-recommendations(viewId="...",
  * dryRun=true)} call returned a response DTO with the expected
  * {@code terminationReason} / {@code iterationCount} / {@code appliedDeltas}
  * fields populated end-to-end through the MCP envelope serialization. For full
  * live undo/redo verification across the public command stack on a real model,
- * the canonical evidence is Task 5's re-empirical (12 sub-agents exercising
+ * the canonical evidence is the live empirical run (sub-agents exercising
  * the live {@code apply-*-recommendations} tools through the MCP server).</p>
  *
  * <p><strong>Sibling-symmetric with the pure-unit
- * {@code SpacingControlLoopTest} (AC-7.1, 17 @Test methods covering the loop's
+ * {@code SpacingControlLoopTest} (17 @Test methods covering the loop's
  * own logic) and the test-stub-based
- * {@code Apply{Element,Group,}SpacingRecommendationsToolTest} (AC-7.5,
- * 6 @Test methods each covering the accessor's tool-level integration).</strong>
- * This class delivers the AC-7.4-required minimum 3 @Test methods.</p>
+ * {@code Apply{Element,Group,}SpacingRecommendationsToolTest}
+ * (6 @Test methods each covering the accessor's tool-level integration).</strong>
+ * This class delivers the required minimum 3 @Test methods.</p>
  */
 public class SpacingControlLoopUndoIntegrationTest {
 
@@ -152,7 +150,7 @@ public class SpacingControlLoopUndoIntegrationTest {
 
     @Test
     public void oneAccessorCall_compoundCommandWrapsAllAcceptedIterations() {
-        // AC-7.4 (a): one tool call = exactly ONE undo-stack entry.
+        // (a): one tool call = exactly ONE undo-stack entry.
         // We verify by running SpacingControlLoop.iterate(...) with scripted
         // callbacks that drive ACCEPTED_ITERATION_COUNT (3) accepted
         // iterations, then wrapping the result.acceptedCommands() in a single
@@ -189,7 +187,7 @@ public class SpacingControlLoopUndoIntegrationTest {
 
     @Test
     public void compoundUndo_revertsAllAcceptedIterationsAtomically() {
-        // AC-7.4 (b): undo() called ONCE reverts ALL accepted iterations
+        // (b): undo() called ONCE reverts ALL accepted iterations
         // atomically. We verify by running the loop, wrapping accepted
         // commands, executing the compound to advance the EMF state, then
         // calling compound.undo() ONCE and asserting the EMF state is
@@ -215,7 +213,7 @@ public class SpacingControlLoopUndoIntegrationTest {
 
     @Test
     public void compoundRedo_replaysAllAcceptedIterationsAtomically() {
-        // AC-7.4 (c): redo() called ONCE replays ALL accepted iterations
+        // (c): redo() called ONCE replays ALL accepted iterations
         // atomically. We verify by running the loop, wrapping accepted
         // commands, executing the compound, undoing it, then calling
         // compound.redo() ONCE and asserting the EMF state is restored to
@@ -241,12 +239,12 @@ public class SpacingControlLoopUndoIntegrationTest {
 
     @Test
     public void compoundUndoRedoRoundTrip_preservesEmfStateExactly() {
-        // AC-7.4 (b) + (c) joint pin: round-trip atomicity. After
+        // (b) + (c) joint pin: round-trip atomicity. After
         // execute → undo → redo → undo, the EMF state must equal the original
         // pre-execute baseline; the compound must not "leak" state across
         // round-trips. This is a stronger property than the individual
         // (b) + (c) pins above (which only verify single-direction
-        // transitions); included as a 4th @Test method exceeding AC-7.4's
+        // transitions); included as a 4th @Test method exceeding the
         // minimum 3.
         SpacingControlLoop.Result result = runLoopScripted(ACCEPTED_ITERATION_COUNT);
         CompoundCommand compound = wrapInCompound(
@@ -317,8 +315,7 @@ public class SpacingControlLoopUndoIntegrationTest {
     /**
      * Wrap the loop-result's accepted commands in a single
      * {@link CompoundCommand}, mirroring the production
-     * {@code ArchiModelAccessorImpl} accessor's outer-compound pattern (per
-     * arch-spec § 1.6 + AC-6).
+     * {@code ArchiModelAccessorImpl} accessor's outer-compound pattern.
      */
     private CompoundCommand wrapInCompound(
             List<SpacingMutationCommand> accepted, String label) {

@@ -2,16 +2,13 @@ package net.vheerden.archi.mcp.model;
 
 /**
  * Pure-EMF-free graded intrinsic layout-quality scalar — Decision-A.1.3 =
- * α''' Fix-2 (RC-2), Session 11 (2026-05-16), Task 10.5 under sprint-status
- * row 703 (Story
- * {@code backlog-convenience-tool-control-loop-architectural-redesign}).
+ * α''' Fix-2 (RC-2).
  *
  * <p><strong>Why this exists.</strong> The original tool-layer aggregate
- * (architecture-spec § 1.10 Appendix Q1, Session-3 party-mode-ratified) scored
+ * scored
  * {@code thresholdsMet} as a 4-condition binary-at-zero pseudo-aggregate:
  * {@code (coincSeg==0) + (M4==0) + (boundaryViolations.isEmpty()) +
- * (HPQ>=0.75)}, range [0,4]. RC-2 (Task 10.2 root-cause diagnosis,
- * {@code control-loop-redesign-empirical-2026-05-15-session10/decision-a13-diagnosis.md}):
+ * (HPQ>=0.75)}, range [0,4]. RC-2 (root-cause diagnosis):
  * on the dense gate views M4 stays 3–18 and coincSeg 0–16, so the
  * {@code M4==0} / {@code coincSeg==0} bits are dead weight (≈ always 0). The
  * live signal collapsed to a hypersensitive 2-bit HPQ+boundaryViolations
@@ -20,10 +17,8 @@ package net.vheerden.archi.mcp.model;
  * {@code aggregate_threshold_regressed_at_iteration_0_reverted_to_initial_state}
  * symptom across Sessions 6–10.</p>
  *
- * <p><strong>The ratified design</strong> (Task 10.4 party-mode round,
- * OWNER-RATIFIED 2026-05-16,
- * {@code control-loop-redesign-empirical-2026-05-15-session10/task-10-4-party-mode-resolution.md}
- * § 3.2): replace binary-at-zero with a graded scalar whose intrinsic anchors
+ * <p><strong>The ratified design:</strong>
+ * replace binary-at-zero with a graded scalar whose intrinsic anchors
  * are <em>reachable and graded along the path the loop actually travels</em>,
  * sourced from the existing owner-ratified, perceptually-calibrated
  * {@code feedback_visual_severity} v3 severity model (the same model behind
@@ -37,10 +32,9 @@ package net.vheerden.archi.mcp.model;
  *               // total range [0, 12]
  * </pre></p>
  *
- * <p><strong>AC / contract preservation</strong> (party-mode § 6
- * AC-preservation matrix):
+ * <p><strong>Contract preservation:</strong>
  * <ul>
- *   <li><strong>AC-3</strong> (aggregate back-off, NOT per-metric monotonic):
+ *   <li><strong>Aggregate back-off, NOT per-metric monotonic:</strong>
  *       {@link SpacingControlLoop#acceptStepDecision} is UNCHANGED — it still
  *       compares {@code post.thresholdsMet() >= best.thresholdsMet()} as a
  *       single opaque scalar; only the range widens [0,4] → [0,12]. Quinn
@@ -58,26 +52,25 @@ package net.vheerden.archi.mcp.model;
  *       every M4/coincSeg band spans ≥ 3 consecutive integer values — NOT from
  *       the scenario goal envelope (HH M4≤4 / ST M4≤8). The convenience tool
  *       never receives the strict-narrow empirical goal.</li>
- *   <li><strong>Quinn attack A2 (never backs off / crawls a micro-gradient):</strong>
+ *   <li><strong>Never backs off / crawls a micro-gradient:</strong>
  *       DEFANGED by coarse bands — noise-level reroute jitter (±1 on M4/coincSeg)
  *       stays in the SAME band → contributes 0 → falls to the existing
  *       intrinsic tie-break; only real progress (e.g. M4 12→5) crosses a band.
  *       Band width IS the noise filter. This is the property
- *       {@code LayoutQualityScalarTest}'s band-width property test (Task 10.6
- *       T4) pins mechanically against {@link #M4_BAND_BOUNDARIES} /
+ *       {@code LayoutQualityScalarTest}'s band-width property test pins
+ *       mechanically against {@link #M4_BAND_BOUNDARIES} /
  *       {@link #COINCSEG_BAND_BOUNDARIES}.</li>
  * </ul></p>
  *
- * <p><strong>Success-bar reframe (party-mode § 3.4, load-bearing):</strong>
+ * <p><strong>Success-bar reframe (load-bearing):</strong>
  * the aggregate's contract is "do not sabotage the agent — no spurious
  * iteration-0 revert on a state that is actually fine", NOT "be a perfect
  * goal oracle." The agent is the optimizer; the loop is a non-adversarial,
  * honest substrate.</p>
  *
- * <p>Band boundaries are enumerated in architecture-spec § 1.10 Appendix
- * (Session-11). This class is the single source of truth for the band
- * arithmetic; the markdown enumeration and {@code LayoutQualityScalarTest}
- * are coordinated edits against it (coordination contract — same pattern as
+ * <p>This class is the single source of truth for the band
+ * arithmetic; {@code LayoutQualityScalarTest}
+ * is a coordinated edit against it (coordination contract — same pattern as
  * {@link ElementSpacingHeuristic}).</p>
  */
 public final class LayoutQualityScalar {
@@ -122,6 +115,12 @@ public final class LayoutQualityScalar {
      * {@code HUB_PORT_QUALITY_FAIR_THRESHOLD}); 0 otherwise. HPQ is a
      * continuous double on a perceptual scale, not subject to the
      * integer-band-width rule.
+     *
+     * <p>Note: as of 2026-06-14 ({@code hubPortQualityScore}) is the MIN (worst) hub-face
+     * quality, not the mean (story g-hub-port-onesided-egress-fanout). These band bounds were
+     * originally calibrated under mean semantics; under min an HPQ at or below a boundary yields
+     * the same-or-lower credit (stricter, by design — a degraded face is no longer averaged away).
+     * The bounds were intentionally left unchanged.</p>
      */
     public static final double[] HPQ_BAND_LOWER_BOUNDS = {0.95, 0.75, 0.50};
 
@@ -170,7 +169,7 @@ public final class LayoutQualityScalar {
 
     /**
      * Binary-at-zero credit for the three genuine correctness defects
-     * (party-mode § 3.2: a boundary violation / pass-through / sibling
+     * (a boundary violation / pass-through / sibling
      * overlap is a genuine correctness defect, NOT a graded-quality
      * dimension — these STAY binary-at-0 deliberately). Range [0, 3].
      *

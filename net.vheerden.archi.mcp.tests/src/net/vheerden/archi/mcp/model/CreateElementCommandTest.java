@@ -14,7 +14,7 @@ import com.archimatetool.model.IBusinessActor;
 import com.archimatetool.model.IFolder;
 
 /**
- * Tests for {@link CreateElementCommand} (Story 7-2).
+ * Tests for {@link CreateElementCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * execute (add to folder) and undo (remove from folder) behavior.</p>

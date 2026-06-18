@@ -8,7 +8,7 @@ import net.vheerden.archi.mcp.response.CostEstimator.ItemType;
 import net.vheerden.archi.mcp.response.FieldSelector.FieldPreset;
 
 /**
- * Tests for {@link CostEstimator} — token estimation and recommendation logic (Story 6.2).
+ * Tests for {@link CostEstimator} — token estimation and recommendation logic.
  */
 public class CostEstimatorTest {
 

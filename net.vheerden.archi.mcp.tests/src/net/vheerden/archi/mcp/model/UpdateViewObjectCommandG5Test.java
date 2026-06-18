@@ -15,13 +15,13 @@ import com.archimatetool.model.IDiagramModelNote;
 import com.archimatetool.model.IDiagramModelObject;
 
 /**
- * Single-undo-unit pins for the Story 14-2 G5 styling rail extensions to
+ * Single-undo-unit pins for the G5 styling rail extensions to
  * {@link UpdateViewObjectCommand}: gradient, note borderType, deriveLineColor,
  * outlineOpacity, and the typography composite-string merge.
  *
- * <p>Each test follows the predecessor pattern (Story 11-2 + backlog-group-element-styling-surface):
+ * <p>Each test follows the predecessor pattern:
  * construct → capture-at-construction → execute → assert new state → undo →
- * assert old state restored. AC10 (single undo unit) is satisfied by construction
+ * assert old state restored. The single-undo-unit property is satisfied by construction
  * since all G5 fields ride the existing styling rail and share the same
  * {@code hasStylingChange} boundary.</p>
  */
@@ -60,7 +60,7 @@ public class UpdateViewObjectCommandG5Test {
     }
 
     // ------------------------------------------------------------------
-    // Gradient — AC5 set / undo
+    // Gradient — set / undo
     // ------------------------------------------------------------------
 
     @Test
@@ -106,7 +106,7 @@ public class UpdateViewObjectCommandG5Test {
     }
 
     // ------------------------------------------------------------------
-    // borderType — AC6 set / undo (note only)
+    // borderType — set / undo (note only)
     // ------------------------------------------------------------------
 
     @Test
@@ -145,7 +145,7 @@ public class UpdateViewObjectCommandG5Test {
     }
 
     // ------------------------------------------------------------------
-    // deriveLineColor — AC7 set / undo
+    // deriveLineColor — set / undo
     // ------------------------------------------------------------------
 
     @Test
@@ -164,7 +164,7 @@ public class UpdateViewObjectCommandG5Test {
     }
 
     // ------------------------------------------------------------------
-    // outlineOpacity — AC8 set / undo
+    // outlineOpacity — set / undo
     // ------------------------------------------------------------------
 
     @Test
@@ -183,7 +183,7 @@ public class UpdateViewObjectCommandG5Test {
     }
 
     // ------------------------------------------------------------------
-    // Typography — AC2 set / undo (composite-string merge)
+    // Typography — set / undo (composite-string merge)
     // ------------------------------------------------------------------
 
     @Test
@@ -218,7 +218,7 @@ public class UpdateViewObjectCommandG5Test {
     }
 
     // ------------------------------------------------------------------
-    // lineStyle (view-object) — AC4 (post Task-9 empirical correction)
+    // lineStyle (view-object) — post Task-9 empirical correction
     // ------------------------------------------------------------------
 
     @Test
@@ -259,7 +259,7 @@ public class UpdateViewObjectCommandG5Test {
     }
 
     // ------------------------------------------------------------------
-    // AC11 — back-compat byte-identical when no G5 fields set
+    // back-compat byte-identical when no G5 fields set
     // ------------------------------------------------------------------
 
     @Test
@@ -289,7 +289,7 @@ public class UpdateViewObjectCommandG5Test {
     }
 
     // ------------------------------------------------------------------
-    // AC10 — single undo unit covering pre-G5 + G5 fields together
+    // single undo unit covering pre-G5 + G5 fields together
     // ------------------------------------------------------------------
 
     @Test

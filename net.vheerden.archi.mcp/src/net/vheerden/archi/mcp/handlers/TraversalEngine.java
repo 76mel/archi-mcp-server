@@ -18,7 +18,7 @@ import net.vheerden.archi.mcp.response.dto.RelationshipDto;
 /**
  * Pure BFS traversal engine for multi-hop relationship chain discovery.
  *
- * <p>Extracted from TraversalHandler (Story 7.0a) to isolate the BFS algorithm
+ * <p>Extracted from TraversalHandler to isolate the BFS algorithm
  * from handler orchestration concerns (parameter validation, caching, format
  * routing, MCP protocol types).</p>
  *
@@ -258,7 +258,7 @@ public class TraversalEngine {
         hopRel.put("type", rel.type());
         hopRel.put("sourceId", rel.sourceId());
         hopRel.put("targetId", rel.targetId());
-        // Story 14-7 (G1): surface semantic-attribute fields when populated (NON_NULL discipline).
+        // Surface semantic-attribute fields when populated (NON_NULL discipline).
         if (rel.accessType() != null) {
             hopRel.put("accessType", rel.accessType());
         }

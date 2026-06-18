@@ -12,7 +12,7 @@ import net.vheerden.archi.mcp.model.RoutingRect;
 import net.vheerden.archi.mcp.response.dto.AbsoluteBendpointDto;
 
 /**
- * Tests for {@link EdgeNudger} (Story 10-7b).
+ * Tests for {@link EdgeNudger}.
  * Pure-geometry tests — no OSGi runtime required.
  */
 public class EdgeNudgerTest {
@@ -24,7 +24,7 @@ public class EdgeNudgerTest {
         nudger = new EdgeNudger();
     }
 
-    // --- Test 4.1: Two parallel horizontal connections nudged apart (AC #1) ---
+    // --- Test 4.1: Two parallel horizontal connections nudged apart ---
 
     @Test
     public void shouldNudgeApart_whenTwoParallelHorizontalConnections() {
@@ -66,7 +66,7 @@ public class EdgeNudgerTest {
                 separation >= EdgeNudger.DEFAULT_MIN_SPACING);
     }
 
-    // --- Test 4.2: Two parallel vertical connections nudged apart (AC #1) ---
+    // --- Test 4.2: Two parallel vertical connections nudged apart ---
 
     @Test
     public void shouldNudgeApart_whenTwoParallelVerticalConnections() {
@@ -102,7 +102,7 @@ public class EdgeNudgerTest {
                 separation >= EdgeNudger.DEFAULT_MIN_SPACING);
     }
 
-    // --- Test 4.3: Three connections in a corridor — evenly distributed (AC #1) ---
+    // --- Test 4.3: Three connections in a corridor — evenly distributed ---
 
     @Test
     public void shouldDistributeEvenly_whenThreeConnectionsInCorridor() {
@@ -151,7 +151,7 @@ public class EdgeNudgerTest {
                 Math.abs(gap1 - gap2) <= 1);
     }
 
-    // --- Test 4.4: Narrow corridor clamps spacing (AC #2) ---
+    // --- Test 4.4: Narrow corridor clamps spacing ---
 
     @Test
     public void shouldClampSpacing_whenCorridorIsNarrow() {
@@ -195,7 +195,7 @@ public class EdgeNudgerTest {
         }
     }
 
-    // --- Test 4.5: Single connection in corridor — centred, no offset (AC #3) ---
+    // --- Test 4.5: Single connection in corridor — centred, no offset ---
 
     @Test
     public void shouldNotNudge_whenSingleConnectionInCorridor() {
@@ -216,7 +216,7 @@ public class EdgeNudgerTest {
         assertEquals(200, bendpointLists.get(0).get(1).y());
     }
 
-    // --- Test 4.6: No shared segments — all paths unchanged (AC #1) ---
+    // --- Test 4.6: No shared segments — all paths unchanged ---
 
     @Test
     public void shouldNotNudge_whenNoSharedSegments() {
@@ -243,7 +243,7 @@ public class EdgeNudgerTest {
         assertEquals(300, bendpointLists.get(1).get(1).y());
     }
 
-    // --- Test 4.7: Empty/single-bendpoint connections — skipped (AC #1) ---
+    // --- Test 4.7: Empty/single-bendpoint connections — skipped ---
 
     @Test
     public void shouldSkipConnections_whenEmptyOrSingleBendpoint() {
@@ -265,7 +265,7 @@ public class EdgeNudgerTest {
         assertEquals(1, result.get(1).size());
     }
 
-    // --- Test 4.8: Mixed horizontal and vertical groups processed independently (AC #1) ---
+    // --- Test 4.8: Mixed horizontal and vertical groups processed independently ---
 
     @Test
     public void shouldProcessHorizontalAndVerticalGroupsIndependently() {
@@ -313,7 +313,7 @@ public class EdgeNudgerTest {
         assertNotEquals("Vertical group should be nudged apart", xA_v, xC_v);
     }
 
-    // --- Test 4.9: Obstacle boundary enforcement (AC #4) ---
+    // --- Test 4.9: Obstacle boundary enforcement ---
 
     @Test
     public void shouldRespectObstacleBoundaries_whenNudging() {
@@ -388,11 +388,11 @@ public class EdgeNudgerTest {
         assertEquals("No obstacles → corridor width = 2 * searchRange - 2 * margin = 980", 980, bounds.width());
     }
 
-    // --- Story 10-19a: Perpendicular obstacle detection tests ---
+    // --- Perpendicular obstacle detection tests ---
 
     @Test
     public void shouldClampCorridor_whenObstacleStraddlesSharedCoord() {
-        // AC #1: Obstacle at (200, 85, 30, 30) straddles y=100 corridor
+        // Obstacle at (200, 85, 30, 30) straddles y=100 corridor
         PathOrderer orderer = new PathOrderer();
         EdgeNudger n = new EdgeNudger(8, 30, 500, orderer);
 
@@ -414,7 +414,7 @@ public class EdgeNudgerTest {
 
     @Test
     public void shouldNotNudgeIntoObstacle_whenObstacleStraddlesHorizontalCorridor() {
-        // AC #1: 3 parallel horizontal connections at y=100, obstacle at (200, 85, 30, 30)
+        // 3 parallel horizontal connections at y=100, obstacle at (200, 85, 30, 30)
         // Corridor blocked by straddler → segments stay at original y=100 (no nudging)
         List<String> ids = List.of("c0", "c1", "c2");
         List<List<AbsoluteBendpointDto>> bendpointLists = new ArrayList<>();
@@ -450,7 +450,7 @@ public class EdgeNudgerTest {
 
     @Test
     public void shouldClampCorridor_whenObstacleBarelyTouchesParallelExtent() {
-        // Task 2.1: Obstacle x-range barely overlaps segment x-range
+        // Obstacle x-range barely overlaps segment x-range
         PathOrderer orderer = new PathOrderer();
         EdgeNudger n = new EdgeNudger(8, 30, 500, orderer);
 
@@ -472,7 +472,7 @@ public class EdgeNudgerTest {
 
     @Test
     public void shouldClampCorridor_whenObstacleCompletelyBlocksOneSide() {
-        // Task 2.2: Perpendicular obstacle completely blocking corridor on one side
+        // Perpendicular obstacle completely blocking corridor on one side
         PathOrderer orderer = new PathOrderer();
         EdgeNudger n = new EdgeNudger(8, 30, 500, orderer);
 
@@ -496,7 +496,7 @@ public class EdgeNudgerTest {
 
     @Test
     public void shouldRespectNarrowCorridorBetweenLargeElements() {
-        // AC #3: Narrow corridor between two large elements with multiple parallel connections
+        // Narrow corridor between two large elements with multiple parallel connections
         List<String> ids = List.of("c0", "c1", "c2");
         List<List<AbsoluteBendpointDto>> bendpointLists = new ArrayList<>();
         // Three horizontal connections at y=200 in the gap between two elements
@@ -581,11 +581,11 @@ public class EdgeNudgerTest {
                 bounds.width() <= 0);
     }
 
-    // --- Story 10-23: Straddling + adjacent obstacle tests ---
+    // --- Straddling + adjacent obstacle tests ---
 
     @Test
     public void shouldNotNudgeIntoAdjacentObstacle_whenStraddlerBlocksCorridor() {
-        // AC #1, Task 3.1: Straddling obstacle + adjacent obstacle near far edge
+        // Straddling obstacle + adjacent obstacle near far edge
         // Segments must NOT land inside adjacent obstacle
         List<String> ids = List.of("c0", "c1");
         List<List<AbsoluteBendpointDto>> bendpointLists = new ArrayList<>();
@@ -619,7 +619,7 @@ public class EdgeNudgerTest {
 
     @Test
     public void shouldTightenLowerBound_whenPerpendicularObstacleNearCorridorEdge() {
-        // AC #2, Task 3.2: Perpendicular obstacle near corridor edge tightens bounds
+        // Perpendicular obstacle near corridor edge tightens bounds
         PathOrderer orderer = new PathOrderer();
         EdgeNudger n = new EdgeNudger(8, 30, 500, orderer);
 
@@ -641,7 +641,7 @@ public class EdgeNudgerTest {
 
     @Test
     public void shouldCenterOnSharedCoord_whenCorridorCompletelyBlocked() {
-        // AC #1, Task 3.3: Multiple straddling obstacles — corridor completely blocked
+        // Multiple straddling obstacles — corridor completely blocked
         List<String> ids = List.of("c0", "c1", "c2");
         List<List<AbsoluteBendpointDto>> bendpointLists = new ArrayList<>();
         bendpointLists.add(new ArrayList<>(List.of(
@@ -677,7 +677,7 @@ public class EdgeNudgerTest {
 
     @Test
     public void shouldCenterOnSharedCoord_whenVerticalCorridorBlocked() {
-        // AC #1, Task 3.4: Vertical corridor equivalent
+        // Vertical corridor equivalent
         List<String> ids = List.of("c0", "c1");
         List<List<AbsoluteBendpointDto>> bendpointLists = new ArrayList<>();
         bendpointLists.add(new ArrayList<>(List.of(
@@ -707,7 +707,7 @@ public class EdgeNudgerTest {
         }
     }
 
-    // --- Story 10-25: Margin-aware corridor bounds (AC #2) ---
+    // --- Margin-aware corridor bounds ---
 
     @Test
     public void shouldRespectObstacleMargin_whenComputingCorridorBounds() {

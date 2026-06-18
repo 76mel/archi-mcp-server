@@ -16,7 +16,7 @@ import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IDiagramModelArchimateObject;
 
 /**
- * Tests for {@link AddToViewCommand} (Story 7-7).
+ * Tests for {@link AddToViewCommand}.
  *
  * <p>Uses real EMF objects via {@link IArchimateFactory#eINSTANCE} to test
  * execute (add to view) and undo (remove from view) behavior.</p>

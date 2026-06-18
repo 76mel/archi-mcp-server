@@ -24,7 +24,7 @@ import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
  * Handler for folder mutation tools: create-folder, update-folder,
- * move-to-folder (Story 8-5).
+ * move-to-folder.
  *
  * <p>Maintains read/write separation from the existing {@code FolderHandler}
  * which handles read-only folder queries (get-folders, get-folder-tree).</p>
@@ -101,7 +101,7 @@ public class FolderMutationHandler {
                         + "Requires parentId (the folder to create under) and name. "
                         + "Top-level ArchiMate layer folders are model-managed and cannot be "
                         + "created manually. Fully undoable via Ctrl+Z in Archi. "
-                        + "Respects approval mode (set-approval-mode). "
+                        + "Respects approval mode (human-gated in Archi). "
                         + "Related: get-folders (find parent folder IDs), get-folder-tree "
                         + "(view hierarchy), update-folder (rename/annotate), "
                         + "move-to-folder (reorganize).")
@@ -202,7 +202,7 @@ public class FolderMutationHandler {
                         + "properties (key-value pairs; set value to null to remove a property). "
                         + "Only provided fields are modified; omitted fields remain unchanged. "
                         + "Fully undoable via Ctrl+Z in Archi. "
-                        + "Respects approval mode (set-approval-mode). "
+                        + "Respects approval mode (human-gated in Archi). "
                         + "Related: get-folders (inspect folder), create-folder (create new), "
                         + "move-to-folder (reorganize).")
                 .inputSchema(inputSchema)
@@ -287,7 +287,7 @@ public class FolderMutationHandler {
                         + "folder and placed in the target folder. When moving a folder, all its "
                         + "contents move with it. Cannot move top-level default ArchiMate folders "
                         + "or create circular folder references. Fully undoable via Ctrl+Z in Archi. "
-                        + "Respects approval mode (set-approval-mode). "
+                        + "Respects approval mode (human-gated in Archi). "
                         + "Related: get-folders (find target folder IDs), get-folder-tree "
                         + "(view hierarchy), create-folder (create destination folders first).")
                 .inputSchema(inputSchema)

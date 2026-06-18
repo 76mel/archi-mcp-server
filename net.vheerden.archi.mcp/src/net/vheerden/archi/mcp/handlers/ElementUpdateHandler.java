@@ -24,7 +24,7 @@ import net.vheerden.archi.mcp.response.dto.RelationshipSemanticAttributes;
 import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
- * Handler for the update-element tool (Story 7-3).
+ * Handler for the update-element tool.
  *
  * <p>Updates existing ArchiMate element and relationship fields (name, documentation, properties).
  * Supports both GUI-attached (immediate) and batch (queued) operational modes.</p>
@@ -226,7 +226,7 @@ public class ElementUpdateHandler {
                 + "(\"\") clears all specializations. Omit to leave the current specialization "
                 + "unchanged.");
 
-        // Story 14-7 (G1): ArchiMate semantic attributes (type-conditional)
+        // ArchiMate semantic attributes (type-conditional)
         Map<String, Object> accessTypeProp = new LinkedHashMap<>();
         accessTypeProp.put("type", "string");
         accessTypeProp.put("enum", List.of("access", "read", "write", "readwrite"));
@@ -306,7 +306,7 @@ public class ElementUpdateHandler {
             Map<String, String> properties = HandlerUtils.optionalMapParamWithNulls(args, "properties");
             // Specialization clear semantics: empty string means "clear all profiles".
             String specialization = HandlerUtils.optionalStringParamAllowEmpty(args, "specialization");
-            // Story 14-7 (G1): semantic attributes (type-conditional)
+            // semantic attributes (type-conditional)
             RelationshipSemanticAttributes semanticAttributes =
                     ElementCreationHandler.readSemanticAttributes(args);
 

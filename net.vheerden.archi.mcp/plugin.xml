@@ -19,12 +19,40 @@
             id="net.vheerden.archi.mcp.toggleServer"
             name="%command.toggleServer.name"
             description="%command.toggleServer.description"/>
+      <!-- Human-owned approval-mode toggle (the control plane lives with the human, not the agent) -->
+      <command
+            id="net.vheerden.archi.mcp.toggleApprovalMode"
+            name="%command.toggleApprovalMode.name"
+            description="%command.toggleApprovalMode.description"/>
+      <!-- Open/focus the Pending Approvals dock view (label carries the ambient pending count) -->
+      <command
+            id="net.vheerden.archi.mcp.openPendingApprovals"
+            name="%command.openPendingApprovals.name"
+            description="%command.openPendingApprovals.description"/>
    </extension>
 
    <extension point="org.eclipse.ui.handlers">
       <handler
             commandId="net.vheerden.archi.mcp.toggleServer"
             class="net.vheerden.archi.mcp.ui.ToggleServerHandler"/>
+      <handler
+            commandId="net.vheerden.archi.mcp.toggleApprovalMode"
+            class="net.vheerden.archi.mcp.ui.ToggleApprovalModeHandler"/>
+      <handler
+            commandId="net.vheerden.archi.mcp.openPendingApprovals"
+            class="net.vheerden.archi.mcp.ui.OpenPendingApprovalsHandler"/>
+   </extension>
+
+   <!-- The Pending Approvals dock view (human-facing approve/reject surface) -->
+   <extension point="org.eclipse.ui.views">
+      <category
+            id="net.vheerden.archi.mcp.views"
+            name="%view.category.name"/>
+      <view
+            id="net.vheerden.archi.mcp.view.pendingApprovals"
+            name="%view.pendingApprovals.name"
+            category="net.vheerden.archi.mcp.views"
+            class="net.vheerden.archi.mcp.ui.PendingApprovalsView"/>
    </extension>
 
    <extension point="org.eclipse.ui.menus">
@@ -35,6 +63,14 @@
             <command
                   commandId="net.vheerden.archi.mcp.toggleServer"
                   label="%command.toggleServer.label"
+                  style="push"/>
+            <command
+                  commandId="net.vheerden.archi.mcp.toggleApprovalMode"
+                  label="%command.toggleApprovalMode.label"
+                  style="push"/>
+            <command
+                  commandId="net.vheerden.archi.mcp.openPendingApprovals"
+                  label="%command.openPendingApprovals.label"
                   style="push"/>
          </menu>
       </menuContribution>

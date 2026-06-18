@@ -20,7 +20,7 @@ import net.vheerden.archi.mcp.response.ErrorCode;
 /**
  * Stateless styling validation, read, and post-computation helpers.
  *
- * <p>Extracted from ArchiModelAccessorImpl (Story 12-4) to improve cohesion.
+ * <p>Extracted from ArchiModelAccessorImpl to improve cohesion.
  * Package-visible — only ArchiModelAccessorImpl should use this class.</p>
  */
 final class StylingHelper {
@@ -157,10 +157,10 @@ final class StylingHelper {
 
     /**
      * Maps the user-facing lineStyle enum to the int stored by
-     * {@code IDiagramModelObject.setLineStyle(int)} (Task-9 empirical correction —
+     * {@code IDiagramModelObject.setLineStyle(int)} (empirical correction —
      * lineStyle is a view-object property in Archi 5.8, NOT a connection property;
      * `IDiagramModelConnection.setType()` LINE_DASHED bits do not drive ArchiMate
-     * connection figure rendering. See `_bmad-output/implementation-artifacts/14-2-empirical-2026-05-26/EMPIRICAL-FINDINGS.md`).
+     * connection figure rendering).
      */
     static int mapLineStyleToInt(String value) {
         return switch (value.toLowerCase()) {
@@ -421,7 +421,7 @@ final class StylingHelper {
 
     /**
      * Assembles a composite font string from the existing string + any non-null override
-     * components. Implements the "merge then write" semantic in AC2/AC3.
+     * components. Implements the "merge then write" semantic.
      *
      * <ul>
      *   <li>{@code existing == null/empty}: build a minimal version-0 string with the supplied
@@ -761,8 +761,8 @@ final class StylingHelper {
     }
 
     /**
-     * Reads the labelExpression IFeatures entry on a view object (Story 14-1 G4 read-back,
-     * surfaced via {@code get-view-contents} by Story C3 v1.6). Returns null when the feature
+     * Reads the labelExpression IFeatures entry on a view object (labelExpression read-back,
+     * surfaced via {@code get-view-contents} since v1.6). Returns null when the feature
      * is absent or stored as empty-string. Mirrors the empty-to-null normalization in
      * {@code ArchiModelAccessorImpl.computePostLabelExpression} so the DTO field is omitted
      * via {@code @JsonInclude(NON_NULL)} when the view-object is at Archi default.
@@ -791,7 +791,7 @@ final class StylingHelper {
 
     /**
      * Post-styling figureType DTO value. Empty styling input is treated as "unchanged"
-     * (AC-11 — figureType has no symmetric "clear" semantics). Returns null when the
+     * (figureType has no symmetric "clear" semantics). Returns null when the
      * resolved figure type is Archi's default (tabbed) so the DTO field is omitted.
      */
     static String computePostStylingFigureType(String currentValue, String stylingValue) {
@@ -897,7 +897,7 @@ final class StylingHelper {
     }
 
     /**
-     * Reads the label visibility state of a connection (Story 13-1).
+     * Reads the label visibility state of a connection.
      * Returns null when the label is visible (default), Boolean.FALSE when hidden.
      * This keeps the DTO field omitted from JSON for the common case.
      */
@@ -905,7 +905,7 @@ final class StylingHelper {
         return conn.isNameVisible() ? null : Boolean.FALSE;
     }
 
-    // ---- Connection typography + line style (Story 14-2 G5) ----
+    // ---- Connection typography + line style ----
 
     static String readConnectionFontName(IDiagramModelConnection conn) {
         return parseFontName(conn.getFont());
@@ -920,11 +920,10 @@ final class StylingHelper {
     }
 
     /**
-     * Reads the labelExpression IFeatures entry on a view connection (Story C3 v1.6).
+     * Reads the labelExpression IFeatures entry on a view connection (since v1.6).
      * {@code IDiagramModelConnection} transitively implements {@code IFeatures} via
      * {@code IConnectable → IDiagramModelComponent → IArchimateModelObject → IFeatures}
-     * (verified via {@code javap} during the Story C3 Task 0 disambiguation gate, OQ-1
-     * disposition (a) DEFAULT). Returns null when the feature is absent or stored as
+     * (verified via {@code javap} during a disambiguation gate). Returns null when the feature is absent or stored as
      * empty-string. Mirrors the empty-to-null normalization of {@link #readLabelExpression}.
      */
     static String readConnectionLabelExpression(IDiagramModelConnection conn) {

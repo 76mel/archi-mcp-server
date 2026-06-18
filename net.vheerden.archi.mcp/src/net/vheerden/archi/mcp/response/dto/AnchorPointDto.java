@@ -1,7 +1,7 @@
 package net.vheerden.archi.mcp.response.dto;
 
 /**
- * Data Transfer Object for a connection anchor reference point (Story 8-0d).
+ * Data Transfer Object for a connection anchor reference point.
  *
  * <p>Represents the <strong>center point</strong> of a view object, used as
  * the anchor reference for connection routing calculations. This is the same
@@ -18,7 +18,7 @@ package net.vheerden.archi.mcp.response.dto;
  *
  * <p>Coordinates are absolute canvas coordinates. For elements nested inside
  * groups, parent offsets are accumulated to produce absolute positions.
- * (Fixed in Story 10.15 to use absolute canvas space.)</p>
+ * (Uses absolute canvas space.)</p>
  *
  * <p><strong>Note:</strong> For elements with zero width or height
  * (e.g., collapsed/minimized elements), the "center" will equal

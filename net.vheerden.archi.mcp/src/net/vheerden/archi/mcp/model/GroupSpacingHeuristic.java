@@ -14,8 +14,8 @@ package net.vheerden.archi.mcp.model;
  * more than 6 connections (the canonical hub-candidate threshold per
  * archimate-view-patterns.md §1). Pinned by JUnit
  * {@code GroupSpacingHeuristicTest} (pure-unit, all branches + boundary
- * tests) and {@code ApplyGroupSpacingRecommendationsToolTest} (AC-7.1
- * connected, AC-7.2 unconnected, AC-7.8 boundary).</p>
+ * tests) and {@code ApplyGroupSpacingRecommendationsToolTest}
+ * (connected, unconnected, boundary).</p>
  *
  * <p>This is an EMF-free utility class so the JUnit pin can run as a pure-unit
  * test (no OSGi context required, no transitive class-loading of

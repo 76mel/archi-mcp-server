@@ -38,7 +38,7 @@ public class ViewObjectDtoTest {
         assertEquals(dto1.hashCode(), dto2.hashCode());
     }
 
-    // ---- Story 14-1 (G4): labelExpression field tests ----
+    // ---- G4: labelExpression field tests ----
 
     @Test
     public void shouldExposeLabelExpression_whenCanonicalConstructorPopulatesIt() {
@@ -56,7 +56,7 @@ public class ViewObjectDtoTest {
     public void shouldDefaultLabelExpressionToNull_whenBackCompatConstructorUsed() {
         // The 21-field back-compat constructor delegates to the canonical 22-field with
         // a trailing null — labelExpression must default to null so add-to-view paths,
-        // which do not surface labelExpression, behave identically to before the story.
+        // which do not surface labelExpression, behave identically to before the field was added.
         ViewObjectDto dto = new ViewObjectDto(
                 "vo-1", "e-1", "Name", "Type", 0, 0, 120, 55,
                 null, null, null, null, null,

@@ -2,6 +2,7 @@ package net.vheerden.archi.mcp.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.eclipse.emf.ecore.EObject;
 
@@ -14,12 +15,67 @@ import net.vheerden.archi.mcp.response.dto.FolderTreeDto;
 /**
  * Folder navigation, search, and DTO conversion helpers.
  *
- * <p>Extracted from ArchiModelAccessorImpl (Story 12-4) to improve cohesion.
+ * <p>Extracted from ArchiModelAccessorImpl to improve cohesion.
  * Package-visible — only ArchiModelAccessorImpl should use this class.</p>
  */
 final class FolderOperations {
 
     private FolderOperations() {}
+
+    // ---- Read facade: folder navigation/search assembly over a captured model ----
+
+    static List<FolderDto> getRootFolders(IArchimateModel model) {
+        List<FolderDto> result = new ArrayList<>();
+        for (IFolder folder : model.getFolders()) {
+            result.add(convertToFolderDto(folder));
+        }
+        return result;
+    }
+
+    static Optional<FolderDto> getFolderById(IArchimateModel model, String id) {
+        IFolder found = findFolderById(model, id);
+        if (found == null) {
+            return Optional.empty();
+        }
+        return Optional.of(convertToFolderDto(found));
+    }
+
+    static List<FolderDto> getFolderChildren(IArchimateModel model, String parentId) {
+        IFolder parent = findFolderById(model, parentId);
+        if (parent == null) {
+            return List.of();
+        }
+        List<FolderDto> result = new ArrayList<>();
+        for (IFolder child : parent.getFolders()) {
+            result.add(convertToFolderDto(child));
+        }
+        return result;
+    }
+
+    static List<FolderTreeDto> getFolderTree(IArchimateModel model, String rootId, int maxDepth) {
+        if (rootId != null) {
+            IFolder root = findFolderById(model, rootId);
+            if (root == null) {
+                return List.of();
+            }
+            return List.of(buildFolderTree(root, maxDepth, 0));
+        }
+        // Full tree: all root folders
+        List<FolderTreeDto> result = new ArrayList<>();
+        for (IFolder folder : model.getFolders()) {
+            result.add(buildFolderTree(folder, maxDepth, 0));
+        }
+        return result;
+    }
+
+    static List<FolderDto> searchFolders(IArchimateModel model, String nameQuery) {
+        String lowerQuery = nameQuery.toLowerCase();
+        List<FolderDto> result = new ArrayList<>();
+        for (IFolder folder : model.getFolders()) {
+            collectMatchingFolders(folder, lowerQuery, result);
+        }
+        return result;
+    }
 
     static IFolder findFolderById(IArchimateModel model, String id) {
         for (IFolder root : model.getFolders()) {

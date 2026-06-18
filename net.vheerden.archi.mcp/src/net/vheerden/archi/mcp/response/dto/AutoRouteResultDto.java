@@ -5,7 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Result DTO for auto-route-connections (Story 9-5, enhanced Story 10-11, 10-21, 10-30, 10-31, 10-32, 11-31, 13-7, backlog-b14, backlog-b15, backlog-b22, B61, RoutingPreconditions.AutoRouteStructuredWarning, backlog-auto-route-terminals-only-interior-termination-veto, Story 14-12).
+ * Result DTO for auto-route-connections.
  *
  * @param viewId              the view that was routed
  * @param connectionsRouted   number of connections whose bendpoints were updated
@@ -13,36 +13,36 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @param strategy            the routing strategy used ("orthogonal" or "clear")
  * @param routerTypeSwitched  true if the view's connectionRouterType was switched
  *                            from manhattan to manual (bendpoint) mode
- * @param labelsOptimized     number of connection labels whose position was changed (Story 11-31)
- * @param crossingsBefore     crossing count among targeted connections before routing (backlog-b14); omitted when 0
- * @param crossingsAfter      crossing count among targeted connections after routing (backlog-b14); omitted when 0
- * @param straightLineCrossings straight-line crossing estimate before routing (backlog-b22); omitted when 0
- * @param connectionsSkipped  connections not modified (B61: already-orthogonal + obstacle-veto + crossing-veto + interior-veto + zigzag-veto); omitted when 0
- * @param vetoedByObstacle    connections where terminals-only refused a rectification because the new L-bend would cross an unrelated element (B61); omitted when 0
- * @param vetoedByCrossing    connections where terminals-only refused a rectification because the new path would add edge crossings with other connections (B61); omitted when 0
+ * @param labelsOptimized     number of connection labels whose position was changed
+ * @param crossingsBefore     crossing count among targeted connections before routing; omitted when 0
+ * @param crossingsAfter      crossing count among targeted connections after routing; omitted when 0
+ * @param straightLineCrossings straight-line crossing estimate before routing; omitted when 0
+ * @param connectionsSkipped  connections not modified (already-orthogonal + obstacle-veto + crossing-veto + interior-veto + zigzag-veto); omitted when 0
+ * @param vetoedByObstacle    connections where terminals-only refused a rectification because the new L-bend would cross an unrelated element; omitted when 0
+ * @param vetoedByCrossing    connections where terminals-only refused a rectification because the new path would add edge crossings with other connections; omitted when 0
  * @param vetoedByInterior    connections where terminals-only refused a rectification because the new L-bend would terminate strictly inside the source or target element (interior termination, a Tier-1 routing defect); omitted when 0
  * @param vetoedByZigzag      connections where terminals-only refused a rectification because the new L-bend would introduce a zigzag/reversal the original path did not have (a Tier-1 routing defect); omitted when 0
  * @param warnings            non-fatal issues (e.g. invalid connection IDs); omitted when empty
  * @param failed              connections that failed constraint validation; omitted when empty
  * @param recommendations     move recommendations for blocking elements on the advisory path
  *                            (autoNudge=false); omitted when empty. Reserved for advisory mode
- *                            since Story 14-12 — when autoNudge=true is blocked by sibling
+ *                            — when autoNudge=true is blocked by sibling
  *                            overlap, recommendations move to {@link #blockedRecommendations}.
  * @param violations          constraint violations for force-mode applied routes; omitted when empty
- * @param nudgedElements      elements automatically nudged by autoNudge (Story 13-7); omitted when empty
- * @param resizedGroups       groups automatically resized to contain nudged elements (backlog-b15); omitted when empty
+ * @param nudgedElements      elements automatically nudged by autoNudge; omitted when empty
+ * @param resizedGroups       groups automatically resized to contain nudged elements; omitted when empty
  * @param structuredWarnings  machine-parseable counterparts to {@link #warnings} entries that
  *                            carry a stable {@code code} value plus optional remediation
- *                            metadata for deterministic LLM iteration (Story
- *                            RoutingPreconditions.AutoRouteStructuredWarning, Row E); omitted
+ *                            metadata for deterministic LLM iteration (see
+ *                            {@code RoutingPreconditions.AutoRouteStructuredWarning}); omitted
  *                            when empty
  * @param blockedRecommendations recommendations the autoNudge phase would have applied
  *                            automatically but did not, because sibling-element overlap
- *                            blocked the nudge (Story 14-12); omitted when empty. When
+ *                            blocked the nudge; omitted when empty. When
  *                            populated, the agent must apply these manually (typically
  *                            by resolving the underlying overlap via layout-within-group
  *                            and re-running auto-route-connections).
- * @param nudgeBlockedReason  canonical reason the autoNudge was blocked (Story 14-12);
+ * @param nudgeBlockedReason  canonical reason the autoNudge was blocked;
  *                            omitted (null) when nudge was not requested or ran to
  *                            completion. Current value: {@code "sibling_overlap"}.
  *                            See {@link AutoRouteBlockedReasons}.
@@ -134,9 +134,8 @@ public record AutoRouteResultDto(
     }
 
     /**
-     * Convenience constructor accepting structuredWarnings without the B61 vetoed-counters
-     * (Story RoutingPreconditions.AutoRouteStructuredWarning, Row E). Defaults
-     * connectionsSkipped and all four vetoed-counters to 0; used by the autoNudge-skip
+     * Convenience constructor accepting structuredWarnings without the vetoed-counters.
+     * Defaults connectionsSkipped and all four vetoed-counters to 0; used by the autoNudge-skip
      * emission path in {@code ArchiModelAccessorImpl.autoRouteConnections}.
      */
     public AutoRouteResultDto(String viewId, int connectionsRouted,
@@ -176,7 +175,7 @@ public record AutoRouteResultDto(
 
     /**
      * Convenience constructor without connectionsSkipped (backward compat with 15-param
-     * callers from before B61). Defaults connectionsSkipped to 0.
+     * callers). Defaults connectionsSkipped to 0.
      */
     public AutoRouteResultDto(String viewId, int connectionsRouted,
             int connectionsFailed, String strategy, boolean routerTypeSwitched,

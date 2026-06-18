@@ -23,7 +23,7 @@ import net.vheerden.archi.mcp.session.SessionManager;
 
 /**
  * Handler for deletion tools: delete-element, delete-relationship,
- * delete-view, and delete-folder (Story 8-4).
+ * delete-view, and delete-folder.
  *
  * <p>Each tool cascade-removes dependent model objects as appropriate:
  * <ul>
@@ -98,7 +98,7 @@ public class DeletionHandler {
                         + "(many relationships or view references) may produce large cascades. "
                         + "Use get-relationships to check dependencies before deleting. "
                         + "Fully undoable via Ctrl+Z in Archi. "
-                        + "Respects approval mode (set-approval-mode). "
+                        + "Respects approval mode (human-gated in Archi). "
                         + "Related: get-element (inspect before deleting), get-relationships "
                         + "(check dependencies), search-elements (find elements to delete).")
                 .inputSchema(inputSchema)
@@ -170,7 +170,7 @@ public class DeletionHandler {
                         + "Cascades: removes all view connections representing this relationship "
                         + "across all views. The connected elements are NOT deleted. Returns "
                         + "deletion confirmation with cascade counts. Fully undoable via Ctrl+Z "
-                        + "in Archi. Respects approval mode (set-approval-mode). "
+                        + "in Archi. Respects approval mode (human-gated in Archi). "
                         + "Related: get-relationships (inspect before deleting), get-element "
                         + "(check connected elements).")
                 .inputSchema(inputSchema)
@@ -242,7 +242,7 @@ public class DeletionHandler {
                 .description("[Mutation] Delete an ArchiMate view (diagram) from the model. "
                         + "Removes the view and all its visual contents. The underlying model "
                         + "elements and relationships are NOT deleted. Fully undoable via Ctrl+Z "
-                        + "in Archi. Respects approval mode (set-approval-mode). "
+                        + "in Archi. Respects approval mode (human-gated in Archi). "
                         + "Related: get-views (list views), get-view-contents "
                         + "(inspect before deleting).")
                 .inputSchema(inputSchema)
@@ -322,7 +322,7 @@ public class DeletionHandler {
                         + "force: true to cascade-delete all contents (elements, relationships, "
                         + "views, subfolders). Top-level default ArchiMate folders (e.g., "
                         + "'Business', 'Application', 'Views') cannot be deleted. Fully undoable "
-                        + "via Ctrl+Z in Archi. Respects approval mode (set-approval-mode). "
+                        + "via Ctrl+Z in Archi. Respects approval mode (human-gated in Archi). "
                         + "Related: get-folders (inspect folder contents), get-folder-tree "
                         + "(view hierarchy).")
                 .inputSchema(inputSchema)
