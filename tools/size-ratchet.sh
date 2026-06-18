@@ -38,6 +38,20 @@
 #
 set -uo pipefail
 
+# ---- locale pin: REQUIRED, not cosmetic -------------------------------------
+# `sort` is locale-aware. macOS (dev box) collates case-insensitively, so lines
+# beginning `boolean`/`default`/`void` interleave alphabetically among the
+# uppercase-initial return types; the ubuntu CI runner sorts in the C locale
+# (ASCII: all uppercase-initial first, lowercase pushed to the bottom). The
+# signature baseline is COMMITTED, so an unpinned sort yields the SAME method
+# SET in a DIFFERENT order on the two platforms -> spurious "drift" -> a red
+# ci-ratchet on a byte-clean release (this exact false positive shipped on
+# v1.7.0, public commit 37589de). Pinning C locale makes the sort that WRITES
+# the baseline (--generate) and the sort that DIFFS it (pawl 3) byte-identical
+# on every platform. Do NOT remove this, and regenerate the baseline ONLY
+# through this script so the same pin applies to both sides.
+export LC_ALL=C LANG=C
+
 # ---- frozen ceilings (lower-only) -------------------------------------------
 # Today's exact measured values (no padding). Lower these in the same PR that
 # shrinks the file. NEVER raise them.
@@ -105,7 +119,7 @@ extract_signatures() {
     | grep '(' \
     | sed -E 's/^(@[A-Za-z][A-Za-z0-9]*(\([^)]*\))? )+//' \
     | sed -E 's/^ +//; s/ +$//' \
-    | sort
+    | sort   # C-collation (pinned via LC_ALL=C at top) -> deterministic across macOS/Linux
 }
 
 # ---- --generate mode --------------------------------------------------------
