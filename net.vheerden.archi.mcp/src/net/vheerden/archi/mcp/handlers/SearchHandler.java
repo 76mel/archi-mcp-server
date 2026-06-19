@@ -214,7 +214,7 @@ public class SearchHandler {
         properties.put("format", formatProp);
 
         McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
-                "object", properties, List.of("query"), null, null, null);
+                "object", properties, null, null, null, null);
 
         McpSchema.Tool tool = McpSchema.Tool.builder()
                 .name("search-elements")
@@ -246,16 +246,21 @@ public class SearchHandler {
             McpSyncServerExchange exchange, McpSchema.CallToolRequest request) {
         logger.info("Handling search-elements request");
         try {
-            // Extract and validate required query parameter
+            // Extract optional query parameter (missing/null treated as empty string)
             Object queryObj = (request.arguments() != null) ? request.arguments().get("query") : null;
-            if (!(queryObj instanceof String query)) {
-                ErrorResponse error = new ErrorResponse(
-                        ErrorCode.INVALID_PARAMETER,
-                        "The 'query' parameter is required and must be a string",
-                        null,
-                        "Provide a search term (e.g. query: 'customer') or use an empty string (query: '') to list all elements",
-                        null);
-                return buildResult(formatter.toJsonString(formatter.formatError(error)), true);
+            String query = "";
+            if (queryObj != null) {
+                if (queryObj instanceof String q) {
+                    query = q;
+                } else {
+                    ErrorResponse error = new ErrorResponse(
+                            ErrorCode.INVALID_PARAMETER,
+                            "The 'query' parameter must be a string",
+                            null,
+                            "Provide a search term (e.g. query: 'customer') or use an empty string (query: '') to list all elements",
+                            null);
+                    return buildResult(formatter.toJsonString(formatter.formatError(error)), true);
+                }
             }
 
             // Extract optional type filter (blank treated as no filter)
