@@ -73,7 +73,7 @@ public class SearchHandlerTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    public void shouldHaveQueryParameterInSchema() {
+    public void shouldNotRequireQueryParameterInSchema() {
         StubAccessor accessor = new StubAccessor(true);
         SearchHandler handler = new SearchHandler(accessor, formatter, registry, null);
         handler.registerTools();
@@ -91,8 +91,7 @@ public class SearchHandlerTest {
         assertNotNull(queryProp.get("description"));
 
         List<String> required = tool.inputSchema().required();
-        assertNotNull(required);
-        assertTrue(required.contains("query"));
+        assertTrue(required == null || !required.contains("query"));
     }
 
     // ---- Success Path Tests ----
@@ -195,23 +194,18 @@ public class SearchHandlerTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    public void shouldReturnInvalidParameterError_whenQueryNull() throws Exception {
+    public void shouldReturnAllElements_whenQueryMissing() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
         SearchHandler handler = new SearchHandler(accessor, formatter, registry, null);
         handler.registerTools();
 
         McpSchema.CallToolResult result = invokeSearchElements(null);
 
-        assertTrue(result.isError());
+        assertFalse(result.isError());
         Map<String, Object> envelope = parseJson(result);
-        Map<String, Object> error = (Map<String, Object>) envelope.get("error");
-        assertNotNull(error);
-        assertEquals("INVALID_PARAMETER", error.get("code"));
-        assertEquals("The 'query' parameter is required and must be a string", error.get("message"));
-        String suggestion = (String) error.get("suggestedCorrection");
-        assertNotNull(suggestion);
-        assertTrue("suggestedCorrection should mention empty string usage",
-                suggestion.contains("empty string"));
+        List<Map<String, Object>> results = (List<Map<String, Object>>) envelope.get("result");
+        assertNotNull(results);
+        assertEquals(3, results.size());
     }
 
     @SuppressWarnings("unchecked")
@@ -401,7 +395,7 @@ public class SearchHandlerTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    public void shouldReturnInvalidParameterError_whenArgumentsNull() throws Exception {
+    public void shouldReturnAllElements_whenArgumentsNull() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
         SearchHandler handler = new SearchHandler(accessor, formatter, registry, null);
         handler.registerTools();
@@ -411,16 +405,16 @@ public class SearchHandlerTest {
                 "search-elements", null);
         McpSchema.CallToolResult result = spec.callHandler().apply(null, request);
 
-        assertTrue(result.isError());
+        assertFalse(result.isError());
         Map<String, Object> envelope = parseJson(result);
-        Map<String, Object> error = (Map<String, Object>) envelope.get("error");
-        assertNotNull(error);
-        assertEquals("INVALID_PARAMETER", error.get("code"));
+        List<Map<String, Object>> results = (List<Map<String, Object>>) envelope.get("result");
+        assertNotNull(results);
+        assertEquals(3, results.size());
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    public void shouldReturnInvalidParameterError_whenQueryValueExplicitlyNull() throws Exception {
+    public void shouldReturnAllElements_whenQueryValueExplicitlyNull() throws Exception {
         StubAccessor accessor = new StubAccessor(true);
         SearchHandler handler = new SearchHandler(accessor, formatter, registry, null);
         handler.registerTools();
@@ -432,11 +426,11 @@ public class SearchHandlerTest {
                 "search-elements", args);
         McpSchema.CallToolResult result = spec.callHandler().apply(null, request);
 
-        assertTrue(result.isError());
+        assertFalse(result.isError());
         Map<String, Object> envelope = parseJson(result);
-        Map<String, Object> error = (Map<String, Object>) envelope.get("error");
-        assertNotNull(error);
-        assertEquals("INVALID_PARAMETER", error.get("code"));
+        List<Map<String, Object>> results = (List<Map<String, Object>>) envelope.get("result");
+        assertNotNull(results);
+        assertEquals(3, results.size());
     }
 
     // ---- Error Path Tests ----
