@@ -224,7 +224,7 @@ The server exposes **69 MCP tools** organised into functional categories.
 
 | Tool | Description |
 |---|---|
-| `search-elements` | Full-text search across element names, documentation, and properties with optional type, layer, and `specialization` filters |
+| `search-elements` | Full-text search across element names, documentation, and properties. Omit `query` or pass `query: ""` to list all elements; optional type, layer, and `specialization` filters narrow results |
 | `search-relationships` | Search all relationships by text, type, source/target element layer, and `specialization` — no element ID needed |
 | `get-or-create-element` | Discovery-first — returns existing element if exact name+type match exists, otherwise creates new |
 | `search-and-create` | Combined search + conditional create with duplicate candidate display |

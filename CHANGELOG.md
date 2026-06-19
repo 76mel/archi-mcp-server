@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.7.1 (2026-06-19)
+
+Patch release.
+
+### Fixes
+
+- **`search-elements` now treats `query` as optional at runtime and in the MCP schema.** Omitting `query`, passing `null`, or using `query: ""` now lists all elements, matching the tool description. Non-string query values still reject with `INVALID_PARAMETER`, and the existing type/layer/specialization filters continue to narrow the result set.
+
 ## v1.7.0 (2026-06-18)
 
 Security & hardening release. v1.7 hardens the server's trust boundary for the agent era: Origin/Host header validation **on by default**, **opt-in bearer-token authentication**, the TLS keystore password and the auth token moved out of the plaintext preference store into the **OS keychain** (Equinox secure storage), **request-size / idle-timeout / bounded-thread-pool** guardrails on the embedded Jetty server, **bounded remote-image downloads**, and **idle-TTL eviction** of per-session state — with the full responsibility boundary written down in a new top-level **`SECURITY.md`**. It also adds a human-owned mutation **approval queue** with a dockable desktop review surface (the agent can no longer un-gate itself), **scopes agent undo/redo** to the agent's own edits, and adds a build-from-source + CI safety net for the full test suite. Three tools were removed from the MCP surface — the legacy Zest `compute-layout` tool, and the two agent-side approval-control tools (the gate toggle and approve/reject, now human-only) — so the tool count is **69** (down from 72; resources unchanged at **14**).
